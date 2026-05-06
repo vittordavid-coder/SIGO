@@ -2722,12 +2722,13 @@ export default function App() {
             </div>
           </button>
           <Button 
-            variant="ghost" 
+            variant="outline" 
             size="sm"
-            className="text-gray-400 hover:text-red-600 hover:bg-red-50 h-8 w-8 p-0"
+            className="text-red-600 hover:text-red-700 border-red-200 hover:border-red-300 hover:bg-red-50 h-8 px-2.5 gap-1.5 ml-2 transition-all shadow-sm font-semibold"
             onClick={handleLogout}
           >
-            <LogOut className="w-4 h-4" />
+            <LogOut className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline text-xs">Sair</span>
           </Button>
         </div>
       </header>

@@ -1851,7 +1851,7 @@ function ContractTab({
                 <Plus className="w-4 h-4 mr-2" /> Novo Contrato
               </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-4xl max-h-[95vh] flex flex-col overflow-hidden">
+            <DialogContent className="max-w-6xl w-[95vw] max-h-[95vh] flex flex-col overflow-hidden">
               <form onSubmit={handleSubmit} className="flex flex-col h-full">
                 <DialogHeader className="p-6 pb-2">
                   <DialogTitle className="text-2xl font-bold">

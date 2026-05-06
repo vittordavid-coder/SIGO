@@ -11,8 +11,11 @@ function Dialog({ ...props }: DialogPrimitive.Root.Props) {
   return <DialogPrimitive.Root data-slot="dialog" {...props} />
 }
 
-function DialogTrigger({ ...props }: DialogPrimitive.Trigger.Props) {
-  return <DialogPrimitive.Trigger data-slot="dialog-trigger" {...props} />
+function DialogTrigger({ asChild, children, ...props }: DialogPrimitive.Trigger.Props & { asChild?: boolean }) {
+  if (asChild && React.isValidElement(children)) {
+    return <DialogPrimitive.Trigger data-slot="dialog-trigger" render={children as React.ReactElement} {...props} />
+  }
+  return <DialogPrimitive.Trigger data-slot="dialog-trigger" {...props}>{children}</DialogPrimitive.Trigger>
 }
 
 function DialogPortal({ ...props }: DialogPrimitive.Portal.Props) {
@@ -132,8 +135,23 @@ function DialogTitle({ className, ...props }: DialogPrimitive.Title.Props) {
 
 function DialogDescription({
   className,
+  asChild,
+  children,
   ...props
-}: DialogPrimitive.Description.Props) {
+}: DialogPrimitive.Description.Props & { asChild?: boolean }) {
+  if (asChild && React.isValidElement(children)) {
+    return (
+      <DialogPrimitive.Description
+        data-slot="dialog-description"
+        className={cn(
+          "text-sm text-muted-foreground *:[a]:underline *:[a]:underline-offset-3 *:[a]:hover:text-foreground",
+          className
+        )}
+        render={children as React.ReactElement}
+        {...props}
+      />
+    )
+  }
   return (
     <DialogPrimitive.Description
       data-slot="dialog-description"
@@ -142,7 +160,9 @@ function DialogDescription({
         className
       )}
       {...props}
-    />
+    >
+      {children}
+    </DialogPrimitive.Description>
   )
 }
 
