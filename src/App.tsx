@@ -535,11 +535,29 @@ export default function App() {
 
           if (!hasError && allData.length > 0) {
             const camelData = allData.map(mapToCamel);
-            // Merge with blob data to preserve missing columns (like inMaintenance)
-            finalVal = camelData.map(dbItem => {
-              const blobItem = parsedBlobData.find((b: any) => b?.id && b.id === dbItem.id);
-              return blobItem ? { ...blobItem, ...dbItem } : dbItem;
+            
+            // Union both sources: keep all from DB, and add those from Blob that are missing in DB
+            const dbIds = new Set(camelData.map(item => item.id));
+            const extraBlobItems = parsedBlobData.filter((b: any) => b?.id && !dbIds.has(b.id));
+            
+            const combined = [...camelData, ...extraBlobItems];
+            
+            // Merge matching items to preserve fields from both, avoiding overwriting with null/empty from DB
+            finalVal = combined.map(item => {
+              const blobItem = parsedBlobData.find((b: any) => b?.id === item.id);
+              if (!blobItem) return item;
+              
+              // Start with blob data as it's often the historical source of truth
+              const merged = { ...blobItem };
+              // Only overwrite with database data if the value is not null/undefined
+              Object.keys(item).forEach(k => {
+                if (item[k] !== null && item[k] !== undefined) {
+                  merged[k] = item[k];
+                }
+              });
+              return merged;
             });
+            
             finalVal = deduplicateById(finalVal);
           } else if (!hasError && allData.length === 0) {
             finalVal = deduplicateById(parsedBlobData);
@@ -1238,7 +1256,12 @@ export default function App() {
       if (config.enabled) {
         const supabase = createSupabaseClient(config.url, config.key);
         if (supabase) {
-          await supabase.from('app_state').upsert({ id: 'sigo_users', content: newUsers });
+          // Update BOTH the structured users table and the legacy/blob app_state
+          await Promise.all([
+            supabase.from('users').upsert(mapToSnake(updatedUser)),
+            supabase.from('app_state').upsert({ id: 'sigo_users', content: newUsers })
+          ]);
+          console.log('[Supabase] Auth state synchronized');
         }
       }
 
@@ -1660,26 +1683,6 @@ export default function App() {
       }
     }
   }, [manpowerRecords.length, employees.length, currentUser?.id]);
-
-  // --- Auto-Sync Logic ---
-  useEffect(() => {
-    const config = getSupabaseConfig();
-    if (!config.enabled || !currentUser) return;
-
-    const timeout = setTimeout(() => {
-      console.log('[Auto-Save] Triggering synchronization...');
-      handleSyncAllToSupabase().catch(err => console.error('[Auto-Save] Fail:', err));
-    }, 5000); // Wait 5 seconds of inactivity/stability
-
-    return () => clearTimeout(timeout);
-  }, [
-    contracts, measurements, serviceProductions, measurementTemplates, 
-    calculationMemories, highwayLocations, stationGroups, cubationData, 
-    transportData, employees, dailyReports, pluviometryRecords,
-    technicalSchedules, controllerTeams, controllerEquipments,
-    manpowerRecords, teamAssignments, suppliers, purchaseRequests,
-    purchaseQuotations, purchaseOrders
-  ]);
 
   const addContract = async (contract: Omit<Contract, 'id'>) => {
     console.log('[Contract] Adding contract:', contract);
@@ -2347,6 +2350,31 @@ export default function App() {
       }
     }
   };
+
+  // --- Auto-Sync Logic ---
+  useEffect(() => {
+    const config = getSupabaseConfig();
+    if (!config.enabled || !currentUser) return;
+
+    const timeout = setTimeout(() => {
+      console.log('[Auto-Save] Triggering synchronization...');
+      handleSyncAllToSupabase().catch(err => console.error('[Auto-Save] Fail:', err));
+    }, 5000); // Wait 5 seconds of inactivity/stability
+
+    return () => clearTimeout(timeout);
+  }, [
+    contracts, measurements, serviceProductions, measurementTemplates, 
+    calculationMemories, highwayLocations, stationGroups, cubationData, 
+    transportData, employees, dailyReports, pluviometryRecords,
+    technicalSchedules, controllerTeams, controllerEquipments,
+    manpowerRecords, teamAssignments, suppliers, purchaseRequests,
+    purchaseQuotations, purchaseOrders,
+    users, resources, services, quotations, auditLogs,
+    abcConfig, bdiConfig, companyLogo, companyLogoRight,
+    defaultOrganization, timeRecords, dashboardConfig,
+    chargesPerc, otPerc, equipmentTransfers,
+    equipmentMaintenance, equipmentMonthlyData, manpowerMonthlyData
+  ]);
 
   if (!isSupabaseSynced && getSupabaseConfig().enabled) {
     return (
