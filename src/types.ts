@@ -470,6 +470,7 @@ export interface ServiceProduction {
   rainPercent: number;
   startDate: string;
   endDate: string;
+  order?: number;
   prevMonthAccumulated?: number;
   dailyData: Record<string, { actual: number; planned?: number }>; // Date string -> values
 }

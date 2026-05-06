@@ -49,6 +49,7 @@ import { Separator } from '@/components/ui/separator';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from '@/components/ui/dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 import {
   ResponsiveContainer,
   ComposedChart,
@@ -5027,6 +5028,16 @@ function ProductionControlView({
       if (!groups[p.month]) groups[p.month] = [];
       groups[p.month].push(p);
     });
+    
+    // Sort array by order naturally, or keep them as is
+    for (const key of Object.keys(groups)) {
+      groups[key].sort((a, b) => {
+        const orderA = typeof a.order === 'number' ? a.order : 999999;
+        const orderB = typeof b.order === 'number' ? b.order : 999999;
+        return orderA - orderB;
+      });
+    }
+
     return Object.entries(groups).sort((a, b) => b[0].localeCompare(a[0]));
   }, [activeProductions, listMonthFilter]);
 
@@ -5603,6 +5614,28 @@ function ProductionControlView({
                </h4>
                
                {groupedProductions.length > 0 ? (
+                 <DragDropContext onDragEnd={(result) => {
+                   if (!result.destination) return;
+                   
+                   const month = result.source.droppableId;
+                   const sourceIndex = result.source.index;
+                   const destinationIndex = result.destination.index;
+                   
+                   if (month !== result.destination.droppableId || sourceIndex === destinationIndex) return;
+                   
+                   const monthGroup = groupedProductions.find(g => g[0] === month);
+                   if (!monthGroup) return;
+                   const groupItems = Array.from(monthGroup[1]) as ServiceProduction[];
+                   const [reorderedItem] = groupItems.splice(sourceIndex, 1);
+                   groupItems.splice(destinationIndex, 0, reorderedItem);
+                   
+                   // Update order fields
+                   groupItems.forEach((item, index) => {
+                     if (item.order !== index) {
+                       onUpdateProduction({ ...item, order: index });
+                     }
+                   });
+                 }}>
                  <div className="space-y-10">
                    {groupedProductions.map(([month, productions]) => (
                      <div key={month} className="space-y-4">
@@ -5622,8 +5655,14 @@ function ProductionControlView({
                         {productions.length} {productions.length === 1 ? 'ACOMPANHAMENTO' : 'ACOMPANHAMENTOS'}
                       </Badge>
                     </div>
-                       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-                         {productions.map(p => {
+                    <Droppable droppableId={month} direction="horizontal" isDropDisabled={readonly}>
+                      {(provided) => (
+                       <div 
+                         className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6"
+                         {...provided.droppableProps}
+                         ref={provided.innerRef}
+                       >
+                         {productions.map((p, index) => {
                       const s = services.find(x => x.id === p.serviceId);
                       const dailyData = p.dailyData || {};
                       let totalExec = 0;
@@ -5632,9 +5671,22 @@ function ProductionControlView({
                       });
                       
                       return (
-                        <div key={p.id} className="relative group">
+                        // @ts-ignore
+                        <Draggable key={p.id} draggableId={p.id} index={index} isDragDisabled={readonly}>
+                          {(provided, snapshot) => (
+                        <div 
+                          className="relative group h-full"
+                          ref={provided.innerRef}
+                          {...provided.draggableProps}
+                          {...provided.dragHandleProps}
+                          style={{
+                            ...provided.draggableProps.style,
+                            opacity: snapshot.isDragging ? 0.9 : 1,
+                            transform: snapshot.isDragging ? provided.draggableProps.style?.transform : 'none',
+                          }}
+                        >
                           <Card 
-                            className="border-none shadow-sm hover:shadow-md transition-all cursor-pointer bg-white overflow-hidden flex flex-col h-full border-l-4 border-l-transparent hover:border-l-blue-500"
+                            className={`border-none shadow-sm hover:shadow-md transition-all cursor-pointer bg-white overflow-hidden flex flex-col h-full border-l-4 border-l-transparent hover:border-l-blue-500 ${snapshot.isDragging ? 'ring-2 ring-blue-500 shadow-xl scale-105' : ''}`}
                             onClick={() => { setSelectedServiceId(p.serviceId); setSelectedMonth(p.month); }}
                           >
                             <CardContent className="p-0 flex flex-col flex-1">
@@ -5678,12 +5730,18 @@ function ProductionControlView({
                             </CardContent>
                           </Card>
                         </div>
+                          )}
+                        </Draggable>
                       );
                     })}
+                         {provided.placeholder}
                   </div>
+                      )}
+                    </Droppable>
                 </div>
               ))}
             </div>
+            </DragDropContext>
           ) : (
             <div>
                 <h4 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest pl-1 mb-4">Controles em Andamento</h4>
