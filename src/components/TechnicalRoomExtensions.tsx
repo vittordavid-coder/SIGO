@@ -1142,7 +1142,9 @@ const ScheduleServiceRow = React.memo(({
           <TableCell rowSpan={visibleRowsCount} className="sticky left-0 bg-white z-20 shadow-[1px_0_0_0_rgba(0,0,0,0.1)] w-[180px] min-w-[180px] max-w-[180px] align-top py-4 px-3 border-b">
             <div className="flex flex-col gap-1.5 pr-1">
               <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded w-fit uppercase leading-none border border-blue-100">{service?.code || '---'}</span>
-              <span className="text-[11px] font-bold text-gray-900 leading-tight whitespace-normal" title={service?.name}>{(service?.name || 'Serviço não encontrado').toLowerCase()}</span>
+              <span className="text-[11px] font-bold text-gray-900 leading-tight whitespace-normal" title={service?.name || (bi as any).name}>
+                {(service?.name || (bi as any).name || 'Serviço não encontrado').toLowerCase()}
+              </span>
               <span className="text-[10px] text-gray-400 font-medium leading-tight flex items-center gap-1">
                 <Badge variant="outline" className="text-[9px] h-4 px-1 rounded-sm">{service?.unit || '---'}</Badge>
                 <span>•</span>

@@ -30,6 +30,7 @@ import {
 import { formatCurrency, formatNumber, cn } from '../lib/utils';
 import { calculateServiceUnitCost } from '../lib/calculations';
 import { exportContractSpreadsheetToExcel } from '../lib/exportUtils';
+import { exportMonthlyControlReportPDF } from '../lib/exportTechnicalUtils';
 import { 
   DailyReportView, 
   PluviometryView, 
@@ -1738,6 +1739,7 @@ function ContractTab({
           group.services.push({
             serviceId: service.id,
             code: service.code,
+            name: service.name, // Save name as fallback
             quantity,
             price,
             worksheetType: 'direct'
@@ -5274,195 +5276,45 @@ function ProductionControlView({
   };
 
   const exportToPDF = async (type: 'active' | 'all') => {
-    const doc = new jsPDF('p', 'mm', 'a4'); // Page 1: Portrait
-
-    // Header Branding
-    const showLeft = (logoMode === 'left' || logoMode === 'both') && companyLogo;
-    const showRight = (logoMode === 'right' || logoMode === 'both') && companyLogoRight;
-
-    if (showLeft) {
-      try { 
-        const props = doc.getImageProperties(companyLogo!);
-        const ratio = props.width / props.height;
-        let w = 15;
-        let h = 15 / ratio;
-        if (h > 15) {
-          h = 15;
-          w = 15 * ratio;
-        }
-        const y = 5 + (15 - h) / 2;
-        doc.addImage(companyLogo!, 'PNG', 14, y, w, h); 
-      } catch(e) {
-        try { doc.addImage(companyLogo!, 'PNG', 14, 5, 20, 10); } catch(err) {}
-      }
-    }
-    if (showRight) {
-      try { 
-        const props = doc.getImageProperties(companyLogoRight!);
-        const ratio = props.width / props.height;
-        let w = 15;
-        let h = 15 / ratio;
-        if (h > 15) {
-          h = 15;
-          w = 15 * ratio;
-        }
-        const y = 5 + (15 - h) / 2;
-        doc.addImage(companyLogoRight!, 'PNG', doc.internal.pageSize.width - 14 - w, y, w, h); 
-      } catch(e) {
-        try { doc.addImage(companyLogoRight!, 'PNG', doc.internal.pageSize.width - 34, 5, 20, 10); } catch(err) {}
-      }
-    }
-
     if (type === 'active' && production && selectedService) {
-      // PAGE 1: Portait - Parameters + Table
-      doc.setFontSize(11);
-      doc.setTextColor(0, 0, 0);
-      const reportTitle = `CONTROLE DE PRODUÇÃO: ${selectedService.name}`;
-      const splitTitle = doc.splitTextToSize(reportTitle, 175);
-      
-      const startY = (showLeft || showRight) ? 25 : 12;
-      doc.text(splitTitle, 14, startY);
-      
-      const titleLines = splitTitle.length;
-      const paramY = startY + (titleLines * 5) + 2;
-
-      doc.setFontSize(8);
-      doc.setTextColor(100, 100, 100);
-      doc.text(`Contrato: ${contract.contractNumber} | Mês: ${selectedMonth} | Código: ${selectedService.code}`, 14, paramY - 2);
-
-      // Parameters Section
-      doc.setDrawColor(240, 240, 240);
-      doc.setFillColor(250, 250, 250);
-      doc.roundedRect(14, paramY, 182, 22, 2, 2, 'FD');
-      
-      doc.setFontSize(7);
-      doc.setTextColor(120, 120, 120);
-      doc.setFont("helvetica", "bold");
-      doc.text("PARÂMETROS OPERACIONAIS", 18, paramY + 4);
-      
-      doc.setFont("helvetica", "normal");
-      doc.text(`Nº Equipamentos: ${production.numEquip}`, 18, paramY + 9);
-      doc.text(`Dias Trabalhados: ${production.workDays}`, 18, paramY + 13);
-      doc.text(`Produtividade (U/h): ${formatNumber(production.unitHour, 2)}`, 18, paramY + 17);
-      
-      doc.text(`Horas Diárias: ${production.hoursDay}`, 70, paramY + 9);
-      doc.text(`Eficiência: ${production.efficiency}%`, 70, paramY + 13);
-      doc.text(`Previsão Chuva: ${production.rainPercent}%`, 70, paramY + 17);
-      
-      const targetDailyValue = (production.unitHour * production.hoursDay * production.numEquip * (production.efficiency/100));
-      doc.setFont("helvetica", "bold");
-      doc.setTextColor(59, 130, 246);
-      doc.text(`META DIÁRIA CALCULADA: ${formatNumber(targetDailyValue, 2)} ${selectedService.unit}`, 130, paramY + 13);
-
-      const tableData = dailyProcessedData.map((day, idx) => [
-        `${idx + 1}`.padStart(2, '0'),
-        formatNumber(day.planned, 2),
-        formatNumber(day.plannedAccumulated, 2),
-        formatNumber(day.actual, 2),
-        formatNumber(day.actualAccumulated, 2),
-        formatNumber(day.projected, 2),
-        formatNumber(day.projectedAccumulated, 2)
-      ]);
-
-      autoTable(doc, {
-        head: [['DIA', 'PLAN. DIA', 'PLAN. ACUM', 'EXEC. DIA', 'EXEC. ACUM', 'PROJ. DIA', 'PROJ. ACUM']],
-        body: tableData,
-        startY: paramY + 27,
-        theme: 'grid',
-        headStyles: { fillColor: [59, 130, 246], fontSize: 6, halign: 'center' },
-        styles: { fontSize: 6, cellPadding: 1 },
-        columnStyles: {
-          0: { cellWidth: 8, halign: 'center' },
-          1: { halign: 'right' },
-          2: { halign: 'right', fontStyle: 'bold' },
-          3: { halign: 'right' },
-          4: { halign: 'right', fontStyle: 'bold' },
-          5: { halign: 'right' },
-          6: { halign: 'right', fontStyle: 'bold' },
-        }
+      exportMonthlyControlReportPDF({
+        contract,
+        month: selectedMonth,
+        productions: [production],
+        services,
+        companyLogo,
+        companyLogoRight,
+        logoMode
       });
-
-      // PAGE 2: Landscape - Chart
-      if (chartRef.current) {
-        doc.addPage('a4', 'l');
-        doc.setFontSize(12);
-        doc.setTextColor(0,0,0);
-        doc.text(`GRÁFICO DE EVOLUÇÃO FÍSICA - ${selectedService.name}`, 14, 15);
-        
-        try {
-          // Add more delay and ensure rendering
-          await new Promise(resolve => setTimeout(resolve, 1000));
-          
-          const canvas = await html2canvas(chartRef.current, {
-            scale: 3,
-            useCORS: true,
-            logging: true,
-            backgroundColor: '#ffffff',
-            width: chartRef.current.offsetWidth,
-            height: chartRef.current.offsetHeight,
-            onclone: (clonedDoc) => {
-              const allElements = clonedDoc.getElementsByTagName('*');
-              for (let i = 0; i < allElements.length; i++) {
-                const el = allElements[i] as HTMLElement;
-                if (el.style) {
-                   const computed = window.getComputedStyle(el);
-                   if (computed.color?.includes('oklch')) el.style.color = '#000000';
-                   if (computed.backgroundColor?.includes('oklch')) el.style.backgroundColor = 'transparent';
-                   if (computed.borderColor?.includes('oklch')) el.style.borderColor = '#ffffff';
-                }
-              }
-            }
-          });
-          const imgData = canvas.toDataURL('image/png');
-          
-          doc.addImage(imgData, 'PNG', 5, 22, 287, 145);
-        } catch (err) {
-          console.error("Error capturing chart for PDF:", err);
-          doc.setTextColor(255, 0, 0);
-          doc.text("Erro ao capturar o gráfico para o relatório.", 14, 30);
-        }
-      }
     } else if (type === 'all') {
-      doc.setFontSize(16);
-      doc.text(`Relatório Consolidado de Produção`, 14, 15);
-      doc.setFontSize(10);
-      doc.text(`Contrato: ${contract.contractNumber}`, 14, 22);
+      // Group active productions by month
+      const byMonth = activeProductions.reduce<Record<string, ServiceProduction[]>>((acc, p) => {
+        if (!acc[p.month]) acc[p.month] = [];
+        acc[p.month].push(p);
+        return acc;
+      }, {});
 
-      let currentY = 30;
-      activeProductions.forEach((p, idx) => {
-        const s = services.find(x => x.id === p.serviceId);
-        if (!s) return;
+      if (Object.keys(byMonth).length === 0) {
+        // Nothing to export
+        return;
+      }
 
-        if (idx > 0) doc.addPage('a4', 'l');
-        
-        doc.setFontSize(12);
-        doc.text(`${s.code} - ${s.name} (${p.month})`, 14, 15);
-        
-        // Simple data for all
-        const days = [];
-        const year = parseInt(p.month.split('-')[0]);
-        const month = parseInt(p.month.split('-')[1]);
-        const lastDayNum = new Date(year, month, 0).getDate();
-        let acc = 0;
-        for (let i = 1; i <= lastDayNum; i++) {
-          const ds = `${p.month}-${i.toString().padStart(2, '0')}`;
-          const act = p.dailyData[ds]?.actual || 0;
-          acc += act;
-          days.push([`${i}`, ds, formatNumber(act, 2), formatNumber(acc, 2)]);
-        }
-
-        autoTable(doc, {
-          head: [['Dia', 'Data', 'Executado', 'Acumulado']],
-          body: days,
-          startY: 25,
-          theme: 'grid',
-          headStyles: { fillColor: [59, 130, 246] },
-          styles: { fontSize: 8 }
+      // If only one month or we want to export the latest month? 
+      // Let's generate a report for each month that has data, or just group them all into one?
+      // Since exportMonthlyControlReportPDF expects a single 'month' string for the title/filename,
+      // it's best to call it for each month.
+      for (const [month, prods] of (Object.entries(byMonth) as [string, ServiceProduction[]][])) {
+        exportMonthlyControlReportPDF({
+          contract,
+          month,
+          productions: prods,
+          services,
+          companyLogo,
+          companyLogoRight,
+          logoMode
         });
-      });
+      }
     }
-
-    doc.save(`Controle_Producao_${contract.contractNumber}_${type}.pdf`);
   };
 
   // If no service is selected AND there are active productions, show the list first

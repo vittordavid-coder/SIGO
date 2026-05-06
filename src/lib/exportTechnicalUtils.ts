@@ -753,70 +753,9 @@ export function exportMonthlyControlReportPDF(options: {
   const daysInMonth = new Date(year, month, 0).getDate();
 
   
-  const addControlReportHeader = (title: string, landscape = false) => {
-    const pageWidth = doc.internal.pageSize.width;
-    const mode = options.logoMode || 'both';
-    
-    // Header Background
-    doc.setFillColor(30, 58, 138); // blue-900
-    doc.rect(0, 0, pageWidth, 35, 'F');
-    
-    const showLeft = (mode === 'left' || mode === 'both') && options.companyLogo;
-    const showRight = (mode === 'right' || mode === 'both') && options.companyLogoRight;
-
-    if (showLeft) {
-      try { 
-        const props = doc.getImageProperties(options.companyLogo!);
-        const ratio = props.width / props.height;
-        let h = 28;
-        let w = h * ratio;
-        if (w > 50) {
-          w = 50;
-          h = 50 / ratio;
-        }
-        const y = (35 - h) / 2;
-        doc.addImage(options.companyLogo!, 'PNG', 14, y, w, h); 
-      } catch (e) {
-        try { doc.addImage(options.companyLogo!, 'PNG', 14, 3, 28, 28); } catch (err) {}
-      }
-    }
-    if (showRight) {
-      try { 
-        const props = doc.getImageProperties(options.companyLogoRight!);
-        const ratio = props.width / props.height;
-        let h = 28;
-        let w = h * ratio;
-        if (w > 50) {
-          w = 50;
-          h = 50 / ratio;
-        }
-        const y = (35 - h) / 2;
-        doc.addImage(options.companyLogoRight!, 'PNG', pageWidth - 14 - w, y, w, h); 
-      } catch (e) {
-        try { doc.addImage(options.companyLogoRight!, 'PNG', pageWidth - 42, 3, 28, 28); } catch (err) {}
-      }
-    }
-
-    doc.setTextColor(255, 255, 255);
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(showLeft ? 12 : 14);
-    doc.text(options.contract.workName || 'OBRA NÃO INFORMADA', showLeft ? 68 : 14, 14);
-    
-    doc.setFontSize(10);
-    doc.setFont('helvetica', 'normal');
-    doc.text(options.contract.client || 'SISTEMA TÉCNICO', showLeft ? 68 : 14, 22);
-    
-    doc.setFontSize(10);
-    doc.setTextColor(200, 200, 200);
-    doc.text(title, showLeft ? 68 : 14, 30);
-    
-    doc.setTextColor(0, 0, 0);
-  };
-
-
   if (options.productions.length === 0) {
-    addControlReportHeader(`Monitoramento de Produção - ${monthName}`, false);
-    doc.text('Nenhum monitoramento registrado para este período.', 14, 60);
+    addTechnicalHeader(doc, `Monitoramento de Produção - ${monthName}`, options);
+    doc.text('Nenhum monitoramento registrado para este período.', 14, 50);
   } else {
     options.productions.forEach((p, idx) => {
       const s = options.services.find(serv => serv.id === p.serviceId);
@@ -879,7 +818,7 @@ export function exportMonthlyControlReportPDF(options: {
       }
 
       // Portrait Header with Projeção
-      addControlReportHeader(`Monitoramento de Produção - ${monthName}`, false);
+      addTechnicalHeader(doc, `Monitoramento de Produção - ${monthName}`, options);
       
       // Blue Header (UI CardHeader style)
       doc.setFillColor(30, 58, 138); // Blue 900
@@ -1011,13 +950,13 @@ export function exportMonthlyControlReportPDF(options: {
 
       // 4. Graph Page (Landscape)
       doc.addPage('a4', 'landscape');
-      addControlReportHeader(`Gráfico de Evolução - ${monthName}`, true);
+      addTechnicalHeader(doc, `Gráfico de Evolução - ${monthName}`, options);
       
       const lWidth = 297; // Landscape A4 Width
       
       doc.setFontSize(10);
       doc.setFont('helvetica', 'bold');
-      const chartTitle = `Gráfico de Evolução: ${s?.code || '-'} - ${s?.name || 'Serviço não encontrado'}`;
+      const chartTitle = `Gráfico de Evolução: ${s?.code || p.serviceId?.substring(0, 8)} - ${s?.name || (p as any).name || 'Serviço não encontrado'}`;
       const splitChartTitle = doc.splitTextToSize(chartTitle, 260);
       doc.text(splitChartTitle, 14, 48);
 

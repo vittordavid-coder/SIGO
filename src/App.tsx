@@ -494,39 +494,55 @@ export default function App() {
           }
           
           // Try individual table first for better granularity and most recent data
-          let query = supabase.from(tableName).select('*');
-          if (activeId && tableName !== 'users' && !isMaster) {
-            // Include items that belong to the company OR have no company (global/shared) OR are marked as 'default'
-            if (tableName === 'service_compositions' || tableName === 'resources') {
-              query = query.or(`company_id.eq.${activeId},company_id.is.null,company_id.eq.default`);
+          let allData: any[] = [];
+          let hasError = false;
+          let from = 0;
+          const pageSize = 1000;
+          let keepFetching = true;
+
+          while (keepFetching) {
+            let query = supabase.from(tableName).select('*').range(from, from + pageSize - 1);
+            if (activeId && tableName !== 'users' && !isMaster) {
+              // Include items that belong to the company OR have no company (global/shared) OR are marked as 'default'
+              if (tableName === 'service_compositions' || tableName === 'resources') {
+                query = query.or(`company_id.eq.${activeId},company_id.is.null,company_id.eq.default`);
+              } else {
+                query = query.eq('company_id', activeId);
+              }
+            }
+            
+            const { data, error } = await query;
+            if (error) {
+              console.warn(`[Sync] Error fetching ${tableName}:`, error);
+              hasError = true;
+              keepFetching = false;
+            } else if (data) {
+              allData = [...allData, ...data];
+              if (data.length < pageSize) keepFetching = false;
+              else from += pageSize;
             } else {
-              query = query.eq('company_id', activeId);
+              keepFetching = false;
             }
           }
-          
-          const { data, error } = await query;
-          if (error) console.warn(`[Sync] Error fetching ${tableName}:`, error);
-          if (tableName === 'service_compositions' && data) {
-            console.log(`[Sync] Fetched ${data.length} services from Supabase`);
+
+          if (tableName === 'service_compositions' && allData.length > 0) {
+            console.log(`[Sync] Fetched ${allData.length} services from Supabase`);
           }
           
           let finalVal: any[] = [];
           const blobData = blobMap[namespacedKey] || (tableName === 'users' ? blobMap[key] : null);
           const parsedBlobData = blobData ? (Array.isArray(blobData) ? blobData : [blobData]) : [];
 
-          if (!error && data) {
-            if (data.length > 0) {
-              const camelData = data.map(mapToCamel);
-              // Merge with blob data to preserve missing columns (like inMaintenance)
-              finalVal = camelData.map(dbItem => {
-                const blobItem = parsedBlobData.find((b: any) => b?.id && b.id === dbItem.id);
-                return blobItem ? { ...blobItem, ...dbItem } : dbItem;
-              });
-              finalVal = deduplicateById(finalVal);
-            } else {
-              // If table is empty, check fallback blobs
-              finalVal = deduplicateById(parsedBlobData);
-            }
+          if (!hasError && allData.length > 0) {
+            const camelData = allData.map(mapToCamel);
+            // Merge with blob data to preserve missing columns (like inMaintenance)
+            finalVal = camelData.map(dbItem => {
+              const blobItem = parsedBlobData.find((b: any) => b?.id && b.id === dbItem.id);
+              return blobItem ? { ...blobItem, ...dbItem } : dbItem;
+            });
+            finalVal = deduplicateById(finalVal);
+          } else if (!hasError && allData.length === 0) {
+            finalVal = deduplicateById(parsedBlobData);
           } else {
             // Table error (e.g. doesn't exist), fallback to blob
             finalVal = deduplicateById(parsedBlobData);
