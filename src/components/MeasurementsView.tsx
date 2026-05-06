@@ -46,7 +46,7 @@ import { NumericInput } from '@/components/ui/numeric-input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Separator } from '@/components/ui/separator';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from '@/components/ui/dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import {
@@ -1851,19 +1851,18 @@ function ContractTab({
                 <Plus className="w-4 h-4 mr-2" /> Novo Contrato
               </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-6xl w-[95vw] max-h-[95vh] flex flex-col overflow-hidden">
+            <DialogContent className="max-w-3xl w-[95vw] max-h-[95vh] flex flex-col overflow-hidden">
               <form onSubmit={handleSubmit} className="flex flex-col h-full">
-                <DialogHeader className="p-6 pb-2">
+                <DialogHeader className="p-6 pb-2 border-b border-gray-100">
                   <DialogTitle className="text-2xl font-bold">
                     {editingContract ? 'Editar Contrato' : 'Novo Contrato'}
                   </DialogTitle>
                 </DialogHeader>
                 
-                <div className="flex-1 overflow-y-auto p-6 pt-2 space-y-6 custom-scrollbar">
-                  <div className="grid grid-cols-1 sm:grid-cols-4 items-center gap-4">
-                    <Label className="sm:text-right font-bold">Planilha/Orc.</Label>
-                    <div className="sm:col-span-3">
-                      <Select value={newContract.quotationId} onValueChange={v => {
+                <div className="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar">
+                  <div className="grid gap-2">
+                    <Label className="font-bold text-gray-700">Planilha/Orçamento Base</Label>
+                    <Select value={newContract.quotationId} onValueChange={v => {
                         const q = quotations.find(item => item.id === v);
                         if (q) {
                           setNewContract({
@@ -1877,36 +1876,33 @@ function ContractTab({
                           setNewContract({ ...newContract, quotationId: v });
                         }
                       }}>
-                        <SelectTrigger className="w-full">
+                        <SelectTrigger className="w-full h-11 border-gray-300">
                           <SelectValue placeholder="Selecione uma planilha base" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="none" className="font-bold text-blue-600">Sem vínculo com cotações</SelectItem>
+                          <SelectItem value="none" className="font-bold text-blue-600">Livre (Sem vínculo com cotações)</SelectItem>
                           {quotations.map(q => (
                             <SelectItem key={q.id} value={q.id}>{q.budgetName}</SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
-                    </div>
                   </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-4 items-center gap-4">
-                    <Label className="sm:text-right">Apoio</Label>
-                    <div className="sm:col-span-3 flex flex-col gap-2">
-                       <div className="flex flex-col sm:flex-row items-center gap-2">
+                  
+                  <div className="grid gap-3 bg-blue-50/50 p-4 rounded-xl border border-blue-100">
+                    <Label className="font-bold text-blue-900">Apoio (Importação de Planilha via Excel)</Label>
+                    <div className="flex flex-col sm:flex-row items-center gap-3">
                          <Button 
                            type="button" 
                            variant="outline" 
-                           size="sm" 
-                           className="w-full sm:flex-1 gap-2 border-dashed border-blue-200 text-blue-600 hover:bg-blue-50"
+                           className="w-full sm:flex-1 gap-2 border-dashed border-blue-300 text-blue-700 bg-white hover:bg-blue-50 h-11"
                            onClick={handleDownloadTemplate}
                          >
-                            <Download className="w-4 h-4" /> Baixar Modelo (Excel)
+                            <Download className="w-4 h-4" /> Baixar Modelo
                          </Button>
                          <Button 
                            type="button" 
                            variant="outline" 
-                           size="sm" 
-                           className="w-full sm:flex-1 gap-2 border-dashed border-emerald-200 text-emerald-600 hover:bg-emerald-50"
+                           className="w-full sm:flex-1 gap-2 border-dashed border-emerald-300 text-emerald-700 bg-white hover:bg-emerald-50 h-11"
                            onClick={() => {
                              console.log('[UI] Import request triggered');
                              if (fileInputRef.current) {
@@ -1916,80 +1912,101 @@ function ContractTab({
                              }
                            }}
                          >
-                            <FileSpreadsheet className="w-4 h-4" /> Importar Planilha
+                            <FileSpreadsheet className="w-4 h-4" /> Importar Planilha (.xls/.xlsx)
                          </Button>
-                       </div>
-                       <input 
-                         ref={fileInputRef}
-                         type="file" 
-                         className="hidden" 
-                         accept=".xlsx,.xls" 
-                         onChange={handleImportSpreadsheet} 
-                       />
-                       {importFeedbackMsg && (
-                         <div className={`mt-2 p-3 text-xs font-medium rounded-lg ${importFeedbackMsg.startsWith('✅') ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' : 'bg-red-50 text-red-700 border border-red-100'}`}>
-                           {importFeedbackMsg}
-                         </div>
-                       )}
-                       <p className="text-[10px] text-gray-400 italic">
-                         Baixe o modelo, preencha os dados e use o botão "Importar Planilha" para carregar o orçamento.
-                       </p>
                     </div>
-                  </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-4 items-center gap-4">
-                    <Label className="sm:text-right font-bold text-blue-600 uppercase text-[10px] tracking-widest bg-blue-50 py-1 px-2 rounded sm:text-right">Seção Dados da Obra</Label>
-                    <div className="sm:col-span-3 border-b border-blue-100 h-px"></div>
+                    <input 
+                      ref={fileInputRef}
+                      type="file" 
+                      className="hidden" 
+                      accept=".xlsx,.xls" 
+                      onChange={handleImportSpreadsheet} 
+                    />
+                    {importFeedbackMsg && (
+                      <div className={`mt-2 p-3 text-sm font-medium rounded-lg ${importFeedbackMsg.startsWith('✅') ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' : 'bg-red-50 text-red-700 border border-red-100'}`}>
+                        {importFeedbackMsg}
+                      </div>
+                    )}
+                    <p className="text-xs text-blue-600/70 italic text-center sm:text-left">
+                      Dica: Baixe nosso modelo em Excel, preencha os serviços e import-o aqui.
+                    </p>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-4 items-center gap-4">
-                    <Label className="sm:text-right">Nº Contrato</Label>
-                    <Input className="sm:col-span-3" value={newContract.contractNumber || ''} onChange={e => setNewContract({...newContract, contractNumber: e.target.value})} required />
+                  <div className="flex items-center gap-4 py-2">
+                    <div className="h-px bg-gray-200 flex-1"></div>
+                    <span className="text-xs font-black uppercase tracking-widest text-gray-500">Dados Principais do Contrato</span>
+                    <div className="h-px bg-gray-200 flex-1"></div>
                   </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-4 items-center gap-4">
-                    <Label className="sm:text-right font-bold text-blue-600">OBRA</Label>
-                    <Input className="sm:col-span-3 border-blue-200" value={newContract.workName || ''} onChange={e => setNewContract({...newContract, workName: e.target.value})} placeholder="Identificação da Obra" />
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                    <div className="space-y-2">
+                      <Label className="font-semibold text-gray-700">Nº do Contrato <span className="text-red-500">*</span></Label>
+                      <Input className="h-11" value={newContract.contractNumber || ''} onChange={e => setNewContract({...newContract, contractNumber: e.target.value})} required placeholder="Ex: CT-2023/105" />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="font-semibold text-gray-700">Nome da Obra</Label>
+                      <Input className="h-11 border-blue-200 bg-blue-50/30" value={newContract.workName || ''} onChange={e => setNewContract({...newContract, workName: e.target.value})} placeholder="Identificação da Obra" />
+                    </div>
                   </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-4 items-center gap-4">
-                    <Label className="sm:text-right">Vlr. Total Contrato</Label>
-                    <NumericInput 
-                      className="sm:col-span-3" 
-                      value={newContract.totalValue || 0} 
-                      onChange={val => setNewContract({...newContract, totalValue: val})} 
-                      prefix="R$"
-                      decimals={2}
-                    />
+
+                  <div className="space-y-2">
+                    <Label className="font-semibold text-gray-700">Objeto do Contrato</Label>
+                    <Input className="h-11" value={newContract.object || ''} onChange={e => setNewContract({...newContract, object: e.target.value})} placeholder="Resumo do escopo..." />
                   </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-4 items-center gap-4 pt-4 border-t border-gray-100">
-                    <Label className="sm:text-right">Objeto</Label>
-                    <Input className="sm:col-span-3" value={newContract.object || ''} onChange={e => setNewContract({...newContract, object: e.target.value})} />
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                    <div className="space-y-2">
+                      <Label className="font-semibold text-gray-700">Client / Contratante</Label>
+                      <Input className="h-11" value={newContract.client || ''} onChange={e => setNewContract({...newContract, client: e.target.value})} placeholder="Para quem prestamos serviço" />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="font-semibold text-gray-700">Nossa Empresa / Contratado</Label>
+                      <Input className="h-11" value={newContract.contractor || ''} onChange={e => setNewContract({...newContract, contractor: e.target.value})} placeholder="Nossa razão social" />
+                    </div>
                   </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-4 items-center gap-4">
-                    <Label className="sm:text-right">Contratante</Label>
-                    <Input className="sm:col-span-3" value={newContract.client || ''} onChange={e => setNewContract({...newContract, client: e.target.value})} />
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 pt-4 border-t border-gray-100">
+                    <div className="space-y-2">
+                      <Label className="font-semibold text-gray-700">Valor Total Estimado</Label>
+                      <NumericInput 
+                        className="h-11 font-bold text-emerald-700" 
+                        value={newContract.totalValue || 0} 
+                        onChange={val => setNewContract({...newContract, totalValue: val})} 
+                        prefix="R$"
+                        decimals={2}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="font-semibold text-gray-700">Data de Início</Label>
+                      <Input type="date" className="h-11" value={newContract.startDate || ''} onChange={e => setNewContract({...newContract, startDate: e.target.value})} />
+                    </div>
                   </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-4 items-center gap-4">
-                    <Label className="sm:text-right">Contratado</Label>
-                    <Input className="sm:col-span-3" value={newContract.contractor || ''} onChange={e => setNewContract({...newContract, contractor: e.target.value})} />
+
+                  <div className="grid grid-cols-1 sm:grid-cols-4 gap-6 pt-4 border-t border-gray-100 bg-gray-50/50 p-4 rounded-xl border border-gray-100">
+                    <div className="space-y-2 relative group">
+                      <div className="flex items-center gap-1.5"><Label className="text-xs font-bold text-gray-700 uppercase tracking-tight" title="Ex: Quando o contrato possui extensão a controlar (como km ou estacas).">Unid. de Medição ⓘ</Label></div>
+                      <Input className="h-10 text-sm bg-white" placeholder="Ex: KM, Estaca" value={newContract.measurementUnit || ''} onChange={e => setNewContract({...newContract, measurementUnit: e.target.value})} />
+                    </div>
+                    <div className="space-y-2 relative group">
+                      <div className="flex items-center gap-1.5"><Label className="text-xs font-bold text-gray-700 uppercase tracking-tight">Qtd. Unid.</Label></div>
+                      <Input className="h-10 text-sm bg-white" placeholder="Ex: 50" value={newContract.measurementUnitValue || ''} onChange={e => setNewContract({...newContract, measurementUnitValue: e.target.value})} />
+                    </div>
+                    <div className="space-y-2 relative group">
+                      <Label className="text-xs font-bold text-emerald-700 uppercase tracking-tight">Estaca/KM Inic.</Label>
+                      <Input className="h-10 text-sm border-emerald-200 bg-white" placeholder="Ex: 0+0,00" value={newContract.initialStation || ''} onChange={e => setNewContract({...newContract, initialStation: e.target.value})} />
+                    </div>
+                    <div className="space-y-2 relative group">
+                      <Label className="text-xs font-bold text-emerald-700 uppercase tracking-tight">Estaca/KM Final</Label>
+                      <Input className="h-10 text-sm border-emerald-200 bg-white" placeholder="Ex: 150+0,00" value={newContract.finalStation || ''} onChange={e => setNewContract({...newContract, finalStation: e.target.value})} />
+                    </div>
                   </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-4 items-center gap-4 pt-4 border-t border-gray-100">
-                    <Label className="sm:text-right">Unid. Medição</Label>
-                    <Input className="sm:col-span-1" placeholder="Ex: Estaca" value={newContract.measurementUnit || ''} onChange={e => setNewContract({...newContract, measurementUnit: e.target.value})} />
-                    <Label className="sm:text-right">Vlr. Unid.</Label>
-                    <Input className="sm:col-span-1" placeholder="Ex: 20 m" value={newContract.measurementUnitValue || ''} onChange={e => setNewContract({...newContract, measurementUnitValue: e.target.value})} />
-                  </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-4 items-center gap-4">
-                    <Label className="sm:text-right text-emerald-600">Estaca Inic.</Label>
-                    <Input className="sm:col-span-1" placeholder="Ex: 0+0,00" value={newContract.initialStation || ''} onChange={e => setNewContract({...newContract, initialStation: e.target.value})} />
-                    <Label className="sm:text-right text-emerald-600">Estaca Final</Label>
-                    <Input className="sm:col-span-1" placeholder="Ex: 150+0,00" value={newContract.finalStation || ''} onChange={e => setNewContract({...newContract, finalStation: e.target.value})} />
-                  </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-4 items-center gap-4">
-                    <Label className="sm:text-right">Data Início</Label>
-                    <Input type="date" className="sm:col-span-3" value={newContract.startDate || ''} onChange={e => setNewContract({...newContract, startDate: e.target.value})} />
-                  </div>
+
                 </div>
-                <DialogFooter className="p-6 pt-2 border-t border-gray-100 bg-gray-50/50">
-                  <Button type="submit" className="w-full sm:w-auto h-11 px-8 font-bold text-lg shadow-lg hover:shadow-xl transition-all">
+                <DialogFooter className="p-6 pt-4 border-t border-gray-200 bg-gray-50 flex-shrink-0 flex items-center justify-end gap-3 rounded-b-lg">
+                  <DialogClose asChild>
+                    <Button variant="ghost" className="h-11">Cancelar</Button>
+                  </DialogClose>
+                  <Button type="submit" className="w-full sm:w-auto h-11 px-8 font-bold text-base shadow-md bg-blue-600 hover:bg-blue-700 transition-all rounded-xl">
                     Salvar Contrato
                   </Button>
                 </DialogFooter>
