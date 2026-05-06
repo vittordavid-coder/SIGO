@@ -5,7 +5,7 @@ import {
   FileSpreadsheet, Settings, Calendar, Percent, ShieldCheck,
   ClipboardList, Users, Calculator, BarChart3, Landmark,
   BookOpen, CloudRain, HardHat, Truck, Users2, Activity,
-  RefreshCw, ShoppingCart, GripVertical
+  RefreshCw, ShoppingCart, GripVertical, AlertCircle, Database, XCircle
 } from 'lucide-react';
 import { motion, AnimatePresence, Reorder } from 'motion/react';
 import { v4 as uuidv4 } from 'uuid';
@@ -95,42 +95,72 @@ export default function App() {
   const [activeControlTab, setActiveControlTab] = useState('list');
   const [activePurchasesTab, setActivePurchasesTab] = useState('suppliers');
   const [selectedMeasurementId, setSelectedMeasurementId] = useState<string | null>(null);
-  
-  // Custom navigation helper to support sub-tabs
-  const handleNavigate = (target: string | { tab: string; subTab?: string; measureTab?: string; rhTab?: string; controlTab?: string; purchasesTab?: string }) => {
-    if (typeof target === 'string') {
-      setMainTab(target as any);
-    } else {
-      setMainTab(target.tab as any);
-      if (target.subTab) setActiveTab(target.subTab as any);
-      if (target.measureTab) setActiveMeasureTab(target.measureTab as any);
-      if (target.rhTab) setActiveRHTab(target.rhTab);
-      if (target.controlTab) setActiveControlTab(target.controlTab);
-      if (target.purchasesTab) setActivePurchasesTab(target.purchasesTab);
-    }
-  };
-  
-  // -- Sync logic when user changes --
-  useEffect(() => {
-    // Clear local data on login/init to ensure we always fetch fresh from Supabase as requested
-    const config = getSupabaseConfig();
-    if (config.enabled) {
-      console.log('[App] Supabase enabled, clearing local data keys to ensure fresh sync...');
-      const keysToKeep = ['supabase_config', 'sigo_users', 'sigo_current_user'];
-      for (let i = localStorage.length - 1; i >= 0; i--) {
-        const key = localStorage.key(i);
-        if (key && !keysToKeep.some(k => key === k)) {
-          localStorage.removeItem(key);
-        }
-      }
-    }
 
-    if (currentUser?.companyId) {
-      console.log('[App] User logged in/session restored, syncing data for company:', currentUser.companyId);
-      setIsSupabaseSynced(false);
-      syncFromSupabase(currentUser.companyId);
-    }
-  }, [currentUser?.id, currentUser?.companyId]);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [isSupabaseSynced, setIsSupabaseSynced] = useState(false);
+  const [supabaseSyncError, setSupabaseSyncError] = useState<string | null>(null);
+  const lastLocalUpdate = React.useRef<number>(0);
+
+  const defaultDashboardConfig: DashboardConfig = {
+    sections: [
+      {
+        moduleId: 'quotations',
+        label: 'Cotações',
+        visible: true,
+        items: [
+          { id: 'total_resources', label: 'Insumos', visible: true },
+          { id: 'total_services', label: 'Serviços', visible: true },
+          { id: 'total_quotations', label: 'Cotações', visible: true },
+        ]
+      },
+      {
+        moduleId: 'measurements',
+        label: 'Sala Técnica',
+        visible: true,
+        items: [
+          { id: 'open_measurements', label: 'Medição', visible: true },
+          { id: 'total_reports', label: 'Diário de Obra', visible: true },
+        ]
+      },
+      {
+        moduleId: 'rh',
+        label: 'RH',
+        visible: true,
+        items: [
+          { id: 'total_employees', label: 'Funcionários', visible: true },
+          { id: 'total_records', label: 'Ponto', visible: true },
+        ]
+      },
+      {
+        moduleId: 'control',
+        label: 'Controlador',
+        visible: true,
+        items: [
+          { id: 'team_summary', label: 'Equipes', visible: true },
+          { id: 'equipment_costs', label: 'Equipamentos', visible: true },
+          { id: 'manpower_costs', label: 'Mão de Obra', visible: true }
+        ]
+      }
+    ]
+  };
+
+  const defaultMarketingConfig: MarketingConfig = {
+    modulePrices: [
+      { moduleId: 'quotations', label: 'Cotações', price: 150 },
+      { moduleId: 'measurements', label: 'Sala Técnica', price: 250 },
+      { moduleId: 'rh', label: 'RH', price: 100 },
+      { moduleId: 'control', label: 'Controlador', price: 200 },
+      { moduleId: 'purchases', label: 'Compras', price: 150 },
+      { moduleId: 'project_admin', label: 'Administrador da Obra', price: 150 },
+      { moduleId: 'settings', label: 'Administrador', price: 50 },
+    ],
+    plans: [
+      { id: 'p-1', name: 'Básico', description: 'Ideal para profissionais liberais', price: 199, features: ['1 Empresa', 'Cotações Ilimitadas'], modules: ['quotations'] },
+      { id: 'p-2', name: 'Pro', description: 'Para pequenas construtoras', price: 499, features: ['3 Empresas', 'Cotações & Medições'], modules: ['quotations', 'measurements'] },
+      { id: 'p-3', name: 'Enterprise', description: 'Gestão completa para sua obra', price: 999, features: ['Empresas Ilimitadas', 'Acesso Total'], modules: ['quotations', 'measurements', 'rh', 'control', 'purchases', 'project_admin', 'settings'] },
+    ]
+  };
+
   const [resources, setResources] = useLocalStorage<Resource[]>('sconet_resources', [], compId);
   const [services, setServices] = useLocalStorage<ServiceComposition[]>('sconet_services', [], compId);
   const [quotations, setQuotations] = useLocalStorage<Quotation[]>('sconet_quotations', [], compId);
@@ -170,14 +200,6 @@ export default function App() {
   const [companyLogoRight, setCompanyLogoRight] = useLocalStorage<string>('sigo_company_logo_right', '', compId);
   const [logoMode, setLogoMode] = useLocalStorage<'left' | 'right' | 'both' | 'none'>('sigo_logo_mode', 'left', compId);
   const [contracts, setContracts] = useLocalStorage<Contract[]>('sconet_contracts', [], compId);
-  const [selectedContractId, setSelectedContractId] = useState<string | null>(null);
-
-  // Auto-select first contract only on initial load if none selected
-  useEffect(() => {
-    if (contracts.length > 0 && selectedContractId === null) {
-      setSelectedContractId(contracts[0].id);
-    }
-  }, [contracts]); // Only trigger when contracts list changes
   const [measurements, setMeasurements] = useLocalStorage<Measurement[]>('sconet_measurements', [], compId);
   const [serviceProductions, setServiceProductions] = useLocalStorage<ServiceProduction[]>('sigo_service_productions', [], compId);
   const [measurementTemplates, setMeasurementTemplates] = useLocalStorage<MeasurementTemplate[]>('sigo_measurement_templates', [], compId);
@@ -190,6 +212,7 @@ export default function App() {
   const [controllerEquipments, setControllerEquipments] = useLocalStorage<ControllerEquipment[]>('sigo_controller_equipments', [], compId);
   const [equipmentMaintenance, setEquipmentMaintenance] = useLocalStorage<EquipmentMaintenance[]>('sigo_equipment_maintenance', [], compId);
   const [equipmentMonthlyData, setEquipmentMonthlyData] = useLocalStorage<EquipmentMonthlyData[]>('sigo_equipment_monthly', [], compId);
+  const [equipmentTransfers, setEquipmentTransfers] = useLocalStorage<EquipmentTransfer[]>('sigo_equipment_transfers', [], compId);
   const [manpowerRecords, setManpowerRecords] = useLocalStorage<ControllerManpower[]>('sigo_controller_manpower', [], compId);
   const [manpowerMonthlyData, setManpowerMonthlyData] = useLocalStorage<ManpowerMonthlyData[]>('sigo_manpower_monthly', [], compId);
   const [teamAssignments, setTeamAssignments] = useLocalStorage<TeamAssignment[]>('sigo_team_assignments', [], compId);
@@ -197,9 +220,50 @@ export default function App() {
   const [purchaseOrders, setPurchaseOrders] = useLocalStorage<PurchaseOrder[]>('sigo_purchase_orders', [], compId);
   const [purchaseRequests, setPurchaseRequests] = useLocalStorage<PurchaseRequest[]>('sigo_purchase_requests', [], compId);
   const [purchaseQuotations, setPurchaseQuotations] = useLocalStorage<PurchaseQuotation[]>('sigo_purchase_quotations', [], compId);
+  const [dashboardConfig, setDashboardConfig] = useLocalStorage<DashboardConfig>('sigo_dashboard_config', defaultDashboardConfig, compId);
+  const [chargesPerc, setChargesPerc] = useLocalStorage<number>('sigo_ctrl_charges', 0, compId);
+  const [otPerc, setOtPerc] = useLocalStorage<number>('sigo_ctrl_ot', 50, compId);
+  const [marketingConfig, setMarketingConfig] = useLocalStorage<MarketingConfig>('sigo_marketing_config', defaultMarketingConfig);
   const [defaultOrganization, setDefaultOrganization] = useLocalStorage<string>('sigo_default_org', 'SIGO SISTEMA INTEGRADO DE GERENCIAMENTO DE OBRAS', compId);
   const [systemConfig, setSystemConfig] = useLocalStorage<any[]>('sigo_system_config', [], compId);
   const [emailConfig, setEmailConfig] = useLocalStorage<EmailConfig>('sigo_email_config', {}, compId);
+  
+  const [selectedContractId, setSelectedContractId] = useState<string | null>(null);
+
+  // Custom navigation helper to support sub-tabs
+  const handleNavigate = (target: string | { tab: string; subTab?: string; measureTab?: string; rhTab?: string; controlTab?: string; purchasesTab?: string }) => {
+    if (typeof target === 'string') {
+      setMainTab(target as any);
+    } else {
+      if (target.tab) setMainTab(target.tab as any);
+      if (target.subTab) setActiveTab(target.subTab as any);
+      if (target.measureTab) setActiveMeasureTab(target.measureTab as any);
+      if (target.rhTab) setActiveRHTab(target.rhTab as any);
+      if (target.controlTab) setActiveControlTab(target.controlTab as any);
+      if (target.purchasesTab) setActivePurchasesTab(target.purchasesTab as any);
+    }
+  };
+
+  // Sync logic when user changes
+  useEffect(() => {
+    if (currentUser?.id) {
+      const config = getSupabaseConfig();
+      if (config.enabled) {
+        console.log('[App] Supabase enabled, clearing local data keys to ensure fresh sync...');
+        const keysToKeep = ['supabase_config', 'sigo_users', 'sigo_current_user'];
+        for (let i = localStorage.length - 1; i >= 0; i--) {
+          const key = localStorage.key(i);
+          if (key && !keysToKeep.some(k => key === k)) {
+            localStorage.removeItem(key);
+          }
+        }
+      }
+      setIsSupabaseSynced(false);
+      setSupabaseSyncError(null);
+      syncFromSupabase(currentUser.companyId);
+    }
+  }, [currentUser?.id, currentUser?.companyId]);
+
 
   const defaultTechnicalRoomOrder = [
     { id: 'contracts', label: 'Contratos', icon: 'HardHat' },
@@ -253,77 +317,7 @@ export default function App() {
     }
   };
 
-  const defaultDashboardConfig: DashboardConfig = {
-    sections: [
-      {
-        moduleId: 'quotations',
-        label: 'Cotações',
-        visible: true,
-        items: [
-          { id: 'total_resources', label: 'Insumos', visible: true },
-          { id: 'total_services', label: 'Serviços', visible: true },
-          { id: 'total_quotations', label: 'Cotações', visible: true },
-        ]
-      },
-      {
-        moduleId: 'measurements',
-        label: 'Sala Técnica',
-        visible: true,
-        items: [
-          { id: 'open_measurements', label: 'Medição', visible: true },
-          { id: 'total_reports', label: 'Diário de Obra', visible: true },
-        ]
-      },
-      {
-        moduleId: 'rh',
-        label: 'RH',
-        visible: true,
-        items: [
-          { id: 'total_employees', label: 'Funcionários', visible: true },
-          { id: 'total_records', label: 'Ponto', visible: true },
-        ]
-      },
-      {
-        moduleId: 'control',
-        label: 'Controlador',
-        visible: true,
-        items: [
-          { id: 'team_summary', label: 'Equipes', visible: true },
-          { id: 'equipment_costs', label: 'Equipamentos', visible: true },
-          { id: 'manpower_costs', label: 'Mão de Obra', visible: true }
-        ]
-      }
-    ]
-  };
 
-  const [dashboardConfig, setDashboardConfig] = useLocalStorage<DashboardConfig>('sigo_dashboard_config', defaultDashboardConfig, compId);
-
-  // Controller Settings (Global per Company)
-  const [chargesPerc, setChargesPerc] = useLocalStorage<number>('sigo_ctrl_charges', 0, compId);
-  const [otPerc, setOtPerc] = useLocalStorage<number>('sigo_ctrl_ot', 50, compId);
-
-  const defaultMarketingConfig: MarketingConfig = {
-    modulePrices: [
-      { moduleId: 'quotations', label: 'Cotações', price: 150 },
-      { moduleId: 'measurements', label: 'Sala Técnica', price: 250 },
-      { moduleId: 'rh', label: 'RH', price: 100 },
-      { moduleId: 'control', label: 'Controlador', price: 200 },
-      { moduleId: 'purchases', label: 'Compras', price: 150 },
-      { moduleId: 'project_admin', label: 'Administrador da Obra', price: 150 },
-      { moduleId: 'settings', label: 'Administrador', price: 50 },
-    ],
-    plans: [
-      { id: 'p-1', name: 'Básico', description: 'Ideal para profissionais liberais', price: 199, features: ['1 Empresa', 'Cotações Ilimitadas'], modules: ['quotations'] },
-      { id: 'p-2', name: 'Pro', description: 'Para pequenas construtoras', price: 499, features: ['3 Empresas', 'Cotações & Medições'], modules: ['quotations', 'measurements'] },
-      { id: 'p-3', name: 'Enterprise', description: 'Gestão completa para sua obra', price: 999, features: ['Empresas Ilimitadas', 'Acesso Total'], modules: ['quotations', 'measurements', 'rh', 'control', 'purchases', 'project_admin', 'settings'] },
-    ]
-  };
-
-  const [marketingConfig, setMarketingConfig] = useLocalStorage<MarketingConfig>('sigo_marketing_config', defaultMarketingConfig);
-
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-  const [isSupabaseSynced, setIsSupabaseSynced] = useState(false);
-  const lastLocalUpdate = React.useRef<number>(0);
 
   const filteredResources = currentUser?.role === 'master' ? resources : resources.filter(r => !r.companyId || r.companyId === 'default' || r.companyId === currentUser?.companyId);
   const filteredServices = currentUser?.role === 'master' ? services : services.filter(s => !s.companyId || s.companyId === 'default' || s.companyId === currentUser?.companyId);
@@ -408,9 +402,11 @@ export default function App() {
       const supabase = createSupabaseClient(config.url, config.key);
       if (!supabase) {
         setIsSupabaseSynced(true);
-        return;
+        setSupabaseSyncError('CLIENT_INIT_FAILED');
+        return null;
       }
 
+      setSupabaseSyncError(null);
       try {
         const activeId = targetCompanyId || currentUser?.companyId;
         
@@ -591,6 +587,7 @@ export default function App() {
         return finalData;
       } catch (e) {
         console.error('Supabase sync exception:', e);
+        setSupabaseSyncError('CONNECTION_FAILED');
         setIsSupabaseSynced(true);
         return null;
       }
@@ -1183,17 +1180,27 @@ export default function App() {
     e.preventDefault();
     if (isLoggingIn) return;
     setIsLoggingIn(true);
+    setSupabaseSyncError(null);
     
     try {
       let latestUsers = users;
 
-      // 1. If Supabase is enabled, sync first to ensure we have the latest users
+      // 1. If Supabase is enabled, sync first to ensure we have the latest users from the CLOUD
       const config = getSupabaseConfig();
       if (config.enabled) {
-        // We do NOT set isSupabaseSynced(false) here, so the UI doesn't disappear.
-        const data = await syncFromSupabase();
-        if (data && data['sigo_users']) {
-          latestUsers = data['sigo_users'];
+        try {
+          const data = await syncFromSupabase();
+          if (data && data['sigo_users']) {
+            latestUsers = data['sigo_users'];
+          } else {
+            console.warn('[Login] Supabase sync returned no users. Falling back to local/default.');
+          }
+        } catch (syncErr) {
+          console.error('[Login] Supabase connection failed:', syncErr);
+          alert('Erro de conexão com o Supabase. Não foi possível autenticar via nuvem.');
+          setSupabaseSyncError('Falha na conexão');
+          setIsLoggingIn(false);
+          return;
         }
       }
 
@@ -1231,7 +1238,6 @@ export default function App() {
           if (companyAdmin && companyAdmin.keysExpiresAt) {
             const expirationDate = new Date(companyAdmin.keysExpiresAt);
             const today = new Date();
-            // Set today to start of day for accurate comparison
             today.setHours(0, 0, 0, 0);
             
             if (expirationDate < today) {
@@ -1241,51 +1247,32 @@ export default function App() {
           }
         }
 
-      // 3. User authenticated! Now force a full sync for THIS company's data specifically
-      // For master, we sync without company scope to see everything (global context)
-      await syncFromSupabase(user.role === 'master' ? undefined : user.companyId);
+        // 3. User authenticated! Now force a full sync for THIS company's data specifically
+        await syncFromSupabase(user.role === 'master' ? undefined : user.companyId);
 
-      // 4. Generate new Session ID and update users
-      const newSessionId = uuidv4();
-      const updatedUser = { ...user, sessionId: newSessionId };
-      
-      // Update users list and sync to Supabase
-      const newUsers = latestUsers.map(u => u.id === user.id ? updatedUser : u);
-      setUsers(newUsers);
+        // 4. Generate new Session ID and update users
+        const newSessionId = uuidv4();
+        const updatedUser = { ...user, sessionId: newSessionId };
+        
+        // Update users list and sync to Supabase
+        const newUsers = latestUsers.map(u => u.id === user.id ? updatedUser : u);
+        setUsers(newUsers);
 
-      if (config.enabled) {
-        const supabase = createSupabaseClient(config.url, config.key);
-        if (supabase) {
-          // Update BOTH the structured users table and the legacy/blob app_state
-          await Promise.all([
-            supabase.from('users').upsert(mapToSnake(updatedUser)),
-            supabase.from('app_state').upsert({ id: 'sigo_users', content: newUsers })
-          ]);
-          console.log('[Supabase] Auth state synchronized');
+        if (config.enabled) {
+          const supabase = createSupabaseClient(config.url, config.key);
+          if (supabase) {
+            await Promise.all([
+              supabase.from('users').upsert(mapToSnake(updatedUser)),
+              supabase.from('app_state').upsert({ id: 'sigo_users', content: newUsers })
+            ]);
+            console.log('[Supabase] Auth state synchronized');
+          }
         }
-      }
 
-      const hadExistingSession = !!user.sessionId && user.sessionId !== newSessionId;
-
-      // Determine the best initial tab for this user's role and permissions
-      let targetTab: any = 'home';
-      setMainTab(targetTab);
-
-      // Auto-upgrade legacy vittor to master if needed
-      if (user.username === 'vittor' && user.role !== 'master') {
-        const upgraded = { ...updatedUser, role: 'master' as UserRole };
-        setUsers(newUsers.map(u => u.id === user.id ? upgraded : u));
-        setAndSaveCurrentUser(upgraded);
-      } else {
         setAndSaveCurrentUser(updatedUser);
+      } else {
+        alert('Usuário ou senha incorretos');
       }
-
-      if (hadExistingSession) {
-        alert('Sua conta estava ativa em outro local. Aquela sessão foi desconectada e você foi logado aqui.');
-      }
-    } else {
-      alert('Usuário ou senha incorretos');
-    }
     } finally {
       setIsLoggingIn(false);
     }
@@ -2094,7 +2081,6 @@ export default function App() {
     }
   };
 
-  const [equipmentTransfers, setEquipmentTransfers] = useLocalStorage<EquipmentTransfer[]>('sigo_equipment_transfers', [], compId);
 
   const updateEquipmentTransfers = async (transfers: EquipmentTransfer[]) => {
     lastLocalUpdate.current = Date.now();
@@ -2424,6 +2410,22 @@ export default function App() {
 
           {!isRegistering && !isResettingPassword ? (
             <form onSubmit={handleLogin} className="space-y-6">
+              {!getSupabaseConfig().enabled && (
+                <div className="bg-amber-50 border border-amber-200 p-3 rounded-lg flex items-center gap-3 animate-in fade-in duration-500">
+                  <AlertCircle className="w-5 h-5 text-amber-600 shrink-0" />
+                  <div className="text-[10px] text-amber-700 leading-tight">
+                    <strong>Modo de Armazenamento Local:</strong> O banco de dados em nuvem não está configurado. Usuários em outros computadores não verão seus dados.
+                  </div>
+                </div>
+              )}
+              {supabaseSyncError && (
+                <div className="bg-red-50 border border-red-200 p-3 rounded-lg flex items-center gap-3">
+                  <XCircle className="w-5 h-5 text-red-600 shrink-0" />
+                  <div className="text-[10px] text-red-700 leading-tight">
+                    <strong>Erro de Conexão:</strong> Não foi possível sincronizar com a nuvem. O login via Supabase está indisponível no momento.
+                  </div>
+                </div>
+              )}
               <div className="space-y-2">
                 <Label htmlFor="username">Usuário</Label>
                 <div className="relative">
@@ -2738,10 +2740,36 @@ export default function App() {
         </div>
 
         <div className="ml-auto flex items-center gap-4">
-          {!isSupabaseSynced && (
-            <div className="hidden lg:flex items-center gap-2 text-[10px] font-bold text-amber-600 bg-amber-50 px-2.5 py-1.5 rounded-full border border-amber-100 animate-pulse uppercase tracking-wider">
-              <Activity className="w-3 h-3" />
-              Sincronizando...
+          {getSupabaseConfig().enabled ? (
+            <div className={cn(
+              "hidden lg:flex items-center gap-2 text-[10px] font-bold px-2.5 py-1.5 rounded-full border uppercase tracking-wider",
+              supabaseSyncError 
+                ? "text-red-600 bg-red-50 border-red-100" 
+                : isSupabaseSynced 
+                  ? "text-emerald-600 bg-emerald-50 border-emerald-100"
+                  : "text-amber-600 bg-amber-50 border-amber-100 animate-pulse"
+            )}>
+              {supabaseSyncError ? (
+                <>
+                  <XCircle className="w-3 h-3" />
+                  Cloud Offline
+                </>
+              ) : isSupabaseSynced ? (
+                <>
+                  <Activity className="w-3 h-3" />
+                  Cloud Online
+                </>
+              ) : (
+                <>
+                  <Activity className="w-3 h-3 shadow-sm shadow-amber-200" />
+                  Sincronizando...
+                </>
+              )}
+            </div>
+          ) : (
+            <div className="hidden lg:flex items-center gap-2 text-[10px] font-bold text-gray-500 bg-gray-100 px-2.5 py-1.5 rounded-full border border-gray-200 uppercase tracking-wider">
+              <Database className="w-3 h-3" />
+              Local Storage
             </div>
           )}
           <button 

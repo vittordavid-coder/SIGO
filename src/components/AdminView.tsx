@@ -1247,6 +1247,24 @@ export function AdminView({
 
                   <Separator />
 
+                  <div className="bg-blue-50 border border-blue-100 p-4 rounded-xl space-y-3">
+                    <div className="flex items-center gap-2 text-blue-800">
+                      <Globe className="w-5 h-5" />
+                      <h4 className="text-sm font-bold">Acesso Global para Usuários</h4>
+                    </div>
+                    <p className="text-xs text-blue-700 leading-relaxed">
+                      A configuração salva acima fica vinculada apenas ao seu navegador (LocalStorage). 
+                      Para que <strong>todos os usuários</strong> acessem o mesmo banco de dados automaticamente,
+                      você deve configurar as seguintes variáveis de ambiente no seu servidor (ou arquivo .env):
+                    </p>
+                    <div className="bg-blue-900 text-blue-50 p-2 rounded font-mono text-[10px] space-y-1">
+                      <div>VITE_SUPABASE_URL=seu_url</div>
+                      <div>VITE_SUPABASE_ANON_KEY=sua_chave</div>
+                    </div>
+                  </div>
+
+                  <Separator />
+
                   <div className="bg-amber-50 border border-amber-100 p-3 rounded-lg flex gap-3 text-amber-800">
                     <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
                     <p className="text-[10px] leading-relaxed">
