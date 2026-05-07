@@ -594,12 +594,13 @@ export function Chat({ currentUser, users, contracts }: ChatProps) {
               y: 0, 
               scale: 1,
               height: isMinimized ? '48px' : '600px',
-              width: '400px'
+              width: '100%',
+              maxWidth: '600px'
             }}
             exit={{ opacity: 0, y: 20, scale: 0.95 }}
             className={cn(
               "bg-white rounded-3xl shadow-2xl border border-border overflow-hidden flex flex-col pointer-events-auto",
-              "w-[400px] transition-all duration-300"
+              "transition-all duration-300"
             )}
           >
             {/* Header */}
@@ -865,8 +866,8 @@ export function Chat({ currentUser, users, contracts }: ChatProps) {
                             )}
                           >
                             <div className={cn(
-                              "p-3 rounded-2xl text-sm shadow-sm",
-                              isMe ? "bg-blue-600 text-white rounded-tr-none" : "bg-white text-gray-800 border border-gray-100 rounded-tl-none"
+                              "p-3 rounded-2xl text-sm shadow-sm break-words whitespace-pre-wrap",
+                              isMe ? "bg-blue-600 text-white rounded-tr-none font-medium" : "bg-white text-gray-800 border border-gray-100 rounded-tl-none"
                             )}>
                               {msg.attachment_url && (
                                 <div className="mb-2 overflow-hidden rounded-lg group/attach transition-all">
@@ -978,7 +979,7 @@ export function Chat({ currentUser, users, contracts }: ChatProps) {
                         </button>
                         <textarea
                           placeholder="Digite sua mensagem..."
-                          className="flex-1 bg-transparent border-none focus:ring-0 text-sm resize-none py-2 max-h-32"
+                          className="flex-1 bg-transparent border-none focus:ring-0 text-sm resize-none py-2 max-h-32 text-gray-900"
                           rows={1}
                           value={newMessage}
                           onChange={(e) => setNewMessage(e.target.value)}
