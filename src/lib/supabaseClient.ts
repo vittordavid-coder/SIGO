@@ -7,18 +7,7 @@ export interface SupabaseConfig {
 }
 
 export const getSupabaseConfig = (): SupabaseConfig => {
-  // 1. Check LocalStorage (takes priority for user/admin overrides)
-  const stored = localStorage.getItem('supabase_config');
-  if (stored) {
-    try {
-      const config = JSON.parse(stored);
-      if (config.url && config.key) return config;
-    } catch (e) {
-      console.error('Error parsing Supabase config', e);
-    }
-  }
-
-  // 2. Check Environment Variables (useful for Vercel/Production deploys)
+  // 1. Check Environment Variables (Primary source for all users)
   const envUrl = import.meta.env.VITE_SUPABASE_URL;
   const envKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
   
@@ -28,6 +17,17 @@ export const getSupabaseConfig = (): SupabaseConfig => {
       key: envKey, 
       enabled: true 
     };
+  }
+
+  // 2. Fallback to LocalStorage (Only for manual overrides/dev)
+  const stored = localStorage.getItem('supabase_config');
+  if (stored) {
+    try {
+      const config = JSON.parse(stored);
+      if (config.url && config.key) return config;
+    } catch (e) {
+      console.error('Error parsing Supabase config', e);
+    }
   }
 
   return { url: '', key: '', enabled: false };

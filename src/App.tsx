@@ -419,21 +419,48 @@ export default function App() {
         
         // Security: Only fetch sigo_users on initial load, or company-specific data if logged in
         let blobQuery = supabase.from('app_state').select('*');
+        let usersQuery = supabase.from('users').select('*');
+
         if (activeId) {
           // Fetch company specific blobs + global users blob
           blobQuery = blobQuery.or(`id.eq.sigo_users,id.ilike.${activeId}_%`);
+          // Fetch users for this company (or everyone if master)
+          if (currentUser?.role !== 'master') {
+            usersQuery = usersQuery.eq('company_id', activeId);
+          }
         } else {
           // Fetch ONLY global users blob on initial load
           blobQuery = blobQuery.eq('id', 'sigo_users');
         }
 
-        const { data: blobData } = await blobQuery;
+        const [blobRes, usersRes] = await Promise.all([
+          blobQuery,
+          usersQuery
+        ]);
+
+        const blobData = blobRes.data;
+        const dbUsers = usersRes.data;
+
         const blobMap: Record<string, any> = {};
         
         if (blobData) {
           blobData.forEach(item => {
             blobMap[item.id] = item.content;
           });
+        }
+
+        // If we got users directly from the table, merge them with the ones in the blob (table takes priority)
+        if (dbUsers && dbUsers.length > 0) {
+          const camelUsers = dbUsers.map(u => mapToCamel(u));
+          const existingUsersBlob = blobMap['sigo_users'] || [];
+          
+          const combinedUsers = [...existingUsersBlob];
+          camelUsers.forEach(u => {
+            const idx = combinedUsers.findIndex(ex => ex.id === u.id);
+            if (idx >= 0) combinedUsers[idx] = u;
+            else combinedUsers.push(u);
+          });
+          blobMap['sigo_users'] = combinedUsers;
         }
 
         const tableMap: Record<string, { key: string, setter: (val: any) => void }> = {
@@ -1207,19 +1234,69 @@ export default function App() {
       // 2. Now search for the user in the refreshed state
       const trimmedPassword = loginPassword.trim();
       const hashedInput = await hashPassword(trimmedPassword);
-      const foundUser = latestUsers.find(u => {
-        if (u.username !== loginUsername) return false;
-        const storedPass = (u.password || '').trim();
-        const isHash = storedPass.length === 64 && /^[0-9a-f]+$/i.test(storedPass);
-        if (isHash) {
-          return storedPass.toLowerCase() === hashedInput.toLowerCase();
-        }
-        return storedPass === trimmedPassword;
-      });
+      
+      let foundUser = latestUsers.find(u => 
+        (u.username || '').toLowerCase() === loginUsername.toLowerCase() || 
+        (u.email || '').toLowerCase() === loginUsername.toLowerCase()
+      );
 
-      if (foundUser) {
-        // Ensure the password we work with in the session is hashed
-        const user = { ...foundUser, password: hashedInput };
+      // If not found in blob, try checking the table directly if Supabase is enabled
+      if (!foundUser && config.enabled) {
+        console.log('[Login] User not found in blob, checking users table directly...');
+        const supabase = createSupabaseClient(config.url, config.key);
+        if (supabase) {
+          try {
+            const { data: dbUser, error: dbError } = await supabase
+              .from('users')
+              .select('*')
+              .or(`username.ilike.${loginUsername},email.ilike.${loginUsername}`)
+              .maybeSingle();
+
+            if (dbUser) {
+              console.log('[Login] User found in users table:', dbUser.username);
+              foundUser = mapToCamel(dbUser);
+              latestUsers = [...latestUsers.filter(u => u.id !== foundUser?.id), foundUser];
+            } else {
+              // Check if DB is totally empty to potentially seed the master user
+              const { count } = await supabase.from('users').select('*', { count: 'exact', head: true });
+              if (count === 0 && loginUsername.toLowerCase() === 'vittor') {
+                console.log('[Login] empty database detected. Seeding master user "vittor"...');
+                const newUser: User = {
+                  id: uuidv4(),
+                  name: 'Administrador Master',
+                  username: 'vittor',
+                  password: hashedInput,
+                  role: 'master',
+                  isApproved: true,
+                  isActive: true,
+                  companyId: 'default'
+                };
+                await supabase.from('users').upsert(mapToSnake(newUser));
+                foundUser = newUser;
+                latestUsers = [newUser];
+                alert('Banco de dados novo detectado. Usuário "vittor" criado com a senha informada.');
+              }
+            }
+          } catch (err) {
+            console.error('[Login] Exception during user lookup/seed:', err);
+          }
+        }
+      }
+
+      if (!foundUser) {
+        console.warn('[Login] Authentication failed: User not found.', { username: loginUsername });
+        alert('Usuário ou email não encontrado. Verifique se digitou corretamente.');
+        return;
+      }
+
+      const storedPass = (foundUser.password || '').trim();
+      const isPlainMatch = storedPass === trimmedPassword;
+      const isHashMatch = storedPass.toLowerCase() === hashedInput.toLowerCase();
+      const isValid = isPlainMatch || isHashMatch;
+
+      if (isValid) {
+        console.log('[Login] Authentication successful for:', foundUser.username);
+        const user = { ...foundUser, password: hashedInput }; // Always work with hash in memory
         
         if (user.isActive === false) {
           alert('Este usuário está inativo. Entre em contato com o administrador.');
@@ -2410,11 +2487,22 @@ export default function App() {
 
           {!isRegistering && !isResettingPassword ? (
             <form onSubmit={handleLogin} className="space-y-6">
+              <div className="flex items-center justify-center gap-2 py-2 px-3 bg-blue-50/50 rounded-full border border-blue-100/50 mb-2">
+                <div className={cn("w-2 h-2 rounded-full", getSupabaseConfig().enabled ? "bg-emerald-500 shadow-sm shadow-emerald-500/50 animate-pulse" : "bg-amber-500")} />
+                <span className="text-[10px] font-bold text-blue-900 uppercase tracking-widest">
+                  {getSupabaseConfig().enabled ? (
+                    `CONECTADO: ${new URL(getSupabaseConfig().url).hostname.split('.')[0].toUpperCase()}`
+                  ) : (
+                    "ARMAZENAMENTO LOCAL"
+                  )}
+                </span>
+              </div>
+
               {!getSupabaseConfig().enabled && (
                 <div className="bg-amber-50 border border-amber-200 p-3 rounded-lg flex items-center gap-3 animate-in fade-in duration-500">
                   <AlertCircle className="w-5 h-5 text-amber-600 shrink-0" />
                   <div className="text-[10px] text-amber-700 leading-tight">
-                    <strong>Modo de Armazenamento Local:</strong> O banco de dados em nuvem não está configurado. Usuários em outros computadores não verão seus dados.
+                    <strong>Modo Offline:</strong> Nenhuma configuração de nuvem encontrada. Os dados ficam salvos apenas neste navegador.
                   </div>
                 </div>
               )}
