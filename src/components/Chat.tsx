@@ -588,14 +588,13 @@ export function Chat({ currentUser, users, contracts }: ChatProps) {
       <AnimatePresence>
         {isOpen && (
           <motion.div
-            initial={{ opacity: 0, y: 20, scale: 0.95 }}
+            initial={{ opacity: 0, y: 20, scale: 0.95, width: '600px' }}
             animate={{ 
               opacity: 1, 
               y: 0, 
               scale: 1,
               height: isMinimized ? '48px' : '600px',
-              width: '100%',
-              maxWidth: '600px'
+              width: '600px'
             }}
             exit={{ opacity: 0, y: 20, scale: 0.95 }}
             className={cn(
@@ -643,7 +642,10 @@ export function Chat({ currentUser, users, contracts }: ChatProps) {
                   {isMinimized ? <Maximize2 className="w-4 h-4" /> : <Minimize2 className="w-4 h-4" />}
                 </button>
                 <button 
-                  onClick={() => setIsOpen(false)}
+                  onClick={() => {
+                    setIsOpen(false);
+                    setActiveChat(null);
+                  }}
                   className="p-1.5 hover:bg-white/10 rounded-full transition-colors"
                 >
                   <X className="w-4 h-4" />
@@ -1018,7 +1020,10 @@ export function Chat({ currentUser, users, contracts }: ChatProps) {
       <motion.button
         whileHover={{ scale: 1.05 }}
         whileTap={{ scale: 0.95 }}
-        onClick={() => setIsOpen(!isOpen)}
+        onClick={() => {
+          if (isOpen) setActiveChat(null);
+          setIsOpen(!isOpen);
+        }}
         className={cn(
           "w-16 h-16 rounded-full flex items-center justify-center shadow-2xl transition-all duration-500 border-4 border-white pointer-events-auto relative overflow-hidden group",
           isOpen ? "bg-red-500 rotate-90" : "bg-blue-600 hover:bg-blue-700"
