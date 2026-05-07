@@ -68,10 +68,10 @@ const mapToCamel = (obj: any): any => {
 };
 
 export default function App() {
-  // Helper for SessionStorage
+  // Helper for LocalStorage
   const [currentUser, setCurrentUser] = useState<User | null>(() => {
     try {
-      const item = window.sessionStorage.getItem('sigo_current_user');
+      const item = window.localStorage.getItem('sigo_current_user');
       return item ? JSON.parse(item) : null;
     } catch {
       return null;
@@ -84,34 +84,31 @@ export default function App() {
       // Security: Never save password or sensitive fields locally
       const secureUser = { ...user };
       delete (secureUser as any).password;
-      window.sessionStorage.setItem('sigo_current_user', JSON.stringify(secureUser));
+      window.localStorage.setItem('sigo_current_user', JSON.stringify(secureUser));
     } else {
-      window.sessionStorage.removeItem('sigo_current_user');
+      window.localStorage.removeItem('sigo_current_user');
     }
   };
 
-  // Security: Immediate logout on internet disconnection
+  // Connection monitoring (without aggressive logout)
   React.useEffect(() => {
     const handleOffline = () => {
-      if (currentUser) {
-        console.warn('[Security] Connection lost. Logging out for safety.');
-        setAndSaveCurrentUser(null);
-        alert('Conexão com a internet perdida. Você foi desconectado por segurança.');
+      console.warn('Conexão com a internet perdida.');
+    };
+
+    const handleOnline = () => {
+      console.log('Conexão restabelecida.');
+      if (currentUser?.id) {
+        syncFromSupabase(currentUser.companyId);
       }
     };
 
     window.addEventListener('offline', handleOffline);
-    
-    // Also check on interval just in case
-    const interval = setInterval(() => {
-      if (currentUser && !navigator.onLine) {
-        handleOffline();
-      }
-    }, 5000);
+    window.addEventListener('online', handleOnline);
 
     return () => {
       window.removeEventListener('offline', handleOffline);
-      clearInterval(interval);
+      window.removeEventListener('online', handleOnline);
     };
   }, [currentUser]);
 
@@ -469,24 +466,6 @@ export default function App() {
 
         const blobData = blobRes.data;
         const dbUsers = usersRes.data;
-
-        // Security: Single Session Enforcement
-        if (currentUser && dbUsers) {
-          const dbUserObj = dbUsers.find(u => u.id === currentUser.id);
-          if (dbUserObj) {
-            const camelUser = mapToCamel(dbUserObj);
-            // If DB has a session ID and it doesn't match ours, someone else logged in
-            if (camelUser.sessionId && currentUser.sessionId && camelUser.sessionId !== currentUser.sessionId) {
-              console.warn('[Security] Multiple logins detected. Session invalidated.', {
-                local: currentUser.sessionId,
-                db: camelUser.sessionId
-              });
-              setAndSaveCurrentUser(null);
-              alert('Sua conta foi conectada em outro dispositivo. Você foi desconectado por segurança.');
-              return null;
-            }
-          }
-        }
 
         const blobMap: Record<string, any> = {};
         
@@ -990,79 +969,6 @@ export default function App() {
     setAndSaveCurrentUser(null);
   };
 
-  // --- Realtime Session Validation ---
-  useEffect(() => {
-    const config = getSupabaseConfig();
-    if (!config.enabled || !currentUser?.sessionId) return;
-
-    const supabase = createSupabaseClient(config.url, config.key);
-    if (!supabase) return;
-
-    // Monitor for changes in the users blob to see if our sessionId changed elsewhere
-    const channel = supabase
-      .channel('session-monitor')
-      .on('postgres_changes', { 
-        event: 'UPDATE', 
-        schema: 'public', 
-        table: 'app_state',
-        filter: 'id=eq.sigo_users'
-      }, (payload: any) => {
-        const latestUsers: User[] = payload.new.content;
-        const myData = latestUsers.find(u => u.id === currentUser.id);
-        
-        if (myData && myData.sessionId && myData.sessionId !== currentUser.sessionId) {
-          // New session started elsewhere!
-          alert('Sua conta foi conectada em outro local. Esta sessão foi encerrada por segurança.');
-          
-          // Full cleanup of local state
-          window.sessionStorage.removeItem('sigo_current_user');
-          setAndSaveCurrentUser(null);
-          setMainTab('home');
-          window.location.reload();
-        }
-      })
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [currentUser?.id, currentUser?.sessionId]);
-
-  // Clean up session if browser is closed/refreshed
-  useEffect(() => {
-    const handleBeforeUnload = () => {
-      if (currentUser) {
-        const config = getSupabaseConfig();
-        if (config.enabled && config.url && config.key) {
-           const updatedUsers = users.map(u => u.id === currentUser.id ? { ...u, sessionId: null } : u);
-           
-           // Use fetch with keepalive which allows custom headers (unlike sendBeacon)
-           const url = `${config.url}/rest/v1/app_state?id=eq.sigo_users`;
-           const payload = JSON.stringify({ id: 'sigo_users', content: updatedUsers });
-           
-           try {
-             fetch(url, {
-               method: 'PATCH', // PostgREST uses PATCH (or UPSERT via POST with Prefer headers, but we just use PATCH for simplicity of updating an existing row)
-               headers: {
-                 'Content-Type': 'application/json',
-                 'apikey': config.key,
-                 'Authorization': `Bearer ${config.key}`,
-               },
-               body: JSON.stringify({ content: updatedUsers }),
-               keepalive: true
-             });
-           } catch {
-             // fallback
-           }
-        }
-      }
-    };
-    
-    window.addEventListener('beforeunload', handleBeforeUnload);
-    return () => {
-      window.removeEventListener('beforeunload', handleBeforeUnload);
-    };
-  }, [currentUser, users]);
 
   // --- Technical Management (RDO, Pluviometry, Schedule) ---
   const addDailyReport = async (report: Omit<DailyReport, 'id'>) => {
