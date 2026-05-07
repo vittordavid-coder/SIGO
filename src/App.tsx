@@ -2534,17 +2534,6 @@ export default function App() {
 
           {!isRegistering && !isResettingPassword ? (
             <form onSubmit={handleLogin} className="space-y-6">
-              <div className="flex items-center justify-center gap-2 py-2 px-3 bg-blue-50/50 rounded-full border border-blue-100/50 mb-2">
-                <div className={cn("w-2 h-2 rounded-full", getSupabaseConfig().enabled ? "bg-emerald-500 shadow-sm shadow-emerald-500/50 animate-pulse" : "bg-amber-500")} />
-                <span className="text-[10px] font-bold text-blue-900 uppercase tracking-widest">
-                  {getSupabaseConfig().enabled ? (
-                    `CONECTADO: ${new URL(getSupabaseConfig().url).hostname.split('.')[0].toUpperCase()}`
-                  ) : (
-                    "ARMAZENAMENTO LOCAL"
-                  )}
-                </span>
-              </div>
-
               {!getSupabaseConfig().enabled && (
                 <div className="bg-amber-50 border border-amber-200 p-3 rounded-lg flex items-center gap-3 animate-in fade-in duration-500">
                   <AlertCircle className="w-5 h-5 text-amber-600 shrink-0" />
