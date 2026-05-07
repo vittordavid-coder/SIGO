@@ -68,10 +68,10 @@ const mapToCamel = (obj: any): any => {
 };
 
 export default function App() {
-  // Helper for LocalStorage
+  // Helper for SessionStorage
   const [currentUser, setCurrentUser] = useState<User | null>(() => {
     try {
-      const item = window.localStorage.getItem('sigo_current_user');
+      const item = window.sessionStorage.getItem('sigo_current_user');
       return item ? JSON.parse(item) : null;
     } catch {
       return null;
@@ -84,23 +84,24 @@ export default function App() {
       // Security: Never save password or sensitive fields locally
       const secureUser = { ...user };
       delete (secureUser as any).password;
-      window.localStorage.setItem('sigo_current_user', JSON.stringify(secureUser));
+      window.sessionStorage.setItem('sigo_current_user', JSON.stringify(secureUser));
     } else {
-      window.localStorage.removeItem('sigo_current_user');
+      window.sessionStorage.removeItem('sigo_current_user');
     }
   };
 
-  // Connection monitoring (without aggressive logout)
+  // Connection monitoring with auto-logout
   React.useEffect(() => {
     const handleOffline = () => {
-      console.warn('Conexão com a internet perdida.');
+      if (currentUser) {
+        console.warn('[Segurança] Conexão perdida. Desconectando por segurança.');
+        setAndSaveCurrentUser(null);
+        alert('Conexão com a internet perdida. Você foi desconectado por segurança.');
+      }
     };
 
     const handleOnline = () => {
       console.log('Conexão restabelecida.');
-      if (currentUser?.id) {
-        syncFromSupabase(currentUser.companyId);
-      }
     };
 
     window.addEventListener('offline', handleOffline);
