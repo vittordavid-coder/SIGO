@@ -5164,7 +5164,7 @@ function ProductionControlView({
       
       // Header
       sheet.mergeCells('A1:G1');
-      sheet.getCell('A1').value = `CONTROLE DE PRODUÇÃO: ${selectedService.name}`;
+      sheet.getCell('A1').value = `CONTROLE DE PRODUÇÃO: ${production.customTitle || selectedService.name}`;
       sheet.getCell('A1').font = { size: 14, bold: true };
       
       sheet.getCell('A2').value = `Contrato: ${contract.contractNumber} | Mês: ${selectedMonth} | Código: ${selectedService.code}`;
@@ -5252,7 +5252,7 @@ function ProductionControlView({
         if (!s) return;
         
         const sheet = workbook.addWorksheet(`${s.code}_${p.month}`.replace(/-/g, '').slice(0, 31));
-        sheet.addRow([`Relatório: ${s.name} (${p.month})`]);
+        sheet.addRow([`Relatório: ${p.customTitle || s.name} (${p.month})`]);
         sheet.getCell('A1').font = { bold: true, size: 12 };
         sheet.addRow(['Dia', 'Data', 'Executado', 'Acumulado']);
         sheet.getRow(2).font = { bold: true };
@@ -5549,7 +5549,7 @@ function ProductionControlView({
                                   </div>
                                   <div className="min-w-0">
                                      <p className="text-[9px] font-bold text-blue-600 uppercase tracking-widest truncate mb-0.5">{s?.code}</p>
-                                     <h5 className="font-bold text-gray-900 text-sm truncate leading-tight mb-1" title={s?.name}>{s?.name}</h5>
+                                     <h5 className="font-bold text-gray-900 text-sm truncate leading-tight mb-1" title={p.customTitle || s?.name}>{p.customTitle || s?.name}</h5>
                                      <div className="flex flex-wrap items-center gap-1.5 mt-1">
                                         <span className="text-[10px] text-gray-400 font-medium whitespace-nowrap">Acum: {formatNumber(totalExec, 1)} {s?.unit}</span>
                                      </div>
@@ -5663,6 +5663,17 @@ function ProductionControlView({
 
                  {production && (
                     <div className="space-y-4 pt-2">
+                       <div className="space-y-2 pb-2">
+                          <Label className="text-[11px] font-bold text-gray-400 uppercase tracking-widest">Título Personalizado (Opcional)</Label>
+                          <Input 
+                            placeholder="Substitui o nome do serviço..." 
+                            value={production.customTitle || ''} 
+                            onChange={e => handleUpdate({ customTitle: e.target.value })} 
+                            className="h-9 border-blue-100 focus:border-blue-400"
+                            disabled={readonly}
+                          />
+                          <p className="text-[9px] text-gray-400 italic">Se preenchido, este título substituirá o nome original do serviço.</p>
+                       </div>
                        <div className="grid grid-cols-2 gap-4">
                           <div className="space-y-1">
                              <Label className="text-[10px] font-bold">Nº Equip.</Label>
@@ -5760,7 +5771,7 @@ function ProductionControlView({
                        <div className="flex justify-between items-end">
                           <div>
                              <p className="text-blue-100 text-[10px] font-bold uppercase tracking-[0.2em] mb-1">Acompanhamento Físico</p>
-                             <CardTitle className="text-2xl uppercase font-black">{selectedService.name}</CardTitle>
+                             <CardTitle className="text-2xl uppercase font-black">{production.customTitle || selectedService.name}</CardTitle>
                              <div className="flex items-center gap-3 mt-2">
                                 <span className="bg-white/10 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-widest">{selectedService.code}</span>
                                 <span className="text-blue-200 text-xs">Unidade: {selectedService.unit} | Mês: {selectedMonth}</span>

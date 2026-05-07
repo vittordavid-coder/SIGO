@@ -9,9 +9,9 @@ export function useLocalStorage<T>(key: string, initialValue: T, companyId?: str
       const config = getSupabaseConfig();
       const storeKey = companyId && key !== 'sigo_users' ? `${companyId}_${key}` : key;
       
-      // If Supabase is enabled, we prefer to start with initialValue and let syncFromSupabase fill it
-      // unless it's the users list which is needed for login.
-      if (config.enabled && key !== 'sigo_users') {
+      // If Supabase is enabled, minimize local storage reading.
+      const isSensitive = key === 'sigo_users' || key === 'sigo_reset_requests';
+      if (config.enabled && (key !== 'sigo_users' || isSensitive)) {
         return initialValue;
       }
       
@@ -52,11 +52,22 @@ export function useLocalStorage<T>(key: string, initialValue: T, companyId?: str
       setStoredValue(valueToStore);
       stateRef.current = valueToStore;
       
-      try {
-        const storeKey = companyId && key !== 'sigo_users' ? `${companyId}_${key}` : key;
-        window.localStorage.setItem(storeKey, JSON.stringify(valueToStore));
-      } catch (storageError) {
-        console.error(`Error saving to localStorage:`, storageError);
+      const config = getSupabaseConfig();
+      // Security: If Supabase is enabled, we minimize local storage.
+      // ALWAYS prioritize cloud storage and avoid local copies of sensitive or business data.
+      const isSensitive = key === 'sigo_users' || key === 'sigo_reset_requests' || key === 'chat_messages';
+      
+      if (!config.enabled) {
+        try {
+          const storeKey = companyId && key !== 'sigo_users' ? `${companyId}_${key}` : key;
+          window.localStorage.setItem(storeKey, JSON.stringify(valueToStore));
+        } catch (storageError) {
+          console.error(`Error saving to localStorage:`, storageError);
+        }
+      } else if (isSensitive) {
+        // Connected mode: explicitly remove sensitive data from localStorage
+        window.localStorage.removeItem(key);
+        if (companyId) window.localStorage.removeItem(`${companyId}_${key}`);
       }
       
       syncToSupabase(valueToStore);

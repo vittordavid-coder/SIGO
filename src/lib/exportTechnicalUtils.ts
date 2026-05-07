@@ -832,7 +832,7 @@ export function exportMonthlyControlReportPDF(options: {
       doc.setFontSize(11); // Diminuído o tamanho da fonte para não sobrepor
       doc.setTextColor(255, 255, 255);
       doc.setFont('helvetica', 'bold');
-      const serviceTitle = s?.name || '';
+      const serviceTitle = p.customTitle || s?.name || '';
       const splitServiceTitle = doc.splitTextToSize(serviceTitle, 130);
       // Limitar e garantir que o título não desça demais
       const displayedTitle = splitServiceTitle.slice(0, 2); 
@@ -956,7 +956,7 @@ export function exportMonthlyControlReportPDF(options: {
       
       doc.setFontSize(10);
       doc.setFont('helvetica', 'bold');
-      const chartTitle = `Gráfico de Evolução: ${s?.code || p.serviceId?.substring(0, 8)} - ${s?.name || (p as any).name || 'Serviço não encontrado'}`;
+      const chartTitle = `Gráfico de Evolução: ${s?.code || p.serviceId?.substring(0, 8)} - ${p.customTitle || s?.name || (p as any).name || 'Serviço não encontrado'}`;
       const splitChartTitle = doc.splitTextToSize(chartTitle, 260);
       doc.text(splitChartTitle, 14, 48);
 

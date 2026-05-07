@@ -461,6 +461,7 @@ export interface ServiceProduction {
   companyId?: string;
   contractId: string;
   serviceId: string;
+  customTitle?: string;
   month: string; // YYYY-MM
   numEquip: number;
   workDays: number;

@@ -81,11 +81,40 @@ export default function App() {
   const setAndSaveCurrentUser = (user: User | null) => {
     setCurrentUser(user);
     if (user) {
-      window.sessionStorage.setItem('sigo_current_user', JSON.stringify(user));
+      // Security: Never save password or sensitive fields locally
+      const secureUser = { ...user };
+      delete (secureUser as any).password;
+      window.sessionStorage.setItem('sigo_current_user', JSON.stringify(secureUser));
     } else {
       window.sessionStorage.removeItem('sigo_current_user');
     }
   };
+
+  // Security: Immediate logout on internet disconnection
+  React.useEffect(() => {
+    const handleOffline = () => {
+      if (currentUser) {
+        console.warn('[Security] Connection lost. Logging out for safety.');
+        setAndSaveCurrentUser(null);
+        alert('Conexão com a internet perdida. Você foi desconectado por segurança.');
+      }
+    };
+
+    window.addEventListener('offline', handleOffline);
+    
+    // Also check on interval just in case
+    const interval = setInterval(() => {
+      if (currentUser && !navigator.onLine) {
+        handleOffline();
+      }
+    }, 5000);
+
+    return () => {
+      window.removeEventListener('offline', handleOffline);
+      clearInterval(interval);
+    };
+  }, [currentUser]);
+
   const compId = currentUser?.companyId;
 
   const [mainTab, setMainTab] = useState<'home' | 'quotations' | 'measurements' | 'rh' | 'control' | 'purchases' | 'project_admin' | 'settings' | 'admin' | 'profile'>('home');
@@ -250,7 +279,7 @@ export default function App() {
       const config = getSupabaseConfig();
       if (config.enabled) {
         console.log('[App] Supabase enabled, clearing local data keys to ensure fresh sync...');
-        const keysToKeep = ['supabase_config', 'sigo_users', 'sigo_current_user'];
+        const keysToKeep = ['supabase_config'];
         for (let i = localStorage.length - 1; i >= 0; i--) {
           const key = localStorage.key(i);
           if (key && !keysToKeep.some(k => key === k)) {
@@ -440,6 +469,24 @@ export default function App() {
 
         const blobData = blobRes.data;
         const dbUsers = usersRes.data;
+
+        // Security: Single Session Enforcement
+        if (currentUser && dbUsers) {
+          const dbUserObj = dbUsers.find(u => u.id === currentUser.id);
+          if (dbUserObj) {
+            const camelUser = mapToCamel(dbUserObj);
+            // If DB has a session ID and it doesn't match ours, someone else logged in
+            if (camelUser.sessionId && currentUser.sessionId && camelUser.sessionId !== currentUser.sessionId) {
+              console.warn('[Security] Multiple logins detected. Session invalidated.', {
+                local: currentUser.sessionId,
+                db: camelUser.sessionId
+              });
+              setAndSaveCurrentUser(null);
+              alert('Sua conta foi conectada em outro dispositivo. Você foi desconectado por segurança.');
+              return null;
+            }
+          }
+        }
 
         const blobMap: Record<string, any> = {};
         
