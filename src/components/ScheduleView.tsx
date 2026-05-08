@@ -27,48 +27,327 @@ interface ScheduleViewProps {
   readonly?: boolean;
 }
 
+// optimized sub-components for better performance
+const ScheduleServiceRow = React.memo(({ 
+  item, 
+  service, 
+  viewMode, 
+  periods, 
+  currentSchedule, 
+  unitCost, 
+  getPeriodValue, 
+  handleValueChange, 
+  readonly 
+}: {
+  item: { serviceId: string; quantity: number };
+  service: ServiceComposition | undefined;
+  viewMode: 'qty' | 'val' | 'perc' | 'all';
+  periods: number[];
+  currentSchedule: Schedule;
+  unitCost: number;
+  getPeriodValue: (serviceId: string, periodIndex: number) => number;
+  handleValueChange: (serviceId: string, periodIndex: number, value: number) => void;
+  readonly: boolean | undefined;
+}) => {
+  if (!service) return null;
+  
+  const isPercentage = currentSchedule.distributionType === 'percentage';
+  const totalDist = periods.reduce((acc, p) => acc + getPeriodValue(item.serviceId, p), 0);
+  const balance = isPercentage ? 100 - totalDist : item.quantity - totalDist;
+  
+  let currentCumulative = 0;
+  const limit = isPercentage ? 100 : item.quantity;
+
+  return (
+    <TableRow>
+      <TableCell className="sticky left-0 bg-white z-10 shadow-[1px_0_0_0_rgba(0,0,0,0.1)] w-[150px] min-w-[150px] max-w-[150px] py-1 px-2">
+        <div className="flex flex-col gap-0.5">
+          <span className="text-[8px] font-bold text-blue-600 leading-none">{service.code}</span>
+          <span className="text-[10px] font-semibold whitespace-normal leading-tight text-gray-800 line-clamp-2">{service.name}</span>
+          <span className="text-[8px] text-gray-400 leading-none">{service.unit}</span>
+        </div>
+      </TableCell>
+      <TableCell className="text-right text-[10px] font-mono p-2">
+        <div className="flex flex-col gap-0.5">
+          {(viewMode === 'qty' || viewMode === 'all') && (
+            <div className="font-bold text-gray-600">
+              {isPercentage ? '100%' : formatNumber(item.quantity, 3)}
+            </div>
+          )}
+          {(viewMode === 'val' || viewMode === 'all') && (
+            <div className="text-blue-900 font-bold">
+              {formatCurrency(item.quantity * unitCost)}
+            </div>
+          )}
+          {(viewMode === 'perc' || viewMode === 'all') && (
+            <div className="text-gray-400">100%</div>
+          )}
+        </div>
+      </TableCell>
+      {periods.map(p => {
+        const periodQty = getPeriodValue(item.serviceId, p);
+        currentCumulative += periodQty;
+        const isOverLimit = currentCumulative > limit + 0.0001;
+        const periodFinancial = isPercentage ? (periodQty / 100 * item.quantity * unitCost) : (periodQty * unitCost);
+
+        return (
+          <TableCell key={p} className={cn("p-1 border-l transition-colors", isOverLimit && "bg-red-50")}>
+            <div className="flex flex-col gap-0.5">
+              {(viewMode === 'qty' || viewMode === 'all') && (
+                <Input 
+                  type="number"
+                  step="0.001"
+                  className={cn(
+                    "h-7 text-right text-[10px] font-mono border-none focus:ring-1 focus:ring-blue-500 bg-transparent px-1",
+                    isOverLimit && "text-red-600 font-bold"
+                  )}
+                  defaultValue={periodQty || ''}
+                  onBlur={(e) => {
+                    const val = e.target.value;
+                    const num = val === '' ? 0 : parseFloat(val);
+                    if (num !== periodQty) {
+                      handleValueChange(item.serviceId, p, num);
+                    }
+                  }}
+                  placeholder="0"
+                  readOnly={readonly}
+                />
+              )}
+              {(viewMode === 'val' || viewMode === 'all') && periodFinancial > 0 && (
+                <div className={cn(
+                  "text-[9px] font-mono text-right pr-1",
+                  (viewMode === 'all') ? "text-blue-600 font-medium" : "text-gray-900 text-[10px] font-bold"
+                )}>
+                  {formatCurrency(periodFinancial)}
+                </div>
+              )}
+              {(viewMode === 'perc' || viewMode === 'all') && (
+                <div className="text-[8px] font-mono text-right text-gray-400 pr-1">
+                  {formatNumber(isPercentage ? periodQty : (periodQty / item.quantity * 100), 1)}%
+                </div>
+              )}
+            </div>
+          </TableCell>
+        );
+      })}
+      <TableCell className={cn(
+        "text-right text-[10px] font-mono font-bold border-l bg-blue-50/30",
+        Math.abs(balance) < 0.01 ? "text-green-600" : balance < 0 ? "text-red-600" : "text-blue-600"
+      )}>
+         <div className="flex flex-col gap-0.5">
+           {(viewMode === 'qty' || viewMode === 'all') && (
+             <div>{isPercentage ? `${formatNumber(totalDist, 2)}%` : formatNumber(totalDist, 3)}</div>
+           )}
+           {(viewMode === 'val' || viewMode === 'all') && (
+             <div>{formatCurrency(isPercentage ? (totalDist/100 * item.quantity * unitCost) : (totalDist * unitCost))}</div>
+           )}
+           {(viewMode === 'perc' || viewMode === 'all') && (
+             <div className="text-gray-400">{formatNumber(isPercentage ? totalDist : (totalDist/item.quantity*100), 1)}%</div>
+           )}
+         </div>
+      </TableCell>
+      <TableCell className={cn(
+        "text-right text-[10px] font-mono border-l",
+        Math.abs(balance) < 0.01 ? "text-green-600" : balance < 0 ? "text-red-600" : "text-gray-500"
+      )}>
+        <div className="flex flex-col gap-0.5">
+           {(viewMode === 'qty' || viewMode === 'all') && (
+             <div>{isPercentage ? `${formatNumber(balance, 2)}%` : formatNumber(balance, 3)}</div>
+           )}
+           {(viewMode === 'val' || viewMode === 'all') && (
+             <div>{formatCurrency(isPercentage ? (balance/100 * item.quantity * unitCost) : (balance * unitCost))}</div>
+           )}
+           {(viewMode === 'perc' || viewMode === 'all') && (
+             <div className="text-gray-400">{formatNumber(isPercentage ? balance : (balance/item.quantity*100), 1)}%</div>
+           )}
+         </div>
+      </TableCell>
+    </TableRow>
+  );
+});
+
 export function ScheduleView({ services, resources, quotations, schedules, setSchedules, budgetItems, budgetGroups, readonly }: ScheduleViewProps) {
   const isCurrentPopulated = budgetItems.length > 0 || budgetGroups.length > 0;
   const [selectedQuotationId, setSelectedQuotationId] = useState<string>(isCurrentPopulated ? 'current' : (quotations[0]?.id || ''));
   const [viewMode, setViewMode] = useState<'qty' | 'val' | 'perc' | 'all'>('qty');
+  const [hasChanges, setHasChanges] = useState(false);
+
+  // Drafts in LocalStorage to keep work in progress
+  const [draftSchedule, setDraftSchedule] = useLocalStorage<Schedule | null>(`sigo_schedule_draft_${selectedQuotationId}`, null);
   
-  React.useEffect(() => {
-    if (selectedQuotationId === 'current' && !isCurrentPopulated) {
-      setSelectedQuotationId(quotations[0]?.id || '');
+  // Local schedule state for active editing
+  const [localSchedule, setLocalSchedule] = useState<Schedule>(() => {
+    // Try to recover from draft first
+    const savedDraft = window.localStorage.getItem(`sigo_schedule_draft_${selectedQuotationId}`);
+    if (savedDraft) {
+      try {
+        return JSON.parse(savedDraft);
+      } catch (e) {
+        console.error("Error parsing schedule draft", e);
+      }
     }
-  }, [isCurrentPopulated, quotations, selectedQuotationId]);
+
+    // Otherwise use prop data or default
+    return schedules.find(s => s.quotationId === selectedQuotationId) || {
+      id: uuidv4(),
+      quotationId: selectedQuotationId,
+      startDate: new Date().toISOString().split('T')[0],
+      duration: 6,
+      timeUnit: 'months' as TimeUnit,
+      distributionType: 'percentage' as const,
+      services: []
+    };
+  });
+
+  // Sync with prop only if we don't have unsaved local changes and quotation ID changes
+  React.useEffect(() => {
+    const savedDraft = window.localStorage.getItem(`sigo_schedule_draft_${selectedQuotationId}`);
+    if (!savedDraft) {
+      const scheduleFromProps = schedules.find(s => s.quotationId === selectedQuotationId);
+      if (scheduleFromProps) {
+        setLocalSchedule(scheduleFromProps);
+        setHasChanges(false);
+      } else {
+        setLocalSchedule({
+          id: uuidv4(),
+          quotationId: selectedQuotationId,
+          startDate: new Date().toISOString().split('T')[0],
+          duration: 6,
+          timeUnit: 'months' as TimeUnit,
+          distributionType: 'percentage' as const,
+          services: []
+        });
+        setHasChanges(false);
+      }
+    } else {
+      setHasChanges(true);
+    }
+  }, [selectedQuotationId, schedules]);
 
   const activeQuotation = selectedQuotationId === 'current' 
     ? { id: 'current', budgetName: 'Planilha Atual', services: budgetItems, groups: budgetGroups }
     : quotations.find(q => q.id === selectedQuotationId);
 
-  const groupsToRender = [
+  const groupsToRender = React.useMemo(() => [
     ...(activeQuotation?.groups || []),
     ...(activeQuotation?.services && activeQuotation.services.length > 0 
       ? [{ id: 'standalone', name: 'Serviços Gerais', services: activeQuotation.services }] 
       : [])
-  ];
+  ], [activeQuotation]);
 
-  const activeItems = groupsToRender.flatMap(g => g.services);
+  const activeItems = React.useMemo(() => groupsToRender.flatMap(g => g.services), [groupsToRender]);
 
-  const currentSchedule = schedules.find(s => s.quotationId === selectedQuotationId) || {
-    id: uuidv4(),
-    quotationId: selectedQuotationId,
-    startDate: new Date().toISOString().split('T')[0],
-    duration: 6,
-    timeUnit: 'months' as TimeUnit,
-    distributionType: 'percentage' as const,
-    services: []
-  };
+  const currentSchedule = localSchedule;
 
-  const updateSchedule = (updates: Partial<Schedule>) => {
-    const newSchedule = { ...currentSchedule, ...updates };
+  // Optimized lookups and calculations
+  const serviceUnitCosts = React.useMemo(() => {
+    const costMap: Record<string, number> = {};
+    activeItems.forEach(item => {
+      const s = services.find(serv => serv.id === item.serviceId);
+      if (s) {
+        costMap[item.serviceId] = calculateServiceUnitCost(s, resources, services);
+      }
+    });
+    return costMap;
+  }, [activeItems, services, resources]);
+
+  const serviceLookup = React.useMemo(() => {
+    const sMap: Record<string, ServiceComposition> = {};
+    services.forEach(s => { sMap[s.id] = s; });
+    return sMap;
+  }, [services]);
+
+  const scheduleDataLookup = React.useMemo(() => {
+    const lookup: Record<string, Record<number, number>> = {};
+    currentSchedule.services.forEach(s => {
+      lookup[s.serviceId] = {};
+      s.distribution.forEach(d => {
+        lookup[s.serviceId][d.periodIndex] = d.value;
+      });
+    });
+    return lookup;
+  }, [currentSchedule.services]);
+
+  const serviceTotals = React.useMemo(() => {
+    const totals: Record<string, number> = {};
+    currentSchedule.services.forEach(s => {
+      totals[s.serviceId] = s.distribution.reduce((acc, p) => acc + p.value, 0);
+    });
+    return totals;
+  }, [currentSchedule.services]);
+
+  const periodFinancialTotals = React.useMemo(() => {
+    const totals: number[] = Array(currentSchedule.duration).fill(0);
+    const isPercentage = currentSchedule.distributionType === 'percentage';
+
+    activeItems.forEach(item => {
+      const unitCost = Number(serviceUnitCosts[item.serviceId] || 0);
+      const dist = scheduleDataLookup[item.serviceId] || {};
+      const itemQty = Number(item.quantity || 0);
+      
+      Object.entries(dist).forEach(([pIdx, val]) => {
+        const p = parseInt(pIdx);
+        const value = Number(val || 0);
+        if (p < currentSchedule.duration) {
+          if (isPercentage) {
+            totals[p] += (value / 100) * itemQty * unitCost;
+          } else {
+            totals[p] += value * unitCost;
+          }
+        }
+      });
+    });
+    return totals;
+  }, [currentSchedule.duration, currentSchedule.distributionType, activeItems, serviceUnitCosts, scheduleDataLookup]);
+
+  const groupFinancialTotals = React.useMemo(() => {
+    const totals: Record<string, number[]> = {};
+    const isPercentage = currentSchedule.distributionType === 'percentage';
+
+    groupsToRender.forEach(group => {
+      const gTotals = Array(currentSchedule.duration).fill(0);
+      group.services.forEach(item => {
+        const unitCost = Number(serviceUnitCosts[item.serviceId] || 0);
+        const dist = scheduleDataLookup[item.serviceId] || {};
+        const itemQty = Number(item.quantity || 0);
+
+        Object.entries(dist).forEach(([pIdx, val]) => {
+          const p = parseInt(pIdx);
+          const value = Number(val || 0);
+          if (p < currentSchedule.duration) {
+            if (isPercentage) {
+              gTotals[p] += (value / 100) * itemQty * unitCost;
+            } else {
+              gTotals[p] += value * unitCost;
+            }
+          }
+        });
+      });
+      totals[group.id] = gTotals;
+    });
+    return totals;
+  }, [groupsToRender, currentSchedule.duration, currentSchedule.distributionType, serviceUnitCosts, scheduleDataLookup]);
+
+  const updateSchedule = React.useCallback((updates: Partial<Schedule>) => {
+    setLocalSchedule(prev => {
+      const newSchedule = { ...prev, ...updates };
+      setDraftSchedule(newSchedule);
+      return newSchedule;
+    });
+    setHasChanges(true);
+  }, [setDraftSchedule]);
+
+  const handleSave = () => {
     const exists = schedules.some(s => s.quotationId === selectedQuotationId);
-    if (exists) {
-      setSchedules(schedules.map(s => s.quotationId === selectedQuotationId ? newSchedule : s));
-    } else {
-      setSchedules([...schedules, newSchedule]);
-    }
+    const updatedSchedules = exists 
+      ? schedules.map(s => s.quotationId === selectedQuotationId ? currentSchedule : s)
+      : [...schedules, currentSchedule];
+    
+    setSchedules(updatedSchedules);
+    setHasChanges(false);
+    // Clear draft after successful save
+    window.localStorage.removeItem(`sigo_schedule_draft_${selectedQuotationId}`);
+    alert('Cronograma salvo com sucesso!');
   };
 
   const handleTimeUnitChange = (newUnit: TimeUnit) => {
@@ -123,7 +402,7 @@ export function ScheduleView({ services, resources, quotations, schedules, setSc
     });
   };
 
-  const handleValueChange = (serviceId: string, periodIndex: number, value: number) => {
+  const handleValueChange = React.useCallback((serviceId: string, periodIndex: number, value: number) => {
     const serviceSchedule = currentSchedule.services.find(s => s.serviceId === serviceId) || {
       serviceId,
       distribution: []
@@ -147,35 +426,34 @@ export function ScheduleView({ services, resources, quotations, schedules, setSc
     }
 
     updateSchedule({ services: newServices });
-  };
+  }, [currentSchedule.services, updateSchedule]);
 
-  const getPeriodValue = (serviceId: string, periodIndex: number) => {
-    const s = currentSchedule.services.find(s => s.serviceId === serviceId);
-    return s?.distribution.find(p => p.periodIndex === periodIndex)?.value || 0;
-  };
+  const getPeriodValue = React.useCallback((serviceId: string, periodIndex: number) => {
+    return scheduleDataLookup[serviceId]?.[periodIndex] ?? 0;
+  }, [scheduleDataLookup]);
 
-  const getServiceTotal = (serviceId: string) => {
-    const s = currentSchedule.services.find(s => s.serviceId === serviceId);
-    return s?.distribution.reduce((acc, p) => acc + p.value, 0) || 0;
-  };
+  const getServiceTotal = React.useCallback((serviceId: string) => {
+    return serviceTotals[serviceId] || 0;
+  }, [serviceTotals]);
 
-  const getPeriodTotalValue = (periodIndex: number, items: {serviceId: string, quantity: number}[]) => {
+  const getPeriodTotalValue = React.useCallback((periodIndex: number, items: {serviceId: string, quantity: number}[]) => {
+    const isPercentage = currentSchedule.distributionType === 'percentage';
     return items.reduce((acc, item) => {
       const val = getPeriodValue(item.serviceId, periodIndex);
-      const s = services.find(serv => serv.id === item.serviceId);
-      const unitCost = s ? calculateServiceUnitCost(s, resources, services) : 0;
+      if (val === 0) return acc;
+      const unitCost = serviceUnitCosts[item.serviceId] || 0;
       
-      if (currentSchedule.distributionType === 'percentage') {
+      if (isPercentage) {
         return acc + (val / 100 * item.quantity * unitCost);
       } else {
         return acc + (val * unitCost);
       }
     }, 0);
-  };
+  }, [currentSchedule.distributionType, getPeriodValue, serviceUnitCosts]);
 
-  const getPeriodTotal = (periodIndex: number) => {
-    return getPeriodTotalValue(periodIndex, activeItems);
-  };
+  const getPeriodTotal = React.useCallback((periodIndex: number) => {
+    return periodFinancialTotals[periodIndex] || 0;
+  }, [periodFinancialTotals]);
 
   const periods = Array.from({ length: currentSchedule.duration }, (_, i) => i);
 
@@ -252,17 +530,21 @@ export function ScheduleView({ services, resources, quotations, schedules, setSc
   };
 
   return (
-    <motion.div 
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="space-y-6"
-    >
+    <div className="space-y-6">
       <div className="flex justify-between items-center">
         <div>
           <h3 className="text-2xl font-bold text-gray-900">Cronograma Físico-Financeiro</h3>
           <p className="text-gray-500">Distribuição da execução dos serviços no tempo</p>
         </div>
         <div className="flex items-center gap-4">
+          {!readonly && hasChanges && (
+            <Button 
+              className="bg-green-600 hover:bg-green-700 text-white font-bold shadow-lg animate-pulse"
+              onClick={handleSave}
+            >
+              Salvar Cronograma
+            </Button>
+          )}
           <div className="flex gap-2">
             <Button variant="outline" size="sm" onClick={() => exportScheduleToExcel(currentSchedule, services, resources, activeQuotation?.budgetName || 'Cronograma')}>
               <FileSpreadsheet className="w-4 h-4 mr-2" /> Excel
@@ -449,125 +731,20 @@ export function ScheduleView({ services, resources, quotations, schedules, setSc
                       </TableCell>
                     </TableRow>
 
-                    {group.services.map((item) => {
-                      const s = services.find(serv => serv.id === item.serviceId);
-                      if (!s) return null;
-                      const totalDist = getServiceTotal(item.serviceId);
-                      const isPercentage = currentSchedule.distributionType === 'percentage';
-                      const balance = isPercentage ? 100 - totalDist : item.quantity - totalDist;
-                      const unitCost = calculateServiceUnitCost(s, resources, services);
-
-                      return (
-                        <TableRow key={item.serviceId}>
-                          <TableCell className="sticky left-0 bg-white z-10 shadow-[1px_0_0_0_rgba(0,0,0,0.1)] w-[150px] min-w-[150px] max-w-[150px] py-1 px-2">
-                            <div className="flex flex-col gap-0.5">
-                              <span className="text-[8px] font-bold text-blue-600 leading-none">{s.code}</span>
-                              <span className="text-[10px] font-semibold whitespace-normal leading-tight text-gray-800 line-clamp-2">{s.name}</span>
-                              <span className="text-[8px] text-gray-400 leading-none">{s.unit}</span>
-                            </div>
-                          </TableCell>
-                          <TableCell className="text-right text-[10px] font-mono p-2">
-                            <div className="flex flex-col gap-0.5">
-                              {(viewMode === 'qty' || viewMode === 'all') && (
-                                <div className="font-bold text-gray-600">
-                                  {isPercentage ? '100%' : formatNumber(item.quantity, 3)}
-                                </div>
-                              )}
-                              {(viewMode === 'val' || viewMode === 'all') && (
-                                <div className="text-blue-900 font-bold">
-                                  {formatCurrency(item.quantity * unitCost)}
-                                </div>
-                              )}
-                              {(viewMode === 'perc' || viewMode === 'all') && (
-                                <div className="text-gray-400">100%</div>
-                              )}
-                            </div>
-                          </TableCell>
-                          {periods.map(p => {
-                            const isPercentage = currentSchedule.distributionType === 'percentage';
-                            const limit = isPercentage ? 100 : item.quantity;
-                            
-                            let cumulativeTotal = 0;
-                            for (let i = 0; i <= p; i++) {
-                              cumulativeTotal += getPeriodValue(item.serviceId, i);
-                            }
-                            
-                            const isOverLimit = cumulativeTotal > limit + 0.0001;
-                            const periodQty = getPeriodValue(item.serviceId, p);
-                            const periodFinancial = isPercentage ? (periodQty / 100 * item.quantity * unitCost) : (periodQty * unitCost);
-
-                            return (
-                              <TableCell key={p} className={cn("p-1 border-l transition-colors", isOverLimit && "bg-red-50")}>
-                                <div className="flex flex-col gap-0.5">
-                                  {(viewMode === 'qty' || viewMode === 'all') && (
-                                    <Input 
-                                      type="number"
-                                      step="0.001"
-                                      className={cn(
-                                        "h-7 text-right text-[10px] font-mono border-none focus:ring-1 focus:ring-blue-500 bg-transparent px-1",
-                                        isOverLimit && "text-red-600 font-bold"
-                                      )}
-                                      value={getPeriodValue(item.serviceId, p) ?? ''}
-                                      onChange={(e) => {
-                                        const val = e.target.value;
-                                        handleValueChange(item.serviceId, p, val === '' ? 0 : parseFloat(val));
-                                      }}
-                                      placeholder="0"
-                                      readOnly={readonly}
-                                    />
-                                  )}
-                                  {(viewMode === 'val' || viewMode === 'all') && periodFinancial > 0 && (
-                                    <div className={cn(
-                                      "text-[9px] font-mono text-right pr-1",
-                                      (viewMode === 'all') ? "text-blue-600 font-medium" : "text-gray-900 text-[10px] font-bold"
-                                    )}>
-                                      {formatCurrency(periodFinancial)}
-                                    </div>
-                                  )}
-                                  {(viewMode === 'perc' || viewMode === 'all') && (
-                                    <div className="text-[8px] font-mono text-right text-gray-400 pr-1">
-                                      {formatNumber(isPercentage ? periodQty : (periodQty / item.quantity * 100), 1)}%
-                                    </div>
-                                  )}
-                                </div>
-                              </TableCell>
-                            );
-                          })}
-                          <TableCell className={cn(
-                            "text-right text-[10px] font-mono font-bold border-l bg-blue-50/30",
-                            Math.abs(balance) < 0.01 ? "text-green-600" : balance < 0 ? "text-red-600" : "text-blue-600"
-                          )}>
-                             <div className="flex flex-col gap-0.5">
-                               {(viewMode === 'qty' || viewMode === 'all') && (
-                                 <div>{isPercentage ? `${formatNumber(totalDist, 2)}%` : formatNumber(totalDist, 3)}</div>
-                               )}
-                               {(viewMode === 'val' || viewMode === 'all') && (
-                                 <div>{formatCurrency(isPercentage ? (totalDist/100 * item.quantity * unitCost) : (totalDist * unitCost))}</div>
-                               )}
-                               {(viewMode === 'perc' || viewMode === 'all') && (
-                                 <div className="text-gray-400">{formatNumber(isPercentage ? totalDist : (totalDist/item.quantity*100), 1)}%</div>
-                               )}
-                             </div>
-                          </TableCell>
-                          <TableCell className={cn(
-                            "text-right text-[10px] font-mono border-l",
-                            Math.abs(balance) < 0.01 ? "text-green-600" : balance < 0 ? "text-red-600" : "text-gray-500"
-                          )}>
-                            <div className="flex flex-col gap-0.5">
-                               {(viewMode === 'qty' || viewMode === 'all') && (
-                                 <div>{isPercentage ? `${formatNumber(balance, 2)}%` : formatNumber(balance, 3)}</div>
-                               )}
-                               {(viewMode === 'val' || viewMode === 'all') && (
-                                 <div>{formatCurrency(isPercentage ? (balance/100 * item.quantity * unitCost) : (balance * unitCost))}</div>
-                               )}
-                               {(viewMode === 'perc' || viewMode === 'all') && (
-                                 <div className="text-gray-400">{formatNumber(isPercentage ? balance : (balance/item.quantity*100), 1)}%</div>
-                               )}
-                             </div>
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
+                    {group.services.map((item) => (
+                      <ScheduleServiceRow 
+                        key={item.serviceId}
+                        item={item}
+                        service={serviceLookup[item.serviceId]}
+                        viewMode={viewMode}
+                        periods={periods}
+                        currentSchedule={currentSchedule}
+                        unitCost={serviceUnitCosts[item.serviceId] || 0}
+                        getPeriodValue={getPeriodValue}
+                        handleValueChange={handleValueChange}
+                        readonly={readonly}
+                      />
+                    ))}
 
                     {/* Group Footer Totals */}
                     <TableRow className="bg-slate-50 border-t font-semibold">
@@ -576,26 +753,27 @@ export function ScheduleView({ services, resources, quotations, schedules, setSc
                       </TableCell>
                       <TableCell className="text-right text-[10px] font-mono text-slate-700">
                         {formatCurrency(group.services.reduce((acc, item) => {
-                          const s = services.find(serv => serv.id === item.serviceId);
-                          const unitCost = s ? calculateServiceUnitCost(s, resources, services) : 0;
+                          const unitCost = serviceUnitCosts[item.serviceId] || 0;
                           return acc + (item.quantity * unitCost);
                         }, 0))}
                       </TableCell>
-                      {periods.map(p => (
-                        <TableCell key={p} className="text-right text-[9px] font-mono border-l text-slate-700">
-                          {formatCurrency(getPeriodTotalValue(p, group.services))}
-                        </TableCell>
-                      ))}
+                      {periods.map(p => {
+                        const periodTotal = groupFinancialTotals[group.id]?.[p] || 0;
+                        return (
+                          <TableCell key={p} className="text-right text-[9px] font-mono border-l text-slate-700">
+                            {formatCurrency(periodTotal)}
+                          </TableCell>
+                        );
+                      })}
                       <TableCell className="text-right text-[10px] font-mono border-l bg-slate-100 text-slate-900">
-                        {formatCurrency(periods.reduce((acc, p) => acc + getPeriodTotalValue(p, group.services), 0))}
+                        {formatCurrency((groupFinancialTotals[group.id] || []).reduce((acc, val) => acc + val, 0))}
                       </TableCell>
                       <TableCell className="text-right text-[10px] font-mono border-l text-slate-700">
                         {formatCurrency(
                           group.services.reduce((acc, item) => {
-                            const s = services.find(serv => serv.id === item.serviceId);
-                            const unitCost = s ? calculateServiceUnitCost(s, resources, services) : 0;
+                            const unitCost = serviceUnitCosts[item.serviceId] || 0;
                             return acc + (item.quantity * unitCost);
-                          }, 0) - periods.reduce((acc, p) => acc + getPeriodTotalValue(p, group.services), 0)
+                          }, 0) - (groupFinancialTotals[group.id] || []).reduce((acc, val) => acc + val, 0)
                         )}
                       </TableCell>
                     </TableRow>
@@ -607,26 +785,24 @@ export function ScheduleView({ services, resources, quotations, schedules, setSc
                   <TableCell className="sticky left-0 bg-slate-900 z-10 shadow-[1px_0_0_0_rgba(255,255,255,0.1)] py-2 text-[10px]">TOTAL GERAL (FINANCEIRO)</TableCell>
                   <TableCell className="text-right text-[10px] font-mono">
                     {formatCurrency(activeItems.reduce((acc, item) => {
-                      const s = services.find(serv => serv.id === item.serviceId);
-                      const unitCost = s ? calculateServiceUnitCost(s, resources, services) : 0;
+                      const unitCost = serviceUnitCosts[item.serviceId] || 0;
                       return acc + (item.quantity * unitCost);
                     }, 0))}
                   </TableCell>
                   {periods.map(p => (
                     <TableCell key={p} className="text-right text-[9px] font-mono border-l border-white/10">
-                      {formatCurrency(getPeriodTotal(p))}
+                      {formatCurrency(periodFinancialTotals[p] || 0)}
                     </TableCell>
                   ))}
                   <TableCell className="text-right text-[10px] font-mono border-l border-white/10 bg-slate-800">
-                    {formatCurrency(periods.reduce((acc, p) => acc + getPeriodTotal(p), 0))}
+                    {formatCurrency(periodFinancialTotals.reduce((acc, val) => acc + val, 0))}
                   </TableCell>
                   <TableCell className="text-right text-[10px] font-mono border-l border-white/10">
                     {formatCurrency(
                       activeItems.reduce((acc, item) => {
-                        const s = services.find(serv => serv.id === item.serviceId);
-                        const unitCost = s ? calculateServiceUnitCost(s, resources, services) : 0;
+                        const unitCost = serviceUnitCosts[item.serviceId] || 0;
                         return acc + (item.quantity * unitCost);
-                      }, 0) - periods.reduce((acc, p) => acc + getPeriodTotal(p), 0)
+                      }, 0) - periodFinancialTotals.reduce((acc, val) => acc + val, 0)
                     )}
                   </TableCell>
                 </TableRow>
@@ -634,6 +810,6 @@ export function ScheduleView({ services, resources, quotations, schedules, setSc
             </table>
         </div>
       </Card>
-    </motion.div>
+    </div>
   );
 }

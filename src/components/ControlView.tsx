@@ -284,16 +284,25 @@ export default function ControlView({
   const [transferDateInput, setTransferDateInput] = useState(new Date().toISOString().split('T')[0]);
 
   const [newEquip, setNewEquip] = useState<Partial<ControllerEquipment>>({
-    name: '', model: '', plate: '', origin: 'Próprio', category: '', measurementUnit: 'Horímetro', entryDate: new Date().toISOString().split('T')[0], contractId: selectedContractId || ''
+    name: '', model: '', plate: '', origin: 'Próprio', category: '', measurementUnit: 'Horímetro', entryDate: new Date().toISOString().split('T')[0], contractId: ''
   });
+
+  // Update newEquip.contractId when selectedContractId changes or modal opens
+  React.useEffect(() => {
+    if (isAddOpen) {
+      setNewEquip(prev => ({ ...prev, contractId: selectedContractId || '' }));
+    }
+  }, [isAddOpen, selectedContractId]);
 
   const handleCreateEquip = () => {
     if (!newEquip.name || !newEquip.plate) return;
+    const finalContractId = selectedContractId || newEquip.contractId;
+    
     onUpdateEquipments([...equipments, {
       ...newEquip as ControllerEquipment,
       id: crypto.randomUUID(),
       companyId: currentUser?.companyId,
-      contractId: newEquip.contractId || selectedContractId || undefined
+      contractId: finalContractId || undefined
     }]);
     setIsAddOpen(false);
     setNewEquip({ name: '', model: '', plate: '', origin: 'Próprio', category: '', measurementUnit: 'Horímetro', entryDate: new Date().toISOString().split('T')[0], contractId: selectedContractId || '' });
@@ -811,38 +820,47 @@ export default function ControlView({
                       <div className="space-y-1"><Label className="text-[10px] uppercase font-bold text-gray-400">Modelo</Label><Input value={newEquip.model} onChange={e => setNewEquip({...newEquip, model: e.target.value})} /></div>
                       <div className="space-y-1"><Label className="text-[10px] uppercase font-bold text-gray-400">Origem</Label><Select value={newEquip.origin} onValueChange={val => setNewEquip({...newEquip, origin: val})}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="Próprio">Próprio</SelectItem><SelectItem value="Alugado">Alugado</SelectItem></SelectContent></Select></div>
                       <div className="space-y-1"><Label className="text-[10px] uppercase font-bold text-gray-400">Medição por</Label><Select value={newEquip.measurementUnit || 'Horímetro'} onValueChange={val => setNewEquip({...newEquip, measurementUnit: val as any})}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="Horímetro">Horímetro</SelectItem><SelectItem value="Quilometragem">Quilometragem</SelectItem></SelectContent></Select></div>
-                      <div className="space-y-1">
-                        <Label className="text-[10px] uppercase font-bold text-gray-400">Obra</Label>
-                        <Select value={newEquip.contractId || ''} onValueChange={val => setNewEquip({...newEquip, contractId: val})}>
-                          <SelectTrigger className="w-full h-10 bg-white border-blue-100 focus:ring-blue-500 rounded-xl font-medium text-blue-900 ring-offset-blue-50">
-                            <SelectValue placeholder="Selecione a obra">
-                              {newEquip.contractId ? (
-                                (() => {
-                                  const c = availableContracts.find(x => x.id === newEquip.contractId);
-                                  return c ? `${c.workName || c.client || 'Sem nome'} (${c.contractNumber || 'S/N'})` : "Selecionar Obra";
-                                })()
-                              ) : "Selecionar Obra"}
-                            </SelectValue>
-                          </SelectTrigger>
-                          <SelectContent className="max-h-80 rounded-xl border-blue-100">
-                            {availableContracts.map(c => {
-                              const label = `${c.workName || 'Obra sem nome'} - ${c.client || 'Cliente não definido'} (${c.contractNumber || 'S/N'})`;
-                              return (
-                                <SelectItem 
-                                  key={c.id} 
-                                  value={c.id} 
-                                  textValue={label}
-                                >
-                                  <div className="flex flex-col py-1">
-                                    <span className="font-bold text-blue-900 leading-tight">{c.workName || c.client || 'Sem nome'}</span>
-                                    <span className="text-[10px] text-gray-500 uppercase">{c.contractNumber || 'S/N'}</span>
-                                  </div>
-                                </SelectItem>
-                              );
-                            })}
-                          </SelectContent>
-                        </Select>
-                      </div>
+                      {!selectedContractId ? (
+                        <div className="space-y-1">
+                          <Label className="text-[10px] uppercase font-bold text-gray-400">Obra</Label>
+                          <Select value={newEquip.contractId || ''} onValueChange={val => setNewEquip({...newEquip, contractId: val})}>
+                            <SelectTrigger className="w-full h-10 bg-white border-blue-100 focus:ring-blue-500 rounded-xl font-medium text-blue-900 ring-offset-blue-50">
+                              <SelectValue placeholder="Selecione a obra">
+                                {newEquip.contractId ? (
+                                  (() => {
+                                    const c = availableContracts.find(x => x.id === newEquip.contractId);
+                                    return c ? `${c.workName || c.client || 'Sem nome'} (${c.contractNumber || 'S/N'})` : "Selecionar Obra";
+                                  })()
+                                ) : "Selecionar Obra"}
+                              </SelectValue>
+                            </SelectTrigger>
+                            <SelectContent className="max-h-80 rounded-xl border-blue-100">
+                              {availableContracts.map(c => {
+                                const label = `${c.workName || 'Obra sem nome'} - ${c.client || 'Cliente não definido'} (${c.contractNumber || 'S/N'})`;
+                                return (
+                                  <SelectItem 
+                                    key={c.id} 
+                                    value={c.id} 
+                                    textValue={label}
+                                  >
+                                    <div className="flex flex-col py-1">
+                                      <span className="font-bold text-blue-900 leading-tight">{c.workName || c.client || 'Sem nome'}</span>
+                                      <span className="text-[10px] text-gray-500 uppercase">{c.contractNumber || 'S/N'}</span>
+                                    </div>
+                                  </SelectItem>
+                                );
+                              })}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      ) : (
+                        <div className="space-y-1">
+                          <Label className="text-[10px] uppercase font-bold text-gray-400">Obra Ativa</Label>
+                          <div className="h-10 flex items-center px-4 bg-blue-50 rounded-xl border border-blue-100 text-xs font-bold text-blue-700">
+                            {getContractName(selectedContractId)}
+                          </div>
+                        </div>
+                      )}
                     </div>
                     <DialogFooter><Button onClick={handleCreateEquip} className="w-full h-12 rounded-2xl bg-blue-600 font-bold">Salvar Equipamento</Button></DialogFooter>
                   </DialogContent>
