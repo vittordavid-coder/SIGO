@@ -59,19 +59,19 @@ const ScheduleServiceRow = React.memo(({
   const limit = isPercentage ? 100 : item.quantity;
 
   return (
-    <TableRow className="h-12 contain-content">
-      <TableCell className="sticky left-0 bg-white z-10 shadow-[1px_0_0_0_rgba(0,0,0,0.1)] w-[150px] min-w-[150px] max-w-[150px] py-1 px-2 group-hover:bg-gray-50 transition-colors will-change-transform">
-        <div className="flex flex-col gap-0.5 pointer-events-none">
-          <span className="text-[8px] font-bold text-blue-600 leading-none">{service.code}</span>
-          <span className="text-[10px] font-semibold whitespace-normal leading-tight text-gray-800 line-clamp-2">{service.name}</span>
-          <span className="text-[8px] text-gray-400 leading-none">{service.unit}</span>
+    <TableRow className="h-9 contain-content group">
+      <TableCell className="sticky left-0 bg-white z-10 shadow-[1px_0_0_0_rgba(0,0,0,0.1)] w-[130px] min-w-[130px] max-w-[130px] py-0.5 px-1.5 group-hover:bg-gray-50 transition-colors will-change-transform">
+        <div className="flex flex-col gap-0 pointer-events-none">
+          <span className="text-[7px] font-bold text-blue-600 leading-none">{service.code}</span>
+          <span className="text-[9px] font-semibold whitespace-normal leading-tight text-gray-800 line-clamp-1">{service.name}</span>
+          <span className="text-[7px] text-gray-400 leading-none">{service.unit}</span>
         </div>
       </TableCell>
-      <TableCell className="text-right text-[10px] font-mono p-2">
-        <div className="flex flex-col gap-0.5">
+      <TableCell className="text-right text-[9px] font-mono p-1">
+        <div className="flex flex-col gap-0">
           {(viewMode === 'qty' || viewMode === 'all') && (
             <div className="font-bold text-gray-600">
-              {isPercentage ? '100%' : formatNumber(item.quantity, 3)}
+              {isPercentage ? '100%' : formatNumber(item.quantity, 2)}
             </div>
           )}
           {(viewMode === 'val' || viewMode === 'all') && (
@@ -91,14 +91,14 @@ const ScheduleServiceRow = React.memo(({
         const periodFinancial = isPercentage ? (periodQty / 100 * item.quantity * unitCost) : (periodQty * unitCost);
 
         return (
-          <TableCell key={p} className={cn("p-1 border-l transition-colors h-12", isOverLimit && "bg-red-50")}>
-            <div className="flex flex-col gap-0.5">
+          <TableCell key={p} className={cn("p-0.5 border-l transition-colors h-9", isOverLimit && "bg-red-50")}>
+            <div className="flex flex-col gap-0">
               {(viewMode === 'qty' || viewMode === 'all') && (
                 <Input 
                   type="number"
                   step="0.001"
                   className={cn(
-                    "h-7 text-right text-[10px] font-mono border-none focus:ring-1 focus:ring-blue-500 bg-transparent px-1",
+                    "h-5 text-right text-[9px] font-mono border-none focus:ring-1 focus:ring-blue-500 bg-transparent px-1",
                     isOverLimit && "text-red-600 font-bold"
                   )}
                   defaultValue={periodQty || ''}
@@ -115,14 +115,14 @@ const ScheduleServiceRow = React.memo(({
               )}
               {(viewMode === 'val' || viewMode === 'all') && periodFinancial > 0 && (
                 <div className={cn(
-                  "text-[9px] font-mono text-right pr-1",
-                  (viewMode === 'all') ? "text-blue-600 font-medium" : "text-gray-900 text-[10px] font-bold"
+                  "text-[8px] font-mono text-right pr-1 leading-none",
+                  (viewMode === 'all') ? "text-blue-600 font-medium" : "text-gray-900 text-[9px] font-bold"
                 )}>
                   {formatCurrency(periodFinancial)}
                 </div>
               )}
               {(viewMode === 'perc' || viewMode === 'all') && (
-                <div className="text-[8px] font-mono text-right text-gray-400 pr-1">
+                <div className="text-[7px] font-mono text-right text-gray-400 pr-1 leading-none">
                   {formatNumber(isPercentage ? periodQty : (periodQty / item.quantity * 100), 1)}%
                 </div>
               )}
@@ -131,34 +131,28 @@ const ScheduleServiceRow = React.memo(({
         );
       })}
       <TableCell className={cn(
-        "text-right text-[10px] font-mono font-bold border-l bg-blue-50/10",
+        "text-right text-[9px] font-mono font-bold border-l bg-blue-50/10",
         Math.abs(balance) < 0.01 ? "text-green-600" : balance < 0 ? "text-red-600" : "text-blue-600"
       )}>
-         <div className="flex flex-col gap-0.5">
+         <div className="flex flex-col gap-0">
            {(viewMode === 'qty' || viewMode === 'all') && (
-             <div>{isPercentage ? `${formatNumber(totalDist, 2)}%` : formatNumber(totalDist, 3)}</div>
+             <div>{isPercentage ? `${formatNumber(totalDist, 1)}%` : formatNumber(totalDist, 2)}</div>
            )}
            {(viewMode === 'val' || viewMode === 'all') && (
-             <div>{formatCurrency(isPercentage ? (totalDist/100 * item.quantity * unitCost) : (totalDist * unitCost))}</div>
-           )}
-           {(viewMode === 'perc' || viewMode === 'all') && (
-             <div className="text-gray-400">{formatNumber(isPercentage ? totalDist : (totalDist/item.quantity*100), 1)}%</div>
+             <div className="text-[8px]">{formatCurrency(isPercentage ? (totalDist/100 * item.quantity * unitCost) : (totalDist * unitCost))}</div>
            )}
          </div>
       </TableCell>
       <TableCell className={cn(
-        "text-right text-[10px] font-mono border-l",
+        "text-right text-[9px] font-mono border-l",
         Math.abs(balance) < 0.01 ? "text-green-600" : balance < 0 ? "text-red-600" : "text-gray-500"
       )}>
-        <div className="flex flex-col gap-0.5">
+        <div className="flex flex-col gap-0">
            {(viewMode === 'qty' || viewMode === 'all') && (
-             <div>{isPercentage ? `${formatNumber(balance, 2)}%` : formatNumber(balance, 3)}</div>
+             <div>{isPercentage ? `${formatNumber(balance, 1)}%` : formatNumber(balance, 2)}</div>
            )}
            {(viewMode === 'val' || viewMode === 'all') && (
-             <div>{formatCurrency(isPercentage ? (balance/100 * item.quantity * unitCost) : (balance * unitCost))}</div>
-           )}
-           {(viewMode === 'perc' || viewMode === 'all') && (
-             <div className="text-gray-400">{formatNumber(isPercentage ? balance : (balance/item.quantity*100), 1)}%</div>
+             <div className="text-[8px]">{formatCurrency(isPercentage ? (balance/100 * item.quantity * unitCost) : (balance * unitCost))}</div>
            )}
          </div>
       </TableCell>
@@ -592,45 +586,47 @@ export function ScheduleView({ services, resources, quotations, schedules, setSc
         </div>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg flex items-center gap-2">
-            <Settings className="w-5 h-5 text-blue-600" />
-            Configuração do Cronograma
+      <Card className="shadow-sm">
+        <CardHeader className="py-2 px-4 border-b">
+          <CardTitle className="text-sm flex items-center gap-2 font-bold uppercase text-gray-600">
+            <Settings className="w-4 h-4 text-blue-600" />
+            Configuração
           </CardTitle>
         </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
-            <div className="space-y-2">
-              <Label>Data de Início</Label>
+        <CardContent className="p-3">
+          <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
+            <div className="space-y-1">
+              <Label className="text-[10px] uppercase font-bold text-gray-400">Data de Início</Label>
               <Input 
                 type="date" 
+                className="h-8 text-xs"
                 value={currentSchedule.startDate} 
                 onChange={(e) => updateSchedule({ startDate: e.target.value })}
                 readOnly={readonly}
               />
             </div>
-            <div className="space-y-2">
-              <Label>Unidade de Tempo</Label>
+            <div className="space-y-1">
+              <Label className="text-[10px] uppercase font-bold text-gray-400">Unidade</Label>
               <Select 
                 value={currentSchedule.timeUnit} 
                 onValueChange={(v: TimeUnit) => handleTimeUnitChange(v)}
                 disabled={readonly}
               >
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecione a unidade" />
+                <SelectTrigger className="h-8 text-xs">
+                  <SelectValue placeholder="Selecione" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="days">Dias</SelectItem>
-                  <SelectItem value="weeks">Semanas</SelectItem>
-                  <SelectItem value="months">Meses</SelectItem>
+                  <SelectItem value="days" className="text-xs">Dias</SelectItem>
+                  <SelectItem value="weeks" className="text-xs">Semanas</SelectItem>
+                  <SelectItem value="months" className="text-xs">Meses</SelectItem>
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-2">
-              <Label>Duração ({currentSchedule.timeUnit === 'days' ? 'Dias' : currentSchedule.timeUnit === 'weeks' ? 'Semanas' : 'Meses'})</Label>
+            <div className="space-y-1">
+              <Label className="text-[10px] uppercase font-bold text-gray-400">Duração</Label>
               <Input 
                 type="number" 
+                className="h-8 text-xs"
                 min={1} 
                 max={60}
                 value={currentSchedule.duration} 
@@ -638,51 +634,46 @@ export function ScheduleView({ services, resources, quotations, schedules, setSc
                 readOnly={readonly}
               />
             </div>
-            <div className="space-y-2">
-              <Label>Tipo de Distribuição</Label>
+            <div className="space-y-1">
+              <Label className="text-[10px] uppercase font-bold text-gray-400">Distribuição</Label>
               <Select 
                 value={currentSchedule.distributionType} 
                 onValueChange={(v: 'quantity' | 'percentage') => updateSchedule({ distributionType: v })}
                 disabled={readonly}
               >
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecione o tipo" />
+                <SelectTrigger className="h-8 text-xs">
+                  <SelectValue placeholder="Tipo" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="quantity">Quantidade</SelectItem>
-                  <SelectItem value="percentage">Percentual (%)</SelectItem>
+                  <SelectItem value="quantity" className="text-xs">Quantidade</SelectItem>
+                  <SelectItem value="percentage" className="text-xs">Percentual (%)</SelectItem>
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-2">
-              <Label>Modo de Visualização</Label>
+            <div className="space-y-1">
+              <Label className="text-[10px] uppercase font-bold text-gray-400">Visualizar</Label>
               <Select 
                 value={viewMode} 
                 onValueChange={(v: 'qty' | 'val' | 'perc' | 'all') => setViewMode(v)}
               >
-                <SelectTrigger>
-                  <SelectValue placeholder="Visualizar">
-                    {viewMode === 'qty' ? 'Quantidade' : 
-                     viewMode === 'val' ? 'Valores' : 
-                     viewMode === 'perc' ? 'Percentuais' : 
-                     viewMode === 'all' ? 'Tudo (Qtd/Val/%)' : 'Visualizar'}
-                  </SelectValue>
+                <SelectTrigger className="h-8 text-xs">
+                  <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="qty">Quantidade</SelectItem>
-                  <SelectItem value="val">Valores</SelectItem>
-                  <SelectItem value="perc">Percentuais</SelectItem>
-                  <SelectItem value="all">Tudo (Qtd/Val/%)</SelectItem>
+                  <SelectItem value="qty" className="text-xs">Quantidade</SelectItem>
+                  <SelectItem value="val" className="text-xs">Valores</SelectItem>
+                  <SelectItem value="perc" className="text-xs">Percentuais</SelectItem>
+                  <SelectItem value="all" className="text-xs">Tudo</SelectItem>
                 </SelectContent>
               </Select>
             </div>
             <div className="flex items-end">
               {!readonly && (
-                <Button variant="outline" className="w-full" onClick={() => {
+                <Button variant="outline" size="sm" className="w-full h-8 text-[10px] uppercase font-bold border-red-100 text-red-600 hover:bg-red-50" onClick={() => {
                   const confirmClear = window.confirm("Deseja limpar toda a distribuição deste cronograma?");
                   if (confirmClear) updateSchedule({ services: [] });
                 }}>
-                  Limpar Distribuição
+                  Limpar
                 </Button>
               )}
             </div>
@@ -705,25 +696,25 @@ export function ScheduleView({ services, resources, quotations, schedules, setSc
                   <TableHead colSpan={2} className="bg-gray-50/50 border-b sticky top-0" />
                 </TableRow>
               )}
-              <TableRow className="bg-gray-50/90 backdrop-blur-sm">
-                <TableHead className="w-[180px] min-w-[180px] max-w-[180px] sticky left-0 bg-gray-50/95 backdrop-blur-md z-50 shadow-[1px_0_0_0_rgba(0,0,0,0.1)] border-b py-3 font-bold text-gray-700">Serviço</TableHead>
-                <TableHead className="min-w-[100px] text-right border-b sticky top-0 bg-gray-50 z-30 font-bold text-gray-600 px-4">Total Planilha</TableHead>
+              <TableRow className="bg-gray-50/90 backdrop-blur-sm h-10">
+                <TableHead className="w-[130px] min-w-[130px] max-w-[130px] sticky left-0 bg-gray-50/95 backdrop-blur-md z-50 shadow-[1px_0_0_0_rgba(0,0,0,0.1)] border-b py-1 font-bold text-gray-700 text-[10px]">Serviço</TableHead>
+                <TableHead className="min-w-[80px] text-right border-b sticky top-0 bg-gray-50 z-30 font-bold text-gray-600 px-2 text-[10px]">Total Planilha</TableHead>
                 {periods.map(p => (
-                  <TableHead key={p} className="min-w-[120px] text-center border-l bg-gray-50/50 border-b sticky top-0 z-30 font-bold text-gray-600">
-                    <div className="flex flex-col gap-1">
+                  <TableHead key={p} className="min-w-[80px] text-center border-l bg-gray-50/50 border-b sticky top-0 z-30 font-bold text-gray-600 px-1">
+                    <div className="flex flex-col gap-0.5">
                       {getPeriodLabel(p)}
-                      <div className="flex justify-center gap-1.5 text-[7px] uppercase text-blue-400 font-mono tracking-tighter">
-                        {(viewMode === 'qty' || viewMode === 'all') && <span>Quantidade</span>}
+                      <div className="flex justify-center gap-1 text-[6px] uppercase text-blue-400 font-mono tracking-tighter">
+                        {(viewMode === 'qty' || viewMode === 'all') && <span>Qtd</span>}
                         {viewMode === 'all' && <span>|</span>}
-                        {(viewMode === 'val' || viewMode === 'all') && <span>Valores</span>}
-                        {(viewMode === 'perc' || viewMode === 'all') && <span>|</span>}
-                        {(viewMode === 'perc' || viewMode === 'all') && <span>Percentuais</span>}
+                        {(viewMode === 'val' || viewMode === 'all') && <span>Val</span>}
+                        {viewMode === 'all' && <span>|</span>}
+                        {(viewMode === 'perc' || viewMode === 'all') && <span>%</span>}
                       </div>
                     </div>
                   </TableHead>
                 ))}
-                <TableHead className="min-w-[100px] text-right border-l bg-blue-50/50 border-b sticky top-0 z-30 font-bold text-blue-800 px-4">Total Dist.</TableHead>
-                <TableHead className="min-w-[100px] text-right border-l border-b sticky top-0 bg-gray-50 z-30 font-bold text-gray-600 px-4">Saldo</TableHead>
+                <TableHead className="min-w-[80px] text-right border-l bg-blue-50/50 border-b sticky top-0 z-30 font-bold text-blue-800 px-2 text-[10px]">Total Dist.</TableHead>
+                <TableHead className="min-w-[80px] text-right border-l border-b sticky top-0 bg-gray-50 z-30 font-bold text-gray-600 px-2 text-[10px]">Saldo</TableHead>
               </TableRow>
             </thead>
               <TableBody>
@@ -737,8 +728,8 @@ export function ScheduleView({ services, resources, quotations, schedules, setSc
                 {groupsToRender.map((group) => (
                   <React.Fragment key={group.id}>
                     {/* Group Header */}
-                    <TableRow className="bg-gray-100 hover:bg-gray-100">
-                      <TableCell colSpan={periods.length + 4} className="py-1 px-3 font-bold text-gray-700 text-[10px] uppercase tracking-wider">
+                    <TableRow className="bg-gray-100 hover:bg-gray-100 h-6">
+                      <TableCell colSpan={periods.length + 4} className="py-0.5 px-3 font-bold text-gray-700 text-[9px] uppercase tracking-wider">
                         {group.name}
                       </TableCell>
                     </TableRow>
@@ -759,11 +750,11 @@ export function ScheduleView({ services, resources, quotations, schedules, setSc
                     ))}
 
                     {/* Group Footer Totals */}
-                    <TableRow className="bg-slate-50 border-t font-semibold">
-                      <TableCell className="sticky left-0 bg-slate-50 z-10 shadow-[1px_0_0_0_rgba(0,0,0,0.1)] text-[9px] uppercase py-1.5 font-bold">
+                    <TableRow className="bg-slate-50 border-t font-semibold h-8 text-[9px]">
+                      <TableCell className="sticky left-0 bg-slate-50 z-10 shadow-[1px_0_0_0_rgba(0,0,0,0.1)] uppercase py-1 font-bold">
                         TOTAL: {group.name}
                       </TableCell>
-                      <TableCell className="text-right text-[10px] font-mono text-slate-700">
+                      <TableCell className="text-right font-mono text-slate-700 px-2">
                         {formatCurrency(group.services.reduce((acc, item) => {
                           const unitCost = serviceUnitCosts[item.serviceId] || 0;
                           return acc + (item.quantity * unitCost);
@@ -772,15 +763,15 @@ export function ScheduleView({ services, resources, quotations, schedules, setSc
                       {periods.map(p => {
                         const periodTotal = groupFinancialTotals[group.id]?.[p] || 0;
                         return (
-                          <TableCell key={p} className="text-right text-[9px] font-mono border-l text-slate-700">
+                          <TableCell key={p} className="text-right font-mono border-l text-slate-700 px-1">
                             {formatCurrency(periodTotal)}
                           </TableCell>
                         );
                       })}
-                      <TableCell className="text-right text-[10px] font-mono border-l bg-slate-100 text-slate-900">
+                      <TableCell className="text-right font-mono border-l bg-slate-100 text-slate-900 px-2">
                         {formatCurrency((groupFinancialTotals[group.id] || []).reduce((acc, val) => acc + val, 0))}
                       </TableCell>
-                      <TableCell className="text-right text-[10px] font-mono border-l text-slate-700">
+                      <TableCell className="text-right font-mono border-l text-slate-700 px-2">
                         {formatCurrency(
                           group.services.reduce((acc, item) => {
                             const unitCost = serviceUnitCosts[item.serviceId] || 0;
@@ -793,23 +784,23 @@ export function ScheduleView({ services, resources, quotations, schedules, setSc
                 ))}
                 
                 {/* Global Footer */}
-                <TableRow className="bg-slate-900 text-white font-bold">
-                  <TableCell className="sticky left-0 bg-slate-900 z-10 shadow-[1px_0_0_0_rgba(255,255,255,0.1)] py-2 text-[10px]">TOTAL GERAL (FINANCEIRO)</TableCell>
-                  <TableCell className="text-right text-[10px] font-mono">
+                <TableRow className="bg-slate-900 text-white font-bold h-9 text-[9px]">
+                  <TableCell className="sticky left-0 bg-slate-900 z-10 shadow-[1px_0_0_0_rgba(255,255,255,0.1)] py-1 uppercase">TOTAL GERAL (FINANCEIRO)</TableCell>
+                  <TableCell className="text-right font-mono px-2">
                     {formatCurrency(activeItems.reduce((acc, item) => {
                       const unitCost = serviceUnitCosts[item.serviceId] || 0;
                       return acc + (item.quantity * unitCost);
                     }, 0))}
                   </TableCell>
                   {periods.map(p => (
-                    <TableCell key={p} className="text-right text-[9px] font-mono border-l border-white/10">
+                    <TableCell key={p} className="text-right font-mono border-l border-white/10 px-1">
                       {formatCurrency(periodFinancialTotals[p] || 0)}
                     </TableCell>
                   ))}
-                  <TableCell className="text-right text-[10px] font-mono border-l border-white/10 bg-slate-800">
+                  <TableCell className="text-right font-mono border-l border-white/10 bg-slate-800 px-2">
                     {formatCurrency(periodFinancialTotals.reduce((acc, val) => acc + val, 0))}
                   </TableCell>
-                  <TableCell className="text-right text-[10px] font-mono border-l border-white/10">
+                  <TableCell className="text-right font-mono border-l border-white/10 px-2">
                     {formatCurrency(
                       activeItems.reduce((acc, item) => {
                         const unitCost = serviceUnitCosts[item.serviceId] || 0;
