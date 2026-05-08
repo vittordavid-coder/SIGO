@@ -33,9 +33,9 @@ const ScheduleServiceRow = React.memo(({
   service, 
   viewMode, 
   periods, 
-  currentSchedule, 
+  distributionType, 
   unitCost, 
-  getPeriodValue, 
+  rowDistribution, 
   handleValueChange, 
   readonly 
 }: {
@@ -43,25 +43,25 @@ const ScheduleServiceRow = React.memo(({
   service: ServiceComposition | undefined;
   viewMode: 'qty' | 'val' | 'perc' | 'all';
   periods: number[];
-  currentSchedule: Schedule;
+  distributionType: 'quantity' | 'percentage';
   unitCost: number;
-  getPeriodValue: (serviceId: string, periodIndex: number) => number;
+  rowDistribution: Record<number, number>;
   handleValueChange: (serviceId: string, periodIndex: number, value: number) => void;
   readonly: boolean | undefined;
 }) => {
   if (!service) return null;
   
-  const isPercentage = currentSchedule.distributionType === 'percentage';
-  const totalDist = periods.reduce((acc, p) => acc + getPeriodValue(item.serviceId, p), 0);
+  const isPercentage = distributionType === 'percentage';
+  const totalDist = periods.reduce((acc, p) => acc + (rowDistribution[p] || 0), 0);
   const balance = isPercentage ? 100 - totalDist : item.quantity - totalDist;
   
   let currentCumulative = 0;
   const limit = isPercentage ? 100 : item.quantity;
 
   return (
-    <TableRow>
-      <TableCell className="sticky left-0 bg-white z-10 shadow-[1px_0_0_0_rgba(0,0,0,0.1)] w-[150px] min-w-[150px] max-w-[150px] py-1 px-2">
-        <div className="flex flex-col gap-0.5">
+    <TableRow className="h-12 contain-content">
+      <TableCell className="sticky left-0 bg-white z-10 shadow-[1px_0_0_0_rgba(0,0,0,0.1)] w-[150px] min-w-[150px] max-w-[150px] py-1 px-2 group-hover:bg-gray-50 transition-colors will-change-transform">
+        <div className="flex flex-col gap-0.5 pointer-events-none">
           <span className="text-[8px] font-bold text-blue-600 leading-none">{service.code}</span>
           <span className="text-[10px] font-semibold whitespace-normal leading-tight text-gray-800 line-clamp-2">{service.name}</span>
           <span className="text-[8px] text-gray-400 leading-none">{service.unit}</span>
@@ -85,13 +85,13 @@ const ScheduleServiceRow = React.memo(({
         </div>
       </TableCell>
       {periods.map(p => {
-        const periodQty = getPeriodValue(item.serviceId, p);
+        const periodQty = rowDistribution[p] || 0;
         currentCumulative += periodQty;
         const isOverLimit = currentCumulative > limit + 0.0001;
         const periodFinancial = isPercentage ? (periodQty / 100 * item.quantity * unitCost) : (periodQty * unitCost);
 
         return (
-          <TableCell key={p} className={cn("p-1 border-l transition-colors", isOverLimit && "bg-red-50")}>
+          <TableCell key={p} className={cn("p-1 border-l transition-colors h-12", isOverLimit && "bg-red-50")}>
             <div className="flex flex-col gap-0.5">
               {(viewMode === 'qty' || viewMode === 'all') && (
                 <Input 
@@ -131,7 +131,7 @@ const ScheduleServiceRow = React.memo(({
         );
       })}
       <TableCell className={cn(
-        "text-right text-[10px] font-mono font-bold border-l bg-blue-50/30",
+        "text-right text-[10px] font-mono font-bold border-l bg-blue-50/10",
         Math.abs(balance) < 0.01 ? "text-green-600" : balance < 0 ? "text-red-600" : "text-blue-600"
       )}>
          <div className="flex flex-col gap-0.5">
@@ -199,9 +199,16 @@ export function ScheduleView({ services, resources, quotations, schedules, setSc
     };
   });
 
-  // Sync with prop only if we don't have unsaved local changes and quotation ID changes
+  // Sync with prop only if we don't have unsaved local changes and quotation ID change is explicitly requested
+  const lastSyncQuotationId = React.useRef<string | null>(null);
+
   React.useEffect(() => {
+    // Only perform heavy sync if the ID actually changed or we have no selection
+    if (selectedQuotationId === lastSyncQuotationId.current) return;
+    
+    lastSyncQuotationId.current = selectedQuotationId;
     const savedDraft = window.localStorage.getItem(`sigo_schedule_draft_${selectedQuotationId}`);
+    
     if (!savedDraft) {
       const scheduleFromProps = schedules.find(s => s.quotationId === selectedQuotationId);
       if (scheduleFromProps) {
@@ -221,8 +228,13 @@ export function ScheduleView({ services, resources, quotations, schedules, setSc
       }
     } else {
       setHasChanges(true);
+      // We already loaded from draft in lazy initializer if it existed,
+      // but let's ensure it's in sync if the ID changed
+      try {
+        setLocalSchedule(JSON.parse(savedDraft));
+      } catch (e) {}
     }
-  }, [selectedQuotationId, schedules]);
+  }, [selectedQuotationId]); // Intentionally omitting schedules to avoid resetting during parent updates
 
   const activeQuotation = selectedQuotationId === 'current' 
     ? { id: 'current', budgetName: 'Planilha Atual', services: budgetItems, groups: budgetGroups }
@@ -738,9 +750,9 @@ export function ScheduleView({ services, resources, quotations, schedules, setSc
                         service={serviceLookup[item.serviceId]}
                         viewMode={viewMode}
                         periods={periods}
-                        currentSchedule={currentSchedule}
+                        distributionType={currentSchedule.distributionType}
                         unitCost={serviceUnitCosts[item.serviceId] || 0}
-                        getPeriodValue={getPeriodValue}
+                        rowDistribution={scheduleDataLookup[item.serviceId] || {}}
                         handleValueChange={handleValueChange}
                         readonly={readonly}
                       />
