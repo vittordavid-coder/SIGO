@@ -123,7 +123,6 @@
     }
   body {
     @apply bg-background text-foreground;
-    zoom: 0.8; /* Applies an 80% scale uniformly across all elements and px values */
     }
   html {
     @apply font-sans;

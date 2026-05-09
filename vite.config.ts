@@ -21,7 +21,9 @@ export default defineConfig(({mode}) => {
         output: {
           manualChunks: {
             'vendor-react': ['react', 'react-dom', 'motion'],
-            'vendor-files': ['exceljs', 'file-saver', 'xlsx', 'jspdf']
+            'vendor-files': ['exceljs', 'file-saver', 'xlsx', 'jspdf'],
+            'vendor-ui': ['lucide-react', 'recharts', '@radix-ui/react-dialog', '@radix-ui/react-popover'],
+            'vendor-db': ['@supabase/supabase-js']
           }
         }
       }
