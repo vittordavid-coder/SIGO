@@ -25,7 +25,17 @@ import {
   Droplet,
   ShoppingCart,
   Check,
-  ChevronsUpDown
+  ChevronsUpDown,
+  Settings,
+  Info,
+  Archive,
+  History,
+  Copy,
+  Hash,
+  Activity,
+  Layers,
+  DollarSign,
+  Camera
 } from 'lucide-react';
 import { 
   ControllerEquipment, 
@@ -38,8 +48,11 @@ import {
   MaterialRequest,
   MaterialRequestItem,
   PurchaseRequest,
-  EquipmentMaintenance
+  EquipmentMaintenance,
+  EquipmentAttribute,
+  ServiceHistoryEntry
 } from '../types';
+import { EQUIPMENT_TYPES, EQUIPMENT_TEMPLATES } from '../lib/equipmentTemplates';
 import { useLocalStorage } from '../lib/useLocalStorage';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -188,10 +201,11 @@ export default function ControlView({
         newEquips.push({
           id,
           name: item.NOME || '',
+          type: item.TIPO || 'Geral',
           category: item.CATEGORIA || '',
           model: item.MODELO || '',
           plate: item.PLACA || '',
-          origin: item.ORIGEM || 'Livre',
+          origin: item.ORIGEM || 'Próprio',
           measurementUnit: item.MEDICAO_POR || item.UNIDADE_MEDICAO || 'Horímetro',
           entryDate: parseExcelDate(item.DATA_ENTRADA) || new Date().toISOString().split('T')[0],
           exitDate: parseExcelDate(item.DATA_SAIDA),
@@ -226,15 +240,27 @@ export default function ControlView({
   };
 
   const filteredEquipments = useMemo(() => {
-    let result = equipments.filter(e => currentUser?.role === 'master' || e.companyId === currentUser?.companyId);
-    if (selectedContractId) {
-      result = result.filter(e => e.contractId === selectedContractId);
-    }
-    if (searchTerm) {
-      const term = searchTerm.toLowerCase();
-      result = result.filter(e => (e.name || '').toLowerCase().includes(term) || (e.plate || '').toLowerCase().includes(term));
-    }
-    if (filterOnlyActive) result = result.filter(e => !e.exitDate);
+    let result = (equipments || []).filter(e => {
+      const matchesCompany = currentUser?.role === 'master' || e.companyId === currentUser?.companyId;
+      const matchesContract = !selectedContractId || e.contractId === selectedContractId;
+      const matchesActive = filterOnlyActive ? !e.exitDate : true;
+      
+      if (!matchesCompany || !matchesContract || !matchesActive) return false;
+
+      if (searchTerm) {
+        const term = searchTerm.toLowerCase();
+        return (
+          (e.name || '').toLowerCase().includes(term) || 
+          (e.plate || '').toLowerCase().includes(term) ||
+          (e.code || '').toLowerCase().includes(term) ||
+          (e.type || '').toLowerCase().includes(term) ||
+          (e.brand || '').toLowerCase().includes(term) ||
+          (e.model || '').toLowerCase().includes(term)
+        );
+      }
+      
+      return true;
+    });
 
     return [...result].sort((a, b) => {
       // Grouping: Active first, then Inactive
@@ -267,6 +293,44 @@ export default function ControlView({
     }
   };
 
+  const [isDetailOpen, setIsDetailOpen] = useState(false);
+  const [selectedEquipment, setSelectedEquipment] = useState<ControllerEquipment | null>(null);
+
+  const handleApplyRequestToHistory = (request: PurchaseRequest) => {
+    if (!request.equipmentId) {
+      alert('Esta solicitação não está vinculada a um equipamento específico.');
+      return;
+    }
+
+    const equip = equipments.find(e => e.id === request.equipmentId || e.plate === request.equipmentId);
+    if (!equip) {
+      alert('Equipamento não encontrado.');
+      return;
+    }
+
+    const newHistoryEntry: ServiceHistoryEntry = {
+      id: crypto.randomUUID(),
+      date: new Date().toISOString(),
+      type: 'part_application',
+      description: `Aplicação de materiais da solicitação: ${request.description}`,
+      relatedId: request.id,
+      parts: request.items.map(item => ({
+        description: item.description,
+        quantity: item.quantity,
+        unit: item.unit
+      }))
+    };
+
+    onUpdateEquipments(equipments.map(e => e.id === equip.id ? {
+      ...e,
+      history: [...(e.history || []), newHistoryEntry]
+    } : e));
+
+    // Update request status to 'fulfilled' or similar if needed
+    // In this case, we just add to history
+    alert('Peças aplicadas ao histórico do equipamento com sucesso!');
+  };
+
   const stats = useMemo(() => ({
     activeEquips: equipments.filter(e => !e.exitDate && (!selectedContractId || e.contractId === selectedContractId)).length,
     inMaintenanceCount: equipments.filter(e => e.inMaintenance && !e.exitDate && (!selectedContractId || e.contractId === selectedContractId)).length
@@ -284,8 +348,67 @@ export default function ControlView({
   const [transferDateInput, setTransferDateInput] = useState(new Date().toISOString().split('T')[0]);
 
   const [newEquip, setNewEquip] = useState<Partial<ControllerEquipment>>({
-    name: '', model: '', plate: '', origin: 'Próprio', category: '', measurementUnit: 'Horímetro', entryDate: new Date().toISOString().split('T')[0], contractId: ''
+    code: '',
+    name: '',
+    type: '',
+    brand: '',
+    model: '',
+    year: new Date().getFullYear(),
+    situation: 'Ativo',
+    plate: '',
+    origin: 'Próprio',
+    category: 'Médio',
+    measurementUnit: 'Horímetro',
+    entryDate: new Date().toISOString().split('T')[0],
+    contractId: '',
+    currentReading: 0,
+    observations: '',
+    customFields: {},
+    photos: [],
+    history: []
   });
+
+  const handleTypeChange = (type: string) => {
+    setNewEquip(prev => {
+      const template = EQUIPMENT_TEMPLATES[type];
+      return {
+        ...prev,
+        type,
+        customFields: template ? JSON.parse(JSON.stringify(template.fields)) : prev.customFields
+      };
+    });
+  };
+
+  const addCustomField = () => {
+    const fieldName = prompt('Nome do novo campo (ex: combustível, potência):');
+    if (!fieldName) return;
+    
+    setNewEquip(prev => ({
+      ...prev,
+      customFields: {
+        ...prev.customFields,
+        [fieldName]: { type: 'text', value: '' }
+      }
+    }));
+  };
+
+  const removeCustomField = (key: string) => {
+    setNewEquip(prev => {
+      const newFields = { ...prev.customFields };
+      delete newFields[key];
+      return { ...prev, customFields: newFields };
+    });
+  };
+
+  const updateCustomField = (key: string, updates: Partial<EquipmentAttribute>) => {
+    setNewEquip(prev => ({
+      ...prev,
+      customFields: {
+        ...prev.customFields,
+        [key]: { ...prev.customFields![key], ...updates }
+      }
+    }));
+  };
 
   // Update newEquip.contractId when selectedContractId changes or modal opens
   React.useEffect(() => {
@@ -302,10 +425,30 @@ export default function ControlView({
       ...newEquip as ControllerEquipment,
       id: crypto.randomUUID(),
       companyId: currentUser?.companyId,
-      contractId: finalContractId || undefined
+      contractId: finalContractId || undefined,
+      currentReading: Number(newEquip.currentReading) || 0
     }]);
     setIsAddOpen(false);
-    setNewEquip({ name: '', model: '', plate: '', origin: 'Próprio', category: '', measurementUnit: 'Horímetro', entryDate: new Date().toISOString().split('T')[0], contractId: selectedContractId || '' });
+    setNewEquip({
+      code: '',
+      name: '',
+      type: '',
+      brand: '',
+      model: '',
+      year: new Date().getFullYear(),
+      situation: 'Ativo',
+      plate: '',
+      origin: 'Próprio',
+      category: 'Médio',
+      measurementUnit: 'Horímetro',
+      entryDate: new Date().toISOString().split('T')[0],
+      contractId: selectedContractId || '',
+      currentReading: 0,
+      observations: '',
+      customFields: {},
+      photos: [],
+      history: []
+    });
   };
 
   const handleCreateTank = () => {
@@ -394,7 +537,11 @@ export default function ControlView({
 
   const handleUpdateEquip = () => {
     if (!equipmentToEdit || !equipmentToEdit.name || !equipmentToEdit.plate) return;
-    onUpdateEquipments(equipments.map(e => e.id === equipmentToEdit.id ? equipmentToEdit : e));
+    onUpdateEquipments(equipments.map(e => e.id === equipmentToEdit.id ? {
+      ...equipmentToEdit,
+      currentReading: Number(equipmentToEdit.currentReading) || 0,
+      year: Number(equipmentToEdit.year) || new Date().getFullYear()
+    } : e));
     setIsEditOpen(false);
     setEquipmentToEdit(null);
   };
@@ -701,7 +848,7 @@ export default function ControlView({
           <div className="space-y-0.5">
             <Label className="text-[10px] font-black uppercase text-blue-600 tracking-wider">Selecionar Obra / Contrato</Label>
             <Select value={selectedContractId || ''} onValueChange={id => onUpdateContractId(id)}>
-              <SelectTrigger className="w-[550px] h-10 bg-white border-blue-200 rounded-xl font-bold text-blue-900 ring-offset-blue-50">
+              <SelectTrigger className="w-full lg:w-[400px] h-10 bg-white border-blue-200 rounded-xl font-bold text-blue-900 ring-offset-blue-50">
                 <SelectValue>
                   {selectedContractId ? (
                     (() => {
@@ -742,30 +889,55 @@ export default function ControlView({
         </div>
       </header>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 text-white">
-        <Card className="bg-blue-600 border-none shadow-lg rounded-2xl p-5">
-          <Truck className="w-8 h-8 opacity-20 absolute right-4 top-4" />
-          <p className="text-[10px] font-bold uppercase opacity-70">Total Equipamentos</p>
-          <h3 className="text-3xl font-black mt-1">{stats.activeEquips}</h3>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 text-white">
+        <Card className="bg-blue-600 border-none shadow-lg rounded-2xl p-4 relative overflow-hidden group">
+          <Truck className="w-12 h-12 opacity-10 absolute -right-2 -bottom-2 group-hover:scale-110 transition-transform" />
+          <p className="text-[9px] font-black uppercase opacity-70 tracking-widest">Total Equipamentos</p>
+          <div className="flex items-baseline gap-2 mt-1">
+            <h3 className="text-2xl font-black">{stats.activeEquips}</h3>
+            <span className="text-[10px] font-bold opacity-60">unidades</span>
+          </div>
         </Card>
-        <Card className="bg-emerald-600 border-none shadow-lg rounded-2xl p-5">
-          <Wrench className="w-8 h-8 opacity-20 absolute right-4 top-4" />
-          <p className="text-[10px] font-bold uppercase opacity-70">Em Manutenção</p>
-          <h3 className="text-3xl font-black mt-1">{stats.inMaintenanceCount}</h3>
+
+        <Card className="bg-emerald-600 border-none shadow-lg rounded-2xl p-4 relative overflow-hidden group">
+          <Wrench className="w-12 h-12 opacity-10 absolute -right-2 -bottom-2 group-hover:scale-110 transition-transform" />
+          <p className="text-[9px] font-black uppercase opacity-70 tracking-widest">Em Manutenção</p>
+          <div className="flex items-baseline gap-2 mt-1">
+            <h3 className="text-2xl font-black">{stats.inMaintenanceCount}</h3>
+            <span className="text-[10px] font-bold opacity-60">ativos</span>
+          </div>
         </Card>
-        <Card className="bg-orange-600 border-none shadow-lg rounded-2xl p-5">
-          <ArrowRightLeft className="w-8 h-8 opacity-20 absolute right-4 top-4" />
-          <p className="text-[10px] font-bold uppercase opacity-70">Transferências Pendentes</p>
-          <h3 className="text-3xl font-black mt-1">
-            {transfers.filter(t => 
-              t.status === 'pending' && (
-                currentUser?.role === 'master' || 
-                !selectedContractId || 
-                t.targetContractId === selectedContractId || 
-                t.sourceContractId === selectedContractId
-              )
-            ).length}
-          </h3>
+
+        <Card className="bg-orange-500 border-none shadow-lg rounded-2xl p-4 relative overflow-hidden group">
+          <ArrowRightLeft className="w-12 h-12 opacity-10 absolute -right-2 -bottom-2 group-hover:scale-110 transition-transform" />
+          <p className="text-[9px] font-black uppercase opacity-70 tracking-widest">Transf. Pendentes</p>
+          <div className="flex items-baseline gap-2 mt-1">
+            <h3 className="text-2xl font-black">
+              {transfers.filter(t => 
+                t.status === 'pending' && (
+                  currentUser?.role === 'master' || 
+                  !selectedContractId || 
+                  t.targetContractId === selectedContractId || 
+                  t.sourceContractId === selectedContractId
+                )
+              ).length}
+            </h3>
+            <span className="text-[10px] font-bold opacity-60">solicitações</span>
+          </div>
+        </Card>
+
+        <Card className="bg-indigo-600 border-none shadow-lg rounded-2xl p-4 relative overflow-hidden group">
+          <DollarSign className="w-12 h-12 opacity-10 absolute -right-2 -bottom-2 group-hover:scale-110 transition-transform" />
+          <p className="text-[9px] font-black uppercase opacity-70 tracking-widest">Custo Operacional</p>
+          <div className="flex items-baseline gap-1 mt-1">
+            <span className="text-sm font-bold opacity-70">R$</span>
+            <h3 className="text-2xl font-black">
+              {stats.activeEquips > 0 ? (filteredEquipments.reduce((sum, e) => {
+                const cost = equipmentMonthly.find(d => d.equipmentId === e.id && d.month === selectedMonth)?.cost || 0;
+                return sum + cost;
+              }, 0)).toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 }) : '0'}
+            </h3>
+          </div>
         </Card>
       </div>
 
@@ -811,166 +983,392 @@ export default function ControlView({
                 <Button variant="outline" size="sm" onClick={downloadTemplate} className="rounded-xl gap-2 font-bold text-xs"><FileDown className="w-4 h-4" /> Modelo</Button>
                 <Button variant="outline" size="sm" onClick={() => setIsImportModalOpen(true)} className="rounded-xl gap-2 font-bold text-xs"><Upload className="w-4 h-4" /> Importar</Button>
                 <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
-                  <DialogTrigger asChild><Button className="rounded-xl bg-blue-600 gap-2 font-bold text-xs"><Plus className="w-4 h-4" /> Novo</Button></DialogTrigger>
-                  <DialogContent className="max-w-xl rounded-3xl p-8">
-                    <DialogHeader><DialogTitle className="text-2xl font-black">Novo Equipamento</DialogTitle></DialogHeader>
-                    <div className="grid grid-cols-2 gap-4 py-6">
-                      <div className="space-y-1"><Label className="text-[10px] uppercase font-bold text-gray-400">Nome</Label><Input value={newEquip.name} onChange={e => setNewEquip({...newEquip, name: e.target.value})} /></div>
-                      <div className="space-y-1"><Label className="text-[10px] uppercase font-bold text-gray-400">Placa</Label><Input value={newEquip.plate} onChange={e => setNewEquip({...newEquip, plate: e.target.value})} /></div>
-                      <div className="space-y-1"><Label className="text-[10px] uppercase font-bold text-gray-400">Modelo</Label><Input value={newEquip.model} onChange={e => setNewEquip({...newEquip, model: e.target.value})} /></div>
-                      <div className="space-y-1"><Label className="text-[10px] uppercase font-bold text-gray-400">Origem</Label><Select value={newEquip.origin} onValueChange={val => setNewEquip({...newEquip, origin: val})}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="Próprio">Próprio</SelectItem><SelectItem value="Alugado">Alugado</SelectItem></SelectContent></Select></div>
-                      <div className="space-y-1"><Label className="text-[10px] uppercase font-bold text-gray-400">Medição por</Label><Select value={newEquip.measurementUnit || 'Horímetro'} onValueChange={val => setNewEquip({...newEquip, measurementUnit: val as any})}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="Horímetro">Horímetro</SelectItem><SelectItem value="Quilometragem">Quilometragem</SelectItem></SelectContent></Select></div>
-                      {!selectedContractId ? (
-                        <div className="space-y-1">
-                          <Label className="text-[10px] uppercase font-bold text-gray-400">Obra</Label>
-                          <Select value={newEquip.contractId || ''} onValueChange={val => setNewEquip({...newEquip, contractId: val})}>
-                            <SelectTrigger className="w-full h-10 bg-white border-blue-100 focus:ring-blue-500 rounded-xl font-medium text-blue-900 ring-offset-blue-50">
-                              <SelectValue placeholder="Selecione a obra">
-                                {newEquip.contractId ? (
-                                  (() => {
-                                    const c = availableContracts.find(x => x.id === newEquip.contractId);
-                                    return c ? `${c.workName || c.client || 'Sem nome'} (${c.contractNumber || 'S/N'})` : "Selecionar Obra";
-                                  })()
-                                ) : "Selecionar Obra"}
-                              </SelectValue>
-                            </SelectTrigger>
-                            <SelectContent className="max-h-80 rounded-xl border-blue-100">
-                              {availableContracts.map(c => {
-                                const label = `${c.workName || 'Obra sem nome'} - ${c.client || 'Cliente não definido'} (${c.contractNumber || 'S/N'})`;
-                                return (
-                                  <SelectItem 
-                                    key={c.id} 
-                                    value={c.id} 
-                                    textValue={label}
-                                  >
-                                    <div className="flex flex-col py-1">
-                                      <span className="font-bold text-blue-900 leading-tight">{c.workName || c.client || 'Sem nome'}</span>
-                                      <span className="text-[10px] text-gray-500 uppercase">{c.contractNumber || 'S/N'}</span>
-                                    </div>
-                                  </SelectItem>
-                                );
-                              })}
-                            </SelectContent>
-                          </Select>
+                  <DialogTrigger asChild><Button className="rounded-xl bg-blue-600 gap-2 font-bold text-xs"><Plus className="w-4 h-4 mr-2" /> Novo</Button></DialogTrigger>
+                  <DialogContent className="sm:max-w-[800px] h-[90vh] flex flex-col rounded-3xl p-0 overflow-hidden border-none shadow-2xl bg-white focus:outline-none">
+                    <div className="bg-gradient-to-r from-blue-600 to-indigo-700 p-6 flex justify-between items-center shrink-0">
+                      <div className="flex items-center gap-4">
+                        <div className="p-2 bg-white/10 backdrop-blur-md rounded-2xl">
+                          <Truck className="w-8 h-8 text-white" />
                         </div>
-                      ) : (
-                        <div className="space-y-1">
-                          <Label className="text-[10px] uppercase font-bold text-gray-400">Obra Ativa</Label>
-                          <div className="h-10 flex items-center px-4 bg-blue-50 rounded-xl border border-blue-100 text-xs font-bold text-blue-700">
-                            {getContractName(selectedContractId)}
-                          </div>
+                        <div>
+                          <DialogTitle className="text-xl font-black text-white">Adicionar Equipamento</DialogTitle>
+                          <DialogDescription className="text-blue-100 text-[10px] font-bold uppercase tracking-wider">Novo ativo SIGO Controlador</DialogDescription>
                         </div>
-                      )}
+                      </div>
                     </div>
-                    <DialogFooter><Button onClick={handleCreateEquip} className="w-full h-12 rounded-2xl bg-blue-600 font-bold">Salvar Equipamento</Button></DialogFooter>
+
+                    <Tabs defaultValue="basic" className="w-full flex-1 flex flex-col overflow-hidden">
+                      <TabsList className="w-full justify-start rounded-none bg-slate-50 border-b px-6 h-14 gap-6 shrink-0">
+                        <TabsTrigger value="basic" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:text-blue-600 border-b-2 border-transparent data-[state=active]:border-blue-600 rounded-none h-full px-0 font-black text-[11px] uppercase tracking-widest">Dados Principais</TabsTrigger>
+                        <TabsTrigger value="technical" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:text-blue-600 border-b-2 border-transparent data-[state=active]:border-blue-600 rounded-none h-full px-0 font-black text-[11px] uppercase tracking-widest">Atributos Técnicos</TabsTrigger>
+                        <TabsTrigger value="history" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:text-blue-600 border-b-2 border-transparent data-[state=active]:border-blue-600 rounded-none h-full px-0 font-black text-[11px] uppercase tracking-widest">Histórico</TabsTrigger>
+                        <TabsTrigger value="photos" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:text-blue-600 border-b-2 border-transparent data-[state=active]:border-blue-600 rounded-none h-full px-0 font-black text-[11px] uppercase tracking-widest">Fotos</TabsTrigger>
+                        <TabsTrigger value="obs" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:text-blue-600 border-b-2 border-transparent data-[state=active]:border-blue-600 rounded-none h-full px-0 font-black text-[11px] uppercase tracking-widest">Observações</TabsTrigger>
+                      </TabsList>
+
+                      <div className="p-6 flex-1 overflow-y-auto custom-scrollbar bg-white">
+                        <TabsContent value="basic" className="mt-0 space-y-8 animate-in fade-in duration-300">
+                          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                            <div className="space-y-2">
+                              <Label className="text-[11px] uppercase font-black text-slate-500 flex items-center gap-2 tracking-tight"><Hash className="w-4 h-4"/> Código de Identificação</Label>
+                              <Input className="rounded-xl border-slate-200 bg-slate-50/50 h-12 text-sm font-bold focus:ring-2 focus:ring-blue-500/20" value={newEquip.code} onChange={e => setNewEquip({...newEquip, code: e.target.value})} placeholder="Ex: EQ-001" />
+                            </div>
+                            <div className="md:col-span-2 space-y-2">
+                              <Label className="text-[11px] uppercase font-black text-slate-500 flex items-center gap-2 tracking-tight"><Info className="w-4 h-4"/> Nome Completo do Ativo</Label>
+                              <Input className="rounded-xl border-slate-200 bg-slate-50/50 h-12 text-sm font-bold focus:ring-2 focus:ring-blue-500/20" value={newEquip.name} onChange={e => setNewEquip({...newEquip, name: e.target.value})} placeholder="Ex: Escavadeira CAT 320" />
+                            </div>
+
+                            <div className="space-y-2">
+                              <Label className="text-[11px] uppercase font-black text-slate-500 tracking-tight">Tipo de Equipamento</Label>
+                              <Select value={newEquip.type} onValueChange={handleTypeChange}>
+                                <SelectTrigger className="rounded-xl border-slate-200 bg-slate-50/50 h-12 text-sm font-bold">
+                                  <SelectValue placeholder="Selecione o tipo..." />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {EQUIPMENT_TYPES.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                            <div className="space-y-2">
+                              <Label className="text-[11px] uppercase font-black text-slate-500 tracking-tight">Marca / Fabricante</Label>
+                              <Input className="rounded-xl border-slate-200 bg-slate-50/50 h-12 text-sm font-bold" value={newEquip.brand} onChange={e => setNewEquip({...newEquip, brand: e.target.value})} placeholder="Ex: Caterpillar" />
+                            </div>
+                            <div className="space-y-2">
+                              <Label className="text-[11px] uppercase font-black text-slate-500 tracking-tight">Modelo / Versão</Label>
+                              <Input className="rounded-xl border-slate-200 bg-slate-50/50 h-12 text-sm font-bold" value={newEquip.model} onChange={e => setNewEquip({...newEquip, model: e.target.value})} placeholder="Ex: 320 NG" />
+                            </div>
+
+                            <div className="space-y-2">
+                              <Label className="text-[11px] uppercase font-black text-slate-500 tracking-tight">Ano de Fabricação</Label>
+                              <Input type="number" className="rounded-xl border-slate-200 bg-slate-50/50 h-12 text-sm font-bold" value={newEquip.year} onChange={e => setNewEquip({...newEquip, year: parseInt(e.target.value)})} />
+                            </div>
+                            <div className="space-y-2">
+                              <Label className="text-[11px] uppercase font-black text-slate-500 tracking-tight">Placa ou Serial</Label>
+                              <Input className="rounded-xl border-slate-200 bg-slate-50/50 h-12 text-sm font-bold" value={newEquip.plate} onChange={e => setNewEquip({...newEquip, plate: e.target.value})} placeholder="ABC-1234" />
+                            </div>
+                            <div className="space-y-2">
+                              <Label className="text-[11px] uppercase font-black text-slate-500 tracking-tight">Origem do Ativo</Label>
+                              <Select value={newEquip.origin} onValueChange={val => setNewEquip({...newEquip, origin: val})}>
+                                <SelectTrigger className="rounded-xl border-slate-200 bg-slate-50/50 h-12 text-sm font-bold"><SelectValue /></SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="Próprio">Próprio</SelectItem>
+                                  <SelectItem value="Alugado">Alugado</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+
+                            <div className="space-y-2">
+                              <Label className="text-[11px] uppercase font-black text-slate-500 tracking-tight">Situação Operacional</Label>
+                              <Select value={newEquip.situation} onValueChange={(val: any) => setNewEquip({...newEquip, situation: val})}>
+                                <SelectTrigger className="rounded-xl border-slate-200 bg-slate-50/50 h-12 text-sm font-bold"><SelectValue /></SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="Ativo">Ativo</SelectItem>
+                                  <SelectItem value="Inativo">Inativo</SelectItem>
+                                  <SelectItem value="Vendido">Vendido</SelectItem>
+                                  <SelectItem value="Em Manutenção">Em Manutenção</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+                            <div className="space-y-2">
+                              <Label className="text-[11px] uppercase font-black text-slate-500 tracking-tight">Medição por</Label>
+                              <Select value={newEquip.measurementUnit || 'Horímetro'} onValueChange={val => setNewEquip({...newEquip, measurementUnit: val as any})}>
+                                <SelectTrigger className="rounded-xl border-slate-200 bg-slate-50/50 h-12 text-sm font-bold"><SelectValue /></SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="Horímetro">Horímetro (h)</SelectItem>
+                                  <SelectItem value="Quilometragem">Quilometragem (km)</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+                            <div className="space-y-2">
+                              <Label className="text-[11px] uppercase font-black text-slate-500 tracking-tight">Leitura Inicial</Label>
+                              <NumericInput className="rounded-xl border-slate-200 bg-slate-50/50 h-12 text-sm font-bold" value={newEquip.currentReading} onChange={val => setNewEquip({...newEquip, currentReading: val})} />
+                            </div>
+                            
+                            <div className="md:col-span-2 lg:col-span-3 space-y-2">
+                              <Label className="text-[11px] uppercase font-black text-slate-500 tracking-tight">Obra Vinculada (Centro de Custo)</Label>
+                              <Select value={newEquip.contractId || ''} onValueChange={val => setNewEquip({...newEquip, contractId: val})} disabled={!!selectedContractId}>
+                                <SelectTrigger className="rounded-xl border-slate-200 bg-slate-50/50 h-12 text-sm font-bold transition-all focus:ring-2 focus:ring-blue-500/20">
+                                  <SelectValue placeholder="Selecione a obra...">
+                                    {newEquip.contractId ? getContractName(newEquip.contractId) : "Sem Obra (Disponível)"}
+                                  </SelectValue>
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="" className="font-bold py-3 uppercase text-[10px] tracking-tight">Sem Obra (Disponível)</SelectItem>
+                                  {contracts.filter(c => currentUser?.role === 'master' || c.companyId === currentUser?.companyId || c.id === newEquip.contractId).map(c => (
+                                    <SelectItem key={c.id} value={c.id} className="font-bold py-3 uppercase text-[10px] tracking-tight">
+                                      {c.workName || c.contractNumber}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          </div>
+                        </TabsContent>
+
+                        <TabsContent value="technical" className="mt-0 space-y-4 animate-in slide-in-from-right duration-300">
+                          <div className="flex items-center justify-between mb-4">
+                            <div>
+                              <h4 className="text-sm font-black text-gray-900 uppercase">Especificações do Equipamento</h4>
+                              <p className="text-[10px] text-gray-500 font-bold uppercase">Campos personalizados salvos em JSONB</p>
+                            </div>
+                            <Button variant="outline" size="sm" onClick={addCustomField} className="rounded-xl gap-2 font-bold text-xs text-blue-600 border-blue-100 hover:bg-blue-50">
+                              <Plus className="w-4 h-4" /> Adicionar Campo
+                            </Button>
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-6 bg-gray-50/50 p-6 rounded-3xl border border-gray-100 border-dashed">
+                            {Object.entries(newEquip.customFields || {}).map(([key, f]) => {
+                              const field = f as EquipmentAttribute;
+                              return (
+                                <div key={key} className="space-y-2 group relative animate-in fade-in zoom-in duration-300">
+                                  <div className="flex items-center justify-between">
+                                    <Label className="text-[10px] uppercase font-black text-blue-600 tracking-tight flex items-center gap-2">
+                                      <Activity className="w-3 h-3" />
+                                      {key.replace(/_/g, ' ')}
+                                    </Label>
+                                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                      <Button variant="ghost" size="icon" className="h-6 w-6 text-gray-400 hover:text-red-500" onClick={() => removeCustomField(key)}><Trash2 className="w-3 h-3" /></Button>
+                                    </div>
+                                  </div>
+                                  
+                                  {field.type === 'boolean' ? (
+                                    <div className="flex items-center gap-2 h-10 px-4 bg-white rounded-xl border border-gray-100">
+                                      <Switch checked={field.value} onCheckedChange={v => updateCustomField(key, { value: v })} />
+                                      <span className="text-xs font-bold text-gray-600 uppercase">{field.value ? 'Sim' : 'Não'}</span>
+                                    </div>
+                                  ) : field.type === 'select' ? (
+                                    <Select value={field.value} onValueChange={v => updateCustomField(key, { value: v })}>
+                                      <SelectTrigger className="rounded-xl bg-white border-gray-100 h-10 font-bold text-xs"><SelectValue /></SelectTrigger>
+                                      <SelectContent>
+                                        {field.options?.map(opt => <SelectItem key={opt} value={opt}>{opt}</SelectItem>)}
+                                      </SelectContent>
+                                    </Select>
+                                  ) : (
+                                    <Input 
+                                      className="rounded-xl bg-white border-gray-100 h-10 font-bold text-xs" 
+                                      type={field.type === 'number' ? 'number' : 'text'}
+                                      value={field.value}
+                                      onChange={e => updateCustomField(key, { value: field.type === 'number' ? parseFloat(e.target.value) : e.target.value })}
+                                    />
+                                  )}
+                                </div>
+                              );
+                            })}
+                            {Object.keys(newEquip.customFields || {}).length === 0 && (
+                              <div className="col-span-2 py-10 flex flex-col items-center justify-center opacity-30">
+                                <Settings className="w-10 h-10 mb-2" />
+                                <p className="text-xs font-bold uppercase tracking-widest text-center">Nenhum campo personalizado.<br/>Selecione um tipo ou adicione campos manuais.</p>
+                              </div>
+                            )}
+                          </div>
+                        </TabsContent>
+
+                        <TabsContent value="obs" className="mt-0 space-y-4 animate-in slide-in-from-right duration-300">
+                           <div className="space-y-1.5">
+                              <Label className="text-[10px] uppercase font-bold text-gray-400">Observações Gerais</Label>
+                              <textarea 
+                                className="w-full min-h-[150px] rounded-2xl border-gray-100 bg-gray-50/50 p-4 text-sm font-medium focus:ring-1 focus:ring-blue-500 outline-none transition-all"
+                                value={newEquip.observations}
+                                onChange={e => setNewEquip({...newEquip, observations: e.target.value})}
+                                placeholder="Descreva aqui detalhes adicionais, histórico ou informações relevantes..."
+                              />
+                           </div>
+                        </TabsContent>
+
+                        <TabsContent value="history" className="mt-0 space-y-4 animate-in slide-in-from-bottom duration-300">
+                          <div className="space-y-4">
+                            <h4 className="text-sm font-black text-gray-900 uppercase">Histórico do Equipamento</h4>
+                            <div className="space-y-3">
+                              {(newEquip.history || []).map(entry => (
+                                <div key={entry.id} className="p-4 bg-white rounded-2xl border border-gray-100 shadow-sm relative overflow-hidden group">
+                                  <div className="absolute left-0 top-0 bottom-0 w-1 bg-blue-600" />
+                                  <div className="flex justify-between items-start mb-2">
+                                    <div>
+                                      <Badge variant="outline" className="text-[8px] font-black uppercase mb-1">{entry.type}</Badge>
+                                      <p className="text-xs font-black text-gray-900">{entry.description}</p>
+                                    </div>
+                                    <span className="text-[10px] font-bold text-gray-400">{new Date(entry.date).toLocaleDateString('pt-BR')}</span>
+                                  </div>
+                                  {entry.parts && entry.parts.length > 0 && (
+                                    <div className="flex flex-wrap gap-1 mt-2">
+                                      {entry.parts.map((p, idx) => (
+                                        <Badge key={idx} variant="secondary" className="text-[9px] bg-gray-50 text-gray-500">
+                                          {p.quantity} {p.unit} - {p.description}
+                                        </Badge>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+                              ))}
+                              {(!newEquip.history || newEquip.history.length === 0) && (
+                                <div className="py-10 text-center opacity-30">
+                                  <History className="w-10 h-10 mx-auto mb-2" />
+                                  <p className="text-[10px] font-black uppercase tracking-widest">Nenhum registro no histórico</p>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </TabsContent>
+
+                        <TabsContent value="photos" className="mt-0 space-y-4 animate-in slide-in-from-top duration-300">
+                          <div className="space-y-4">
+                            <div className="flex items-center justify-between">
+                              <h4 className="text-sm font-black text-gray-900 uppercase">Fotos do Equipamento</h4>
+                              <p className="text-[10px] text-gray-500 font-bold uppercase tracking-tighter">Armazenado em Supabase Bucket: equipments</p>
+                            </div>
+                            
+                            <div className="grid grid-cols-4 gap-4">
+                              {(newEquip.photos || []).map((url, idx) => (
+                                <div key={idx} className="aspect-square rounded-2xl overflow-hidden border border-gray-100 relative group">
+                                  <img src={url} alt={`Equip ${idx}`} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                                    <Button variant="destructive" size="icon" className="h-8 w-8 rounded-xl" onClick={() => setNewEquip(prev => ({ ...prev, photos: prev.photos?.filter((_, i) => i !== idx) }))}>
+                                      <Trash2 className="w-4 h-4" />
+                                    </Button>
+                                  </div>
+                                </div>
+                              ))}
+                              <label className="aspect-square rounded-2xl border-2 border-dashed border-gray-200 flex flex-col items-center justify-center gap-2 cursor-pointer hover:bg-gray-50 transition-colors">
+                                <Camera className="w-8 h-8 text-gray-300" />
+                                <span className="text-[8px] font-black uppercase text-gray-400">Adicionar Foto</span>
+                                <input type="file" className="hidden" accept="image/*" onChange={(e) => {
+                                  // Mock integration - in real world would upload to bucket and get URL
+                                  const file = e.target.files?.[0];
+                                  if (file) {
+                                    const reader = new FileReader();
+                                    reader.onload = (ev) => {
+                                      setNewEquip(prev => ({ ...prev, photos: [...(prev.photos || []), ev.target?.result as string] }));
+                                    };
+                                    reader.readAsDataURL(file);
+                                  }
+                                }} />
+                              </label>
+                            </div>
+                          </div>
+                        </TabsContent>
+                      </div>
+
+                      <DialogFooter className="p-6 bg-gray-50 border-t gap-3">
+                        <Button variant="ghost" onClick={() => setIsAddOpen(false)} className="rounded-xl font-bold uppercase text-[10px] tracking-widest h-12 px-6">Cancelar</Button>
+                        <Button onClick={handleCreateEquip} className="flex-1 h-12 rounded-2xl bg-blue-600 hover:bg-blue-700 shadow-lg shadow-blue-200 font-bold uppercase text-[10px] tracking-widest">
+                          <Check className="w-4 h-4 mr-2" /> Salvar Equipamento no SIGO
+                        </Button>
+                      </DialogFooter>
+                    </Tabs>
                   </DialogContent>
                 </Dialog>
               </div>
             </CardHeader>
-            <CardContent className="p-0">
-              <Table>
+            <CardContent className="p-0 overflow-x-auto custom-scrollbar">
+              <Table className="min-w-[1200px]">
                 <TableHeader className="bg-gray-50/50">
                   <TableRow>
                     <TableHead 
-                      className="font-bold text-[10px] uppercase tracking-widest text-gray-400 py-5 cursor-pointer hover:bg-gray-100 transition-colors"
+                      className="font-black text-[10px] h-8 uppercase tracking-widest text-slate-500 py-0 cursor-pointer hover:bg-slate-100/50 transition-colors min-w-[250px]"
                       onClick={() => handleSort('name')}
                     >
-                      <div className="flex items-center gap-1">
-                        Equipamento
+                      <div className="flex items-center gap-2">
+                        Equipamento Ativo
                         {sortField === 'name' && (sortOrder === 'asc' ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />)}
                       </div>
                     </TableHead>
                     <TableHead 
-                      className="font-bold text-[10px] uppercase tracking-widest text-gray-400 py-5"
+                      className="font-black text-[10px] h-8 uppercase tracking-widest text-slate-500 py-0 min-w-[180px]"
                     >
-                      Obra / Local
+                      C. Custo / Obra
                     </TableHead>
                     <TableHead 
-                      className="font-bold text-[10px] uppercase tracking-widest text-gray-400 cursor-pointer hover:bg-gray-100 transition-colors"
+                      className="font-black text-[10px] h-8 uppercase tracking-widest text-slate-500 cursor-pointer hover:bg-slate-100/50 transition-colors"
                       onClick={() => handleSort('category')}
                     >
-                      <div className="flex items-center gap-1">
-                        Porte / Cat.
+                      <div className="flex items-center gap-2">
+                        Classificação
                         {sortField === 'category' && (sortOrder === 'asc' ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />)}
                       </div>
                     </TableHead>
                     <TableHead 
-                      className="font-bold text-[10px] uppercase tracking-widest text-gray-400 text-center cursor-pointer hover:bg-gray-100 transition-colors"
+                      className="font-black text-[10px] h-8 uppercase tracking-widest text-slate-500 text-center cursor-pointer hover:bg-slate-100/50 transition-colors"
                       onClick={() => handleSort('origin')}
                     >
-                      <div className="flex items-center justify-center gap-1">
+                      <div className="flex items-center justify-center gap-2">
                         Origem
                         {sortField === 'origin' && (sortOrder === 'asc' ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />)}
                       </div>
                     </TableHead>
                     <TableHead 
-                      className="font-bold text-[10px] uppercase tracking-widest text-gray-400 text-right cursor-pointer hover:bg-gray-100 transition-colors"
+                      className="font-black text-[10px] h-8 uppercase tracking-widest text-slate-500 text-right cursor-pointer hover:bg-slate-100/50 transition-colors"
                       onClick={() => handleSort('cost')}
                     >
-                      <div className="flex items-center justify-end gap-1">
+                      <div className="flex items-center justify-end gap-2">
                         Custo Mensal
                         {sortField === 'cost' && (sortOrder === 'asc' ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />)}
                       </div>
                     </TableHead>
-                    <TableHead className="w-[120px]"></TableHead>
+                    <TableHead className="w-[120px] h-8"></TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {filteredEquipments.filter(e => !e.inMaintenance).map(e => (
-                    <TableRow key={e.id} className="hover:bg-gray-50 transition-colors">
-                      <TableCell>
-                        <div className="flex items-center gap-3">
+                    <TableRow key={e.id} className="hover:bg-gray-50 transition-colors group h-11">
+                      <TableCell className="py-0.5">
+                        <div className="flex items-center gap-2">
+                          <div className={cn(
+                            "w-7 h-7 rounded-xl flex items-center justify-center shrink-0 transition-all",
+                            e.exitDate ? "bg-gray-100 text-gray-400" : "bg-blue-50 text-blue-600 group-hover:bg-blue-600 group-hover:text-white"
+                          )}>
+                            <Truck className="w-3.5 h-3.5" />
+                          </div>
                           <div>
-                            <div className="flex items-center gap-2">
-                              <p className={cn("font-bold", e.exitDate ? "text-gray-400 line-through" : "text-gray-900")}>{e.name}</p>
-                              {e.exitDate && (
-                                <Badge variant="outline" className="text-[9px] font-black uppercase bg-red-50 text-red-600 border-red-100 px-1.5 h-4">Inativo</Badge>
-                              )}
-                              {transfers.some(t => t.equipmentId === e.id && t.status === 'pending') && (
-                                <Badge variant="outline" className="text-[9px] font-black uppercase bg-orange-50 text-orange-600 border-orange-100 px-1.5 h-4 animated-pulse">Transferência Pendente</Badge>
-                              )}
+                            <div className="flex items-center gap-1.5 leading-none">
+                              <p className={cn("font-bold text-[13px] tracking-tight", e.exitDate ? "text-gray-400 line-through" : "text-gray-900")}>
+                                {e.name}
+                              </p>
+                              <Badge variant="outline" className="text-[8px] font-bold uppercase py-0 px-1.5 h-3.5 bg-slate-50 text-slate-500 border-slate-200">
+                                {e.code || 'S/C'}
+                              </Badge>
                             </div>
-                            <p className="text-[10px] text-gray-500 uppercase">{e.model} - {e.plate}</p>
-                            {e.exitDate && (
-                              <p className="text-[9px] text-red-500 font-bold uppercase mt-0.5">Saída: {new Date(e.exitDate + 'T12:00:00').toLocaleDateString('pt-BR')}</p>
-                            )}
+                            <div className="flex items-center gap-1.5 mt-0.5">
+                              <p className="text-[9px] text-gray-500 font-bold uppercase tracking-tight">
+                                {e.brand} {e.model} • <span className="text-blue-600 font-bold">{e.type}</span> • {e.plate}
+                              </p>
+                            </div>
                           </div>
                         </div>
                       </TableCell>
-                      <TableCell>
-                        <span className="text-xs font-bold text-blue-600">{getContractName(e.contractId)}</span>
+                      <TableCell className="py-0.5">
+                        <span className="text-[10px] font-bold text-blue-600 uppercase tracking-tighter truncate max-w-[150px] inline-block">{getContractName(e.contractId)}</span>
                       </TableCell>
-                      <TableCell className="text-xs font-medium text-gray-600">{e.category}</TableCell>
-                      <TableCell className="text-center"><Badge variant="outline" className={cn("text-[10px] font-bold rounded-lg", e.origin === 'Próprio' ? "bg-blue-50 text-blue-700" : "bg-amber-50 text-amber-700")}>{e.origin}</Badge></TableCell>
-                      <TableCell className="text-right font-mono text-xs font-bold text-gray-600">
+                      <TableCell className="py-0.5 text-[10px] font-bold text-slate-500 uppercase tracking-tight">{e.category}</TableCell>
+                      <TableCell className="py-0.5 text-center font-black uppercase text-[9px] tracking-widest"><Badge variant="outline" className={cn("rounded-lg h-5 px-2", e.origin === 'Próprio' ? "bg-blue-50 text-blue-700 border-blue-100" : "bg-amber-50 text-amber-700 border-amber-100")}>{e.origin}</Badge></TableCell>
+                      <TableCell className="py-0.5 text-right font-mono text-[10px] font-black text-slate-700">
                         <NumericInput 
-                          className="w-28 h-8 text-right bg-transparent border-none focus-visible:ring-0" 
+                          className="w-24 h-7 text-right bg-slate-50/50 rounded-lg border-transparent hover:border-slate-200 transition-all focus-visible:ring-1 focus-visible:ring-blue-500/20 text-[11px]" 
                           value={equipmentMonthly.find(d => d.equipmentId === e.id && d.month === selectedMonth)?.cost || 0} 
                           onChange={val => {
                             const idx = equipmentMonthly.findIndex(d => d.equipmentId === e.id && d.month === selectedMonth);
                             if (idx >= 0) onUpdateEquipmentMonthly(equipmentMonthly.map((d, i) => i === idx ? { ...d, cost: val } : d));
                             else onUpdateEquipmentMonthly([...equipmentMonthly, { 
-                              id: crypto.randomUUID(), 
-                              equipmentId: e.id, 
-                              month: selectedMonth, 
-                              cost: val, 
-                              companyId: currentUser?.companyId,
-                              contractId: e.contractId
-                            }]);
+                               id: crypto.randomUUID(), 
+                               equipmentId: e.id, 
+                               month: selectedMonth, 
+                               cost: val, 
+                               companyId: currentUser?.companyId,
+                               contractId: e.contractId
+                             }]);
                           }}
                           prefix="R$"
                         />
                       </TableCell>
-                      <TableCell>
-                        <div className="flex items-center justify-end gap-1">
+                      <TableCell className="py-0.5">
+                        <div className="flex items-center justify-end gap-0.5">
                           <Button 
                             variant="ghost" 
                             size="icon" 
                             onClick={() => handleToggleMaintenance(e)}
-                            className={cn("text-gray-300 hover:text-emerald-500", e.inMaintenance && "text-emerald-500")}
+                            className={cn("h-7 w-7 text-gray-300 hover:text-emerald-500", e.inMaintenance && "text-emerald-500")}
                             title={e.inMaintenance ? "Retirar de Manutenção" : "Enviar para Manutenção"}
                           >
-                            <Wrench className="w-4 h-4" />
+                            <Wrench className="w-3.5 h-3.5" />
                           </Button>
                           <Button 
                             variant="ghost" 
@@ -981,10 +1379,10 @@ export default function ControlView({
                               setTargetContractId('');
                               setIsTransferOpen(true);
                             }} 
-                            className="text-gray-300 hover:text-green-500 disabled:opacity-30"
+                            className="h-7 w-7 text-gray-300 hover:text-green-500 disabled:opacity-30"
                             title="Solicitar Transferência"
                           >
-                            <ArrowRightLeft className="w-4 h-4" />
+                            <ArrowRightLeft className="w-3.5 h-3.5" />
                           </Button>
                           <Button 
                             variant="ghost" 
@@ -993,10 +1391,10 @@ export default function ControlView({
                               setNewMaterialRequestEntry(prev => ({ ...prev, application: `${e.name} (${e.plate})` }));
                               setIsMaterialRequestModalOpen(true);
                             }} 
-                            className="text-gray-300 hover:text-emerald-500"
+                            className="h-7 w-7 text-gray-300 hover:text-emerald-500"
                             title="Solicitar Peças/Material"
                           >
-                            <ShoppingCart className="w-4 h-4" />
+                            <ShoppingCart className="w-3.5 h-3.5" />
                           </Button>
                           <Button 
                             variant="ghost" 
@@ -1005,10 +1403,22 @@ export default function ControlView({
                               setNewFuelLog(prev => ({ ...prev, equipmentId: e.id, type: 'saida' }));
                               setIsFuelLogModalOpen(true);
                             }} 
-                            className="text-gray-300 hover:text-purple-500"
+                            className="h-7 w-7 text-gray-300 hover:text-purple-500"
                             title="Abastecimento de Combustível"
                           >
-                            <Fuel className="w-4 h-4" />
+                            <Fuel className="w-3.5 h-3.5" />
+                          </Button>
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            onClick={() => {
+                              setSelectedEquipment(e);
+                              setIsDetailOpen(true);
+                            }} 
+                            className="h-7 w-7 text-gray-300 hover:text-blue-500"
+                            title="Ver Detalhes"
+                          >
+                            <Info className="w-3.5 h-3.5" />
                           </Button>
                           <Button 
                             variant="ghost" 
@@ -1017,9 +1427,10 @@ export default function ControlView({
                               setEquipmentToEdit(e);
                               setIsEditOpen(true);
                             }} 
-                            className="text-gray-300 hover:text-blue-500"
+                            className="h-7 w-7 text-gray-300 hover:text-blue-500"
+                            title="Visualizar/Editar"
                           >
-                            <Edit className="w-4 h-4" />
+                            <Edit className="w-3.5 h-3.5" />
                           </Button>
                           <Button 
                             variant="ghost" 
@@ -1428,7 +1839,19 @@ export default function ControlView({
                         </span>
                       </TableCell>
                       <TableCell className="text-right text-xs font-bold text-gray-600">
-                        {request.deliveryDeadline ? new Date(request.deliveryDeadline).toLocaleDateString('pt-BR') : '-'}
+                        <div className="flex flex-col items-end gap-1">
+                          {request.deliveryDeadline ? new Date(request.deliveryDeadline).toLocaleDateString('pt-BR') : '-'}
+                          {request.status === 'Recebido' && (
+                            <Button 
+                              variant="outline" 
+                              size="sm" 
+                              onClick={() => handleApplyRequestToHistory(request)}
+                              className="h-7 text-[9px] font-black uppercase tracking-tighter bg-emerald-50 text-emerald-600 border-emerald-100 hover:bg-emerald-600 hover:text-white"
+                            >
+                              Aplicar Ativo
+                            </Button>
+                          )}
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -1520,88 +1943,307 @@ export default function ControlView({
       </Tabs>
 
       <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
-        <DialogContent className="max-w-xl rounded-3xl p-8">
-          <DialogHeader><DialogTitle className="text-2xl font-black">Editar Equipamento</DialogTitle></DialogHeader>
-          <div className="grid grid-cols-2 gap-4 py-6">
-            <div className="space-y-1">
-              <Label className="text-[10px] uppercase font-bold text-gray-400">Nome</Label>
-              <Input value={equipmentToEdit?.name || ''} onChange={e => setEquipmentToEdit(prev => prev ? {...prev, name: e.target.value} : null)} />
+        <DialogContent className="sm:max-w-[800px] h-[90vh] flex flex-col rounded-3xl p-0 overflow-hidden border-none shadow-2xl bg-white focus:outline-none">
+          <div className="bg-gradient-to-r from-blue-700 to-indigo-800 p-6 flex justify-between items-center shrink-0">
+            <div className="flex items-center gap-4">
+              <div className="p-2 bg-white/10 backdrop-blur-md rounded-2xl">
+                <Truck className="w-8 h-8 text-white" />
+              </div>
+              <div>
+                <DialogTitle className="text-xl font-black text-white">Editar Equipamento</DialogTitle>
+                <DialogDescription className="text-blue-100 text-[10px] font-bold uppercase tracking-wider">Alterar dados do ativo SIGO</DialogDescription>
+              </div>
             </div>
-            <div className="space-y-1">
-              <Label className="text-[10px] uppercase font-bold text-gray-400">Placa</Label>
-              <Input value={equipmentToEdit?.plate || ''} onChange={e => setEquipmentToEdit(prev => prev ? {...prev, plate: e.target.value} : null)} />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-[10px] uppercase font-bold text-gray-400">Modelo</Label>
-              <Input value={equipmentToEdit?.model || ''} onChange={e => setEquipmentToEdit(prev => prev ? {...prev, model: e.target.value} : null)} />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-[10px] uppercase font-bold text-gray-400">Categoria / Porte</Label>
-              <Input value={equipmentToEdit?.category || ''} onChange={e => setEquipmentToEdit(prev => prev ? {...prev, category: e.target.value} : null)} />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-[10px] uppercase font-bold text-gray-400">Origem</Label>
-              <Select value={equipmentToEdit?.origin || 'Próprio'} onValueChange={val => setEquipmentToEdit(prev => prev ? {...prev, origin: val} : null)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Próprio">Próprio</SelectItem>
-                  <SelectItem value="Alugado">Alugado</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1">
-              <Label className="text-[10px] uppercase font-bold text-gray-400">Medição por</Label>
-              <Select value={equipmentToEdit?.measurementUnit || 'Horímetro'} onValueChange={val => setEquipmentToEdit(prev => prev ? {...prev, measurementUnit: val as any} : null)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Horímetro">Horímetro</SelectItem>
-                  <SelectItem value="Quilometragem">Quilometragem</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1 col-span-2">
-              <Label className="text-[10px] uppercase font-bold text-gray-400">Obra / Contrato Alocado</Label>
-              <Select value={equipmentToEdit?.contractId || ''} onValueChange={val => setEquipmentToEdit(prev => prev ? {...prev, contractId: val} : null)}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecione a obra">
-                    {equipmentToEdit?.contractId ? getContractName(equipmentToEdit.contractId) : "Sem Obra (Disponível)"}
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="" textValue="Sem Obra (Disponível)">Sem Obra (Disponível)</SelectItem>
-                  {availableContracts.map(c => (
-                    <SelectItem key={c.id} value={c.id} textValue={c.workName || c.contractNumber}>
-                      <div className="flex flex-col">
-                        <span className="font-bold text-gray-900 leading-tight">{c.workName || c.client || 'Sem nome'}</span>
-                        <span className="text-[10px] text-gray-500 uppercase">{c.contractNumber || 'S/N'}</span>
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1">
-              <Label className="text-[10px] uppercase font-bold text-gray-400">Data de Entrada</Label>
-              <Input type="date" value={equipmentToEdit?.entryDate || ''} onChange={e => setEquipmentToEdit(prev => prev ? {...prev, entryDate: e.target.value} : null)} />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-[10px] uppercase font-bold text-gray-400">Data de Saída</Label>
-              <Input type="date" value={equipmentToEdit?.exitDate || ''} onChange={e => setEquipmentToEdit(prev => prev ? {...prev, exitDate: e.target.value} : null)} />
-            </div>
+            <Badge className="bg-white/20 text-white border-none font-black text-xs px-4 py-1.5 uppercase">{equipmentToEdit?.code || 'S/C'}</Badge>
           </div>
-          <DialogFooter className="flex flex-col sm:flex-row gap-2 mt-4 sm:mt-0">
-            <Button 
-              variant="ghost" 
-              onClick={handlePermanentDelete} 
-              className="text-red-600 hover:text-white hover:bg-red-600 font-bold border border-red-200 rounded-2xl h-12 px-6"
-            >
-              <Trash2 className="w-4 h-4 mr-2" />
-              Excluir Permanente
-            </Button>
-            <div className="flex-1" />
-            <Button onClick={handleUpdateEquip} className="h-12 rounded-2xl bg-blue-600 font-bold px-8">Salvar Alterações</Button>
-          </DialogFooter>
+
+          <Tabs defaultValue="basic" className="w-full flex-1 flex flex-col overflow-hidden">
+            <TabsList className="w-full justify-start rounded-none bg-slate-50 border-b px-6 h-14 gap-6 shrink-0">
+              <TabsTrigger value="basic" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:text-blue-600 border-b-2 border-transparent data-[state=active]:border-blue-600 rounded-none h-full px-0 font-black text-[11px] uppercase tracking-widest">Dados Principais</TabsTrigger>
+              <TabsTrigger value="technical" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:text-blue-600 border-b-2 border-transparent data-[state=active]:border-blue-600 rounded-none h-full px-0 font-black text-[11px] uppercase tracking-widest">Atributos Técnicos</TabsTrigger>
+              <TabsTrigger value="history" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:text-blue-600 border-b-2 border-transparent data-[state=active]:border-blue-600 rounded-none h-full px-0 font-black text-[11px] uppercase tracking-widest">Histórico</TabsTrigger>
+              <TabsTrigger value="photos" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:text-blue-600 border-b-2 border-transparent data-[state=active]:border-blue-600 rounded-none h-full px-0 font-black text-[11px] uppercase tracking-widest">Fotos</TabsTrigger>
+              <TabsTrigger value="obs" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:text-blue-600 border-b-2 border-transparent data-[state=active]:border-blue-600 rounded-none h-full px-0 font-black text-[11px] uppercase tracking-widest">Observações</TabsTrigger>
+            </TabsList>
+
+            <div className="p-6 flex-1 overflow-y-auto custom-scrollbar bg-white">
+              <TabsContent value="basic" className="mt-0 space-y-8">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  <div className="space-y-2">
+                    <Label className="text-[11px] uppercase font-black text-slate-500 tracking-tight">Código</Label>
+                    <Input className="rounded-xl border-slate-200 bg-slate-50/50 h-12 text-sm font-bold" value={equipmentToEdit?.code || ''} onChange={e => setEquipmentToEdit(prev => prev ? {...prev, code: e.target.value} : null)} />
+                  </div>
+                  <div className="md:col-span-2 space-y-2">
+                    <Label className="text-[11px] uppercase font-black text-slate-500 tracking-tight">Nome do Equipamento</Label>
+                    <Input className="rounded-xl border-slate-200 bg-slate-50/50 h-12 text-sm font-bold" value={equipmentToEdit?.name || ''} onChange={e => setEquipmentToEdit(prev => prev ? {...prev, name: e.target.value} : null)} />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label className="text-[11px] uppercase font-black text-slate-500 tracking-tight">Tipo de Equipamento</Label>
+                    <Select value={equipmentToEdit?.type || ''} onValueChange={val => setEquipmentToEdit(prev => prev ? {...prev, type: val} : null)}>
+                      <SelectTrigger className="rounded-xl border-slate-200 bg-slate-50/50 h-12 text-sm font-bold"><SelectValue placeholder="Selecione o tipo..." /></SelectTrigger>
+                      <SelectContent>
+                        {EQUIPMENT_TYPES.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-[11px] uppercase font-black text-slate-500 tracking-tight">Marca</Label>
+                    <Input className="rounded-xl border-slate-200 bg-slate-50/50 h-12 text-sm font-bold" value={equipmentToEdit?.brand || ''} onChange={e => setEquipmentToEdit(prev => prev ? {...prev, brand: e.target.value} : null)} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-[11px] uppercase font-black text-slate-500 tracking-tight">Modelo</Label>
+                    <Input className="rounded-xl border-slate-200 bg-slate-50/50 h-12 text-sm font-bold" value={equipmentToEdit?.model || ''} onChange={e => setEquipmentToEdit(prev => prev ? {...prev, model: e.target.value} : null)} />
+                  </div>
+
+                  <div className="space-y-3">
+                    <Label className="text-[12px] uppercase font-black text-slate-500 tracking-tight">Ano</Label>
+                    <Input type="number" className="rounded-xl border-slate-200 bg-slate-50/50 h-16 text-base font-bold" value={equipmentToEdit?.year || ''} onChange={e => setEquipmentToEdit(prev => prev ? {...prev, year: parseInt(e.target.value)} : null)} />
+                  </div>
+                  <div className="space-y-3">
+                    <Label className="text-[12px] uppercase font-black text-slate-500 tracking-tight">Placa / Serial</Label>
+                    <Input className="rounded-xl border-slate-200 bg-slate-50/50 h-16 text-base font-bold" value={equipmentToEdit?.plate || ''} onChange={e => setEquipmentToEdit(prev => prev ? {...prev, plate: e.target.value} : null)} />
+                  </div>
+                  <div className="space-y-3">
+                    <Label className="text-[12px] uppercase font-black text-slate-500 tracking-tight">Origem</Label>
+                    <Select value={equipmentToEdit?.origin || 'Próprio'} onValueChange={val => setEquipmentToEdit(prev => prev ? {...prev, origin: val} : null)}>
+                      <SelectTrigger className="rounded-xl border-slate-200 bg-slate-50/50 h-16 text-base font-bold"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Próprio">Próprio</SelectItem>
+                        <SelectItem value="Alugado">Alugado</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-3">
+                    <Label className="text-[12px] uppercase font-black text-slate-500 tracking-tight">Situação</Label>
+                    <Select value={equipmentToEdit?.situation || 'Ativo'} onValueChange={(val: any) => setEquipmentToEdit(prev => prev ? {...prev, situation: val} : null)}>
+                      <SelectTrigger className="rounded-xl border-slate-200 bg-slate-50/50 h-16 text-base font-bold"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Ativo">Ativo</SelectItem>
+                        <SelectItem value="Inativo">Inativo</SelectItem>
+                        <SelectItem value="Vendido">Vendido</SelectItem>
+                        <SelectItem value="Sucateado">Sucateado</SelectItem>
+                        <SelectItem value="Em Manutenção">Em Manutenção</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-3">
+                    <Label className="text-[12px] uppercase font-black text-slate-500 tracking-tight">Entrada</Label>
+                    <Input type="date" className="rounded-xl border-slate-200 bg-slate-50/50 h-16 text-base font-bold" value={equipmentToEdit?.entryDate || ''} onChange={e => setEquipmentToEdit(prev => prev ? {...prev, entryDate: e.target.value} : null)} />
+                  </div>
+                  <div className="space-y-3">
+                    <Label className="text-[12px] uppercase font-black text-slate-500 tracking-tight">Saída</Label>
+                    <Input type="date" className="rounded-xl border-slate-200 bg-slate-50/50 h-16 text-base font-bold" value={equipmentToEdit?.exitDate || ''} onChange={e => setEquipmentToEdit(prev => prev ? {...prev, exitDate: e.target.value} : null)} />
+                  </div>
+
+                  <div className="md:col-span-2 lg:col-span-3 space-y-3">
+                    <Label className="text-[12px] uppercase font-black text-slate-500 tracking-tight">Obra Vinculada (Centro de Custo)</Label>
+                    <Select value={equipmentToEdit?.contractId || ''} onValueChange={val => setEquipmentToEdit(prev => prev ? {...prev, contractId: val} : null)}>
+                      <SelectTrigger className="rounded-xl border-slate-200 bg-slate-50/50 h-16 text-base font-bold transition-all focus:ring-2 focus:ring-blue-500/20">
+                        <SelectValue placeholder="Selecione a obra...">
+                          {equipmentToEdit?.contractId ? getContractName(equipmentToEdit.contractId) : "Sem Obra (Disponível)"}
+                        </SelectValue>
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="" className="font-bold py-4 uppercase text-[11px] tracking-tight">Sem Obra (Disponível)</SelectItem>
+                        {contracts.filter(c => currentUser?.role === 'master' || c.companyId === currentUser?.companyId || c.id === equipmentToEdit?.contractId).map(c => (
+                          <SelectItem key={c.id} value={c.id} className="font-bold py-4 uppercase text-[11px] tracking-tight">{c.workName || c.contractNumber}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              </TabsContent>
+
+              <TabsContent value="technical" className="mt-0 space-y-8 animate-in fade-in duration-300">
+                <div className="flex items-center justify-between mb-2">
+                  <div>
+                    <h4 className="text-base font-black text-gray-900 uppercase">Especificações do Equipamento</h4>
+                    <p className="text-xs text-gray-500 font-bold uppercase tracking-tight">Atributos técnicos dinâmicos</p>
+                  </div>
+                  <Button variant="outline" size="sm" onClick={() => {
+                    const fieldName = prompt('Nome do novo campo:');
+                    if (!fieldName) return;
+                    setEquipmentToEdit(prev => prev ? {
+                      ...prev,
+                      customFields: {
+                        ...(prev.customFields || {}),
+                        [fieldName]: { type: 'text', value: '' }
+                      }
+                    } : null);
+                  }} className="rounded-xl gap-2 font-bold text-xs text-blue-600 border-blue-100 hover:bg-blue-50 h-10 px-4">
+                    <Plus className="w-4 h-4" /> Adicionar Atributo
+                  </Button>
+                </div>
+
+                <div className="grid grid-cols-2 gap-6 bg-gray-50/50 p-8 rounded-3xl border border-gray-100">
+                  {Object.entries(equipmentToEdit?.customFields || {}).map(([key, f]) => {
+                    const field = f as EquipmentAttribute;
+                    return (
+                      <div key={key} className="space-y-2 group relative">
+                        <div className="flex items-center justify-between">
+                          <Label className="text-xs uppercase font-black text-blue-600 tracking-tight flex items-center gap-2">
+                            <Activity className="w-4 h-4" />
+                            {key.replace(/_/g, ' ')}
+                          </Label>
+                          <Button variant="ghost" size="icon" className="h-6 w-6 text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => {
+                            setEquipmentToEdit(prev => {
+                              if (!prev) return null;
+                              const newFields = { ...(prev.customFields || {}) };
+                              delete newFields[key];
+                              return { ...prev, customFields: newFields };
+                            });
+                          }}><Trash2 className="w-3 h-3" /></Button>
+                        </div>
+                        
+                        {field.type === 'boolean' ? (
+                          <div className="flex items-center gap-3 h-12 px-5 bg-white rounded-xl border border-gray-100 shadow-sm">
+                            <Switch checked={field.value} onCheckedChange={v => {
+                              setEquipmentToEdit(prev => prev ? {
+                                ...prev,
+                                customFields: { ...prev.customFields, [key]: { ...field, value: v } }
+                              } : null);
+                            }} />
+                            <span className="text-sm font-bold text-gray-600 uppercase">{field.value ? 'Sim' : 'Não'}</span>
+                          </div>
+                        ) : field.type === 'select' ? (
+                          <Select value={field.value} onValueChange={v => {
+                             setEquipmentToEdit(prev => prev ? {
+                               ...prev,
+                                customFields: { ...prev.customFields, [key]: { ...field, value: v } }
+                             } : null);
+                          }}>
+                            <SelectTrigger className="rounded-xl bg-white border-gray-100 h-12 font-bold text-sm shadow-sm"><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              {field.options?.map(opt => <SelectItem key={opt} value={opt}>{opt}</SelectItem>)}
+                            </SelectContent>
+                          </Select>
+                        ) : (
+                          <Input 
+                            className="rounded-xl bg-white border-gray-100 h-12 font-bold text-sm shadow-sm" 
+                            type={field.type === 'number' ? 'number' : 'text'}
+                            value={field.value}
+                            onChange={e => {
+                              const val = field.type === 'number' ? parseFloat(e.target.value) : e.target.value;
+                              setEquipmentToEdit(prev => prev ? {
+                                ...prev,
+                                customFields: { ...prev.customFields, [key]: { ...field, value: val } }
+                              } : null);
+                            }}
+                          />
+                        )}
+                      </div>
+                    );
+                  })}
+                  {Object.entries(equipmentToEdit?.customFields || {}).length === 0 && (
+                    <div className="col-span-2 py-10 text-center opacity-20">
+                      <p className="text-xs font-black uppercase tracking-widest text-gray-400">Nenhum atributo adicional definido</p>
+                    </div>
+                  )}
+                </div>
+              </TabsContent>
+
+              <TabsContent value="obs" className="mt-0 space-y-6">
+                <Label className="text-xs uppercase font-bold text-gray-500">Observações do Equipamento</Label>
+                <textarea 
+                  className="w-full min-h-[250px] rounded-2xl border-gray-100 bg-gray-50/50 p-6 text-base font-medium focus:ring-2 focus:ring-blue-500 outline-none transition-all shadow-inner"
+                  value={equipmentToEdit?.observations || ''}
+                  onChange={e => setEquipmentToEdit(prev => prev ? {...prev, observations: e.target.value} : null)}
+                  placeholder="Insira detalhes importantes sobre o estado, uso ou restrições do equipamento..."
+                />
+              </TabsContent>
+
+              <TabsContent value="history" className="mt-0 space-y-4">
+                <div className="space-y-4">
+                  <h4 className="text-sm font-black text-gray-900 uppercase">Histórico Completo</h4>
+                  <div className="space-y-3">
+                    {(equipmentToEdit?.history || []).map(entry => (
+                      <div key={entry.id} className="p-4 bg-white rounded-2xl border border-gray-100 shadow-sm relative overflow-hidden">
+                        <div className="absolute left-0 top-0 bottom-0 w-1 bg-blue-600" />
+                        <div className="flex justify-between items-start mb-2">
+                          <div>
+                            <Badge variant="outline" className="text-[8px] font-black uppercase mb-1">{entry.type}</Badge>
+                            <p className="text-xs font-black text-gray-900">{entry.description}</p>
+                          </div>
+                          <span className="text-[10px] font-bold text-gray-400">{new Date(entry.date).toLocaleDateString('pt-BR')}</span>
+                        </div>
+                        {entry.parts && entry.parts.length > 0 && (
+                          <div className="flex flex-wrap gap-1 mt-2">
+                            {entry.parts.map((p, idx) => (
+                              <Badge key={idx} variant="secondary" className="text-[9px] bg-gray-50 text-gray-500">
+                                {p.quantity} {p.unit} - {p.description}
+                              </Badge>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                    {(!equipmentToEdit?.history || equipmentToEdit.history.length === 0) && (
+                      <div className="py-10 text-center opacity-30">
+                        <History className="w-10 h-10 mx-auto mb-2" />
+                        <p className="text-[10px] font-black uppercase tracking-widest">Nenhum registro encontrado</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </TabsContent>
+
+              <TabsContent value="photos" className="mt-0 space-y-4">
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-sm font-black text-gray-900 uppercase">Galeria de Fotos</h4>
+                    <p className="text-[10px] text-gray-500 font-bold uppercase tracking-tighter shadow-sm">SIGO Bucket: equipments</p>
+                  </div>
+                  
+                  <div className="grid grid-cols-4 gap-4">
+                    {(equipmentToEdit?.photos || []).map((url, idx) => (
+                      <div key={idx} className="aspect-square rounded-2xl overflow-hidden border border-gray-100 relative group">
+                        <img src={url} alt={`Equip ${idx}`} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                          <Button variant="destructive" size="icon" className="h-8 w-8 rounded-xl" onClick={() => setEquipmentToEdit(prev => prev ? { ...prev, photos: prev.photos?.filter((_, i) => i !== idx) } : null)}>
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                    <label className="aspect-square rounded-2xl border-2 border-dashed border-gray-200 flex flex-col items-center justify-center gap-2 cursor-pointer hover:bg-gray-50 transition-colors">
+                      <Camera className="w-8 h-8 text-gray-300" />
+                      <span className="text-[8px] font-black uppercase text-gray-400">Upar Foto</span>
+                      <input type="file" className="hidden" accept="image/*" onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          const reader = new FileReader();
+                          reader.onload = (ev) => {
+                            setEquipmentToEdit(prev => prev ? { ...prev, photos: [...(prev.photos || []), ev.target?.result as string] } : null);
+                          };
+                          reader.readAsDataURL(file);
+                        }
+                      }} />
+                    </label>
+                  </div>
+                </div>
+              </TabsContent>
+            </div>
+
+            <DialogFooter className="p-6 bg-gray-50 border-t flex items-center justify-between">
+              <Button 
+                variant="ghost" 
+                onClick={handlePermanentDelete} 
+                className="text-red-500 hover:text-red-600 hover:bg-red-50 font-bold uppercase text-[10px] tracking-widest h-12 px-6 border border-red-100 rounded-2xl"
+              >
+                <Trash2 className="w-4 h-4 mr-2" /> Excluir Ativo
+              </Button>
+              <div className="flex items-center gap-3">
+                <Button variant="ghost" onClick={() => setIsEditOpen(false)} className="rounded-xl font-bold uppercase text-[10px] tracking-widest h-12 px-6">Cancelar</Button>
+                <Button onClick={handleUpdateEquip} className="h-12 rounded-2xl bg-blue-600 hover:bg-blue-700 shadow-lg shadow-blue-200 font-bold uppercase text-[10px] tracking-widest px-8">
+                  <Check className="w-4 h-4 mr-2" /> Atualizar Dados
+                </Button>
+              </div>
+            </DialogFooter>
+          </Tabs>
         </DialogContent>
+
       </Dialog>
 
       <Dialog open={isTransferOpen} onOpenChange={setIsTransferOpen}>
@@ -1915,6 +2557,103 @@ export default function ControlView({
           <DialogFooter>
             <Button onClick={handleCreateMaterialRequest} disabled={newMaterialRequestItems.length === 0} className="w-full h-12 rounded-2xl bg-emerald-600 hover:bg-emerald-700 font-bold">
               Enviar Solicitação
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isDetailOpen} onOpenChange={setIsDetailOpen}>
+        <DialogContent className="max-w-2xl rounded-3xl p-0 overflow-hidden border-none shadow-2xl bg-white focus:outline-none">
+          <DialogHeader className="p-8 bg-blue-600 text-white relative overflow-hidden">
+            <Truck className="absolute -right-8 -bottom-8 w-40 h-40 opacity-10 rotate-12" />
+            <div className="relative z-10 text-left">
+              <div className="flex items-center gap-3 mb-2">
+                 <Badge variant="outline" className="border-blue-400 text-blue-100 bg-blue-500/20 px-2 py-0.5 text-[9px] font-black uppercase tracking-widest">{selectedEquipment?.code || 'SEM CÓDIGO'}</Badge>
+                 <Badge variant="outline" className="border-blue-400 text-blue-100 bg-blue-500/20 px-2 py-0.5 text-[9px] font-black uppercase tracking-widest">{selectedEquipment?.situation}</Badge>
+              </div>
+              <DialogTitle className="text-3xl font-black tracking-tight">{selectedEquipment?.name}</DialogTitle>
+              <p className="text-blue-100 font-bold uppercase text-[10px] tracking-widest mt-1">{selectedEquipment?.brand} {selectedEquipment?.model} • Placa: {selectedEquipment?.plate}</p>
+            </div>
+          </DialogHeader>
+
+          <div className="p-8 space-y-8 max-h-[60vh] overflow-y-auto custom-scrollbar">
+            <div className="grid grid-cols-2 gap-8">
+              <div className="space-y-4">
+                <h4 className="text-[10px] font-black uppercase text-gray-400 tracking-widest border-b pb-2">Informações Base</h4>
+                <div className="grid gap-3">
+                  <div className="flex justify-between border-b border-gray-50 pb-2">
+                    <span className="text-[10px] font-bold text-gray-500 uppercase">Ano</span>
+                    <span className="text-[11px] font-black">{selectedEquipment?.year}</span>
+                  </div>
+                  <div className="flex justify-between border-b border-gray-50 pb-2">
+                    <span className="text-[10px] font-bold text-gray-500 uppercase">Horímetro Atual</span>
+                    <span className="text-[11px] font-black text-blue-600 font-mono tracking-tighter">{selectedEquipment?.currentReading}h</span>
+                  </div>
+                   <div className="flex justify-between border-b border-gray-50 pb-2">
+                    <span className="text-[10px] font-bold text-gray-500 uppercase">Obra Atual</span>
+                    <span className="text-[11px] font-black text-emerald-600">{getContractName(selectedEquipment?.contractId || '')}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <h4 className="text-[10px] font-black uppercase text-gray-400 tracking-widest border-b pb-2">Status Operacional</h4>
+                <div className="grid gap-3">
+                  <div className="flex justify-between border-b border-gray-50 pb-2">
+                    <span className="text-[10px] font-bold text-gray-500 uppercase">Em Manutenção?</span>
+                    <Badge className={cn("text-[9px] font-black px-2", selectedEquipment?.inMaintenance ? "bg-red-100 text-red-600 hover:bg-red-200" : "bg-emerald-100 text-emerald-600 hover:bg-emerald-200")}>
+                      {selectedEquipment?.inMaintenance ? 'SIM' : 'NÃO'}
+                    </Badge>
+                  </div>
+                  <div className="flex justify-between border-b border-gray-50 pb-2">
+                    <span className="text-[10px] font-bold text-gray-500 uppercase">Status do Patrimônio</span>
+                    <span className="text-[11px] font-black">{selectedEquipment?.situation}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <h4 className="text-[10px] font-black uppercase text-gray-400 tracking-widest border-b pb-2">Atributos Técnicos (JSONB)</h4>
+              <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
+                {Object.entries(selectedEquipment?.customFields || {}).map(([key, f]) => {
+                  const field = f as EquipmentAttribute;
+                  return (
+                    <div key={key} className="p-3 bg-gray-50 rounded-2xl border border-gray-100 flex flex-col gap-1">
+                      <span className="text-[9px] font-bold text-blue-600 uppercase tracking-tighter">{key.replace(/_/g, ' ')}</span>
+                      <span className="text-xs font-black text-gray-900">
+                        {field.type === 'boolean' ? (field.value ? 'Sim' : 'Não') : field.value}
+                      </span>
+                    </div>
+                  );
+                })}
+                {(!selectedEquipment?.customFields || Object.keys(selectedEquipment.customFields).length === 0) && (
+                   <div className="col-span-full py-4 text-center text-[10px] text-gray-400 font-bold uppercase italic">Sem atributos customizados</div>
+                )}
+              </div>
+            </div>
+
+            {selectedEquipment?.observations && (
+              <div className="space-y-2">
+                <h4 className="text-[10px] font-black uppercase text-gray-400 tracking-widest border-b pb-2">Observações Gerais</h4>
+                <div className="p-4 bg-amber-50/50 border border-amber-100 rounded-2xl text-xs font-medium text-gray-700 leading-relaxed italic">
+                  "{selectedEquipment.observations}"
+                </div>
+              </div>
+            )}
+          </div>
+
+          <DialogFooter className="p-6 bg-gray-50 border-t gap-3">
+            <Button variant="ghost" onClick={() => setIsDetailOpen(false)} className="rounded-xl font-bold uppercase text-[10px] h-10 px-6">Fechar</Button>
+            <Button 
+                onClick={() => {
+                   setEquipmentToEdit(selectedEquipment);
+                   setIsEditOpen(true);
+                   setIsDetailOpen(false);
+                }} 
+                className="h-10 rounded-xl bg-blue-600 hover:bg-blue-700 font-bold uppercase text-[10px] tracking-widest flex-1"
+            >
+                <Edit className="w-4 h-4 mr-2" /> Editar Equipamento
             </Button>
           </DialogFooter>
         </DialogContent>

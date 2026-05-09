@@ -94,8 +94,8 @@ export const DB_TABLES = [
   'contracts', 'measurements', 'daily_reports', 'pluviometry_records', 
   'technical_schedules', 'calculation_memories', 'service_productions', 
   'highway_locations', 'station_groups', 'cubation_data', 'transport_data', 
-  'employees', 'time_records', 'controller_teams', 'controller_equipments', 
-  'controller_manpower', 'equipment_transfers',
+  'employees', 'time_records', 'controller_teams', 'equipments', 
+  'controller_manpower', 'equipment_transfers', 'equipment_maintenance',
   'team_assignments', 'equipment_monthly_data', 'manpower_monthly_data', 
   'budget_schedules', 'measurement_templates', 'password_reset_requests', 
   'chat_messages', 'chat_notifications', 'suppliers', 
@@ -165,9 +165,11 @@ export function generateFullSQLScript(data: {
     employees: `id TEXT PRIMARY KEY, company_id TEXT, name TEXT NOT NULL, role TEXT, admission_date DATE, salary NUMERIC DEFAULT 0, payment_type TEXT, cpf TEXT, rg_number TEXT, rg_agency TEXT, rg_issuer TEXT, rg_state TEXT, birth_date DATE, birth_place TEXT, birth_state TEXT, work_booklet_number TEXT, work_booklet_series TEXT, pis TEXT, phone TEXT, mobile TEXT, email TEXT, voter_id_number TEXT, voter_zone TEXT, voter_section TEXT, father_name TEXT, mother_name TEXT, spouse_name TEXT, dependents JSONB DEFAULT '[]', address_logradouro TEXT, address_number TEXT, address_complement TEXT, address_neighborhood TEXT, address_city TEXT, address_zip_code TEXT, address_state TEXT, contract_id TEXT, commuter_benefits BOOLEAN DEFAULT false, commuter_value1 NUMERIC, commuter_city1 TEXT, commuter_value2 NUMERIC, commuter_city2 TEXT, created_at TIMESTAMPTZ DEFAULT now(), updated_at TIMESTAMPTZ DEFAULT now()`,
     time_records: `id TEXT PRIMARY KEY, employee_id TEXT REFERENCES employees(id) ON DELETE CASCADE, date DATE NOT NULL, entry TEXT, exit TEXT, overtime TEXT, company_id TEXT, created_at TIMESTAMPTZ DEFAULT now()`,
     controller_teams: `id TEXT PRIMARY KEY, company_id TEXT, contract_id TEXT REFERENCES contracts(id) ON DELETE CASCADE, name TEXT NOT NULL, supervisor_id TEXT, created_at TIMESTAMPTZ DEFAULT now(), updated_at TIMESTAMPTZ DEFAULT now()`,
-    controller_equipments: `id TEXT PRIMARY KEY, company_id TEXT, contract_id TEXT REFERENCES contracts(id) ON DELETE CASCADE, name TEXT NOT NULL, model TEXT, plate TEXT, origin TEXT, category TEXT, entry_date DATE, exit_date DATE, charges_percentage NUMERIC DEFAULT 0, overtime_percentage NUMERIC DEFAULT 0, created_at TIMESTAMPTZ DEFAULT now(), updated_at TIMESTAMPTZ DEFAULT now()`,
+    equipments: `id TEXT PRIMARY KEY, company_id TEXT, contract_id TEXT REFERENCES contracts(id) ON DELETE CASCADE, code TEXT, name TEXT NOT NULL, type TEXT, brand TEXT, model TEXT, year INTEGER, situation TEXT, plate TEXT, origin TEXT, category TEXT, entry_date DATE, exit_date DATE, in_maintenance BOOLEAN DEFAULT false, maintenance_entry_date TIMESTAMPTZ, maintenance_type TEXT, charges_percentage NUMERIC DEFAULT 0, overtime_percentage NUMERIC DEFAULT 0, measurement_unit TEXT, current_reading NUMERIC DEFAULT 0, observations TEXT, custom_fields JSONB DEFAULT '{}', photos JSONB DEFAULT '[]', history JSONB DEFAULT '[]', created_at TIMESTAMPTZ DEFAULT now(), updated_at TIMESTAMPTZ DEFAULT now()`,
+    equipment_maintenance: `id TEXT PRIMARY KEY, equipment_id TEXT REFERENCES equipments(id) ON DELETE CASCADE, company_id TEXT, entry_date TIMESTAMPTZ NOT NULL, exit_date TIMESTAMPTZ, type TEXT, requested_items TEXT, days_in_maintenance INTEGER DEFAULT 0, total_cost NUMERIC DEFAULT 0, created_at TIMESTAMPTZ DEFAULT now(), updated_at TIMESTAMPTZ DEFAULT now()`,
+    equipment_transfers: `id TEXT PRIMARY KEY, company_id TEXT, equipment_id TEXT REFERENCES equipments(id) ON DELETE CASCADE, source_contract_id TEXT, target_contract_id TEXT, transfer_date DATE NOT NULL, status TEXT DEFAULT 'pending', requested_by TEXT, approved_by TEXT, approved_at TIMESTAMPTZ, created_at TIMESTAMPTZ DEFAULT now()`,
     team_assignments: `id TEXT PRIMARY KEY, company_id TEXT, team_id TEXT REFERENCES controller_teams(id) ON DELETE CASCADE, member_id TEXT NOT NULL, type TEXT NOT NULL, month TEXT NOT NULL, created_at TIMESTAMPTZ DEFAULT now()`,
-    equipment_monthly_data: `id TEXT PRIMARY KEY, company_id TEXT, equipment_id TEXT REFERENCES controller_equipments(id) ON DELETE CASCADE, month TEXT NOT NULL, cost NUMERIC DEFAULT 0, created_at TIMESTAMPTZ DEFAULT now()`,
+    equipment_monthly_data: `id TEXT PRIMARY KEY, company_id TEXT, equipment_id TEXT REFERENCES equipments(id) ON DELETE CASCADE, month TEXT NOT NULL, cost NUMERIC DEFAULT 0, created_at TIMESTAMPTZ DEFAULT now()`,
     controller_manpower: `id TEXT PRIMARY KEY, company_id TEXT, contract_id TEXT REFERENCES contracts(id) ON DELETE CASCADE, name TEXT NOT NULL, role TEXT, daily_worker TEXT, entry_date DATE, exit_date DATE, charges_percentage NUMERIC DEFAULT 0, overtime_percentage NUMERIC DEFAULT 0, created_at TIMESTAMPTZ DEFAULT now(), updated_at TIMESTAMPTZ DEFAULT now()`,
     manpower_monthly_data: `id TEXT PRIMARY KEY, company_id TEXT, manpower_id TEXT REFERENCES controller_manpower(id) ON DELETE CASCADE, month TEXT NOT NULL, salary NUMERIC DEFAULT 0, overtime_rate NUMERIC DEFAULT 0, daily_rate NUMERIC DEFAULT 0, created_at TIMESTAMPTZ DEFAULT now()`,
     budget_schedules: `id TEXT PRIMARY KEY, company_id TEXT, quotation_id TEXT REFERENCES quotations(id) ON DELETE CASCADE, start_date DATE, duration INTEGER, time_unit TEXT, distribution_type TEXT, services JSONB DEFAULT '[]', created_at TIMESTAMPTZ DEFAULT now(), updated_at TIMESTAMPTZ DEFAULT now()`,
@@ -223,7 +225,7 @@ export function generateFullSQLScript(data: {
   sql += generateInsert('employees', data.employees);
   sql += generateInsert('time_records', data.timeRecords);
   sql += generateInsert('controller_teams', data.controllerTeams);
-  sql += generateInsert('controller_equipments', data.controllerEquipments);
+  sql += generateInsert('equipments', data.controllerEquipments);
   sql += generateInsert('equipment_monthly_data', data.equipmentMonthly);
   sql += generateInsert('controller_manpower', data.controllerManpower);
   sql += generateInsert('manpower_monthly_data', data.manpowerMonthly);
@@ -312,11 +314,13 @@ export function generateDataPartsSQL(data: any): Record<string, string> {
   part05 += generateInsert('daily_reports', data.dailyReports);
   part05 += generateInsert('pluviometry_records', data.pluviometryRecords);
   part05 += generateInsert('controller_teams', data.controllerTeams);
-  part05 += generateInsert('controller_equipments', data.controllerEquipments);
+  part05 += generateInsert('equipments', data.controllerEquipments);
   part05 += generateInsert('equipment_monthly_data', data.equipmentMonthly);
   part05 += generateInsert('controller_manpower', data.controllerManpower);
   part05 += generateInsert('manpower_monthly_data', data.manpowerMonthly);
   part05 += generateInsert('team_assignments', data.teamAssignments);
+  part05 += generateInsert('equipment_transfers', data.equipmentTransfers);
+  part05 += generateInsert('equipment_maintenance', data.equipmentMaintenance);
   addPart('05_rh_controlador_dados.sql', part05);
 
   return parts;
@@ -344,7 +348,9 @@ DROP TABLE IF EXISTS manpower_monthly_data CASCADE;
 DROP TABLE IF EXISTS equipment_monthly_data CASCADE;
 DROP TABLE IF EXISTS team_assignments CASCADE;
 DROP TABLE IF EXISTS controller_manpower CASCADE;
-DROP TABLE IF EXISTS controller_equipments CASCADE;
+DROP TABLE IF EXISTS equipment_maintenance CASCADE;
+DROP TABLE IF EXISTS equipment_transfers CASCADE;
+DROP TABLE IF EXISTS equipments CASCADE;
 DROP TABLE IF EXISTS controller_teams CASCADE;
 DROP TABLE IF EXISTS time_records CASCADE;
 DROP TABLE IF EXISTS employees CASCADE;
@@ -895,21 +901,63 @@ CREATE TABLE IF NOT EXISTS controller_teams (
   updated_at TIMESTAMPTZ DEFAULT now()
 );
 
-CREATE TABLE IF NOT EXISTS controller_equipments (
+CREATE TABLE IF NOT EXISTS equipments (
   id TEXT PRIMARY KEY,
   company_id TEXT,
   contract_id TEXT REFERENCES contracts(id) ON DELETE CASCADE,
+  code TEXT,
   name TEXT NOT NULL,
+  type TEXT,
+  brand TEXT,
   model TEXT,
+  year INTEGER,
+  situation TEXT,
   plate TEXT,
   origin TEXT,
   category TEXT,
   entry_date DATE,
   exit_date DATE,
+  in_maintenance BOOLEAN DEFAULT false,
+  maintenance_entry_date TIMESTAMPTZ,
+  maintenance_type TEXT,
   charges_percentage NUMERIC DEFAULT 0,
   overtime_percentage NUMERIC DEFAULT 0,
+  measurement_unit TEXT,
+  current_reading NUMERIC DEFAULT 0,
+  observations TEXT,
+  custom_fields JSONB DEFAULT '{}',
+  photos JSONB DEFAULT '[]',
+  history JSONB DEFAULT '[]',
   created_at TIMESTAMPTZ DEFAULT now(),
   updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS equipment_maintenance (
+  id TEXT PRIMARY KEY,
+  equipment_id TEXT REFERENCES equipments(id) ON DELETE CASCADE,
+  company_id TEXT,
+  entry_date TIMESTAMPTZ NOT NULL,
+  exit_date TIMESTAMPTZ,
+  type TEXT,
+  requested_items TEXT,
+  days_in_maintenance INTEGER DEFAULT 0,
+  total_cost NUMERIC DEFAULT 0,
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS equipment_transfers (
+  id TEXT PRIMARY KEY,
+  company_id TEXT,
+  equipment_id TEXT REFERENCES equipments(id) ON DELETE CASCADE,
+  source_contract_id TEXT,
+  target_contract_id TEXT,
+  transfer_date DATE NOT NULL,
+  status TEXT DEFAULT 'pending',
+  requested_by TEXT,
+  approved_by TEXT,
+  approved_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ DEFAULT now()
 );
 
 CREATE TABLE IF NOT EXISTS controller_manpower (
@@ -941,7 +989,7 @@ CREATE TABLE IF NOT EXISTS team_assignments (
 CREATE TABLE IF NOT EXISTS equipment_monthly_data (
   id TEXT PRIMARY KEY,
   company_id TEXT,
-  equipment_id TEXT REFERENCES controller_equipments(id) ON DELETE CASCADE,
+  equipment_id TEXT REFERENCES equipments(id) ON DELETE CASCADE,
   month TEXT NOT NULL, 
   cost NUMERIC DEFAULT 0,
   created_at TIMESTAMPTZ DEFAULT now(),
@@ -964,7 +1012,9 @@ ALTER TABLE daily_reports ENABLE ROW LEVEL SECURITY;
 ALTER TABLE pluviometry_records ENABLE ROW LEVEL SECURITY;
 ALTER TABLE time_records ENABLE ROW LEVEL SECURITY;
 ALTER TABLE controller_teams ENABLE ROW LEVEL SECURITY;
-ALTER TABLE controller_equipments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE equipments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE equipment_maintenance ENABLE ROW LEVEL SECURITY;
+ALTER TABLE equipment_transfers ENABLE ROW LEVEL SECURITY;
 ALTER TABLE controller_manpower ENABLE ROW LEVEL SECURITY;
 ALTER TABLE team_assignments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE equipment_monthly_data ENABLE ROW LEVEL SECURITY;
@@ -983,8 +1033,14 @@ DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Allow public access' AND tablename = 'controller_teams') THEN
     CREATE POLICY "Allow public access" ON controller_teams FOR ALL USING (true) WITH CHECK (true);
   END IF;
-  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Allow public access' AND tablename = 'controller_equipments') THEN
-    CREATE POLICY "Allow public access" ON controller_equipments FOR ALL USING (true) WITH CHECK (true);
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Allow public access' AND tablename = 'equipments') THEN
+    CREATE POLICY "Allow public access" ON equipments FOR ALL USING (true) WITH CHECK (true);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Allow public access' AND tablename = 'equipment_maintenance') THEN
+    CREATE POLICY "Allow public access" ON equipment_maintenance FOR ALL USING (true) WITH CHECK (true);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Allow public access' AND tablename = 'equipment_transfers') THEN
+    CREATE POLICY "Allow public access" ON equipment_transfers FOR ALL USING (true) WITH CHECK (true);
   END IF;
   IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Allow public access' AND tablename = 'controller_manpower') THEN
     CREATE POLICY "Allow public access" ON controller_manpower FOR ALL USING (true) WITH CHECK (true);

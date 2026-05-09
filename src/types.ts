@@ -709,15 +709,26 @@ export interface ControllerTeam {
   supervisorId: string; // ID of the manpower/employee
 }
 
+export interface EquipmentAttribute {
+  type: 'text' | 'number' | 'date' | 'boolean' | 'select' | 'multi-select';
+  value: any;
+  options?: string[]; // For select/multi-select
+}
+
 export interface ControllerEquipment {
   id: string;
   companyId?: string;
   contractId?: string;
+  code?: string; // Código patrimonial ou interno
   name: string;
+  type: string; // Tipo de Equipamento (Escavadeira, Caminhão, etc)
+  brand?: string; // Marca
   model: string;
+  year?: number; // Ano
+  situation?: 'Ativo' | 'Inativo' | 'Vendido' | 'Sucateado' | 'Em Manutenção';
   plate: string;
   origin: string;
-  category: string; // Porte
+  category: string; // Porte / Categoria
   entryDate: string;
   exitDate?: string;
   inMaintenance?: boolean;
@@ -726,6 +737,24 @@ export interface ControllerEquipment {
   chargesPercentage?: number;
   overtimePercentage?: number;
   measurementUnit?: 'Horímetro' | 'Quilometragem';
+  currentReading?: number; // Última leitura de horímetro/odômetro
+  observations?: string;
+  customFields?: Record<string, EquipmentAttribute>; // JSONB Data
+  photos?: string[]; // URLs das fotos (Supabase Storage)
+  history?: ServiceHistoryEntry[];
+}
+
+export interface ServiceHistoryEntry {
+  id: string;
+  date: string;
+  type: 'maintenance' | 'part_application' | 'fueling' | 'transfer';
+  description: string;
+  relatedId?: string; // ID da solicitação, ordem de compra, etc
+  parts?: {
+    description: string;
+    quantity: number;
+    unit: string;
+  }[];
 }
 
 export interface EquipmentMaintenance {

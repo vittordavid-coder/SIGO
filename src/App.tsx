@@ -238,7 +238,7 @@ export default function App() {
   const [controllerTeams, setControllerTeams] = useLocalStorage<ControllerTeam[]>('sigo_controller_teams', [], compId);
   const [controllerEquipments, setControllerEquipments] = useLocalStorage<ControllerEquipment[]>('sigo_controller_equipments', [], compId);
   const [equipmentMaintenance, setEquipmentMaintenance] = useLocalStorage<EquipmentMaintenance[]>('sigo_equipment_maintenance', [], compId);
-  const [equipmentMonthlyData, setEquipmentMonthlyData] = useLocalStorage<EquipmentMonthlyData[]>('sigo_equipment_monthly', [], compId);
+  const [equipmentMonthlyData, setEquipmentMonthlyData] = useLocalStorage<EquipmentMonthlyData[]>('sigo_equipments_monthly', [], compId);
   const [equipmentTransfers, setEquipmentTransfers] = useLocalStorage<EquipmentTransfer[]>('sigo_equipment_transfers', [], compId);
   const [manpowerRecords, setManpowerRecords] = useLocalStorage<ControllerManpower[]>('sigo_controller_manpower', [], compId);
   const [manpowerMonthlyData, setManpowerMonthlyData] = useLocalStorage<ManpowerMonthlyData[]>('sigo_manpower_monthly', [], compId);
@@ -507,7 +507,7 @@ export default function App() {
           'pluviometry_records': { key: 'sigo_pluviometry_records', setter: setPluviometryRecords },
           'technical_schedules': { key: 'sigo_technical_schedules', setter: setTechnicalSchedules },
           'controller_teams': { key: 'sigo_controller_teams', setter: setControllerTeams },
-          'controller_equipments': { key: 'sigo_controller_equipments', setter: setControllerEquipments },
+          'equipments': { key: 'sigo_controller_equipments', setter: setControllerEquipments },
           'equipment_maintenance': { key: 'sigo_equipment_maintenance', setter: setEquipmentMaintenance },
           'equipment_monthly_data': { key: 'sigo_equipment_monthly', setter: setEquipmentMonthlyData },
           'controller_manpower': { key: 'sigo_controller_manpower', setter: setManpowerRecords },
@@ -550,8 +550,9 @@ export default function App() {
           const pageSize = 1000;
           let keepFetching = true;
 
+          let effectiveTableName = tableName;
           while (keepFetching) {
-            let query = supabase.from(tableName).select('*').range(from, from + pageSize - 1);
+            let query = supabase.from(effectiveTableName).select('*').range(from, from + pageSize - 1);
             if (activeId && tableName !== 'users' && !isMaster) {
               // Include items that belong to the company OR have no company (global/shared) OR are marked as 'default'
               if (tableName === 'service_compositions' || tableName === 'resources') {
@@ -563,7 +564,14 @@ export default function App() {
             
             const { data, error } = await query;
             if (error) {
-              console.warn(`[Sync] Error fetching ${tableName}:`, error);
+              // Fallback for renamed equipment table
+              if (error.code === '42P01' && effectiveTableName === 'equipments') {
+                console.info('[Sync] Table "equipments" not found, trying "controller_equipments"...');
+                effectiveTableName = 'controller_equipments';
+                continue; // Retry with new table name
+              }
+
+              console.warn(`[Sync] Error fetching ${effectiveTableName}:`, error);
               hasError = true;
               keepFetching = false;
             } else if (data) {
@@ -807,7 +815,7 @@ export default function App() {
       'sigo_pluviometry_records': 'pluviometry_records',
       'sigo_technical_schedules': 'technical_schedules',
       'sigo_controller_teams': 'controller_teams',
-      'sigo_controller_equipments': 'controller_equipments',
+      'sigo_controller_equipments': 'equipments',
       'sigo_equipment_maintenance': 'equipment_maintenance',
       'sigo_equipment_monthly': 'equipment_monthly_data',
       'sigo_controller_manpower': 'controller_manpower',
@@ -2161,18 +2169,26 @@ export default function App() {
           });
 
           // Handle Deletions Sync
-          const { data: dbItems } = await supabase.from('controller_equipments').select('id').eq('company_id', compId);
+          const { data: dbItems } = await supabase.from('equipments').select('id').eq('company_id', compId);
           const dbIds = dbItems?.map(d => d.id) || [];
           const currentIds = equips.map(e => e.id);
           const toDelete = dbIds.filter(id => !currentIds.includes(id));
           if (toDelete.length > 0) {
-            await supabase.from('controller_equipments').delete().in('id', toDelete);
+            await supabase.from('equipments').delete().in('id', toDelete);
           }
 
           if (mapped.length > 0) {
-            await supabase.from('controller_equipments').upsert(mapped);
+            const { error: upsertError } = await supabase.from('equipments').upsert(mapped);
+            if (upsertError) {
+              console.error('[Sync] Equipments upsert failed:', upsertError);
+              // Fallback to controller_equipments if equipments table doesn't exist yet
+              if (upsertError.code === '42P01') {
+                console.info('[Sync] Table "equipments" not found, trying "controller_equipments"...');
+                await supabase.from('controller_equipments').upsert(mapped);
+              }
+            }
           }
-        } catch (err) { console.warn('[Sync] Equipments persist failed', err); }
+        } catch (err) { console.error('[Sync] Equipments persist exception:', err); }
       }
     }
   };
