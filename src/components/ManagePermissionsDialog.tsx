@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { Checkbox } from '@/components/ui/checkbox';
 import { Button } from '@/components/ui/button';
+import { Modal } from '@/components/ui/Modal';
+import { Checkbox } from '@/components/ui/checkbox';
+import { ScrollArea } from '@/components/ui/scroll-area';
 
 interface ManagePermissionsDialogProps {
   title: string;
@@ -20,11 +20,9 @@ export function ManagePermissionsDialog({
   const [open, setOpen] = useState(false);
   const [localSelected, setLocalSelected] = useState<string[]>([]);
 
-  const handleOpenChange = (newOpen: boolean) => {
-    setOpen(newOpen);
-    if (newOpen) {
-      setLocalSelected(selectedIds || []);
-    }
+  const handleOpen = () => {
+    setLocalSelected(selectedIds || []);
+    setOpen(true);
   };
 
   const handleSave = () => {
@@ -33,25 +31,40 @@ export function ManagePermissionsDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogTrigger asChild>
+    <>
+      <div onClick={handleOpen} className="inline-block cursor-pointer">
         {triggerButton}
-      </DialogTrigger>
-      <DialogContent className="max-w-md">
-        <DialogHeader>
-          <DialogTitle>{title}</DialogTitle>
-          <DialogDescription asChild><div>{description}</div></DialogDescription>
-        </DialogHeader>
-        <ScrollArea className="h-[300px] mt-4 pr-4">
-          <div className="space-y-2">
+      </div>
+
+      <Modal
+        isOpen={open}
+        onClose={() => setOpen(false)}
+        maxWidth="md"
+        title={title}
+        description={description}
+        footer={
+          <Button onClick={handleSave} className="bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold uppercase text-[10px] h-11 px-8 shadow-lg shadow-blue-100">
+            Salvar Alterações
+          </Button>
+        }
+      >
+        <ScrollArea className="h-[400px] -mx-1 pr-4">
+          <div className="space-y-3">
              {items.map(item => (
-                <div key={item.id} className="flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50 transition-colors">
-                  <div className="flex flex-col pr-4">
-                    <span className="font-medium text-sm">{item.title}</span>
-                    {item.subtitle && <span className="text-[10px] text-gray-500 italic truncate max-w-[250px]">{item.subtitle}</span>}
+                <div key={item.id} className="group flex items-center justify-between p-4 bg-white border border-gray-100 rounded-2xl hover:border-blue-200 hover:shadow-md hover:shadow-blue-50/50 transition-all cursor-pointer" onClick={() => {
+                  if (localSelected.includes(item.id)) {
+                    setLocalSelected(localSelected.filter(id => id !== item.id));
+                  } else {
+                    setLocalSelected([...localSelected, item.id]);
+                  }
+                }}>
+                  <div className="flex flex-col pr-4 overflow-hidden">
+                    <span className="font-black text-xs text-gray-900 group-hover:text-blue-600 transition-colors">{item.title}</span>
+                    {item.subtitle && <span className="text-[10px] text-gray-400 font-bold uppercase tracking-tighter truncate mt-0.5">{item.subtitle}</span>}
                   </div>
                   <Checkbox 
                     checked={localSelected.includes(item.id)}
+                    className="h-5 w-5 rounded-lg border-gray-200 data-[state=checked]:bg-blue-600 data-[state=checked]:border-blue-600"
                     onCheckedChange={(checked) => {
                       if (checked) {
                         setLocalSelected([...localSelected, item.id]);
@@ -63,18 +76,16 @@ export function ManagePermissionsDialog({
                 </div>
              ))}
              {items.length === 0 && (
-               <div className="text-center py-10 text-gray-400 text-sm">
-                 {emptyMessage || "Nenhum item disponível."}
+               <div className="flex flex-col items-center justify-center py-20 text-gray-400 gap-2">
+                 <div className="p-4 bg-gray-50 rounded-3xl">
+                   <Checkbox disabled className="h-8 w-8 rounded-xl opacity-20" />
+                 </div>
+                 <p className="text-xs font-bold uppercase tracking-widest">{emptyMessage || "Nenhum item disponível."}</p>
                </div>
              )}
           </div>
         </ScrollArea>
-        <div className="flex justify-end pt-4 border-t mt-4">
-          <Button onClick={handleSave} className="bg-blue-600 hover:bg-blue-700 text-white">
-            Salvar
-          </Button>
-        </div>
-      </DialogContent>
-    </Dialog>
+      </Modal>
+    </>
   );
 }

@@ -588,13 +588,13 @@ export function Chat({ currentUser, users, contracts }: ChatProps) {
       <AnimatePresence>
         {isOpen && (
           <motion.div
-            initial={{ opacity: 0, y: 20, scale: 0.95, width: '600px' }}
+            initial={{ opacity: 0, y: 20, scale: 0.95, width: '400px' }}
             animate={{ 
               opacity: 1, 
               y: 0, 
               scale: 1,
-              height: isMinimized ? '48px' : '600px',
-              width: '600px'
+              height: isMinimized ? '48px' : (activeChat ? '700px' : '600px'),
+              width: activeChat ? '500px' : '400px'
             }}
             exit={{ opacity: 0, y: 20, scale: 0.95 }}
             className={cn(

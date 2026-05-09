@@ -38,15 +38,16 @@ import { Separator } from "@/components/ui/separator";
 import { generateFullSQLScript, DB_TABLES, generateStructureSQL, generateDataSQL, generateDataPartsSQL, getSupabaseMigrationParts } from '../lib/sqlFormat';
 import JSZip from 'jszip';
 import { getSupabaseConfig, saveSupabaseConfig, SupabaseConfig, createSupabaseClient } from '../lib/supabaseClient';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
+import { 
+  Dialog, 
+  DialogContent, 
+  DialogDescription, 
+  DialogFooter, 
+  DialogHeader, 
+  DialogTitle, 
+  DialogTrigger 
 } from "@/components/ui/dialog";
+import { Modal } from "@/components/ui/Modal";
 
 function EditCredentialsDialog({ user, onUpdate }: { user: User, onUpdate: (username: string, pass: string) => void }) {
   const [username, setUsername] = useState(user.username);
@@ -54,36 +55,39 @@ function EditCredentialsDialog({ user, onUpdate }: { user: User, onUpdate: (user
   const [open, setOpen] = useState(false);
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button variant="ghost" size="icon" className="h-7 w-7 text-gray-400 hover:text-blue-600">
-          <Key className="w-3.5 h-3.5" />
-        </Button>
-      </DialogTrigger>
-      <DialogContent className="max-w-sm">
-        <DialogHeader>
-          <DialogTitle>Alterar Credenciais</DialogTitle>
-          <DialogDescription>Atualize o login e senha de {user.name}.</DialogDescription>
-        </DialogHeader>
-        <div className="space-y-4 py-4">
+    <>
+      <Button variant="ghost" size="icon" onClick={() => setOpen(true)} className="h-7 w-7 text-gray-400 hover:text-blue-600">
+        <Key className="w-3.5 h-3.5" />
+      </Button>
+
+      <Modal
+        isOpen={open}
+        onClose={() => setOpen(false)}
+        maxWidth="sm"
+        title="Alterar Credenciais"
+        description={`Atualize o login e senha de ${user.name}.`}
+        footer={
+          <>
+            <Button variant="outline" onClick={() => setOpen(false)} className="rounded-xl font-bold uppercase text-[10px]">Cancelar</Button>
+            <Button onClick={() => {
+              onUpdate(username, pass);
+              setOpen(false);
+            }} className="rounded-xl bg-blue-600 font-bold uppercase text-[10px]">Salvar Alterações</Button>
+          </>
+        }
+      >
+        <div className="space-y-4">
           <div className="space-y-2">
-            <Label>Novo Nome de Usuário</Label>
-            <Input value={username} onChange={e => setUsername(e.target.value)} />
+            <Label className="text-[10px] uppercase font-bold text-gray-400">Novo Nome de Usuário</Label>
+            <Input value={username} onChange={e => setUsername(e.target.value)} className="h-12 rounded-xl" />
           </div>
           <div className="space-y-2">
-            <Label>Nova Senha</Label>
-            <Input type="text" value={pass} onChange={e => setPass(e.target.value)} placeholder="Digite a nova senha" />
+            <Label className="text-[10px] uppercase font-bold text-gray-400">Nova Senha</Label>
+            <Input type="text" value={pass} onChange={e => setPass(e.target.value)} placeholder="Digite a nova senha" className="h-12 rounded-xl font-mono" />
           </div>
         </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => setOpen(false)}>Cancelar</Button>
-          <Button onClick={() => {
-            onUpdate(username, pass);
-            setOpen(false);
-          }}>Salvar Alterações</Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+      </Modal>
+    </>
   );
 }
 
@@ -91,36 +95,48 @@ function DeleteUserDialog({ user, onDelete }: { user: User, onDelete: () => void
   const [open, setOpen] = useState(false);
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button 
-          variant="ghost" 
-          size="icon" 
-          className="h-7 w-7 text-gray-400 hover:text-red-600"
-        >
-          <Trash2 className="w-3.5 h-3.5" />
-        </Button>
-      </DialogTrigger>
-      <DialogContent className="max-w-sm">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 text-red-600">
+    <>
+      <Button 
+        variant="ghost" 
+        size="icon" 
+        onClick={() => setOpen(true)}
+        className="h-7 w-7 text-gray-400 hover:text-red-600"
+      >
+        <Trash2 className="w-3.5 h-3.5" />
+      </Button>
+
+      <Modal
+        isOpen={open}
+        onClose={() => setOpen(false)}
+        maxWidth="sm"
+        title={
+          <div className="flex items-center gap-2 text-red-600">
             <AlertCircle className="w-5 h-5" />
-            Excluir Usuário
-          </DialogTitle>
-          <DialogDescription>
+            <span>Excluir Usuário</span>
+          </div>
+        }
+        description={
+          <>
             Deseja realmente EXCLUIR PERMANENTEMENTE o usuário <strong>{user.name}</strong>? 
             Esta ação não pode ser desfeita e removerá todos os registros de acesso deste usuário.
-          </DialogDescription>
-        </DialogHeader>
-        <DialogFooter className="gap-2 sm:gap-0">
-          <Button variant="outline" onClick={() => setOpen(false)}>Cancelar</Button>
-          <Button variant="destructive" onClick={() => {
-            onDelete();
-            setOpen(false);
-          }}>Confirmar Exclusão</Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+          </>
+        }
+        footer={
+          <>
+            <Button variant="outline" onClick={() => setOpen(false)} className="rounded-xl font-bold uppercase text-[10px]">Cancelar</Button>
+            <Button variant="destructive" onClick={() => {
+              onDelete();
+              setOpen(false);
+            }} className="rounded-xl font-bold uppercase text-[10px]">Confirmar Exclusão</Button>
+          </>
+        }
+      >
+        <div className="p-4 bg-red-50 rounded-xl border border-red-100 flex items-center gap-3">
+          <AlertCircle className="w-5 h-5 text-red-600" />
+          <p className="text-[10px] text-red-800 font-bold uppercase tracking-tight">Todos os dados de log e permissões vinculados a este usuário serão mantidos para auditoria (ID {user.id.substring(0, 4)}...), mas o acesso será removido.</p>
+        </div>
+      </Modal>
+    </>
   );
 }
 

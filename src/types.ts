@@ -552,6 +552,7 @@ export interface PurchaseRequest {
     quantity: number;
     unit: string;
     status?: 'Pendente' | 'Em orçamento' | 'Comprado' | 'Recebido' | 'Cancelado';
+    appliedQuantity?: number;
   }[];
 }
 

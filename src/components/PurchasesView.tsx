@@ -20,6 +20,7 @@ import {
   FileText,
   Send,
   CheckSquare,
+  Package,
   Filter,
   Download
 } from 'lucide-react';
@@ -29,6 +30,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger, DialogDescription } from '@/components/ui/dialog';
+import { Modal } from "@/components/ui/Modal";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -577,256 +579,145 @@ function RequestsTab({
         </Table>
 
         {/* New/Edit Request Dialog */}
-        <Dialog open={isRequestDialogOpen} onOpenChange={setIsRequestDialogOpen}>
-          <DialogContent className="max-w-[700px] border-none shadow-2xl rounded-2xl p-0 overflow-hidden bg-white">
-            <div className="bg-blue-600 p-6 text-white flex justify-between items-center rounded-t-2xl">
-              <div>
-                <DialogTitle className="text-xl font-bold">Solicitação de Compra</DialogTitle>
-                <div className="text-sm text-blue-100 opacity-90 mt-1">Gerencie os detalhes e itens da solicitação</div>
-              </div>
+        <Modal
+          isOpen={isRequestDialogOpen}
+          onClose={() => setIsRequestDialogOpen(false)}
+          maxWidth="2xl"
+          className="p-0"
+          headerClassName="hidden"
+        >
+          <div className="bg-blue-600 p-8 text-white relative overflow-hidden rounded-t-2xl">
+            <ShoppingCart className="absolute -right-8 -bottom-8 w-40 h-40 opacity-10 rotate-12" />
+            <div className="relative z-10 text-left">
+              <h2 className="text-3xl font-black tracking-tight">Solicitação de Compra</h2>
+              <p className="text-blue-100 font-bold uppercase text-[10px] tracking-widest mt-1">Gerencie os detalhes e itens da solicitação</p>
             </div>
-            <div className="p-6 space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Data</Label>
-                  <Input 
-                    type="date" 
-                    value={currentRequest.date || ''} 
-                    onChange={e => setCurrentRequest({...currentRequest, date: e.target.value})}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Setor Solicitante</Label>
-                  <Input 
-                    placeholder="Ex: Engenharia/Obra" 
-                    value={currentRequest.sector || ''} 
-                    onChange={e => setCurrentRequest({...currentRequest, sector: e.target.value})}
-                  />
-                </div>
-              </div>
+          </div>
+
+          <div className="p-8 space-y-8">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-2">
-                <Label>Descrição Geral</Label>
+                <Label className="text-[10px] uppercase font-bold text-gray-400">Data da Solicitação</Label>
                 <Input 
-                  placeholder="Ex: Materiais para fundação" 
-                  value={currentRequest.description || ''} 
-                  onChange={e => setCurrentRequest({...currentRequest, description: e.target.value})}
+                  type="date" 
+                  className="h-12 border-gray-200 rounded-xl focus:ring-blue-500 font-medium"
+                  value={currentRequest.date || ''} 
+                  onChange={e => setCurrentRequest({...currentRequest, date: e.target.value})}
                 />
               </div>
               <div className="space-y-2">
-                <Label>Obra / Contrato</Label>
-                <Select 
-                  value={currentRequest.contractId || (selectedContractId !== 'all' ? selectedContractId : 'none')} 
-                  onValueChange={v => setCurrentRequest({...currentRequest, contractId: v})}
-                >
-                  <SelectTrigger className="w-full bg-white border-gray-200 rounded-lg">
-                    <SelectValue placeholder="Vincular a uma obra...">
-                      {(() => {
-                        const val = currentRequest.contractId || (selectedContractId !== 'all' ? selectedContractId : 'none');
-                        if (val === 'none') return 'Sem vínculo específico';
-                        const c = contracts.find(curr => curr.id === val);
-                        if (!c) return null;
-                        return c.workName ? `${c.workName} ${c.contractNumber ? `(${c.contractNumber})` : ''}` : (c.contractNumber || c.client || 'Obra sem nome');
-                      })()}
-                    </SelectValue>
-                  </SelectTrigger>
-                  <SelectContent className="rounded-xl border-blue-100">
-                    <SelectItem value="none">Sem vínculo específico</SelectItem>
-                    {contracts.map(c => {
-                      const label = c.workName ? `${c.workName} ${c.contractNumber ? `(${c.contractNumber})` : ''}` : (c.contractNumber || c.client || 'Obra sem nome');
-                      return (
-                        <SelectItem key={c.id} value={c.id} textValue={label} className="font-medium">
-                          {label}
-                        </SelectItem>
-                      );
-                    })}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Categoria</Label>
-                  <Select 
-                    value={currentRequest.category || ''}
-                    onValueChange={(v) => setCurrentRequest({ ...currentRequest, category: v })}
-                  >
-                    <SelectTrigger className="w-full bg-white border-gray-200 rounded-lg">
-                      <SelectValue placeholder="Selecione ou digite..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <div className="p-2 border-b">
-                        <Input 
-                          placeholder="Nova categoria..." 
-                          className="h-8 text-xs" 
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') {
-                              const val = (e.currentTarget as HTMLInputElement).value;
-                              if (val) {
-                                setCurrentRequest({ ...currentRequest, category: val });
-                                (e.currentTarget as HTMLInputElement).value = '';
-                                e.preventDefault();
-                              }
-                            }
-                          }}
-                        />
-                      </div>
-                      {Array.from(new Set([
-                        'Materiais de Construção', 'Equipamentos', 'EPIs', 'Escritório', 'Serviços',
-                        ...orders.map(o => o.category).filter(Boolean),
-                        ...requests.map(r => r.category).filter(Boolean)
-                      ])).map(cat => (
-                        <SelectItem key={cat} value={cat!}>{cat}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label>Centro de Custo</Label>
-                  <Select 
-                    value={currentRequest.costCenter || ''}
-                    onValueChange={(v) => setCurrentRequest({ ...currentRequest, costCenter: v })}
-                  >
-                    <SelectTrigger className="w-full bg-white border-gray-200 rounded-lg">
-                      <SelectValue placeholder="Selecione ou digite..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <div className="p-2 border-b">
-                        <Input 
-                          placeholder="Novo centro de custo..." 
-                          className="h-8 text-xs" 
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') {
-                              const val = (e.currentTarget as HTMLInputElement).value;
-                              if (val) {
-                                setCurrentRequest({ ...currentRequest, costCenter: val });
-                                (e.currentTarget as HTMLInputElement).value = '';
-                                e.preventDefault();
-                              }
-                            }
-                          }}
-                        />
-                      </div>
-                      {Array.from(new Set([
-                        'Obra Direta', 'Manutenção', 'Administrativo', 'Logística',
-                        ...orders.map(o => o.costCenter).filter(Boolean),
-                        ...requests.map(r => r.costCenter).filter(Boolean)
-                      ])).map(cc => (
-                        <SelectItem key={cc} value={cc!}>{cc}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-              <div className="space-y-2 mt-4">
-                <Label>Status</Label>
-                <Select value={currentRequest.status || 'Pendente'} onValueChange={v => setCurrentRequest({...currentRequest, status: v as any})}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione o status..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Pendente">Pendente</SelectItem>
-                    <SelectItem value="Em orçamento">Em orçamento</SelectItem>
-                    <SelectItem value="Compra Aprovado">Compra Aprovado</SelectItem>
-                    <SelectItem value="Comprado">Comprado</SelectItem>
-                    <SelectItem value="Recebido">Recebido</SelectItem>
-                    <SelectItem value="Cancelado">Cancelado</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              
-              {currentRequest.status === 'Comprado' && (
-                <div className="space-y-2">
-                  <Label>Prazo para Entrega</Label>
-                  <Input 
-                    type="date" 
-                    value={currentRequest.deliveryDeadline || ''} 
-                    onChange={e => setCurrentRequest({...currentRequest, deliveryDeadline: e.target.value})}
-                  />
-                </div>
-              )}
-
-              <div className="pt-4 border-t border-gray-100">
-                <div className="flex justify-between items-center mb-4">
-                  <h4 className="font-bold text-gray-900">Itens da Solicitação</h4>
-                  <Button onClick={addItemInput} variant="outline" size="sm" className="h-8 border-blue-200 text-blue-600">
-                    <Plus className="w-3 h-3 mr-1" /> Add Item
-                  </Button>
-                </div>
-                <div className="space-y-2 max-h-[250px] overflow-y-auto pr-2">
-                  {currentRequest.items?.map((item, idx) => (
-                    <div key={item.id} className="grid grid-cols-6 gap-2 items-end bg-gray-50 p-2 rounded-lg border border-gray-200">
-                      <div className="col-span-3 space-y-1">
-                        <Label className="text-[10px]">Descrição</Label>
-                        <Input 
-                          value={item.description} 
-                          onChange={e => {
-                            const newItems = [...(currentRequest.items || [])];
-                            newItems[idx].description = e.target.value;
-                            setCurrentRequest({...currentRequest, items: newItems});
-                          }}
-                          className="h-8 text-xs"
-                        />
-                      </div>
-                      <div className="col-span-1 space-y-1">
-                        <Label className="text-[10px]">Qtde</Label>
-                        <Input 
-                          type="number"
-                          value={item.quantity} 
-                          onChange={e => {
-                            const newItems = [...(currentRequest.items || [])];
-                            newItems[idx].quantity = parseFloat(e.target.value);
-                            setCurrentRequest({...currentRequest, items: newItems});
-                          }}
-                          className="h-8 text-xs"
-                        />
-                      </div>
-                      <div className="col-span-1 space-y-1">
-                        <Label className="text-[10px]">Un</Label>
-                        <Input 
-                          value={item.unit} 
-                          onChange={e => {
-                            const newItems = [...(currentRequest.items || [])];
-                            newItems[idx].unit = e.target.value;
-                            setCurrentRequest({...currentRequest, items: newItems});
-                          }}
-                          className="h-8 text-xs"
-                        />
-                      </div>
-                      <div className="col-span-1">
-                        <Button 
-                          variant="ghost" 
-                          size="icon" 
-                          className="h-8 w-8 text-red-500"
-                          onClick={() => {
-                            const newItems = [...(currentRequest.items || [])];
-                            newItems.splice(idx, 1);
-                            setCurrentRequest({...currentRequest, items: newItems});
-                          }}
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div className="pt-6 flex justify-end gap-3">
-                <Button variant="outline" onClick={() => setIsRequestDialogOpen(false)}>Cancelar</Button>
-                <Button onClick={handleSaveRequest} className="bg-blue-600 hover:bg-blue-700 text-white">Salvar Solicitação</Button>
+                <Label className="text-[10px] uppercase font-bold text-gray-400">Setor Solicitante</Label>
+                <Input 
+                  placeholder="Ex: Engenharia/Obra" 
+                  className="h-12 border-gray-200 rounded-xl focus:ring-blue-500 font-medium"
+                  value={currentRequest.sector || ''} 
+                  onChange={e => setCurrentRequest({...currentRequest, sector: e.target.value})}
+                />
               </div>
             </div>
-          </DialogContent>
-        </Dialog>
+
+            <div className="space-y-2">
+              <Label className="text-[10px] uppercase font-bold text-gray-400">Descrição Geral / Motivo</Label>
+              <Input 
+                placeholder="Ex: Materiais para fundação" 
+                className="h-12 border-gray-200 rounded-xl focus:ring-blue-500 font-medium"
+                value={currentRequest.description || ''} 
+                onChange={e => setCurrentRequest({...currentRequest, description: e.target.value})}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label className="text-[10px] uppercase font-bold text-gray-400">Obra / Contrato Vinculado</Label>
+              <Select 
+                value={currentRequest.contractId || (selectedContractId !== 'all' ? selectedContractId : 'none')} 
+                onValueChange={v => setCurrentRequest({...currentRequest, contractId: v})}
+              >
+                <SelectTrigger className="h-12 border-gray-200 rounded-xl focus:ring-blue-500 font-bold text-blue-900">
+                  <SelectValue placeholder="Vincular a uma obra...">
+                    {(() => {
+                      const val = currentRequest.contractId || (selectedContractId !== 'all' ? selectedContractId : 'none');
+                      if (val === 'none') return 'Sem vínculo específico';
+                      const c = contracts.find(curr => curr.id === val);
+                      if (!c) return null;
+                      return c.workName ? `${c.workName} ${c.contractNumber ? `(${c.contractNumber})` : ''}` : (c.contractNumber || c.client || 'Obra sem nome');
+                    })()}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent className="rounded-xl border-blue-100 shadow-2xl">
+                  <SelectItem value="none" className="font-bold">Sem vínculo específico</SelectItem>
+                  {contracts.map(c => {
+                    const label = c.workName ? `${c.workName} ${c.contractNumber ? `(${c.contractNumber})` : ''}` : (c.contractNumber || c.client || 'Obra sem nome');
+                    return (
+                      <SelectItem key={c.id} value={c.id} textValue={label} className="font-medium">
+                        {label}
+                      </SelectItem>
+                    );
+                  })}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-2">
+                <Label className="text-[10px] uppercase font-bold text-gray-400">Categoria</Label>
+                <Select 
+                  value={currentRequest.category || ''}
+                  onValueChange={(v) => setCurrentRequest({ ...currentRequest, category: v })}
+                >
+                  <SelectTrigger className="h-12 border-gray-200 rounded-xl focus:ring-blue-500 font-bold">
+                    <SelectValue placeholder="Selecione..." />
+                  </SelectTrigger>
+                  <SelectContent className="rounded-xl">
+                    <SelectItem value="Mão de Obra" className="font-bold">MÃO DE OBRA</SelectItem>
+                    <SelectItem value="Material" className="font-bold">MATERIAL</SelectItem>
+                    <SelectItem value="Equipamento" className="font-bold">EQUIPAMENTO</SelectItem>
+                    <SelectItem value="Serviço" className="font-bold">SERVIÇO</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label className="text-[10px] uppercase font-bold text-gray-400">Prioridade</Label>
+                <Select 
+                  value={currentRequest.priority || 'Normal'}
+                  onValueChange={(v: any) => setCurrentRequest({ ...currentRequest, priority: v })}
+                >
+                  <SelectTrigger className="h-12 border-gray-200 rounded-xl focus:ring-blue-500 font-bold">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="rounded-xl">
+                    <SelectItem value="Urgente" className="text-red-600 font-black">URGENTE</SelectItem>
+                    <SelectItem value="Alta" className="text-orange-600 font-bold">ALTA</SelectItem>
+                    <SelectItem value="Normal" className="text-blue-600 font-bold">NORMAL</SelectItem>
+                    <SelectItem value="Baixa" className="text-gray-600 font-bold">BAIXA</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter className="p-8 bg-gray-50 border-t flex flex-col sm:flex-row gap-3">
+            <Button variant="ghost" onClick={() => setIsRequestDialogOpen(false)} className="rounded-xl font-bold uppercase text-[10px] h-12 flex-1">Cancelar</Button>
+            <Button onClick={handleSaveRequest} className="rounded-xl bg-blue-600 hover:bg-blue-700 font-bold uppercase text-[10px] h-12 flex-[2] shadow-lg shadow-blue-100">
+              <CheckCircle className="w-4 h-4 mr-2" /> Salvar Solicitação
+            </Button>
+          </DialogFooter>
+        </Modal>
 
         {/* Quotation Dialog */}
-        <Dialog open={isQuotationDialogOpen} onOpenChange={setIsQuotationDialogOpen}>
-          <DialogContent className="max-w-[800px] border-none shadow-2xl rounded-2xl p-0 overflow-hidden bg-white">
-            <div className="bg-emerald-600 p-6 text-white flex justify-between items-center rounded-t-2xl">
-              <div>
-                <DialogTitle className="text-xl font-bold">Solicitação de Orçamento</DialogTitle>
-                <div className="text-sm text-emerald-100 opacity-90 mt-1">Selecione até 3 fornecedores para enviar os itens</div>
-              </div>
+        <Modal
+          isOpen={isQuotationDialogOpen}
+          onClose={() => setIsQuotationDialogOpen(false)}
+          maxWidth="2xl"
+          className="p-0 border-none overflow-hidden"
+          headerClassName="hidden"
+        >
+          <div className="bg-emerald-600 p-8 text-white relative overflow-hidden rounded-t-2xl">
+            <Send className="absolute -right-8 -bottom-8 w-40 h-40 opacity-10 rotate-12" />
+            <div className="relative z-10 text-left">
+              <h2 className="text-3xl font-black tracking-tight">Solicitação de Orçamento</h2>
+              <p className="text-emerald-100 font-bold uppercase text-[10px] tracking-widest mt-1">Selecione os fornecedores para envio de itens</p>
             </div>
+          </div>
             <div className="p-6 space-y-6">
               <div className="bg-emerald-50 p-4 rounded-xl border border-emerald-100 mb-6">
                 <h4 className="text-emerald-800 font-bold flex items-center gap-2 mb-2">
@@ -887,19 +778,18 @@ function RequestsTab({
                   {selectedSuppliers.length} de 3 selecionados
                 </div>
                 <div className="flex gap-3">
-                  <Button variant="outline" onClick={() => setIsQuotationDialogOpen(false)}>Cancelar</Button>
+                  <Button variant="ghost" onClick={() => setIsQuotationDialogOpen(false)} className="rounded-xl font-bold uppercase text-[10px]">Cancelar</Button>
                   <Button 
                     disabled={selectedSuppliers.length === 0}
                     onClick={handleSendQuotation}
-                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold"
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-black uppercase text-[10px] rounded-xl h-11 px-8 shadow-lg shadow-emerald-100 transition-all active:scale-95"
                   >
-                    <Send className="w-4 h-4 mr-2" /> Enviar Orçamento
+                    <Send className="w-4 h-4 mr-2" /> Enviar Cotação Agora
                   </Button>
                 </div>
               </div>
             </div>
-          </DialogContent>
-        </Dialog>
+        </Modal>
       </CardContent>
     </Card>
   );
@@ -1051,14 +941,22 @@ function SuppliersTab({ suppliers, setSuppliers, compId, contracts }: { supplier
         </div>
       )}
 
-      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogContent className="max-w-[700px] border-none shadow-2xl rounded-2xl p-0 overflow-hidden bg-white">
-            <div className="bg-gradient-to-r from-blue-600 to-blue-800 p-6 text-white flex justify-between items-center rounded-t-2xl">
-              <div>
-                <DialogTitle className="text-xl font-bold">{currentSupplier.id ? 'Editar Fornecedor' : 'Novo Fornecedor'}</DialogTitle>
-                <div className="text-sm text-blue-100 opacity-90 mt-1">{currentSupplier.id ? 'Atualize os dados cadastrais' : 'Preencha os dados do novo fornecedor'}</div>
-              </div>
-            </div>
+      <Modal
+        isOpen={isDialogOpen}
+        onClose={() => setIsDialogOpen(false)}
+        maxWidth="3xl"
+        className="p-0 border-none overflow-hidden"
+        headerClassName="hidden"
+      >
+        <div className="bg-blue-600 p-8 text-white relative overflow-hidden rounded-t-2xl">
+          <Building2 className="absolute -right-8 -bottom-8 w-40 h-40 opacity-10 rotate-12" />
+          <div className="relative z-10 text-left">
+            <h2 className="text-3xl font-black tracking-tight">{currentSupplier.id ? 'Editar Fornecedor' : 'Novo Fornecedor'}</h2>
+            <p className="text-blue-100 font-bold uppercase text-[10px] tracking-widest mt-1">
+              {currentSupplier.id ? 'Atualize os dados cadastrais da empresa' : 'Preencha os dados do novo fornecedor para o sistema'}
+            </p>
+          </div>
+        </div>
 
             <div className="p-6">
               <div className="grid grid-cols-2 gap-x-6 gap-y-4">
@@ -1222,22 +1120,21 @@ function SuppliersTab({ suppliers, setSuppliers, compId, contracts }: { supplier
 
               <div className="mt-8 flex justify-end gap-3 pt-6 border-t border-gray-100">
                 <Button 
-                  variant="outline"
+                  variant="ghost"
                   onClick={() => setIsDialogOpen(false)}
-                  className="rounded-xl px-6 font-medium text-gray-600 hover:bg-gray-50"
+                  className="rounded-xl px-6 font-bold uppercase text-[10px]"
                 >
                   Cancelar
                 </Button>
                 <Button 
                   onClick={handleSave} 
-                  className="rounded-xl px-8 bg-blue-600 hover:bg-blue-700 text-white font-bold shadow-md shadow-blue-200"
+                  className="rounded-xl px-10 bg-blue-600 hover:bg-blue-700 text-white font-black uppercase text-[10px] shadow-lg shadow-blue-100 h-11 transition-all active:scale-95"
                 >
                   Salvar Cadastro
                 </Button>
               </div>
             </div>
-          </DialogContent>
-        </Dialog>
+      </Modal>
     </div>
   );
 }
@@ -1643,10 +1540,23 @@ function OrdersTab({
         )}
 
         {/* Print Dialog */}
-        <Dialog open={isPrintDialogOpen} onOpenChange={setIsPrintDialogOpen}>
-          <DialogContent className="max-w-[800px] max-h-[90vh] overflow-hidden flex flex-col border-none shadow-2xl p-0 bg-white">
-            <div className="flex-1 overflow-y-auto w-full">
-              <div className="p-4 bg-white min-h-[11in]" id="print-area">
+        <Modal
+          isOpen={isPrintDialogOpen}
+          onClose={() => setIsPrintDialogOpen(false)}
+          maxWidth="4xl"
+          className="p-0 border-none overflow-hidden"
+          headerClassName="hidden"
+          footer={
+            <div className="flex justify-end gap-3 w-full p-4 bg-gray-50 border-t">
+              <Button variant="outline" onClick={() => setIsPrintDialogOpen(false)} className="rounded-xl px-6">Fechar</Button>
+              <Button onClick={handlePrintIframe} className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl px-8 font-bold shadow-lg shadow-emerald-100">
+                <Printer className="w-4 h-4 mr-2" /> Imprimir / Salvar PDF
+              </Button>
+            </div>
+          }
+        >
+          <div className="flex-1 overflow-y-auto w-full max-h-[70vh]">
+            <div className="p-4 bg-white min-h-[11in]" id="print-area">
                 <div className="flex justify-between items-start border-b-2 border-blue-600 pb-2 mb-3">
                  <div className="flex items-center gap-3">
                    {(logoMode === 'left' || logoMode === 'both') && companyLogo && (
@@ -1688,33 +1598,33 @@ function OrdersTab({
               
               <div className="grid grid-cols-2 text-[10px] mb-3 pb-1 border-b border-gray-200 font-medium">
                 <div>
-                  <div className="flex"><span className="w-24 text-right pr-2">Pedido:</span> <span className="font-semibold">{currentOrder.orderNumber}</span></div>
-                  <div className="flex"><span className="w-24 text-right pr-2">Fornecedor:</span> <span className="font-semibold">{currentOrder.supplierName}</span></div>
-                  <div className="flex"><span className="w-24 text-right pr-2">Telefone:</span> {currentOrder.phone}</div>
-                  <div className="flex"><span className="w-24 text-right pr-2">Data de:</span> {currentOrder.orderDate ? new Date(currentOrder.orderDate).toLocaleDateString('pt-BR') : ''}</div>
+                  <div className="flex"><span className="w-24 text-right pr-2 uppercase font-bold text-gray-400">Pedido:</span> <span className="font-semibold">{currentOrder.orderNumber}</span></div>
+                  <div className="flex"><span className="w-24 text-right pr-2 uppercase font-bold text-gray-400">Fornecedor:</span> <span className="font-semibold">{currentOrder.supplierName}</span></div>
+                  <div className="flex"><span className="w-24 text-right pr-2 uppercase font-bold text-gray-400">Telefone:</span> {currentOrder.phone}</div>
+                  <div className="flex"><span className="w-24 text-right pr-2 uppercase font-bold text-gray-400">Data de:</span> {currentOrder.orderDate ? new Date(currentOrder.orderDate).toLocaleDateString('pt-BR') : ''}</div>
                 </div>
                 <div>
                   <div className="flex"><span className="w-24 text-right pr-2"></span></div>
                   <div className="flex"><span className="w-24 text-right pr-2"></span></div>
-                  <div className="flex"><span className="w-24 text-right pr-2">Email:</span> {currentOrder.email}</div>
-                  <div className="flex"><span className="w-24 text-right pr-2">Entrega:</span> {currentOrder.deliveryDate ? new Date(currentOrder.deliveryDate).toLocaleDateString('pt-BR') : ''}</div>
+                  <div className="flex"><span className="w-24 text-right pr-2 uppercase font-bold text-gray-400">Email:</span> {currentOrder.email}</div>
+                  <div className="flex"><span className="w-24 text-right pr-2 uppercase font-bold text-gray-400">Entrega:</span> {currentOrder.deliveryDate ? new Date(currentOrder.deliveryDate).toLocaleDateString('pt-BR') : ''}</div>
                 </div>
               </div>
 
-              <div className="border-b border-black mb-0.5">
+              <div className="border-b border-black mb-0.5 text-left">
                 <span className="text-[10px] font-bold">ENDEREÇO DE ENTREGA</span>
               </div>
-              <div className="grid grid-cols-3 text-[10px] mb-3 pb-1 border-b border-gray-100 gap-y-0.5">
-                <div className="flex"><span className="w-14 text-right pr-2">Rua:</span> <span>{currentOrder.deliveryAddress?.street}</span></div>
-                <div className="flex"><span className="w-14 text-right pr-2">Num:</span> <span>{currentOrder.deliveryAddress?.number}</span></div>
-                <div className="flex"><span className="w-18 text-right pr-2">Comp:</span> <span>{currentOrder.deliveryAddress?.complement}</span></div>
-                <div className="flex"><span className="w-14 text-right pr-2">Bairro:</span> <span>{currentOrder.deliveryAddress?.neighborhood}</span></div>
-                <div className="flex"><span className="w-14 text-right pr-2">CEP:</span> <span>{currentOrder.deliveryAddress?.zipCode}</span></div>
-                <div className="flex"><span className="w-18 text-right pr-2">Cidade:</span> <span>{currentOrder.deliveryAddress?.city}</span></div>
-                <div className="flex"><span className="w-14 text-right pr-2">UF:</span> <span>{currentOrder.deliveryAddress?.state}</span></div>
+              <div className="grid grid-cols-3 text-[10px] mb-3 pb-1 border-b border-gray-100 gap-y-0.5 text-left">
+                <div className="flex"><span className="w-14 text-right pr-2 uppercase font-bold text-gray-400">Rua:</span> <span>{currentOrder.deliveryAddress?.street}</span></div>
+                <div className="flex"><span className="w-14 text-right pr-2 uppercase font-bold text-gray-400">Num:</span> <span>{currentOrder.deliveryAddress?.number}</span></div>
+                <div className="flex"><span className="w-18 text-right pr-2 uppercase font-bold text-gray-400">Comp:</span> <span>{currentOrder.deliveryAddress?.complement}</span></div>
+                <div className="flex"><span className="w-14 text-right pr-2 uppercase font-bold text-gray-400">Bairro:</span> <span>{currentOrder.deliveryAddress?.neighborhood}</span></div>
+                <div className="flex"><span className="w-14 text-right pr-2 uppercase font-bold text-gray-400">CEP:</span> <span>{currentOrder.deliveryAddress?.zipCode}</span></div>
+                <div className="flex"><span className="w-18 text-right pr-2 uppercase font-bold text-gray-400">Cidade:</span> <span>{currentOrder.deliveryAddress?.city}</span></div>
+                <div className="flex"><span className="w-14 text-right pr-2 uppercase font-bold text-gray-400">UF:</span> <span>{currentOrder.deliveryAddress?.state}</span></div>
               </div>
 
-              <div className="bg-blue-600 text-white px-2 py-0.5 mb-0.5 rounded-sm print:bg-blue-600 print:text-white">
+              <div className="bg-blue-600 text-white px-2 py-0.5 mb-0.5 rounded-sm print:bg-blue-600 print:text-white text-left">
                 <span className="text-[10px] font-bold uppercase tracking-wider">Itens do Pedido</span>
               </div>
               <table className="w-full text-[10px] border-collapse border border-blue-600 mb-1 leading-tight print-table-spacing">
@@ -1734,7 +1644,7 @@ function OrdersTab({
                     <tr key={item.id} className="even:bg-blue-50/20 leading-snug">
                       <td className="border border-blue-200 p-1.5 text-center text-[9px]">{i + 1}</td>
                       <td className="border border-blue-200 p-1.5 text-center text-[9px] font-mono">{item.code || '-'}</td>
-                      <td className="border border-blue-200 p-1.5 text-[11px] font-medium">{item.description}</td>
+                      <td className="border border-blue-200 p-1.5 text-[11px] font-medium text-left">{item.description}</td>
                       <td className="border border-blue-200 p-1.5 text-center text-[9px]">{item.unit}</td>
                       <td className="border border-blue-200 p-1.5 text-center font-bold text-[10px]">{item.quantity}</td>
                       <td className="border border-blue-200 p-1.5 text-right text-[10px]">R$ {item.price.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</td>
@@ -1744,13 +1654,13 @@ function OrdersTab({
                 </tbody>
               </table>
               <div className="flex flex-col items-end text-[10px] mb-2 pb-1">
-                <div className="flex justify-between w-64 border-b border-gray-100"><span className="text-gray-500">Subtotal:</span> <span>R$ {(currentOrder.subtotal || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2})}</span></div>
-                <div className="flex justify-between w-64 border-b border-gray-100"><span className="text-gray-500">Desconto:</span> <span>R$ {(currentOrder.discount || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2})}</span></div>
-                <div className="flex justify-between w-64 border-b border-gray-100"><span className="text-gray-500">Acréscimos:</span> <span>{(currentOrder.additions || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2})}</span></div>
-                <div className="flex justify-between w-64 mt-0.5 text-blue-800"><span className="font-bold">TOTAL:</span> <span className="font-black text-sm">R$ {(currentOrder.total || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2})}</span></div>
+                <div className="flex justify-between w-64 border-b border-gray-100 text-right"><span className="text-gray-500 uppercase font-bold text-[9px]">Subtotal:</span> <span>R$ {(currentOrder.subtotal || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2})}</span></div>
+                <div className="flex justify-between w-64 border-b border-gray-100 text-right"><span className="text-gray-500 uppercase font-bold text-[9px]">Desconto:</span> <span>R$ {(currentOrder.discount || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2})}</span></div>
+                <div className="flex justify-between w-64 border-b border-gray-100 text-right"><span className="text-gray-500 uppercase font-bold text-[9px]">Acréscimos:</span> <span>{(currentOrder.additions || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2})}</span></div>
+                <div className="flex justify-between w-64 mt-0.5 text-blue-800 text-right"><span className="font-bold uppercase font-bold text-[9px]">TOTAL:</span> <span className="font-black text-sm text-right">R$ {(currentOrder.total || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2})}</span></div>
               </div>
 
-              <div className="bg-blue-600 text-white px-2 py-0.5 rounded-sm mt-3 print:bg-blue-600 print:text-white">
+              <div className="bg-blue-600 text-white px-2 py-0.5 rounded-sm mt-3 print:bg-blue-600 print:text-white text-left">
                 <span className="text-[10px] font-bold uppercase tracking-wider">Condições de Pagamento</span>
               </div>
               <table className="w-full text-[9px] border-collapse border border-blue-600 mb-2 font-medium">
@@ -1765,10 +1675,10 @@ function OrdersTab({
                 <tbody>
                   {currentOrder.paymentConditions?.map((pay, i) => (
                     <tr key={i} className="even:bg-blue-50/20 leading-tight">
-                      <td className="border border-blue-200 p-0.5">{pay.condition}</td>
+                      <td className="border border-blue-200 p-0.5 text-left">{pay.condition}</td>
                       <td className="border border-blue-200 p-0.5 text-center">{pay.dueDate ? new Date(pay.dueDate).toLocaleDateString('pt-BR') : '-'}</td>
                       <td className="border border-blue-200 p-0.5 text-right font-bold text-blue-700 text-[10px]">R$ {pay.value.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</td>
-                      <td className="border border-blue-200 p-0.5 text-[8px] italic">{pay.observation || '-'}</td>
+                      <td className="border border-blue-200 p-0.5 text-[8px] italic text-left">{pay.observation || '-'}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -1787,31 +1697,30 @@ function OrdersTab({
                 </div>
               </div>
 
-               <div className="mt-4 p-2 border border-dashed border-blue-200 rounded-lg bg-blue-50/30">
+               <div className="mt-4 p-2 border border-dashed border-blue-200 rounded-lg bg-blue-50/30 text-left">
                  <div className="font-black text-blue-900 text-[9px] uppercase tracking-[0.1em] mb-1">Observações</div>
                  <div className="text-[9px] text-slate-700 leading-tight min-h-[40px] whitespace-pre-wrap">
                    {currentOrder.observations || "Não existem observações adicionais para este pedido."}
                  </div>
                </div>
             </div>
-            </div>
-            
-            <DialogFooter className="p-4 bg-gray-50 rounded-b-2xl flex shrink-0 sm:justify-end gap-2 border-t border-gray-200">
-               <Button onClick={handlePrintIframe} className="bg-emerald-600 hover:bg-emerald-700 text-white">
-                 <Printer className="w-4 h-4 mr-2" /> Imprimir / Salvar PDF
-               </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+          </div>
+        </Modal>
 
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogContent className="max-w-[1000px] max-h-[90vh] overflow-y-auto border-none shadow-2xl rounded-2xl p-0 bg-white">
-            <div className="bg-emerald-600 p-6 text-white flex justify-between items-center rounded-t-2xl sticky top-0 z-10 shadow-md">
-              <div>
-                <DialogTitle className="text-xl font-bold">Ordem de Compra</DialogTitle>
-                <div className="text-sm text-emerald-100 opacity-90 mt-1">Pedido nº {currentOrder.orderNumber}</div>
-              </div>
+        <Modal
+          isOpen={isDialogOpen}
+          onClose={() => setIsDialogOpen(false)}
+          maxWidth="5xl"
+          className="p-0 border-none overflow-hidden"
+          headerClassName="hidden"
+        >
+          <div className="bg-emerald-600 p-8 text-white relative overflow-hidden rounded-t-2xl sticky top-0 z-10 shadow-md">
+            <Package className="absolute -right-8 -bottom-8 w-40 h-40 opacity-10 rotate-12" />
+            <div className="relative z-10 text-left">
+              <h2 className="text-3xl font-black tracking-tight">Ordem de Compra</h2>
+              <p className="text-emerald-100 font-bold uppercase text-[10px] tracking-widest mt-1">Pedido nº {currentOrder.orderNumber}</p>
             </div>
+          </div>
 
             <div className="p-6 space-y-6 bg-gray-50/30">
               
@@ -2208,8 +2117,7 @@ function OrdersTab({
                   {isReadOnly ? "Visualizar Ordem" : "Salvar Ordem"}
                 </Button>
               </div>
-          </DialogContent>
-        </Dialog>
+        </Modal>
       </CardContent>
     </Card>
     </>
@@ -2471,152 +2379,165 @@ function QuotationsTab({
           </TableBody>
         </Table>
 
-        <Dialog open={isDetailsOpen} onOpenChange={setIsDetailsOpen}>
-          <DialogContent className="max-w-[1000px] border-none shadow-2xl rounded-2xl p-0 overflow-hidden bg-white">
-            <div className="bg-blue-600 p-6 text-white flex justify-between items-center rounded-t-2xl">
-              <div>
-                <DialogTitle className="text-xl font-bold">Mapa de Cotação</DialogTitle>
-                <div className="text-sm text-blue-100 opacity-90 mt-1">Preencha os valores recebidos e compare fornecedores</div>
-              </div>
+        <Modal
+          isOpen={isDetailsOpen}
+          onClose={() => setIsDetailsOpen(false)}
+          maxWidth="5xl"
+          className="p-0 border-none overflow-hidden"
+          headerClassName="hidden"
+        >
+          <div className="bg-emerald-600 p-8 text-white relative overflow-hidden rounded-t-2xl">
+            <Plus className="absolute -right-8 -bottom-8 w-40 h-40 opacity-10 rotate-12" />
+            <div className="relative z-10 text-left">
+              <h2 className="text-3xl font-black tracking-tight">Mapa de Cotação</h2>
+              <p className="text-emerald-100 font-bold uppercase text-[10px] tracking-widest mt-1">Comparativo de fornecedores e fechamento de pedido</p>
             </div>
-            <div className="p-6 space-y-6">
-              {selectedQuotation && (
-                <div className="overflow-x-auto rounded-xl border border-gray-100">
-                  <Table>
-                    <TableHeader className="bg-gray-50">
-                      <TableRow>
-                        <TableHead className="font-bold text-gray-900">Item</TableHead>
-                        <TableHead className="text-center">Qtd</TableHead>
-                        {selectedQuotation.suppliers.map(qs => {
-                          const sup = suppliers.find(s => s.id === qs.supplierId);
-                          return (
-                            <TableHead key={qs.supplierId} className="text-center min-w-[150px]">
-                              <div className="font-black text-blue-600">{sup?.name}</div>
-                              <div className="text-[10px] text-gray-400 font-normal">{sup?.activity}</div>
-                            </TableHead>
-                          );
-                        })}
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {selectedQuotation.items.map((item) => (
-                        <TableRow key={item.itemId}>
-                          <TableCell>
-                            <div className="font-bold text-gray-900">{item.description}</div>
-                            <div className="text-[10px] text-gray-400">{item.unit}</div>
-                          </TableCell>
-                          <TableCell className="text-center font-medium">
-                            {item.quantity}
-                          </TableCell>
-                          {selectedQuotation.suppliers.map(qs => {
-                            const response = qs.responses.find(r => r.itemId === item.itemId);
-                            return (
-                              <TableCell key={qs.supplierId} className="p-2">
-                                <div className="flex flex-col gap-1">
-                                  <div className="relative">
-                                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-gray-400 font-bold">R$</span>
-                                    <Input 
-                                      type="number"
-                                      className="pl-8 h-9 text-sm focus:border-blue-500 font-bold text-emerald-700"
-                                      value={response?.price || ''}
-                                      onChange={(e) => handleUpdatePrice(qs.supplierId, item.itemId, parseFloat(e.target.value) || 0)}
-                                    />
-                                  </div>
-                                </div>
-                              </TableCell>
-                            );
-                          })}
-                        </TableRow>
-                      ))}
-                      {/* Subtotals Row */}
-                      <TableRow className="bg-gray-50 font-bold">
-                        <TableCell colSpan={2} className="text-right uppercase tracking-wider text-gray-500 text-xs">Total do Fornecedor</TableCell>
-                        {selectedQuotation.suppliers.map(qs => {
-                          const total = selectedQuotation.items.reduce((acc, item) => {
-                            const res = qs.responses.find(r => r.itemId === item.itemId);
-                            return acc + (item.quantity * (res?.price || 0));
-                          }, 0);
-                          const isAdminSelected = selectedQuotation.selectedSupplierId === qs.supplierId || (qs as any).selected === true;
-                          return (
-                            <TableCell key={qs.supplierId} className={cn(
-                              "text-center transition-all",
-                              isAdminSelected ? "bg-emerald-50 text-emerald-800 ring-2 ring-emerald-500 ring-inset" : "text-blue-600"
-                            )}>
-                              <div className="text-lg font-black italic">
-                                R$ {total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                              </div>
-                              {isAdminSelected && (
-                                <div className="text-[10px] text-emerald-600 uppercase font-black mt-1 flex items-center justify-center gap-1">
-                                  <Star className="w-3 h-3 fill-current" /> Sugestão do Admin
-                                </div>
-                              )}
-                            </TableCell>
-                          );
-                        })}
-                      </TableRow>
-                      {/* Payment Condition Row */}
-                      <TableRow className="bg-white">
-                        <TableCell colSpan={2} className="text-right uppercase tracking-wider text-gray-500 text-xs font-bold">Forma de Pagamento</TableCell>
-                        {selectedQuotation.suppliers.map(qs => (
-                          <TableCell key={qs.supplierId} className="p-2">
-                            <Input 
-                              placeholder="Ex: 30 dias, 2x s/ juros"
-                              className="h-9 text-xs focus:border-blue-500"
-                              value={qs.paymentCondition || ''}
-                              onChange={(e) => handleUpdatePaymentCondition(qs.supplierId, e.target.value)}
-                            />
-                          </TableCell>
-                        ))}
-                      </TableRow>
-                      {/* Action Row */}
-                      <TableRow className="bg-white">
-                        <TableCell colSpan={2}></TableCell>
-                        {selectedQuotation.suppliers.map(qs => {
-                          const total = selectedQuotation.items.reduce((acc, item) => {
-                            const res = qs.responses.find(r => r.itemId === item.itemId);
-                            return acc + (item.quantity * (res?.price || 0));
-                          }, 0);
-                          return (
-                            <TableCell key={qs.supplierId} className="text-center p-4">
-                              {selectedQuotation.status === 'approved' ? (
-                                <Button 
-                                  disabled={total === 0}
-                                  onClick={() => handleCreateOrder(qs.supplierId)}
-                                  className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl h-10 shadow-lg shadow-emerald-100"
-                                >
-                                  Gerar Ordem
-                                </Button>
-                              ) : selectedQuotation.status === 'completed' ? (
-                                <div className="text-xs text-emerald-600 font-bold bg-emerald-50 py-1 rounded flex items-center justify-center gap-1">
-                                  <CheckCircle className="w-3 h-3" /> Ordem Gerada
-                                </div>
-                              ) : (
-                                <div className="text-xs text-gray-400 font-medium italic text-center">Aguardando aprovação para gerar OC</div>
-                              )}
-                            </TableCell>
-                          );
-                        })}
-                      </TableRow>
-                    </TableBody>
-                  </Table>
-                </div>
-              )}
+          </div>
 
-              <div className="flex justify-between items-center pt-4 border-t border-gray-100">
-                <Button 
-                  onClick={handleSubmitForApproval}
-                  disabled={!selectedQuotation || selectedQuotation.status === 'awaiting_approval' || selectedQuotation.status === 'approved' || selectedQuotation.status === 'completed'}
-                  className="bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl px-10 h-11"
-                >
-                  {selectedQuotation?.status === 'awaiting_approval' ? 'Enviado para Aprovação' : 
-                   selectedQuotation?.status === 'approved' ? 'Aprovado' : 
-                   selectedQuotation?.status === 'completed' ? 'Orçamento Concluído' : 'Enviar para Aprovação'}
-                </Button>
-                <Button variant="outline" onClick={() => setIsDetailsOpen(false)} className="rounded-xl px-8 font-bold">Fechar</Button>
+          <div className="p-8">
+            {selectedQuotation && (
+              <div className="overflow-x-auto rounded-3xl border border-gray-100 shadow-sm">
+                <Table>
+                  <TableHeader className="bg-gray-50/80 backdrop-blur-md sticky top-0 z-10">
+                    <TableRow>
+                      <TableHead className="font-black text-gray-900 uppercase text-[10px] tracking-widest pb-4">Item / Descrição</TableHead>
+                      <TableHead className="text-center font-black text-gray-900 uppercase text-[10px] tracking-widest pb-4">Qtd</TableHead>
+                      {selectedQuotation.suppliers.map(qs => {
+                        const sup = suppliers.find(s => s.id === qs.supplierId);
+                        return (
+                          <TableHead key={qs.supplierId} className="text-center min-w-[200px] border-l border-gray-100 pb-4">
+                            <div className="font-black text-blue-600 text-sm uppercase leading-tight truncate">{sup?.name}</div>
+                            <div className="text-[9px] text-gray-400 font-bold uppercase truncate mt-0.5">{sup?.activity}</div>
+                          </TableHead>
+                        );
+                      })}
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {selectedQuotation.items.map((item) => (
+                      <TableRow key={item.itemId} className="hover:bg-gray-50/50 transition-colors">
+                        <TableCell className="py-4">
+                          <div className="font-bold text-gray-900 text-sm">{item.description}</div>
+                          <div className="text-[10px] text-gray-400 font-bold uppercase">{item.unit}</div>
+                        </TableCell>
+                        <TableCell className="text-center font-black text-gray-900">
+                          {item.quantity}
+                        </TableCell>
+                        {selectedQuotation.suppliers.map(qs => {
+                          const response = qs.responses.find(r => r.itemId === item.itemId);
+                          return (
+                            <TableCell key={qs.supplierId} className="p-3 border-l border-gray-100">
+                              <div className="relative group">
+                                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-xs text-emerald-400 font-black">R$</span>
+                                <Input 
+                                  type="number"
+                                  className="pl-10 h-11 bg-white border-gray-100 rounded-xl focus:ring-emerald-500 font-black text-emerald-700 text-lg shadow-sm"
+                                  value={response?.price || ''}
+                                  onChange={(e) => handleUpdatePrice(qs.supplierId, item.itemId, parseFloat(e.target.value) || 0)}
+                                />
+                              </div>
+                            </TableCell>
+                          );
+                        })}
+                      </TableRow>
+                    ))}
+                    {/* Subtotals Row */}
+                    <TableRow className="bg-emerald-50/30 font-bold">
+                      <TableCell colSpan={2} className="text-right uppercase tracking-[0.2em] font-black text-gray-400 text-[10px] py-6">Total do Fornecedor</TableCell>
+                      {selectedQuotation.suppliers.map(qs => {
+                        const total = selectedQuotation.items.reduce((acc, item) => {
+                          const res = qs.responses.find(r => r.itemId === item.itemId);
+                          return acc + (item.quantity * (res?.price || 0));
+                        }, 0);
+                        const isAdminSelected = selectedQuotation.selectedSupplierId === qs.supplierId || (qs as any).selected === true;
+                        return (
+                          <TableCell key={qs.supplierId} className={cn(
+                            "text-center transition-all border-l border-emerald-100",
+                            isAdminSelected ? "bg-emerald-100/50 text-emerald-800" : "text-blue-600"
+                          )}>
+                            <div className="text-xl font-black italic tracking-tighter">
+                              R$ {total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                            </div>
+                            {isAdminSelected && (
+                              <div className="text-[9px] text-emerald-600 uppercase font-black mt-2 flex items-center justify-center gap-1 bg-white py-1 px-2 rounded-lg shadow-sm mx-auto w-fit">
+                                <Star className="w-3 h-3 fill-current" /> Sugestão de Compra
+                              </div>
+                            )}
+                          </TableCell>
+                        );
+                      })}
+                    </TableRow>
+                    {/* Payment Condition Row */}
+                    <TableRow className="bg-white">
+                      <TableCell colSpan={2} className="text-right uppercase tracking-widest font-black text-gray-400 text-[10px]">Forma de Pagamento</TableCell>
+                      {selectedQuotation.suppliers.map(qs => (
+                        <TableCell key={qs.supplierId} className="p-3 border-l border-gray-100">
+                          <Input 
+                            placeholder="Ex: 30 dias, 2x s/ juros"
+                            className="h-10 text-xs bg-gray-50 border-transparent rounded-xl focus:bg-white focus:ring-blue-500 font-medium"
+                            value={qs.paymentCondition || ''}
+                            onChange={(e) => handleUpdatePaymentCondition(qs.supplierId, e.target.value)}
+                          />
+                        </TableCell>
+                      ))}
+                    </TableRow>
+                    {/* Action Row */}
+                    <TableRow className="bg-white">
+                      <TableCell colSpan={2}></TableCell>
+                      {selectedQuotation.suppliers.map(qs => {
+                        const total = selectedQuotation.items.reduce((acc, item) => {
+                          const res = qs.responses.find(r => r.itemId === item.itemId);
+                          return acc + (item.quantity * (res?.price || 0));
+                        }, 0);
+                        return (
+                          <TableCell key={qs.supplierId} className="text-center p-6 border-l border-gray-100">
+                            {selectedQuotation.status === 'approved' ? (
+                              <Button 
+                                disabled={total === 0}
+                                onClick={() => handleCreateOrder(qs.supplierId)}
+                                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-black uppercase text-[10px] rounded-2xl h-14 shadow-xl shadow-emerald-100 transition-all hover:scale-105 active:scale-95"
+                              >
+                                Gerar Ordem de Compra
+                              </Button>
+                            ) : selectedQuotation.status === 'completed' ? (
+                              <div className="text-[10px] text-emerald-600 font-black uppercase bg-emerald-50 py-3 rounded-2xl flex items-center justify-center gap-2 border border-emerald-100">
+                                <CheckCircle className="w-4 h-4" /> Ordem Gerada
+                              </div>
+                            ) : (
+                              <div className="text-[9px] text-gray-400 font-bold uppercase tracking-widest text-center px-4 leading-relaxed">
+                                Aguardando aprovação para gerar OC
+                              </div>
+                            )}
+                          </TableCell>
+                        );
+                      })}
+                    </TableRow>
+                  </TableBody>
+                </Table>
               </div>
+            )}
+          </div>
+          <div className="p-8 bg-gray-50 border-t">
+            <div className="flex justify-between items-center">
+              <Button 
+                onClick={handleSubmitForApproval}
+                disabled={!selectedQuotation || selectedQuotation.status === 'awaiting_approval' || selectedQuotation.status === 'approved' || selectedQuotation.status === 'completed'}
+                className={cn(
+                  "flex-1 max-w-sm rounded-2xl h-14 font-black uppercase text-[10px] shadow-xl transition-all active:scale-95",
+                  selectedQuotation?.status === 'awaiting_approval' ? "bg-amber-100 text-amber-700" :
+                  selectedQuotation?.status === 'approved' ? "bg-emerald-100 text-emerald-700" :
+                  selectedQuotation?.status === 'completed' ? "bg-blue-100 text-blue-700" :
+                  "bg-blue-600 hover:bg-blue-700 text-white shadow-blue-100"
+                )}
+              >
+                {selectedQuotation?.status === 'awaiting_approval' ? 'Enviado para Aprovação' : 
+                 selectedQuotation?.status === 'approved' ? 'Aprovado para Compra' : 
+                 selectedQuotation?.status === 'completed' ? 'Orçamento Concluído' : 'Enviar para Aprovação'}
+              </Button>
+              <Button variant="ghost" onClick={() => setIsDetailsOpen(false)} className="rounded-2xl px-10 h-14 font-bold uppercase text-[10px]">Fechar Mapa</Button>
             </div>
-          </DialogContent>
-        </Dialog>
+          </div>
+        </Modal>
       </CardContent>
     </Card>
   );

@@ -25,6 +25,7 @@ import {
   Droplet,
   ShoppingCart,
   Check,
+  Package,
   ChevronsUpDown,
   Settings,
   Info,
@@ -68,6 +69,7 @@ import {
   DialogTitle, 
   DialogTrigger 
 } from "@/components/ui/dialog";
+import { Modal } from "@/components/ui/Modal";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
@@ -129,6 +131,11 @@ export default function ControlView({
   const [newMaterialRequestEntry, setNewMaterialRequestEntry] = useState<Partial<MaterialRequestItem>>({ quantity: 1, description: '', application: '' });
   const [newRequestCategory, setNewRequestCategory] = useState('');
   const [showCategorySuggestions, setShowCategorySuggestions] = useState(false);
+  
+  const [isApplyStockOpen, setIsApplyStockOpen] = useState(false);
+  const [selectedStockItem, setSelectedStockItem] = useState<{requestId: string, itemIdx: number, item: any} | null>(null);
+  const [applyQuantity, setApplyQuantity] = useState(1);
+  const [applyEquipmentId, setApplyEquipmentId] = useState('');
 
 
   React.useEffect(() => {
@@ -326,9 +333,69 @@ export default function ControlView({
       history: [...(e.history || []), newHistoryEntry]
     } : e));
 
-    // Update request status to 'fulfilled' or similar if needed
-    // In this case, we just add to history
+    // Update items to be marked as applied
+    const updatedRequests = purchaseRequests.map(r => 
+      r.id === request.id ? {
+        ...r,
+        items: r.items.map(item => ({ ...item, appliedQuantity: item.quantity }))
+      } : r
+    );
+    onUpdatePurchaseRequests(updatedRequests);
+
     alert('Peças aplicadas ao histórico do equipamento com sucesso!');
+  };
+
+  const handleApplyStock = () => {
+    if (!selectedStockItem || !applyEquipmentId || applyQuantity <= 0) return;
+    
+    const { requestId, itemIdx } = selectedStockItem;
+    const reqIndex = purchaseRequests.findIndex(r => r.id === requestId);
+    if (reqIndex === -1) return;
+    
+    const updatedRequests = [...purchaseRequests];
+    const targetRequest = { ...updatedRequests[reqIndex] };
+    const targetItem = { ...targetRequest.items[itemIdx] };
+    const currentApplied = targetItem.appliedQuantity || 0;
+    
+    if (applyQuantity > (targetItem.quantity - currentApplied)) {
+        alert('Quantidade superior ao disponível em estoque.');
+        return;
+    }
+    
+    targetItem.appliedQuantity = currentApplied + applyQuantity;
+    targetRequest.items = [...targetRequest.items];
+    targetRequest.items[itemIdx] = targetItem;
+    updatedRequests[reqIndex] = targetRequest;
+    
+    onUpdatePurchaseRequests(updatedRequests);
+    
+    // Update equipment history
+    const equip = equipments.find(e => e.id === applyEquipmentId || e.plate === applyEquipmentId);
+    if (equip) {
+        const newHistoryEntry: ServiceHistoryEntry = {
+            id: crypto.randomUUID(),
+            date: new Date().toISOString(),
+            type: 'part_application',
+            description: `Aplicação de material do estoque (${targetItem.description})`,
+            relatedId: requestId,
+            parts: [{
+                description: targetItem.description,
+                quantity: applyQuantity,
+                unit: targetItem.unit
+            }]
+        };
+        
+        onUpdateEquipments(equipments.map(e => e.id === equip.id ? {
+            ...e,
+            history: [...(e.history || []), newHistoryEntry]
+        } : e));
+    }
+    
+    setIsApplyStockOpen(false);
+    setSelectedStockItem(null);
+    setApplyQuantity(1);
+    setApplyEquipmentId('');
+    alert('Material aplicado com sucesso!');
   };
 
   const stats = useMemo(() => ({
@@ -705,138 +772,156 @@ export default function ControlView({
     <div className="p-6 max-w-[1600px] mx-auto space-y-6">
       <input type="file" ref={fileInputRef} className="hidden" accept=".xlsx, .xls" onChange={handleFileChange} />
 
-      <Dialog open={isImportModalOpen} onOpenChange={setIsImportModalOpen}>
-        <DialogContent>
-          <DialogHeader><DialogTitle>Importar Equipamentos</DialogTitle></DialogHeader>
-          <div className="py-4 space-y-4">
-            <Label>Obra de Destino</Label>
+      <Modal
+        isOpen={isImportModalOpen}
+        onClose={() => setIsImportModalOpen(false)}
+        title="Importar Equipamentos"
+        maxWidth="md"
+        footer={
+          <Button onClick={() => fileInputRef.current?.click()} className="gap-2 w-full sm:w-auto"><Upload className="w-4 h-4" /> Selecionar Arquivo</Button>
+        }
+      >
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <Label className="text-[10px] uppercase font-bold text-gray-400">Obra de Destino</Label>
             <Select value={importContractId} onValueChange={setImportContractId}>
-              <SelectTrigger><SelectValue placeholder="Usar obra da planilha" /></SelectTrigger>
+              <SelectTrigger className="h-12 rounded-xl focus:ring-blue-500 transition-all">
+                <SelectValue placeholder="Usar obra da planilha" />
+              </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">Usar obra da planilha</SelectItem>
-                {availableContracts.map(c => <SelectItem key={c.id} value={c.id}>{c.workName || c.contractNumber || 'Sem nome'}</SelectItem>)}
+                <SelectItem value="" className="font-bold">Usar obra da planilha</SelectItem>
+                {availableContracts.map(c => <SelectItem key={c.id} value={c.id} className="font-bold">{c.workName || c.contractNumber || 'Sem nome'}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>
-          <DialogFooter>
-            <Button onClick={() => fileInputRef.current?.click()} className="gap-2"><Upload className="w-4 h-4" /> Selecionar Arquivo</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          <p className="text-[10px] text-gray-500 italic">* Certifique-se de que o arquivo segue o modelo padrão de importação do SIGO.</p>
+        </div>
+      </Modal>
 
-      <Dialog open={isMaintenanceModalOpen} onOpenChange={setIsMaintenanceModalOpen}>
-        <DialogContent className="sm:max-w-[500px] rounded-3xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Wrench className="w-5 h-5 text-emerald-600" />
+      <Modal
+        isOpen={isMaintenanceModalOpen}
+        onClose={() => setIsMaintenanceModalOpen(false)}
+        maxWidth="xl"
+        className="p-0 border-none overflow-hidden"
+        headerClassName="hidden"
+      >
+        <div className="bg-emerald-600 p-6 text-white relative overflow-hidden">
+          <Wrench className="absolute -right-4 -bottom-4 w-24 h-24 opacity-20 rotate-12" />
+          <div className="relative z-10">
+            <h2 className="text-xl font-black flex items-center gap-2">
+              <Wrench className="w-5 h-5 text-emerald-200" />
               Enviar para Manutenção
-            </DialogTitle>
-            <DialogDescription className="text-xs uppercase font-bold text-gray-400">
+            </h2>
+            <p className="text-[10px] text-emerald-100 font-bold uppercase tracking-widest mt-1">
               {maintenanceEquipment?.name} - {maintenanceEquipment?.plate}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="grid gap-6 py-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="maintenance_date" className="text-[10px] uppercase font-bold text-gray-500">Data de Entrada</Label>
-                <Input
-                  id="maintenance_date"
-                  type="date"
-                  value={maintenanceEntryDate}
-                  onChange={(e) => setMaintenanceEntryDate(e.target.value)}
-                  className="rounded-xl border-gray-100 h-12 font-medium"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label className="text-[10px] uppercase font-bold text-gray-500">Tipo de Manutenção</Label>
-                <Select value={maintenanceType} onValueChange={(v: any) => setMaintenanceType(v)}>
-                  <SelectTrigger className="rounded-xl border-gray-100 h-12 font-medium">
-                    <SelectValue placeholder="Selecione o tipo" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="preventive">Preventiva</SelectItem>
-                    <SelectItem value="corrective">Corretiva</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+            </p>
+          </div>
+        </div>
+
+        <div className="p-6 space-y-6">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="maintenance_date" className="text-[10px] uppercase font-black text-gray-500 tracking-tight">Data de Entrada</Label>
+              <Input
+                id="maintenance_date"
+                type="date"
+                value={maintenanceEntryDate}
+                onChange={(e) => setMaintenanceEntryDate(e.target.value)}
+                className="rounded-xl border-gray-200 bg-gray-50/50 h-12 font-bold focus:ring-2 focus:ring-emerald-500/20"
+              />
             </div>
-
-            <div className="space-y-4 p-4 bg-gray-50 rounded-2xl border border-gray-100">
-              <div className="flex items-center justify-between">
-                <Label className="text-[10px] uppercase font-bold text-gray-600 flex items-center gap-2">
-                  <ShoppingCart className="w-3 h-3" />
-                  Solicitar Peças / Materiais
-                </Label>
-                <Badge variant="outline" className="bg-white text-[9px]">Opcional</Badge>
-              </div>
-
-              <div className="flex gap-2">
-                <Input 
-                  placeholder="Descrição da peça/serviço..."
-                  value={newMaintenanceItem.description}
-                  onChange={e => setNewMaintenanceItem({...newMaintenanceItem, description: e.target.value})}
-                  className="rounded-xl border-gray-100 bg-white"
-                />
-                <Input 
-                  type="number"
-                  placeholder="Qtd"
-                  className="w-20 rounded-xl border-gray-100 bg-white"
-                  value={newMaintenanceItem.quantity}
-                  onChange={e => setNewMaintenanceItem({...newMaintenanceItem, quantity: parseInt(e.target.value) || 1})}
-                />
-                <Button 
-                  size="icon" 
-                  variant="outline"
-                  className="rounded-xl bg-white"
-                  onClick={() => {
-                    if (newMaintenanceItem.description) {
-                      setMaintenanceItems([...maintenanceItems, newMaintenanceItem]);
-                      setNewMaintenanceItem({description: '', quantity: 1});
-                    }
-                  }}
-                >
-                  <Plus className="w-4 h-4" />
-                </Button>
-              </div>
-
-              {maintenanceItems.length > 0 && (
-                <div className="space-y-2 mt-2">
-                  {maintenanceItems.map((item, idx) => (
-                    <div key={idx} className="flex items-center justify-between bg-white p-2 rounded-xl border border-gray-100">
-                      <span className="text-xs font-medium text-gray-700">{item.quantity}x {item.description}</span>
-                      <Button 
-                        variant="ghost" 
-                        size="icon" 
-                        className="h-6 w-6 text-red-500 hover:bg-red-50"
-                        onClick={() => setMaintenanceItems(maintenanceItems.filter((_, i) => i !== idx))}
-                      >
-                        <Trash2 className="w-3 h-3" />
-                      </Button>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {maintenanceItems.length === 0 && (
-                <div className="space-y-2">
-                  <Label htmlFor="maintenance_items_legacy" className="text-[10px] uppercase font-bold text-gray-400">Ou informe em texto livre</Label>
-                  <Input
-                    id="maintenance_items_legacy"
-                    placeholder="Ex: Óleo, Filtros, Peça X..."
-                    value={maintenanceRequestedItems}
-                    onChange={(e) => setMaintenanceRequestedItems(e.target.value)}
-                    className="rounded-xl border-gray-100 bg-white h-10 font-medium"
-                  />
-                </div>
-              )}
+            <div className="space-y-2">
+              <Label className="text-[10px] uppercase font-black text-gray-500 tracking-tight">Tipo de Manutenção</Label>
+              <Select value={maintenanceType} onValueChange={(v: any) => setMaintenanceType(v)}>
+                <SelectTrigger className="rounded-xl border-gray-200 bg-gray-50/50 h-12 font-bold focus:ring-2 focus:ring-emerald-500/20">
+                  <SelectValue placeholder="Selecione o tipo" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="preventive" className="font-bold">Preventiva</SelectItem>
+                  <SelectItem value="corrective" className="font-bold">Corretiva</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </div>
-          <DialogFooter className="gap-2">
-            <Button variant="ghost" className="rounded-xl font-bold" onClick={() => setIsMaintenanceModalOpen(false)}>Cancelar</Button>
-            <Button className="rounded-xl font-bold bg-emerald-600 hover:bg-emerald-700" onClick={handleConfirmMaintenance}>Confirmar Envio</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+
+          <div className="space-y-4 p-5 bg-emerald-50/30 rounded-2xl border border-emerald-100 border-dashed">
+            <div className="flex items-center justify-between">
+              <Label className="text-[10px] uppercase font-black text-emerald-700 flex items-center gap-2 tracking-widest">
+                <ShoppingCart className="w-3 h-3" />
+                Solicitar Peças / Materiais
+              </Label>
+              <Badge variant="outline" className="bg-white/50 text-[9px] font-black border-emerald-100">OPCIONAL</Badge>
+            </div>
+
+            <div className="flex gap-2">
+              <Input 
+                placeholder="Descrição da peça ou serviço..."
+                value={newMaintenanceItem.description}
+                onChange={e => setNewMaintenanceItem({...newMaintenanceItem, description: e.target.value})}
+                className="rounded-xl border-emerald-100 bg-white h-11 text-xs font-bold"
+              />
+              <Input 
+                type="number"
+                placeholder="Qtd"
+                className="w-20 rounded-xl border-emerald-100 bg-white h-11 text-xs font-bold"
+                value={newMaintenanceItem.quantity}
+                onChange={e => setNewMaintenanceItem({...newMaintenanceItem, quantity: parseInt(e.target.value) || 1})}
+              />
+              <Button 
+                size="icon" 
+                variant="outline"
+                className="rounded-xl bg-white border-emerald-100 text-emerald-600 hover:bg-emerald-50"
+                onClick={() => {
+                  if (newMaintenanceItem.description) {
+                    setMaintenanceItems([...maintenanceItems, newMaintenanceItem]);
+                    setNewMaintenanceItem({description: '', quantity: 1});
+                  }
+                }}
+              >
+                <Plus className="w-4 h-4" />
+              </Button>
+            </div>
+
+            {maintenanceItems.length > 0 && (
+              <div className="space-y-2 mt-2 max-h-40 overflow-y-auto custom-scrollbar">
+                {maintenanceItems.map((item, idx) => (
+                  <div key={idx} className="flex items-center justify-between bg-white p-3 rounded-xl border border-emerald-50 shadow-sm animate-in slide-in-from-left duration-200">
+                    <span className="text-xs font-black text-emerald-900">{item.quantity}x {item.description}</span>
+                    <Button 
+                      variant="ghost" 
+                      size="icon" 
+                      className="h-7 w-7 text-red-500 hover:bg-red-50 rounded-lg"
+                      onClick={() => setMaintenanceItems(maintenanceItems.filter((_, i) => i !== idx))}
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {maintenanceItems.length === 0 && (
+              <div className="space-y-2">
+                <Label htmlFor="maintenance_items_legacy" className="text-[10px] uppercase font-black text-gray-400 tracking-tighter">Ou informe em texto livre</Label>
+                <Input
+                  id="maintenance_items_legacy"
+                  placeholder="Ex: Óleo, Filtros, Peça Específica..."
+                  value={maintenanceRequestedItems}
+                  onChange={(e) => setMaintenanceRequestedItems(e.target.value)}
+                  className="rounded-xl border-emerald-100 bg-white h-11 text-xs font-bold"
+                />
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="p-6 bg-gray-50 border-t flex flex-col sm:flex-row gap-3 rounded-b-2xl">
+          <Button variant="ghost" className="rounded-xl font-black uppercase text-[10px] tracking-widest h-12 flex-1" onClick={() => setIsMaintenanceModalOpen(false)}>Cancelar</Button>
+          <Button className="rounded-xl font-black uppercase text-[10px] tracking-widest bg-emerald-600 hover:bg-emerald-700 h-12 flex-[2] shadow-xl shadow-emerald-100" onClick={handleConfirmMaintenance}>
+            Confirmar Envio para Oficina
+          </Button>
+        </div>
+      </Modal>
 
       <header className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
         <div>
@@ -963,6 +1048,10 @@ export default function ControlView({
             <ShoppingCart className="w-4 h-4 mr-2" />
             Solicitações
           </TabsTrigger>
+          <TabsTrigger value="stock" className="rounded-xl px-8 font-bold data-[state=active]:bg-blue-50 data-[state=active]:text-blue-600 transition-all">
+            <Archive className="w-4 h-4 mr-2" />
+            Estoque
+          </TabsTrigger>
           <TabsTrigger value="history" className="rounded-xl px-8 font-bold data-[state=active]:bg-blue-50 data-[state=active]:text-blue-600 transition-all">
             <Calendar className="w-4 h-4 mr-2" />
             Histórico Manut.
@@ -982,20 +1071,26 @@ export default function ControlView({
               <div className="flex items-center gap-2">
                 <Button variant="outline" size="sm" onClick={downloadTemplate} className="rounded-xl gap-2 font-bold text-xs"><FileDown className="w-4 h-4" /> Modelo</Button>
                 <Button variant="outline" size="sm" onClick={() => setIsImportModalOpen(true)} className="rounded-xl gap-2 font-bold text-xs"><Upload className="w-4 h-4" /> Importar</Button>
-                <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
-                  <DialogTrigger asChild><Button className="rounded-xl bg-blue-600 gap-2 font-bold text-xs"><Plus className="w-4 h-4 mr-2" /> Novo</Button></DialogTrigger>
-                  <DialogContent className="sm:max-w-[800px] h-[90vh] flex flex-col rounded-3xl p-0 overflow-hidden border-none shadow-2xl bg-white focus:outline-none">
-                    <div className="bg-gradient-to-r from-blue-600 to-indigo-700 p-6 flex justify-between items-center shrink-0">
-                      <div className="flex items-center gap-4">
-                        <div className="p-2 bg-white/10 backdrop-blur-md rounded-2xl">
-                          <Truck className="w-8 h-8 text-white" />
-                        </div>
-                        <div>
-                          <DialogTitle className="text-xl font-black text-white">Adicionar Equipamento</DialogTitle>
-                          <DialogDescription className="text-blue-100 text-[10px] font-bold uppercase tracking-wider">Novo ativo SIGO Controlador</DialogDescription>
-                        </div>
+                <Button onClick={() => setIsAddOpen(true)} className="rounded-xl bg-blue-600 gap-2 font-bold text-xs"><Plus className="w-4 h-4 mr-2" /> Novo</Button>
+                <Modal
+                  isOpen={isAddOpen}
+                  onClose={() => setIsAddOpen(false)}
+                  maxWidth="5xl"
+                  className="p-0 border-none overflow-hidden"
+                  headerClassName="hidden"
+                >
+                  <div className="bg-gradient-to-r from-blue-600 to-indigo-700 p-8 flex justify-between items-center shrink-0 relative overflow-hidden">
+                    <Truck className="absolute -right-8 -bottom-8 w-40 h-40 opacity-10 rotate-12" />
+                    <div className="flex items-center gap-6 relative z-10">
+                      <div className="p-3 bg-white/10 backdrop-blur-md rounded-3xl">
+                        <Plus className="w-8 h-8 text-white" />
+                      </div>
+                      <div>
+                        <h2 className="text-2xl font-black text-white leading-tight">Adicionar Equipamento</h2>
+                        <p className="text-blue-100 text-[10px] font-bold uppercase tracking-widest mt-1 opacity-80">Novo ativo SIGO Controlador</p>
                       </div>
                     </div>
+                  </div>
 
                     <Tabs defaultValue="basic" className="w-full flex-1 flex flex-col overflow-hidden">
                       <TabsList className="w-full justify-start rounded-none bg-slate-50 border-b px-6 h-14 gap-6 shrink-0">
@@ -1248,15 +1343,14 @@ export default function ControlView({
                         </TabsContent>
                       </div>
 
-                      <DialogFooter className="p-6 bg-gray-50 border-t gap-3">
+                      <div className="p-6 bg-gray-50 border-t flex flex-col sm:flex-row gap-3 rounded-b-2xl">
                         <Button variant="ghost" onClick={() => setIsAddOpen(false)} className="rounded-xl font-bold uppercase text-[10px] tracking-widest h-12 px-6">Cancelar</Button>
-                        <Button onClick={handleCreateEquip} className="flex-1 h-12 rounded-2xl bg-blue-600 hover:bg-blue-700 shadow-lg shadow-blue-200 font-bold uppercase text-[10px] tracking-widest">
+                        <Button onClick={handleCreateEquip} className="flex-1 h-12 rounded-2xl bg-blue-600 hover:bg-blue-700 shadow-xl shadow-blue-100 font-black uppercase text-[10px] tracking-widest transition-all active:scale-95">
                           <Check className="w-4 h-4 mr-2" /> Salvar Equipamento no SIGO
                         </Button>
-                      </DialogFooter>
+                      </div>
                     </Tabs>
-                  </DialogContent>
-                </Dialog>
+                </Modal>
               </div>
             </CardHeader>
             <CardContent className="p-0 overflow-x-auto custom-scrollbar">
@@ -1309,7 +1403,14 @@ export default function ControlView({
                 </TableHeader>
                 <TableBody>
                   {filteredEquipments.filter(e => !e.inMaintenance).map(e => (
-                    <TableRow key={e.id} className="hover:bg-gray-50 transition-colors group h-11">
+                    <TableRow 
+                      key={e.id} 
+                      className="hover:bg-gray-50 transition-colors group h-11 cursor-pointer"
+                      onDoubleClick={() => {
+                        setEquipmentToEdit(e);
+                        setIsEditOpen(true);
+                      }}
+                    >
                       <TableCell className="py-0.5">
                         <div className="flex items-center gap-2">
                           <div className={cn(
@@ -1482,7 +1583,14 @@ export default function ControlView({
                 </TableHeader>
                 <TableBody>
                   {filteredEquipments.filter(e => e.inMaintenance).map(e => (
-                    <TableRow key={e.id} className="hover:bg-gray-50 transition-colors">
+                    <TableRow 
+                      key={e.id} 
+                      className="hover:bg-gray-50 transition-colors cursor-pointer"
+                      onDoubleClick={() => {
+                        setEquipmentToEdit(e);
+                        setIsEditOpen(true);
+                      }}
+                    >
                       <TableCell>
                         <div className="flex items-center gap-3">
                           <div>
@@ -1601,7 +1709,16 @@ export default function ControlView({
                     const target = contracts.find(c => c.id === t.targetContractId);
                     
                     return (
-                      <TableRow key={t.id} className="hover:bg-gray-50 transition-colors">
+                      <TableRow 
+                        key={t.id} 
+                        className="hover:bg-gray-50 transition-colors cursor-pointer"
+                        onDoubleClick={() => {
+                          if (equip) {
+                            setEquipmentToEdit(equip);
+                            setIsEditOpen(true);
+                          }
+                        }}
+                      >
                         <TableCell>
                           <div className="flex items-center gap-2">
                             <Truck className="w-4 h-4 text-gray-400" />
@@ -1792,6 +1909,16 @@ export default function ControlView({
                   <CardDescription className="text-[10px] uppercase font-bold text-gray-400">Status das solicitações enviadas para compras</CardDescription>
                 </div>
               </div>
+              <Button 
+                onClick={() => {
+                  setNewMaterialRequestEntry({ quantity: 1, description: '', application: 'ESTOQUE/GERAL' });
+                  setNewMaterialRequestItems([]);
+                  setIsMaterialRequestModalOpen(true);
+                }} 
+                className="rounded-xl bg-blue-600 gap-2 font-bold text-xs"
+              >
+                <Plus className="w-4 h-4" /> Nova Solicitação
+              </Button>
             </CardHeader>
             <CardContent className="p-0">
               <Table>
@@ -1866,6 +1993,80 @@ export default function ControlView({
           </Card>
         </TabsContent>
 
+        <TabsContent value="stock">
+          <Card className="border-none shadow-xl rounded-3xl overflow-hidden">
+            <CardHeader className="border-b border-gray-50 flex flex-row items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="p-2 bg-blue-50 rounded-xl"><Archive className="w-5 h-5 text-blue-600" /></div>
+                <div>
+                  <CardTitle className="text-lg font-black">Estoque de Materiais</CardTitle>
+                  <CardDescription className="text-[10px] uppercase font-bold text-gray-400">Itens recebidos aguardando aplicação em equipamentos</CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="p-0">
+              <Table>
+                <TableHeader className="bg-gray-50/50">
+                  <TableRow>
+                    <TableHead className="font-bold text-[10px] uppercase tracking-widest text-gray-400 py-5">Material / Peça</TableHead>
+                    <TableHead className="font-bold text-[10px] uppercase tracking-widest text-gray-400">Solicitação Origem</TableHead>
+                    <TableHead className="font-bold text-[10px] uppercase tracking-widest text-gray-400 text-center">Quantidade Total</TableHead>
+                    <TableHead className="font-bold text-[10px] uppercase tracking-widest text-gray-400 text-center">Ja Aplicado</TableHead>
+                    <TableHead className="font-bold text-[10px] uppercase tracking-widest text-gray-400 text-center">Saldo em Estoque</TableHead>
+                    <TableHead className="w-[150px]"></TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {purchaseRequests
+                    .filter(r => r.sector === 'CONTROLADOR' && r.status === 'Recebido' && (!selectedContractId || r.contractId === selectedContractId))
+                    .flatMap(r => r.items.map((item, idx) => ({ ...item, requestId: r.id, requestDescription: r.description, itemIdx: idx })))
+                    .filter(item => (item.quantity - (item.appliedQuantity || 0)) > 0)
+                    .map((item, idx) => (
+                      <TableRow key={`${item.requestId}-${item.itemIdx}`} className="hover:bg-gray-50 transition-colors">
+                        <TableCell>
+                          <p className="font-bold text-gray-900 text-sm">{item.description}</p>
+                          <p className="text-[10px] text-gray-500 font-bold uppercase tracking-tighter">Unidade: {item.unit}</p>
+                        </TableCell>
+                        <TableCell>
+                          <p className="text-xs font-medium text-gray-600">{item.requestDescription}</p>
+                        </TableCell>
+                        <TableCell className="text-center font-bold text-gray-900">{item.quantity}</TableCell>
+                        <TableCell className="text-center font-bold text-blue-600">{item.appliedQuantity || 0}</TableCell>
+                        <TableCell className="text-center">
+                          <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-200 border-none px-3 py-1 text-sm font-black">
+                            {item.quantity - (item.appliedQuantity || 0)}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Button 
+                            className="bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-[10px] uppercase h-8"
+                            onClick={() => {
+                              setSelectedStockItem(item);
+                              setIsApplyStockOpen(true);
+                              setApplyQuantity(item.quantity - (item.appliedQuantity || 0));
+                            }}
+                          >
+                            Aplicar em Equipamento
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  }
+                  {purchaseRequests
+                    .filter(r => r.status === 'Recebido' && r.sector === 'CONTROLADOR').length === 0 && (
+                      <TableRow>
+                        <TableCell colSpan={6} className="text-center py-20 text-gray-400 font-medium">
+                          Nenhum material no estoque.
+                        </TableCell>
+                      </TableRow>
+                    )
+                  }
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
         <TabsContent value="history">
           <Card className="border-none shadow-xl rounded-3xl overflow-hidden">
             <CardHeader className="border-b border-gray-50">
@@ -1896,7 +2097,16 @@ export default function ControlView({
                     .map(m => {
                       const equip = equipments.find(e => e.id === m.equipmentId);
                       return (
-                        <TableRow key={m.id} className="hover:bg-gray-50 transition-colors">
+                        <TableRow 
+                          key={m.id} 
+                          className="hover:bg-gray-50 transition-colors cursor-pointer"
+                          onDoubleClick={() => {
+                            if (equip) {
+                              setEquipmentToEdit(equip);
+                              setIsEditOpen(true);
+                            }
+                          }}
+                        >
                           <TableCell className="px-4">
                             <p className="font-bold text-gray-900">{equip?.name || 'Equipamento Excluído'}</p>
                             <p className="text-[10px] text-gray-500 uppercase">{equip?.plate || '-'}</p>
@@ -1942,20 +2152,26 @@ export default function ControlView({
         </TabsContent>
       </Tabs>
 
-      <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
-        <DialogContent className="sm:max-w-[800px] h-[90vh] flex flex-col rounded-3xl p-0 overflow-hidden border-none shadow-2xl bg-white focus:outline-none">
-          <div className="bg-gradient-to-r from-blue-700 to-indigo-800 p-6 flex justify-between items-center shrink-0">
-            <div className="flex items-center gap-4">
-              <div className="p-2 bg-white/10 backdrop-blur-md rounded-2xl">
-                <Truck className="w-8 h-8 text-white" />
-              </div>
-              <div>
-                <DialogTitle className="text-xl font-black text-white">Editar Equipamento</DialogTitle>
-                <DialogDescription className="text-blue-100 text-[10px] font-bold uppercase tracking-wider">Alterar dados do ativo SIGO</DialogDescription>
-              </div>
+      <Modal
+        isOpen={isEditOpen}
+        onClose={() => setIsEditOpen(false)}
+        maxWidth="5xl"
+        className="p-0 border-none overflow-hidden"
+        headerClassName="hidden"
+      >
+        <div className="bg-gradient-to-r from-blue-700 to-indigo-800 p-8 flex justify-between items-center shrink-0 relative overflow-hidden">
+          <Truck className="absolute -right-8 -bottom-8 w-40 h-40 opacity-10 rotate-12" />
+          <div className="flex items-center gap-6 relative z-10">
+            <div className="p-3 bg-white/10 backdrop-blur-md rounded-3xl">
+              <Package className="w-8 h-8 text-white" />
             </div>
-            <Badge className="bg-white/20 text-white border-none font-black text-xs px-4 py-1.5 uppercase">{equipmentToEdit?.code || 'S/C'}</Badge>
+            <div>
+              <h2 className="text-2xl font-black text-white leading-tight">Editar Equipamento</h2>
+              <p className="text-blue-100 text-[10px] font-bold uppercase tracking-widest mt-1 opacity-80">Alterar dados do ativo SIGO</p>
+            </div>
           </div>
+          <Badge className="bg-white/20 text-white border-none font-black text-xs px-4 py-1.5 uppercase rounded-xl backdrop-blur-md">{equipmentToEdit?.code || 'S/C'}</Badge>
+        </div>
 
           <Tabs defaultValue="basic" className="w-full flex-1 flex flex-col overflow-hidden">
             <TabsList className="w-full justify-start rounded-none bg-slate-50 border-b px-6 h-14 gap-6 shrink-0">
@@ -2226,150 +2442,256 @@ export default function ControlView({
               </TabsContent>
             </div>
 
-            <DialogFooter className="p-6 bg-gray-50 border-t flex items-center justify-between">
+            <div className="p-6 bg-gray-50 border-t flex flex-col sm:flex-row items-center justify-between gap-4 rounded-b-2xl">
               <Button 
                 variant="ghost" 
                 onClick={handlePermanentDelete} 
-                className="text-red-500 hover:text-red-600 hover:bg-red-50 font-bold uppercase text-[10px] tracking-widest h-12 px-6 border border-red-100 rounded-2xl"
+                className="text-red-500 hover:text-red-600 hover:bg-red-50 font-bold uppercase text-[10px] tracking-widest h-12 px-6 border border-red-100 rounded-2xl w-full sm:w-auto"
               >
-                <Trash2 className="w-4 h-4 mr-2" /> Excluir Ativo
+                <Trash2 className="w-4 h-4 mr-2" /> Excluir Ativo permanentemente
               </Button>
-              <div className="flex items-center gap-3">
-                <Button variant="ghost" onClick={() => setIsEditOpen(false)} className="rounded-xl font-bold uppercase text-[10px] tracking-widest h-12 px-6">Cancelar</Button>
-                <Button onClick={handleUpdateEquip} className="h-12 rounded-2xl bg-blue-600 hover:bg-blue-700 shadow-lg shadow-blue-200 font-bold uppercase text-[10px] tracking-widest px-8">
-                  <Check className="w-4 h-4 mr-2" /> Atualizar Dados
+              <div className="flex items-center gap-3 w-full sm:w-auto">
+                <Button variant="ghost" onClick={() => setIsEditOpen(false)} className="rounded-xl font-bold uppercase text-[10px] tracking-widest h-12 px-6 flex-1 sm:flex-none">Cancelar</Button>
+                <Button onClick={handleUpdateEquip} className="h-12 rounded-2xl bg-blue-600 hover:bg-blue-700 shadow-xl shadow-blue-100 font-black uppercase text-[10px] tracking-widest px-8 flex-1 sm:flex-none transition-all active:scale-95">
+                  <Check className="w-4 h-4 mr-2" /> Atualizar Dados do Equipamento
                 </Button>
               </div>
-            </DialogFooter>
+            </div>
           </Tabs>
-        </DialogContent>
+      </Modal>
 
-      </Dialog>
+      <Modal
+        isOpen={isTransferOpen}
+        onClose={() => setIsTransferOpen(false)}
+        maxWidth="md"
+        className="p-0 border-none overflow-hidden"
+        headerClassName="hidden"
+      >
+        <div className="bg-emerald-600 p-8 text-white relative overflow-hidden">
+          <ArrowRightLeft className="absolute -right-8 -bottom-8 w-40 h-40 opacity-10 rotate-12" />
+          <div className="relative z-10">
+            <h2 className="text-2xl font-black text-white leading-tight">Transferir Equipamento</h2>
+            <p className="text-emerald-100 text-[10px] font-bold uppercase tracking-widest mt-1 opacity-80">Mudança de Centro de Custo / Obra</p>
+          </div>
+        </div>
 
-      <Dialog open={isTransferOpen} onOpenChange={setIsTransferOpen}>
-        <DialogContent className="max-w-md rounded-3xl p-8">
-          <DialogHeader>
-            <DialogTitle className="text-2xl font-black text-green-600">Transferir Equipamento</DialogTitle>
-            <DialogDescription>
-              Solicite a transferência deste equipamento para outra obra. A obra de destino precisará aprovar o recebimento.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="py-6 space-y-4">
-            <div className="p-4 bg-green-50 rounded-xl border border-green-100">
-              <p className="text-sm font-bold text-green-900">{equipmentToTransfer?.name}</p>
-              <p className="text-xs text-green-700">{equipmentToTransfer?.plate}</p>
+        <div className="p-8 space-y-6">
+          <div className="p-5 bg-emerald-50 rounded-2xl border border-emerald-100 relative overflow-hidden">
+            <div className="absolute right-0 top-0 p-4 opacity-10">
+                <Truck className="w-12 h-12 text-emerald-900" />
             </div>
-            <div className="space-y-2">
-              <Label className="text-xs font-bold text-gray-500 uppercase">Obra de Destino</Label>
-              <Select value={targetContractId} onValueChange={setTargetContractId}>
-                <SelectTrigger className="h-12 border-gray-200 rounded-xl">
-                  <SelectValue placeholder="Selecione a obra de destino">
-                    {targetContractId ? (
-                      (() => {
-                        const c = availableContracts.find(x => x.id === targetContractId);
-                        return c ? (c.workName || c.contractNumber) : "Selecionar Obra";
-                      })()
-                    ) : "Selecionar Obra"}
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  {availableContracts
-                    .filter(c => c.id !== equipmentToTransfer?.contractId)
-                    .map(c => (
-                    <SelectItem key={c.id} value={c.id} textValue={c.workName || c.contractNumber}>
-                      <div className="flex flex-col">
-                        <span className="font-bold text-gray-900 leading-tight">{c.workName || c.client || 'Sem nome'}</span>
-                        <span className="text-[10px] text-gray-500 uppercase">{c.contractNumber || 'S/N'}</span>
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            <div className="relative z-10">
+                <p className="text-lg font-black text-emerald-900 leading-tight">{equipmentToTransfer?.name}</p>
+                <p className="text-[10px] text-emerald-700 font-bold uppercase tracking-widest mt-1">Série/Placa: {equipmentToTransfer?.plate || 'S/N'}</p>
             </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Obra de Destino</Label>
+            <Select value={targetContractId} onValueChange={setTargetContractId}>
+              <SelectTrigger className="h-14 border-gray-100 bg-gray-50/50 rounded-2xl text-sm font-bold focus:ring-2 focus:ring-emerald-500/20">
+                <SelectValue placeholder="Selecione a obra de destino">
+                  {targetContractId ? (
+                    (() => {
+                      const c = availableContracts.find(x => x.id === targetContractId);
+                      return c ? (c.workName || c.contractNumber) : "Selecionar Obra";
+                    })()
+                  ) : "Selecionar Obra"}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent className="rounded-2xl">
+                {availableContracts
+                  .filter(c => c.id !== equipmentToTransfer?.contractId)
+                  .map(c => (
+                  <SelectItem key={c.id} value={c.id} textValue={c.workName || c.contractNumber} className="py-3 px-4 rounded-xl focus:bg-emerald-50">
+                    <div className="flex flex-col">
+                      <span className="font-black text-gray-900 leading-tight uppercase text-[10px]">{c.workName || c.client || 'Sem nome'}</span>
+                      <span className="text-[9px] text-gray-500 font-bold uppercase mt-0.5 tracking-tighter italic">{c.contractNumber || 'S/N'}</span>
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-2">
+            <Label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Data da Transferência</Label>
+            <Input 
+              type="date" 
+              value={transferDateInput} 
+              onChange={e => setTransferDateInput(e.target.value)}
+              className="h-14 border-gray-100 bg-gray-50/50 rounded-2xl text-sm font-bold focus:ring-2 focus:ring-emerald-500/20"
+            />
+          </div>
+        </div>
+
+        <div className="px-8 pb-8 pt-2">
+          <Button 
+            onClick={handleTransferRequest} 
+            disabled={!targetContractId}
+            className="w-full h-14 rounded-2xl bg-emerald-600 hover:bg-emerald-700 shadow-xl shadow-emerald-100 font-black uppercase text-xs tracking-widest transition-all active:scale-[0.98] disabled:opacity-50"
+          >
+            Confirmar Transferência
+          </Button>
+          <Button 
+            variant="ghost" 
+            onClick={() => setIsTransferOpen(false)}
+            className="w-full mt-2 h-10 rounded-xl font-bold uppercase text-[9px] text-gray-400 tracking-widest hover:text-gray-600"
+          >
+            Cancelar operação
+          </Button>
+        </div>
+      </Modal>
+
+      <Modal
+        isOpen={isDeleteOpen}
+        onClose={() => setIsDeleteOpen(false)}
+        maxWidth="md"
+        className="p-0 border-none overflow-hidden"
+        headerClassName="hidden"
+      >
+        <div className="bg-orange-600 p-8 text-white relative overflow-hidden">
+          <XCircle className="absolute -right-8 -bottom-8 w-40 h-40 opacity-10 rotate-12" />
+          <div className="relative z-10">
+            <h2 className="text-2xl font-black text-white leading-tight">Dispensar Equipamento</h2>
+            <p className="text-orange-100 text-[10px] font-bold uppercase tracking-widest mt-1 opacity-80">O equipamento será marcado como inativo</p>
+          </div>
+        </div>
+
+        <div className="p-8 space-y-6">
+          <div className="p-5 bg-orange-50 rounded-2xl border border-orange-100 relative overflow-hidden">
+            <div className="relative z-10">
+                <p className="text-lg font-black text-orange-900 leading-tight">{equipmentToDelete?.name}</p>
+                <p className="text-[10px] text-orange-700 font-bold uppercase tracking-widest mt-1">Série/Placa: {equipmentToDelete?.plate || 'S/N'}</p>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Data de Saída</Label>
+            <Input 
+              type="date" 
+              value={exitDateInput} 
+              onChange={e => setExitDateInput(e.target.value)} 
+              className="h-14 border-gray-100 bg-gray-50/50 rounded-2xl text-sm font-bold focus:ring-2 focus:ring-orange-500/20"
+            />
+          </div>
+        </div>
+
+        <div className="px-8 pb-8 pt-2">
+          <Button 
+            onClick={handleSoftDelete} 
+            className="w-full h-14 rounded-2xl bg-orange-600 hover:bg-orange-700 shadow-xl shadow-orange-100 font-black uppercase text-xs tracking-widest transition-all active:scale-[0.98]"
+          >
+            Confirmar Saída
+          </Button>
+          <Button 
+            variant="ghost" 
+            onClick={() => setIsDeleteOpen(false)}
+            className="w-full mt-2 h-10 rounded-xl font-bold uppercase text-[9px] text-gray-400 tracking-widest hover:text-gray-600"
+          >
+            Cancelar operação
+          </Button>
+        </div>
+      </Modal>
+
+      <Modal
+        isOpen={isTankModalOpen}
+        onClose={() => setIsTankModalOpen(false)}
+        maxWidth="md"
+        className="p-0 border-none overflow-hidden"
+        headerClassName="hidden"
+      >
+        <div className="bg-blue-600 p-8 text-white relative overflow-hidden">
+          <Droplet className="absolute -right-8 -bottom-8 w-40 h-40 opacity-10 rotate-12" />
+          <div className="relative z-10">
+            <h2 className="text-2xl font-black text-white leading-tight">Novo Tanque</h2>
+            <p className="text-blue-100 text-[10px] font-bold uppercase tracking-widest mt-1 opacity-80">Cadastro de armazenamento de combustível</p>
+          </div>
+        </div>
+
+        <div className="p-8 space-y-6">
+          <div className="space-y-2">
+            <Label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Nome/Identificação</Label>
+            <Input 
+              placeholder="Ex: Tanque Principal Obra" 
+              value={newTank.name} 
+              onChange={e => setNewTank({...newTank, name: e.target.value})} 
+              className="h-14 border-gray-100 bg-gray-50/50 rounded-2xl text-sm font-bold"
+            />
+          </div>
+          
+          <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label className="text-xs font-bold text-gray-500 uppercase">Data da Transferência</Label>
+              <Label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Capacidade (L)</Label>
               <Input 
-                type="date" 
-                value={transferDateInput} 
-                onChange={e => setTransferDateInput(e.target.value)}
-                className="h-12 border-gray-200 rounded-xl"
+                type="number" 
+                value={newTank.capacity || ''} 
+                onChange={e => setNewTank({...newTank, capacity: Number(e.target.value)})} 
+                className="h-14 border-gray-100 bg-gray-50/50 rounded-2xl text-sm font-bold"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Volume Inicial (L)</Label>
+              <Input 
+                type="number" 
+                value={newTank.currentLevel || ''} 
+                onChange={e => setNewTank({...newTank, currentLevel: Number(e.target.value)})} 
+                className="h-14 border-gray-100 bg-gray-50/50 rounded-2xl text-sm font-bold"
               />
             </div>
           </div>
-          <DialogFooter className="gap-2">
-            <Button variant="outline" onClick={() => setIsTransferOpen(false)} className="rounded-xl h-11">Cancelar</Button>
-            <Button 
-                onClick={handleTransferRequest} 
-                className="bg-green-600 hover:bg-green-700 text-white rounded-xl h-11 px-8 font-bold"
-                disabled={!targetContractId}
-            >
-                Solicitar Transferência
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        </div>
 
-      <Dialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>
-        <DialogContent className="max-w-md rounded-3xl p-8">
-          <DialogHeader>
-            <DialogTitle className="text-2xl font-black text-orange-600">Dispensar Equipamento</DialogTitle>
-            <DialogDescription>
-              O equipamento será marcado como inativo. Seus dados históricos serão preservados no sistema para consultas futuras.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="py-6 space-y-4">
-            <div className="p-4 bg-orange-50 rounded-xl border border-orange-100">
-              <p className="text-sm font-bold text-orange-900">{equipmentToDelete?.name}</p>
-              <p className="text-xs text-orange-700">{equipmentToDelete?.plate}</p>
-            </div>
-            <div className="space-y-2">
-              <Label className="text-xs font-bold text-gray-500 uppercase">Data de Saída</Label>
+        <div className="px-8 pb-8 pt-2">
+          <Button 
+            onClick={handleCreateTank} 
+            className="w-full h-14 rounded-2xl bg-blue-600 hover:bg-blue-700 shadow-xl shadow-blue-100 font-black uppercase text-xs tracking-widest transition-all active:scale-[0.98]"
+          >
+            Salvar Tanque
+          </Button>
+        </div>
+      </Modal>
+
+      <Modal
+        isOpen={isFuelLogModalOpen}
+        onClose={() => setIsFuelLogModalOpen(false)}
+        maxWidth="md"
+        className="p-0 border-none overflow-hidden"
+        headerClassName="hidden"
+      >
+        <div className={cn("p-8 text-white relative overflow-hidden", newFuelLog.type === 'entrada' ? 'bg-emerald-600' : 'bg-orange-600')}>
+          <Droplet className="absolute -right-8 -bottom-8 w-40 h-40 opacity-10 rotate-12" />
+          <div className="relative z-10 text-left">
+            <h2 className="text-2xl font-black text-white leading-tight">
+              {newFuelLog.type === 'entrada' ? 'Entrada de Combustível' : 'Abastecimento'}
+            </h2>
+            <p className="text-white/80 text-[10px] font-bold uppercase tracking-widest mt-1 opacity-80">
+              {newFuelLog.type === 'entrada' ? 'Registro de compra/carga' : 'Saída para equipamento'}
+            </p>
+          </div>
+        </div>
+
+        <div className="p-8 space-y-6">
+          <div className="grid grid-cols-1 gap-4">
+            <div className="space-y-2 text-left">
+              <Label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Data</Label>
               <Input 
                 type="date" 
-                value={exitDateInput} 
-                onChange={e => setExitDateInput(e.target.value)} 
-                className="h-12 border-gray-200 rounded-xl"
+                value={newFuelLog.date} 
+                onChange={e => setNewFuelLog({...newFuelLog, date: e.target.value})} 
+                className="h-12 border-gray-100 bg-gray-50/50 rounded-xl font-bold"
               />
             </div>
-          </div>
-          <DialogFooter className="gap-2">
-            <Button variant="outline" onClick={() => setIsDeleteOpen(false)} className="rounded-xl h-11">Cancelar</Button>
-            <Button onClick={handleSoftDelete} className="bg-orange-600 hover:bg-orange-700 text-white rounded-xl h-11 px-8 font-bold">Confirmar Saída</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={isTankModalOpen} onOpenChange={setIsTankModalOpen}>
-        <DialogContent className="max-w-md rounded-3xl p-8">
-          <DialogHeader><DialogTitle className="text-2xl font-black">Novo Tanque de Combustível</DialogTitle></DialogHeader>
-          <div className="grid grid-cols-1 gap-4 py-4">
-            <div className="space-y-1"><Label className="text-[10px] uppercase font-bold text-gray-400">Nome/Identificação</Label><Input value={newTank.name} onChange={e => setNewTank({...newTank, name: e.target.value})} /></div>
-            <div className="space-y-1"><Label className="text-[10px] uppercase font-bold text-gray-400">Capacidade Total (Litros)</Label><Input type="number" value={newTank.capacity || ''} onChange={e => setNewTank({...newTank, capacity: Number(e.target.value)})} /></div>
-            <div className="space-y-1"><Label className="text-[10px] uppercase font-bold text-gray-400">Volume Inicial (Litros)</Label><Input type="number" value={newTank.currentLevel || ''} onChange={e => setNewTank({...newTank, currentLevel: Number(e.target.value)})} /></div>
-          </div>
-          <DialogFooter><Button onClick={handleCreateTank} className="w-full h-12 rounded-2xl bg-blue-600 font-bold">Salvar Tanque</Button></DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={isFuelLogModalOpen} onOpenChange={setIsFuelLogModalOpen}>
-        <DialogContent className="max-w-md rounded-3xl p-8">
-          <DialogHeader>
-            <DialogTitle className={cn("text-2xl font-black", newFuelLog.type === 'entrada' ? 'text-emerald-600' : 'text-orange-600')}>
-              {newFuelLog.type === 'entrada' ? 'Entrada de Combustível' : 'Abastecimento de Equipamento'}
-            </DialogTitle>
-          </DialogHeader>
-          <div className="grid grid-cols-1 gap-4 py-4">
-            <div className="space-y-1"><Label className="text-[10px] uppercase font-bold text-gray-400">Data</Label><Input type="date" value={newFuelLog.date} onChange={e => setNewFuelLog({...newFuelLog, date: e.target.value})} /></div>
             
-            <div className="space-y-1">
-              <Label className="text-[10px] uppercase font-bold text-gray-400">Tanque</Label>
+            <div className="space-y-2 text-left">
+              <Label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Tanque de Origem</Label>
               <Select value={newFuelLog.tankId || ''} onValueChange={val => setNewFuelLog({...newFuelLog, tankId: val})}>
-                <SelectTrigger>
+                <SelectTrigger className="h-12 border-gray-100 bg-gray-50/50 rounded-xl font-bold">
                   <SelectValue placeholder="Selecione o tanque" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="rounded-xl">
                   {fuelTanks.filter(t => !selectedContractId || t.contractId === selectedContractId).map(t => (
-                    <SelectItem key={t.id} value={t.id}>{t.name} ({t.currentLevel}/{t.capacity}L)</SelectItem>
+                    <SelectItem key={t.id} value={t.id} className="font-bold">{t.name} ({t.currentLevel}/{t.capacity}L)</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -2377,18 +2699,17 @@ export default function ControlView({
 
             {newFuelLog.type === 'saida' && (
               <div className="space-y-4">
-                <div className="space-y-1">
-                  <Label className="text-[10px] uppercase font-bold text-gray-400">Equipamento ou Tanque Destino</Label>
+                <div className="space-y-2 text-left">
+                  <Label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Equipamento Destino</Label>
                   <Popover open={openDest} onOpenChange={setOpenDest}>
                     <PopoverTrigger asChild>
                       <Button
                         variant="outline"
                         role="combobox"
-                        aria-expanded={openDest}
-                        className="w-full justify-between h-10 px-3 font-normal"
+                        className="w-full justify-between h-12 px-4 border-gray-100 bg-gray-50/50 rounded-xl font-bold text-sm"
                       >
                         {(() => {
-                          if (!newFuelLog.equipmentId) return "Buscar e selecionar destino...";
+                          if (!newFuelLog.equipmentId) return "Selecionar destino...";
                           const eq = equipments.find(e => e.id === newFuelLog.equipmentId);
                           if (eq) return `${eq.name} (${eq.plate})`;
                           const tk = fuelTanks.find(t => t.id === newFuelLog.equipmentId);
@@ -2398,10 +2719,10 @@ export default function ControlView({
                         <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                       </Button>
                     </PopoverTrigger>
-                    <PopoverContent className="w-full p-0 max-w-[calc(100vw-2rem)] sm:max-w-md" align="start">
+                    <PopoverContent className="w-full p-0 max-w-[calc(100vw-2rem)] sm:max-w-md rounded-2xl overflow-hidden border-gray-100 shadow-2xl" align="start">
                       <Command>
-                        <CommandInput placeholder="Digite para buscar..." />
-                        <CommandList>
+                        <CommandInput placeholder="Filtrar equipamentos..." className="border-none focus:ring-0 font-bold" />
+                        <CommandList className="max-h-[300px]">
                           <CommandEmpty>Nenhum destino encontrado.</CommandEmpty>
                           
                           {fuelTanks.filter(t => t.id !== newFuelLog.tankId && (!selectedContractId || t.contractId === selectedContractId)).length > 0 && (
@@ -2417,9 +2738,13 @@ export default function ControlView({
                                       setNewFuelLog({ ...newFuelLog, equipmentId: t.id });
                                       setOpenDest(false);
                                     }}
+                                    className="py-3 px-4 rounded-xl cursor-pointer"
                                   >
-                                    <Check className={cn("mr-2 h-4 w-4", newFuelLog.equipmentId === t.id ? "opacity-100" : "opacity-0")} />
-                                    Tanque: {t.name} ({t.currentLevel}/{t.capacity}L)
+                                    <Check className={cn("mr-2 h-4 w-4 text-blue-600", newFuelLog.equipmentId === t.id ? "opacity-100" : "opacity-0")} />
+                                    <div className="flex flex-col">
+                                      <span className="font-black text-gray-900 uppercase text-[10px]">Tanque: {t.name}</span>
+                                      <span className="text-[9px] text-gray-500 font-bold">Nível: {t.currentLevel}L / {t.capacity}L</span>
+                                    </div>
                                   </CommandItem>
                                 ))}
                             </CommandGroup>
@@ -2431,14 +2756,18 @@ export default function ControlView({
                               .map(e => (
                                 <CommandItem
                                   key={e.id}
-                                  value={`${e.name} ${e.plate}`}
+                                  value={e.name + " " + e.plate}
                                   onSelect={() => {
                                     setNewFuelLog({ ...newFuelLog, equipmentId: e.id });
                                     setOpenDest(false);
                                   }}
+                                  className="py-3 px-4 rounded-xl cursor-pointer"
                                 >
-                                  <Check className={cn("mr-2 h-4 w-4", newFuelLog.equipmentId === e.id ? "opacity-100" : "opacity-0")} />
-                                  {e.name} ({e.plate})
+                                  <Check className={cn("mr-2 h-4 w-4 text-blue-600", newFuelLog.equipmentId === e.id ? "opacity-100" : "opacity-0")} />
+                                  <div className="flex flex-col">
+                                    <span className="font-black text-gray-900 uppercase text-[10px]">{e.name}</span>
+                                    <span className="text-[9px] text-gray-500 font-bold tracking-tight">PLACA: {e.plate || 'S/N'}</span>
+                                  </div>
                                 </CommandItem>
                               ))}
                           </CommandGroup>
@@ -2450,33 +2779,70 @@ export default function ControlView({
               </div>
             )}
 
-            <div className="space-y-1"><Label className="text-[10px] uppercase font-bold text-gray-400">Quantidade (Litros)</Label><Input type="number" value={newFuelLog.quantity || ''} onChange={e => setNewFuelLog({...newFuelLog, quantity: Number(e.target.value)})} /></div>
+            <div className="space-y-2 text-left">
+              <Label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Quantidade (Litros)</Label>
+              <Input 
+                type="number" 
+                value={newFuelLog.quantity || ''} 
+                onChange={e => setNewFuelLog({...newFuelLog, quantity: Number(e.target.value)})} 
+                className="h-12 border-gray-100 bg-gray-50/50 rounded-xl font-black text-blue-600 focus:ring-blue-500"
+              />
+            </div>
             
             {newFuelLog.type === 'entrada' && (
-              <>
-                <div className="space-y-1"><Label className="text-[10px] uppercase font-bold text-gray-400">Fornecedor</Label><Input value={newFuelLog.supplier || ''} onChange={e => setNewFuelLog({...newFuelLog, supplier: e.target.value})} /></div>
-                <div className="space-y-1"><Label className="text-[10px] uppercase font-bold text-gray-400">Nº da Nota Fiscal</Label><Input value={newFuelLog.invoiceNumber || ''} onChange={e => setNewFuelLog({...newFuelLog, invoiceNumber: e.target.value})} /></div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-1"><Label className="text-[10px] uppercase font-bold text-gray-400">Preço Unitário (R$)</Label><Input type="number" step="0.01" value={newFuelLog.unitPrice || ''} onChange={e => setNewFuelLog({...newFuelLog, unitPrice: Number(e.target.value)})} /></div>
-                  <div className="space-y-1"><Label className="text-[10px] uppercase font-bold text-gray-400">Custo Total (R$)</Label><Input type="number" step="0.01" value={newFuelLog.cost || ''} onChange={e => setNewFuelLog({...newFuelLog, cost: Number(e.target.value)})} /></div>
+              <div className="grid grid-cols-1 gap-4 pt-4 border-t border-gray-100">
+                <div className="space-y-2 text-left">
+                  <Label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Fornecedor / Nº Nota</Label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <Input placeholder="Fornecedor" value={newFuelLog.supplier || ''} onChange={e => setNewFuelLog({...newFuelLog, supplier: e.target.value})} className="h-12 border-gray-100 bg-gray-50/50 rounded-xl" />
+                    <Input placeholder="Nota Fiscal" value={newFuelLog.invoiceNumber || ''} onChange={e => setNewFuelLog({...newFuelLog, invoiceNumber: e.target.value})} className="h-12 border-gray-100 bg-gray-50/50 rounded-xl" />
+                  </div>
                 </div>
-              </>
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="space-y-2 text-left">
+                    <Label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Preço Un. (R$)</Label>
+                    <Input type="number" step="0.01" value={newFuelLog.unitPrice || ''} onChange={e => setNewFuelLog({...newFuelLog, unitPrice: Number(e.target.value)})} className="h-12 border-gray-100 bg-gray-50/50 rounded-xl font-bold" />
+                  </div>
+                  <div className="space-y-2 text-left">
+                    <Label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Custo Total (R$)</Label>
+                    <Input type="number" step="0.01" value={newFuelLog.cost || ''} onChange={e => setNewFuelLog({...newFuelLog, cost: Number(e.target.value)})} className="h-12 border-emerald-100 bg-emerald-50/50 rounded-xl font-black text-emerald-700" />
+                  </div>
+                </div>
+              </div>
             )}
           </div>
-          <DialogFooter>
-            <Button onClick={handleCreateFuelLog} className={cn("w-full h-12 rounded-2xl font-bold", newFuelLog.type === 'entrada' ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-orange-600 hover:bg-orange-700')}>
-              {newFuelLog.type === 'entrada' ? 'Registrar Nova Entrada' : 'Registrar Saída (Abastecimento)'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        </div>
 
-      <Dialog open={isMaterialRequestModalOpen} onOpenChange={setIsMaterialRequestModalOpen}>
-        <DialogContent className="max-w-md rounded-3xl p-8">
-          <DialogHeader><DialogTitle className="text-2xl font-black text-emerald-600">Solicitar Peças/Material</DialogTitle></DialogHeader>
-          <div className="grid grid-cols-1 gap-4 py-4">
-            <div className="space-y-1 relative">
-              <Label className="text-[10px] uppercase font-bold text-gray-400">Categoria</Label>
+        <div className="px-8 pb-8 pt-2">
+          <Button 
+            onClick={handleCreateFuelLog} 
+            className={cn("w-full h-14 rounded-2xl font-black uppercase text-xs tracking-widest shadow-xl transition-all active:scale-[0.98]", newFuelLog.type === 'entrada' ? 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-100' : 'bg-orange-600 hover:bg-orange-700 shadow-orange-100')}
+          >
+            {newFuelLog.type === 'entrada' ? 'Registrar Nova Entrada' : 'Registrar Saída'}
+          </Button>
+          <Button variant="ghost" onClick={() => setIsFuelLogModalOpen(false)} className="w-full mt-2 h-10 rounded-xl font-bold uppercase text-[9px] text-gray-400">Cancelar operação</Button>
+        </div>
+      </Modal>
+
+      <Modal
+        isOpen={isMaterialRequestModalOpen}
+        onClose={() => setIsMaterialRequestModalOpen(false)}
+        maxWidth="md"
+        className="p-0 border-none overflow-hidden"
+        headerClassName="hidden"
+      >
+        <div className="bg-emerald-600 p-8 text-white relative overflow-hidden">
+          <Package className="absolute -right-8 -bottom-8 w-40 h-40 opacity-10 rotate-12" />
+          <div className="relative z-10 text-left">
+            <h2 className="text-2xl font-black text-white leading-tight">Solicitar Itens</h2>
+            <p className="text-emerald-100 text-[10px] font-bold uppercase tracking-widest mt-1 opacity-80">Requisição de peças e consumíveis</p>
+          </div>
+        </div>
+
+        <div className="p-8 space-y-6">
+          <div className="space-y-4">
+            <div className="space-y-2 relative">
+              <Label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Categoria da Requisição</Label>
               <Input 
                 value={newRequestCategory} 
                 onChange={e => {
@@ -2486,16 +2852,16 @@ export default function ControlView({
                 onFocus={() => setShowCategorySuggestions(true)}
                 onBlur={() => setTimeout(() => setShowCategorySuggestions(false), 200)}
                 placeholder="Ex. Mecânica, Elétrica, Consumo..." 
-                className="h-12 border-gray-200 rounded-xl"
+                className="h-14 border-gray-100 bg-gray-50/50 rounded-2xl text-sm font-bold shadow-sm"
               />
               {showCategorySuggestions && savedCategories.filter(c => c.toLowerCase().includes(newRequestCategory.toLowerCase())).length > 0 && (
-                <div className="absolute z-50 w-full mt-1 bg-white border border-gray-100 shadow-xl rounded-xl overflow-hidden py-1">
+                <div className="absolute z-50 w-full mt-1 bg-white border border-gray-100 shadow-xl rounded-2xl overflow-hidden py-2">
                   {savedCategories
                     .filter(c => c.toLowerCase().includes(newRequestCategory.toLowerCase()))
                     .map(cat => (
                       <div 
                         key={cat} 
-                        className="px-4 py-2 hover:bg-gray-50 cursor-pointer text-sm font-medium text-gray-700"
+                        className="px-4 py-3 hover:bg-emerald-50 cursor-pointer text-xs font-bold text-gray-700 transition-colors"
                         onClick={() => {
                           setNewRequestCategory(cat);
                           setShowCategorySuggestions(false);
@@ -2508,152 +2874,256 @@ export default function ControlView({
               )}
             </div>
 
-            <div className="space-y-1">
-              <Label className="text-[10px] uppercase font-bold text-gray-400">Aplicação (Equipamento)</Label>
+            <div className="space-y-2">
+              <Label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Aplicação / Destino</Label>
               <Input 
                 value={newMaterialRequestEntry.application || ''} 
                 onChange={e => setNewMaterialRequestEntry({...newMaterialRequestEntry, application: e.target.value})} 
                 disabled
-                className="bg-gray-50 max-h-12"
+                className="h-14 border-gray-50 bg-gray-100/50 rounded-2xl text-sm font-bold text-gray-500 opacity-70"
               />
             </div>
             
-            <div className="flex items-end gap-2">
-              <div className="flex-1 space-y-1">
-                <Label className="text-[10px] uppercase font-bold text-gray-400">Descrição do Produto</Label>
+            <div className="flex items-end gap-3 p-4 bg-gray-50 rounded-2xl border border-gray-100">
+              <div className="flex-1 space-y-2 text-left">
+                <Label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Descrição do Item</Label>
                 <Input 
                   value={newMaterialRequestEntry.description || ''} 
                   onChange={e => setNewMaterialRequestEntry({...newMaterialRequestEntry, description: e.target.value})} 
-                  placeholder="Ex. Filtro de óleo, pneu..." 
+                  placeholder="Nome do produto"
+                  className="h-12 border-white bg-white rounded-xl text-sm font-medium focus:ring-2 focus:ring-emerald-500/20"
                 />
               </div>
-              <div className="w-24 space-y-1">
-                <Label className="text-[10px] uppercase font-bold text-gray-400">Qtd</Label>
+              <div className="w-20 space-y-2 text-left">
+                <Label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Qtd</Label>
                 <Input 
                   type="number" 
                   min={1}
                   value={newMaterialRequestEntry.quantity || ''} 
                   onChange={e => setNewMaterialRequestEntry({...newMaterialRequestEntry, quantity: Number(e.target.value)})} 
+                  className="h-12 border-white bg-white rounded-xl text-sm font-medium text-center focus:ring-2 focus:ring-emerald-500/20"
                 />
               </div>
-              <Button onClick={handleAddMaterialItem} variant="outline" className="h-10 w-10 p-0 shrink-0 rounded-xl">
-                <Plus className="w-4 h-4" />
+              <Button 
+                onClick={handleAddMaterialItem} 
+                className="h-12 w-12 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg shadow-emerald-100 transition-all active:scale-90"
+              >
+                <Plus className="w-5 h-5" />
               </Button>
             </div>
 
             {newMaterialRequestItems.length > 0 && (
-              <div className="mt-4 pt-4 border-t border-gray-100 flex flex-col gap-2 max-h-48 overflow-y-auto">
-                <Label className="text-[10px] uppercase font-bold text-gray-400">Itens Adicionados ({newMaterialRequestItems.length})</Label>
-                {newMaterialRequestItems.map((item, idx) => (
-                  <div key={idx} className="flex items-center justify-between p-2 bg-gray-50 rounded-lg text-sm">
-                    <div className="font-medium text-gray-900 truncate pr-2">{item.description}</div>
-                    <div className="font-mono font-bold text-gray-500 bg-gray-200 px-2 rounded-md">{item.quantity} un</div>
-                  </div>
-                ))}
-              </div>
-            )}
-            
-          </div>
-          <DialogFooter>
-            <Button onClick={handleCreateMaterialRequest} disabled={newMaterialRequestItems.length === 0} className="w-full h-12 rounded-2xl bg-emerald-600 hover:bg-emerald-700 font-bold">
-              Enviar Solicitação
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={isDetailOpen} onOpenChange={setIsDetailOpen}>
-        <DialogContent className="max-w-2xl rounded-3xl p-0 overflow-hidden border-none shadow-2xl bg-white focus:outline-none">
-          <DialogHeader className="p-8 bg-blue-600 text-white relative overflow-hidden">
-            <Truck className="absolute -right-8 -bottom-8 w-40 h-40 opacity-10 rotate-12" />
-            <div className="relative z-10 text-left">
-              <div className="flex items-center gap-3 mb-2">
-                 <Badge variant="outline" className="border-blue-400 text-blue-100 bg-blue-500/20 px-2 py-0.5 text-[9px] font-black uppercase tracking-widest">{selectedEquipment?.code || 'SEM CÓDIGO'}</Badge>
-                 <Badge variant="outline" className="border-blue-400 text-blue-100 bg-blue-500/20 px-2 py-0.5 text-[9px] font-black uppercase tracking-widest">{selectedEquipment?.situation}</Badge>
-              </div>
-              <DialogTitle className="text-3xl font-black tracking-tight">{selectedEquipment?.name}</DialogTitle>
-              <p className="text-blue-100 font-bold uppercase text-[10px] tracking-widest mt-1">{selectedEquipment?.brand} {selectedEquipment?.model} • Placa: {selectedEquipment?.plate}</p>
-            </div>
-          </DialogHeader>
-
-          <div className="p-8 space-y-8 max-h-[60vh] overflow-y-auto custom-scrollbar">
-            <div className="grid grid-cols-2 gap-8">
-              <div className="space-y-4">
-                <h4 className="text-[10px] font-black uppercase text-gray-400 tracking-widest border-b pb-2">Informações Base</h4>
-                <div className="grid gap-3">
-                  <div className="flex justify-between border-b border-gray-50 pb-2">
-                    <span className="text-[10px] font-bold text-gray-500 uppercase">Ano</span>
-                    <span className="text-[11px] font-black">{selectedEquipment?.year}</span>
-                  </div>
-                  <div className="flex justify-between border-b border-gray-50 pb-2">
-                    <span className="text-[10px] font-bold text-gray-500 uppercase">Horímetro Atual</span>
-                    <span className="text-[11px] font-black text-blue-600 font-mono tracking-tighter">{selectedEquipment?.currentReading}h</span>
-                  </div>
-                   <div className="flex justify-between border-b border-gray-50 pb-2">
-                    <span className="text-[10px] font-bold text-gray-500 uppercase">Obra Atual</span>
-                    <span className="text-[11px] font-black text-emerald-600">{getContractName(selectedEquipment?.contractId || '')}</span>
-                  </div>
+              <div className="space-y-2">
+                <Label className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-1">Itens Preparados ({newMaterialRequestItems.length})</Label>
+                <div className="space-y-2 max-h-48 overflow-y-auto pr-2 custom-scrollbar">
+                  {newMaterialRequestItems.map((item, idx) => (
+                    <div key={idx} className="flex items-center justify-between p-4 bg-white rounded-2xl border border-gray-100 shadow-sm group hover:border-emerald-200 transition-all">
+                      <div className="flex flex-col text-left">
+                        <span className="font-bold text-gray-900 text-sm leading-tight">{item.description}</span>
+                        <span className="text-[10px] text-emerald-600 font-black mt-1 uppercase tracking-widest">{item.quantity} {item.unit || 'un'}</span>
+                      </div>
+                      <Button 
+                        variant="ghost" 
+                        size="icon"
+                        onClick={() => setNewMaterialRequestItems(prev => prev.filter((_, i) => i !== idx))}
+                        className="h-8 w-8 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  ))}
                 </div>
               </div>
+            )}
+          </div>
+        </div>
 
-              <div className="space-y-4">
-                <h4 className="text-[10px] font-black uppercase text-gray-400 tracking-widest border-b pb-2">Status Operacional</h4>
-                <div className="grid gap-3">
-                  <div className="flex justify-between border-b border-gray-50 pb-2">
-                    <span className="text-[10px] font-bold text-gray-500 uppercase">Em Manutenção?</span>
-                    <Badge className={cn("text-[9px] font-black px-2", selectedEquipment?.inMaintenance ? "bg-red-100 text-red-600 hover:bg-red-200" : "bg-emerald-100 text-emerald-600 hover:bg-emerald-200")}>
-                      {selectedEquipment?.inMaintenance ? 'SIM' : 'NÃO'}
-                    </Badge>
-                  </div>
-                  <div className="flex justify-between border-b border-gray-50 pb-2">
-                    <span className="text-[10px] font-bold text-gray-500 uppercase">Status do Patrimônio</span>
-                    <span className="text-[11px] font-black">{selectedEquipment?.situation}</span>
-                  </div>
+        <div className="px-8 pb-8 pt-2">
+          <Button 
+            onClick={handleCreateMaterialRequest} 
+            disabled={newMaterialRequestItems.length === 0 || !newRequestCategory}
+            className="w-full h-14 rounded-2xl bg-emerald-600 hover:bg-emerald-700 shadow-xl shadow-emerald-100 font-black uppercase text-xs tracking-widest transition-all active:scale-[0.98] disabled:opacity-50"
+          >
+            Enviar Solicitação
+          </Button>
+          <Button 
+            variant="ghost" 
+            onClick={() => setIsMaterialRequestModalOpen(false)}
+            className="w-full mt-2 h-10 rounded-xl font-bold uppercase text-[9px] text-gray-400 tracking-widest hover:text-gray-600"
+          >
+            Fechar janela
+          </Button>
+        </div>
+      </Modal>
+
+      <Modal
+        isOpen={isDetailOpen}
+        onClose={() => setIsDetailOpen(false)}
+        maxWidth="2xl"
+        className="p-0"
+        headerClassName="hidden"
+      >
+        <div className="bg-blue-600 p-8 text-white relative overflow-hidden">
+          <Truck className="absolute -right-8 -bottom-8 w-40 h-40 opacity-10 rotate-12" />
+          <div className="relative z-10 text-left">
+            <div className="flex items-center gap-3 mb-2">
+               <Badge variant="outline" className="border-blue-400 text-blue-100 bg-blue-500/20 px-2 py-0.5 text-[9px] font-black uppercase tracking-widest">{selectedEquipment?.code || 'SEM CÓDIGO'}</Badge>
+               <Badge variant="outline" className="border-blue-400 text-blue-100 bg-blue-500/20 px-2 py-0.5 text-[9px] font-black uppercase tracking-widest">{selectedEquipment?.situation}</Badge>
+            </div>
+            <h2 className="text-3xl font-black tracking-tight">{selectedEquipment?.name}</h2>
+            <p className="text-blue-100 font-bold uppercase text-[10px] tracking-widest mt-1">{selectedEquipment?.brand} {selectedEquipment?.model} • Placa: {selectedEquipment?.plate}</p>
+          </div>
+        </div>
+
+        <div className="p-8 space-y-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div className="space-y-4">
+              <h4 className="text-[10px] font-black uppercase text-gray-400 tracking-widest border-b pb-2">Informações Base</h4>
+              <div className="grid gap-3">
+                <div className="flex justify-between border-b border-gray-50 pb-2">
+                  <span className="text-[10px] font-bold text-gray-500 uppercase">Ano</span>
+                  <span className="text-[11px] font-black">{selectedEquipment?.year}</span>
+                </div>
+                <div className="flex justify-between border-b border-gray-50 pb-2">
+                  <span className="text-[10px] font-bold text-gray-500 uppercase">Horímetro Atual</span>
+                  <span className="text-[11px] font-black text-blue-600 font-mono tracking-tighter">{selectedEquipment?.currentReading}h</span>
+                </div>
+                 <div className="flex justify-between border-b border-gray-50 pb-2">
+                  <span className="text-[10px] font-bold text-gray-500 uppercase">Obra Atual</span>
+                  <span className="text-[11px] font-black text-emerald-600">{getContractName(selectedEquipment?.contractId || '')}</span>
                 </div>
               </div>
             </div>
 
             <div className="space-y-4">
-              <h4 className="text-[10px] font-black uppercase text-gray-400 tracking-widest border-b pb-2">Atributos Técnicos (JSONB)</h4>
-              <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
-                {Object.entries(selectedEquipment?.customFields || {}).map(([key, f]) => {
-                  const field = f as EquipmentAttribute;
-                  return (
-                    <div key={key} className="p-3 bg-gray-50 rounded-2xl border border-gray-100 flex flex-col gap-1">
-                      <span className="text-[9px] font-bold text-blue-600 uppercase tracking-tighter">{key.replace(/_/g, ' ')}</span>
-                      <span className="text-xs font-black text-gray-900">
-                        {field.type === 'boolean' ? (field.value ? 'Sim' : 'Não') : field.value}
-                      </span>
-                    </div>
-                  );
-                })}
-                {(!selectedEquipment?.customFields || Object.keys(selectedEquipment.customFields).length === 0) && (
-                   <div className="col-span-full py-4 text-center text-[10px] text-gray-400 font-bold uppercase italic">Sem atributos customizados</div>
-                )}
-              </div>
-            </div>
-
-            {selectedEquipment?.observations && (
-              <div className="space-y-2">
-                <h4 className="text-[10px] font-black uppercase text-gray-400 tracking-widest border-b pb-2">Observações Gerais</h4>
-                <div className="p-4 bg-amber-50/50 border border-amber-100 rounded-2xl text-xs font-medium text-gray-700 leading-relaxed italic">
-                  "{selectedEquipment.observations}"
+              <h4 className="text-[10px] font-black uppercase text-gray-400 tracking-widest border-b pb-2">Status Operacional</h4>
+              <div className="grid gap-3">
+                <div className="flex justify-between border-b border-gray-50 pb-2">
+                  <span className="text-[10px] font-bold text-gray-500 uppercase">Em Manutenção?</span>
+                  <Badge className={cn("text-[9px] font-black px-2", selectedEquipment?.inMaintenance ? "bg-red-100 text-red-600 hover:bg-red-200" : "bg-emerald-100 text-emerald-600 hover:bg-emerald-200")}>
+                    {selectedEquipment?.inMaintenance ? 'SIM' : 'NÃO'}
+                  </Badge>
+                </div>
+                <div className="flex justify-between border-b border-gray-50 pb-2">
+                  <span className="text-[10px] font-bold text-gray-500 uppercase">Status do Patrimônio</span>
+                  <span className="text-[11px] font-black">{selectedEquipment?.situation}</span>
                 </div>
               </div>
-            )}
+            </div>
           </div>
 
-          <DialogFooter className="p-6 bg-gray-50 border-t gap-3">
-            <Button variant="ghost" onClick={() => setIsDetailOpen(false)} className="rounded-xl font-bold uppercase text-[10px] h-10 px-6">Fechar</Button>
+          <div className="space-y-4">
+            <h4 className="text-[10px] font-black uppercase text-gray-400 tracking-widest border-b pb-2">Atributos Técnicos</h4>
+            <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
+              {Object.entries(selectedEquipment?.customFields || {}).map(([key, f]) => {
+                const field = f as EquipmentAttribute;
+                return (
+                  <div key={key} className="p-3 bg-gray-50 rounded-2xl border border-gray-100 flex flex-col gap-1">
+                    <span className="text-[9px] font-bold text-blue-600 uppercase tracking-tighter">{key.replace(/_/g, ' ')}</span>
+                    <span className="text-xs font-black text-gray-900">
+                      {field.type === 'boolean' ? (field.value ? 'Sim' : 'Não') : field.value}
+                    </span>
+                  </div>
+                );
+              })}
+              {(!selectedEquipment?.customFields || Object.keys(selectedEquipment.customFields).length === 0) && (
+                 <div className="col-span-full py-4 text-center text-[10px] text-gray-400 font-bold uppercase italic">Sem atributos customizados</div>
+              )}
+            </div>
+          </div>
+
+          {selectedEquipment?.observations && (
+            <div className="space-y-2">
+              <h4 className="text-[10px] font-black uppercase text-gray-400 tracking-widest border-b pb-2">Observações Gerais</h4>
+              <div className="p-4 bg-amber-50/50 border border-amber-100 rounded-2xl text-xs font-medium text-gray-700 leading-relaxed italic">
+                "{selectedEquipment.observations}"
+              </div>
+            </div>
+          )}
+        </div>
+
+        <DialogFooter className="p-6 bg-gray-50 border-t flex flex-col sm:flex-row gap-3">
+          <Button variant="ghost" onClick={() => setIsDetailOpen(false)} className="rounded-xl font-bold uppercase text-[10px] h-12 px-6 flex-1">Fechar</Button>
+          <Button 
+              onClick={() => {
+                 setEquipmentToEdit(selectedEquipment);
+                 setIsEditOpen(true);
+                 setIsDetailOpen(false);
+              }} 
+              className="h-12 rounded-xl bg-blue-600 hover:bg-blue-700 font-bold uppercase text-[10px] tracking-widest flex-[2]"
+          >
+              <Edit className="w-4 h-4 mr-2" /> Editar Equipamento
+          </Button>
+        </DialogFooter>
+      </Modal>
+      <Dialog open={isApplyStockOpen} onOpenChange={setIsApplyStockOpen}>
+        <DialogContent className="max-w-md rounded-3xl p-8">
+          <DialogHeader>
+            <DialogTitle className="text-2xl font-black text-blue-600">Aplicar Material em Equipamento</DialogTitle>
+            <DialogDescription className="text-xs font-bold text-gray-400 uppercase">
+              Retirada de material do estoque para manutenção
+            </DialogDescription>
+          </DialogHeader>
+          
+          {selectedStockItem && (
+            <div className="space-y-6 pt-4">
+              <div className="p-4 bg-gray-50 rounded-2xl flex flex-col gap-1">
+                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Material Selecionado</span>
+                <span className="text-sm font-black text-gray-900">{selectedStockItem.description}</span>
+                <div className="flex justify-between items-center mt-2 pt-2 border-t border-gray-200">
+                  <span className="text-[10px] font-bold text-gray-400 uppercase">Saldo Disponível</span>
+                  <Badge className="bg-blue-100 text-blue-700 border-none font-black">
+                    {(selectedStockItem.quantity - (selectedStockItem.appliedQuantity || 0))} {selectedStockItem.unit}
+                  </Badge>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label className="text-[10px] uppercase font-bold text-gray-400">Equipamento de Destino</Label>
+                  <Select value={applyEquipmentId} onValueChange={setApplyEquipmentId}>
+                    <SelectTrigger className="h-12 border-gray-200 rounded-xl focus:ring-blue-500">
+                      <SelectValue placeholder="Selecione o Equipamento" />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-[300px]">
+                      {equipments
+                        .filter(e => !e.exitDate)
+                        .map(e => (
+                          <SelectItem key={e.id} value={e.id} className="font-bold py-3">
+                            <div className="flex flex-col">
+                              <span>{e.name}</span>
+                              <span className="text-[10px] text-gray-400 uppercase tracking-tighter">Placa: {e.plate}</span>
+                            </div>
+                          </SelectItem>
+                        ))
+                      }
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-[10px] uppercase font-bold text-gray-400">Quantidade a Aplicar</Label>
+                  <Input 
+                    type="number"
+                    value={applyQuantity}
+                    onChange={e => setApplyQuantity(Number(e.target.value))}
+                    max={(selectedStockItem.quantity - (selectedStockItem.appliedQuantity || 0))}
+                    min={1}
+                    className="h-12 border-gray-200 rounded-xl font-black text-blue-600 focus:ring-blue-500"
+                  />
+                  <p className="text-[9px] text-gray-400 font-medium italic">* A quantidade aplicada será registrada no histórico do equipamento.</p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <DialogFooter className="mt-8">
             <Button 
-                onClick={() => {
-                   setEquipmentToEdit(selectedEquipment);
-                   setIsEditOpen(true);
-                   setIsDetailOpen(false);
-                }} 
-                className="h-10 rounded-xl bg-blue-600 hover:bg-blue-700 font-bold uppercase text-[10px] tracking-widest flex-1"
+              onClick={handleApplyStock} 
+              disabled={!applyEquipmentId || applyQuantity <= 0 || (selectedStockItem ? applyQuantity > (selectedStockItem.quantity - (selectedStockItem.appliedQuantity || 0)) : true)}
+              className="w-full h-12 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white font-bold shadow-lg shadow-blue-200"
             >
-                <Edit className="w-4 h-4 mr-2" /> Editar Equipamento
+              Confirmar Aplicação
             </Button>
           </DialogFooter>
         </DialogContent>
