@@ -947,37 +947,44 @@ export default function App() {
   };
 
   const handleLogout = async () => {
-    // Reset all navigation states
-    setMainTab('home');
-    setActiveTab('budget');
-    setActiveMeasureTab('contracts');
-    setSelectedContractId(null);
-    setSelectedMeasurementId(null);
+    try {
+      // Reset all navigation states
+      setMainTab('home');
+      setActiveTab('budget');
+      setActiveMeasureTab('contracts');
+      setSelectedContractId(null);
+      setSelectedMeasurementId(null);
 
-    // Clear local storage for app data on logout
-    const keysToKeep = ['supabase_config'];
-    for (let i = localStorage.length - 1; i >= 0; i--) {
-      const key = localStorage.key(i);
-      if (key && !keysToKeep.includes(key)) {
-        localStorage.removeItem(key);
-      }
-    }
-
-    if (currentUser) {
-      // Clear sessionId in the database before logging out locally
-      const config = getSupabaseConfig();
-      if (config.enabled) {
-        const supabase = createSupabaseClient(config.url, config.key);
-        if (supabase) {
-          const updatedUsers = users.map(u => u.id === currentUser.id ? { ...u, sessionId: null } : u);
-          setUsers(updatedUsers);
-          supabase.from('app_state').upsert({ id: 'sigo_users', content: updatedUsers }).catch((error: Error) => {
-            console.error('Error clearing session ID in database during logout:', error);
-          });
+      // Clear local storage for app data on logout
+      const keysToKeep = ['supabase_config'];
+      for (let i = localStorage.length - 1; i >= 0; i--) {
+        const key = localStorage.key(i);
+        if (key && !keysToKeep.includes(key)) {
+          localStorage.removeItem(key);
         }
       }
+
+      if (currentUser) {
+        // Clear sessionId in the database before logging out locally
+        const config = getSupabaseConfig();
+        if (config.enabled) {
+          const supabase = createSupabaseClient(config.url, config.key);
+          if (supabase) {
+            const updatedUsers = users.map(u => u.id === currentUser.id ? { ...u, sessionId: null } : u);
+            setUsers(updatedUsers);
+            const { error: upsertError } = await supabase.from('app_state').upsert({ id: 'sigo_users', content: updatedUsers });
+            if (upsertError) {
+              console.error('Error clearing session ID in database during logout:', upsertError);
+            }
+          }
+        }
+      }
+    } catch (err) {
+      console.error('Error during logout processes:', err);
+    } finally {
+      setAndSaveCurrentUser(null);
+      window.location.reload(); // Added reload to clear any remaining state
     }
-    setAndSaveCurrentUser(null);
   };
 
 
