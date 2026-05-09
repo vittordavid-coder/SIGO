@@ -1,0 +1,10 @@
+                  <div className="text-[10px] text-amber-700 leading-tight">
+                  <div className="text-[10px] text-red-700 leading-tight">
+                      <label htmlFor={`reg-mod-${mp.moduleId}`} className="text-[10px] font-medium cursor-pointer leading-none">
+              "hidden lg:flex items-center gap-2 text-[10px] font-bold px-2.5 py-1.5 rounded-full border uppercase tracking-wider",
+            <div className="hidden lg:flex items-center gap-2 text-[10px] font-bold text-gray-500 bg-gray-100 px-2.5 py-1.5 rounded-full border border-gray-200 uppercase tracking-wider">
+              <p className="text-[9px] text-gray-400 font-normal mt-0.5">{currentUser?.role}</p>
+                <span className="text-[10px] font-bold text-blue-400 uppercase tracking-wider">Contrato Ativo</span>
+                <span className="text-[10px] text-blue-700/70 truncate">
+                    <span className="text-[10px] font-bold text-blue-400 uppercase tracking-wider">Medição Atual</span>
+                        "text-[9px] font-bold px-1.5 py-0.5 rounded",

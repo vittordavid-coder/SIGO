@@ -1,0 +1,282 @@
+  // Fetch employees by contract when selecting it in RH view
+  useEffect(() => {
+    if (mainTab === 'rh' && selectedContractId && isSupabaseSynced) {
+      const fetchEmployeesByContract = async () => {
+        const config = getSupabaseConfig();
+        if (!config.enabled) return;
+        const supabase = createSupabaseClient(config.url, config.key);
+        if (!supabase) return;
+--
+            icon={<LayoutDashboard className="w-4 h-4" />} 
+            label="Início" 
+            active={mainTab === 'home'} 
+            onClick={() => setMainTab('home')} 
+          />
+          {(currentUser?.role === 'master' || currentUser?.role === 'admin' || currentUser?.allowedModules?.includes('quotations')) && (
+            <TopNavItem 
+              icon={<Briefcase className="w-4 h-4" />} 
+              label="Cotações" 
+              active={mainTab === 'quotations'} 
+              onClick={() => setMainTab('quotations')} 
+            />
+          )}
+          {(currentUser?.role === 'master' || currentUser?.role === 'admin' || currentUser?.allowedModules?.includes('measurements')) && (
+            <TopNavItem 
+              icon={<ClipboardList className="w-4 h-4" />} 
+              label="Sala Técnica" 
+              active={mainTab === 'measurements'} 
+              onClick={() => setMainTab('measurements')} 
+            />
+          )}
+          {(currentUser?.role === 'master' || currentUser?.role === 'admin' || currentUser?.allowedModules?.includes('rh')) && (
+            <TopNavItem 
+              icon={<Users className="w-4 h-4" />} 
+              label="RH" 
+              active={mainTab === 'rh'} 
+              onClick={() => setMainTab('rh')} 
+            />
+          )}
+          {(currentUser?.role === 'master' || currentUser?.role === 'admin' || currentUser?.allowedModules?.includes('control')) && (
+            <TopNavItem 
+              icon={<Activity className="w-4 h-4" />} 
+              label="Controlador" 
+              active={mainTab === 'control'} 
+              onClick={() => setMainTab('control')} 
+            />
+          )}
+          {(currentUser?.role === 'master' || currentUser?.role === 'admin' || currentUser?.allowedModules?.includes('purchases')) && (
+            <TopNavItem 
+              icon={<ShoppingCart className="w-4 h-4" />} 
+              label="Compras" 
+              active={mainTab === 'purchases'} 
+              onClick={() => setMainTab('purchases')} 
+            />
+          )}
+          {(currentUser?.role === 'master' || currentUser?.role === 'admin' || currentUser?.role === 'project_admin') && (
+            <TopNavItem 
+              icon={<HardHat className="w-4 h-4" />} 
+              label="Administrador da Obra" 
+              active={mainTab === 'project_admin'} 
+              onClick={() => setMainTab('project_admin')} 
+            />
+          )}
+          {(currentUser?.role === 'master' || currentUser?.role === 'admin' || currentUser?.allowedModules?.includes('settings')) && (
+            <TopNavItem 
+              icon={<Settings className="w-4 h-4" />} 
+              label="Administrador do Sistema" 
+              active={mainTab === 'settings'} 
+              onClick={() => setMainTab('settings')} 
+            />
+          )}
+          {currentUser?.role === 'master' && (
+            <TopNavItem 
+              icon={<ShieldCheck className="w-4 h-4" />} 
+              label="Administrador Master" 
+              active={mainTab === 'admin'} 
+              onClick={() => setMainTab('admin')} 
+            />
+          )}
+        </div>
+
+--
+            className={cn(
+              "flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-all group",
+              mainTab === 'profile' 
+                ? "bg-blue-50 text-blue-700 ring-1 ring-blue-200" 
+                : "bg-gray-50 text-gray-500 hover:bg-gray-100 hover:text-gray-900"
+            )}
+          >
+            <div className="w-6 h-6 rounded-full overflow-hidden bg-white border border-gray-200 flex items-center justify-center shrink-0">
+--
+      <div className="flex flex-1 overflow-hidden">
+        {/* Sidebar - Visible in Quotations and Measurements tab */}
+        {(mainTab === 'quotations' || mainTab === 'measurements') && (
+          <motion.aside 
+            initial={{ x: -260 }}
+            animate={{ x: 0, width: isSidebarOpen ? 240 : 80 }}
+            className="bg-white border-r border-gray-200 flex flex-col z-20"
+          >
+            <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto custom-scrollbar">
+              {mainTab === 'quotations' ? (
+                <>
+                  <SidebarItem 
+                    icon={<Package />} 
+                    label="Insumos" 
+                    active={activeTab === 'resources'} 
+--
+            </nav>
+
+            {mainTab === 'measurements' && isSidebarOpen && selectedContractId && (
+              <div className="p-4 bg-blue-50/50 border-t border-blue-100 flex flex-col gap-1 mx-2 mb-2 rounded-xl">
+                <span className="text-[10px] font-bold text-blue-400 uppercase tracking-wider">Contrato Ativo</span>
+                <span className="text-xs font-bold text-blue-900 truncate" title={contracts.find(c => c.id === selectedContractId)?.contractNumber}>
+                  {(() => {
+                    const c = contracts.find(x => x.id === selectedContractId);
+--
+        <main className="flex-1 flex flex-col min-h-0 overflow-hidden relative">
+          {/* Internal Header for Breadcrumbs or Search */}
+          {(mainTab === 'quotations' || mainTab === 'measurements') && (
+            <div className="h-12 bg-gray-50/50 border-b border-gray-200 flex items-center justify-between px-8 z-10 shrink-0">
+               <h2 className="text-sm font-semibold uppercase tracking-wider text-gray-500">
+                {mainTab === 'quotations' ? 'Cotações' : 'Sala Técnica'} / {
+                  mainTab === 'quotations' ? (
+                    activeTab === 'budget' ? 'Planilha' : 
+                    activeTab === 'abc' ? 'Curva ABC' :
+                    activeTab === 'schedule' ? 'Cronograma' :
+                    activeTab === 'reports' ? 'Relatórios' :
+                    activeTab === 'resources' ? 'Insumos' :
+--
+          <div className={cn(
+            "flex-1 custom-scrollbar",
+            mainTab === 'measurements' ? "overflow-hidden flex flex-col" : "overflow-y-auto p-8"
+          )}>
+            <AnimatePresence mode="wait">
+              {mainTab === 'home' && (
+                <Dashboard 
+                  key="dashboard" 
+                  resources={filteredResources} 
+                  services={filteredServices} 
+                  quotations={finalQuotations} 
+--
+              )}
+
+              {mainTab === 'quotations' && activeTab === 'resources' && (
+                <ResourceView 
+                  key="resources"
+                  resources={filteredResources} 
+                  onAdd={addResource} 
+                  onDelete={deleteResource} 
+--
+              )}
+
+              {mainTab === 'quotations' && activeTab === 'services' && (
+                <ServiceView 
+                  key="services"
+                  services={filteredServices} 
+                  resources={filteredResources} 
+                  onAdd={addService} 
+--
+              )}
+
+              {mainTab === 'quotations' && activeTab === 'quotations' && (
+                <QuotationView 
+                  key="quotations"
+                  quotations={finalQuotations} 
+                  services={filteredServices} 
+                  resources={filteredResources}
+--
+              )}
+
+              {mainTab === 'quotations' && activeTab === 'budget' && (
+                <BudgetView 
+                  key="budget"
+                  services={filteredServices} 
+                  resources={filteredResources} 
+                  budgetItems={budgetItems}
+--
+              )}
+
+              {mainTab === 'quotations' && activeTab === 'bdi' && (
+                <BDIView 
+                  key="bdi"
+                  bdiConfig={bdiConfig}
+                  setBdiConfig={setBdiConfig}
+                />
+              )}
+
+              {mainTab === 'quotations' && activeTab === 'abc' && (
+                <ABCCurveView 
+                  key="abc"
+                  services={filteredServices} 
+                  resources={filteredResources} 
+                  quotations={finalQuotations}
+--
+              )}
+
+              {mainTab === 'quotations' && activeTab === 'schedule' && (
+                <ScheduleView 
+                  key="schedule"
+                  services={filteredServices} 
+                  resources={filteredResources} 
+                  quotations={finalQuotations}
+--
+              )}
+
+              {mainTab === 'quotations' && activeTab === 'reports' && (
+                <ReportsView 
+                  key="reports"
+                  quotations={finalQuotations}
+                  services={filteredServices} 
+                  resources={filteredResources} 
+--
+              )}
+
+              {mainTab === 'measurements' && (
+                <MeasurementsView 
+                  contracts={finalContracts}
+                  onAddContract={addContract}
+                  onUpdateContract={updateContract}
+                  onDeleteContract={deleteContract}
+--
+              )}
+
+              {mainTab === 'rh' && (
+                <RHView 
+                  currentUser={currentUser}
+                  employees={employees}
+                  timeRecords={timeRecords}
+                  contracts={finalContracts}
+--
+              )}
+
+              {mainTab === 'settings' && (
+                <SettingsView 
+                  companyLogo={companyLogo}
+                  companyLogoRight={companyLogoRight}
+                  logoMode={logoMode}
+                  onLogoUpload={handleLogoUpload}
+--
+              )}
+
+              {mainTab === 'admin' && currentUser?.role === 'master' && (
+                <AdminView 
+                  users={users}
+                  onUpdateUsers={setUsers}
+                  resetRequests={passwordResetRequests}
+                  onUpdateResetRequests={setPasswordResetRequests}
+--
+              )}
+
+              {mainTab === 'control' && currentUser && (
+                <ControlView
+                  currentUser={currentUser}
+                  equipments={controllerEquipments}
+                  equipmentMonthly={equipmentMonthlyData}
+                  contracts={finalContracts}
+--
+              )}
+
+              {mainTab === 'purchases' && currentUser && (
+                <PurchasesView 
+                  suppliers={suppliers} 
+                  setSuppliers={setSuppliers} 
+                  orders={purchaseOrders} 
+                  setOrders={(val) => {
+--
+                />
+              )}
+              {mainTab === 'project_admin' && currentUser && (
+                <ProjectAdminView 
+                  purchaseQuotations={purchaseQuotations}
+                  setPurchaseQuotations={(val) => {
+                    lastLocalUpdate.current = Date.now();
+                    setPurchaseQuotations(val);
+--
+              )}
+
+              {mainTab === 'profile' && currentUser && (
+                <UserProfile 
+                  user={currentUser} 
+                  onUpdate={(updated) => {
+                    handleUpdateProfile(updated);
+                    addAuditLog('Edição', 'Perfil', `Perfil do usuário ${updated.username} atualizado`);

@@ -1,0 +1,4 @@
+                <p className="text-sm text-gray-500 max-w-[280px]">Prioridade: **Servidor Central**</p>
+                <p className="text-xs text-gray-400 max-w-[280px] leading-relaxed">Conectando ao banco de dados para garantir que você tenha as informações mais recentes e seguras.</p>
+          className="max-w-md w-full bg-white rounded-2xl shadow-xl p-8"
+          className="max-w-md w-full bg-white rounded-2xl shadow-xl p-8"
