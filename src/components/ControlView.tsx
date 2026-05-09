@@ -1349,9 +1349,9 @@ export default function ControlView({
                                         };
                                         reader.readAsDataURL(file);
                                       }
-                                    } catch (err) {
+                                    } catch (err: any) {
                                       console.error("Upload error:", err);
-                                      alert("Erro ao enviar a foto para o Supabase.");
+                                      alert(`Erro ao enviar a foto para o Supabase: ${err.message || 'Verifique se o bucket "equipamentos" foi criado. Execute supabase_storage_setup.sql.'}`);
                                     }
                                   }
                                 }} />
@@ -2465,9 +2465,9 @@ export default function ControlView({
                               };
                               reader.readAsDataURL(file);
                             }
-                          } catch (err) {
+                          } catch (err: any) {
                             console.error("Upload error:", err);
-                            alert("Erro ao enviar a foto para o Supabase.");
+                            alert(`Erro ao enviar a foto para o Supabase: ${err.message || 'Verifique se o bucket "equipamentos" foi criado. Execute supabase_storage_setup.sql.'}`);
                           }
                         }
                       }} />
