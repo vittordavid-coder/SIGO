@@ -55,6 +55,7 @@ import {
 } from '../types';
 import { EQUIPMENT_TYPES, EQUIPMENT_TEMPLATES } from '../lib/equipmentTemplates';
 import { useLocalStorage } from '../lib/useLocalStorage';
+import { createSupabaseClient, getSupabaseConfig } from '../lib/supabaseClient';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -1326,15 +1327,32 @@ export default function ControlView({
                               <label className="aspect-square rounded-2xl border-2 border-dashed border-gray-200 flex flex-col items-center justify-center gap-2 cursor-pointer hover:bg-gray-50 transition-colors">
                                 <Camera className="w-8 h-8 text-gray-300" />
                                 <span className="text-[8px] font-black uppercase text-gray-400">Adicionar Foto</span>
-                                <input type="file" className="hidden" accept="image/*" onChange={(e) => {
-                                  // Mock integration - in real world would upload to bucket and get URL
+                                <input type="file" className="hidden" accept="image/*" onChange={async (e) => {
                                   const file = e.target.files?.[0];
                                   if (file) {
-                                    const reader = new FileReader();
-                                    reader.onload = (ev) => {
-                                      setNewEquip(prev => ({ ...prev, photos: [...(prev.photos || []), ev.target?.result as string] }));
-                                    };
-                                    reader.readAsDataURL(file);
+                                    try {
+                                      const config = getSupabaseConfig();
+                                      if (config.enabled) {
+                                        const supabase = createSupabaseClient(config.url, config.key);
+                                        const fileExt = file.name.split('.').pop();
+                                        const fileName = `${uuidv4()}.${fileExt}`;
+                                        const { data, error } = await supabase.storage.from('equipamentos').upload(fileName, file);
+                                        if (error) throw error;
+                                        
+                                        const { data: { publicUrl } } = supabase.storage.from('equipamentos').getPublicUrl(fileName);
+                                        setNewEquip(prev => ({ ...prev, photos: [...(prev.photos || []), publicUrl] }));
+                                      } else {
+                                        // Fallback
+                                        const reader = new FileReader();
+                                        reader.onload = (ev) => {
+                                          setNewEquip(prev => ({ ...prev, photos: [...(prev.photos || []), ev.target?.result as string] }));
+                                        };
+                                        reader.readAsDataURL(file);
+                                      }
+                                    } catch (err) {
+                                      console.error("Upload error:", err);
+                                      alert("Erro ao enviar a foto para o Supabase.");
+                                    }
                                   }
                                 }} />
                               </label>
@@ -2426,14 +2444,31 @@ export default function ControlView({
                     <label className="aspect-square rounded-2xl border-2 border-dashed border-gray-200 flex flex-col items-center justify-center gap-2 cursor-pointer hover:bg-gray-50 transition-colors">
                       <Camera className="w-8 h-8 text-gray-300" />
                       <span className="text-[8px] font-black uppercase text-gray-400">Upar Foto</span>
-                      <input type="file" className="hidden" accept="image/*" onChange={(e) => {
+                      <input type="file" className="hidden" accept="image/*" onChange={async (e) => {
                         const file = e.target.files?.[0];
                         if (file) {
-                          const reader = new FileReader();
-                          reader.onload = (ev) => {
-                            setEquipmentToEdit(prev => prev ? { ...prev, photos: [...(prev.photos || []), ev.target?.result as string] } : null);
-                          };
-                          reader.readAsDataURL(file);
+                          try {
+                            const config = getSupabaseConfig();
+                            if (config.enabled) {
+                              const supabase = createSupabaseClient(config.url, config.key);
+                              const fileExt = file.name.split('.').pop();
+                              const fileName = `${uuidv4()}.${fileExt}`;
+                              const { data, error } = await supabase.storage.from('equipamentos').upload(fileName, file);
+                              if (error) throw error;
+                              
+                              const { data: { publicUrl } } = supabase.storage.from('equipamentos').getPublicUrl(fileName);
+                              setEquipmentToEdit(prev => prev ? { ...prev, photos: [...(prev.photos || []), publicUrl] } : null);
+                            } else {
+                              const reader = new FileReader();
+                              reader.onload = (ev) => {
+                                setEquipmentToEdit(prev => prev ? { ...prev, photos: [...(prev.photos || []), ev.target?.result as string] } : null);
+                              };
+                              reader.readAsDataURL(file);
+                            }
+                          } catch (err) {
+                            console.error("Upload error:", err);
+                            alert("Erro ao enviar a foto para o Supabase.");
+                          }
                         }
                       }} />
                     </label>

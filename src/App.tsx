@@ -970,8 +970,10 @@ export default function App() {
         const supabase = createSupabaseClient(config.url, config.key);
         if (supabase) {
           const updatedUsers = users.map(u => u.id === currentUser.id ? { ...u, sessionId: null } : u);
-          await supabase.from('app_state').upsert({ id: 'sigo_users', content: updatedUsers });
           setUsers(updatedUsers);
+          supabase.from('app_state').upsert({ id: 'sigo_users', content: updatedUsers }).catch((error: Error) => {
+            console.error('Error clearing session ID in database during logout:', error);
+          });
         }
       }
     }
@@ -3394,14 +3396,14 @@ export default function App() {
                   contracts={finalContracts}
                   selectedContractId={selectedContractId}
                   onUpdateContractId={(id) => setSelectedContractId(id)}
-                  onUpdateEquipments={updateTechnicalEquipments}
-                  onUpdateEquipmentMonthly={updateEquipmentMonthly}
+                  onUpdateEquipments={(val) => { lastLocalUpdate.current = Date.now(); updateTechnicalEquipments(val); }}
+                  onUpdateEquipmentMonthly={(val) => { lastLocalUpdate.current = Date.now(); updateEquipmentMonthly(val); }}
                   equipmentMaintenance={equipmentMaintenance}
-                  onUpdateMaintenance={updateEquipmentMaintenance}
+                  onUpdateMaintenance={(val) => { lastLocalUpdate.current = Date.now(); updateEquipmentMaintenance(val); }}
                   transfers={equipmentTransfers}
-                  onUpdateTransfers={updateEquipmentTransfers}
+                  onUpdateTransfers={(val) => { lastLocalUpdate.current = Date.now(); updateEquipmentTransfers(val); }}
                   purchaseRequests={purchaseRequests}
-                  onUpdatePurchaseRequests={setPurchaseRequests}
+                  onUpdatePurchaseRequests={(val) => { lastLocalUpdate.current = Date.now(); setPurchaseRequests(val); }}
                   initialTab={activeControlTab}
                 />
               )}
@@ -3433,7 +3435,7 @@ export default function App() {
                   logoMode={logoMode}
                   defaultOrganization={defaultOrganization}
                   equipmentMaintenance={equipmentMaintenance}
-                  onUpdateMaintenance={setEquipmentMaintenance}
+                  onUpdateMaintenance={(val) => { lastLocalUpdate.current = Date.now(); setEquipmentMaintenance(val); }}
                 />
               )}
               {mainTab === 'project_admin' && currentUser && (
