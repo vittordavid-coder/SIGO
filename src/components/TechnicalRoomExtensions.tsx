@@ -2231,7 +2231,7 @@ export function TechnicalScheduleView({
 
       {/* Quick Edit Dialog for a specific service */}
       <Dialog open={!!editingServiceId} onOpenChange={(open) => !open && setEditingServiceId(null)}>
-        <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col">
+        <DialogContent className="w-screen max-w-none max-h-[90vh] flex flex-col">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <div className="bg-blue-600 text-white p-1.5 rounded">
@@ -2372,9 +2372,11 @@ export function TechnicalScheduleView({
         }
       }}>
         <DialogContent className={cn(
-          "flex flex-col p-0 overflow-hidden rounded-3xl border-none shadow-2xl transition-all duration-500",
-          isChartMaximized ? "max-w-[98vw] w-[98vw] h-[95vh]" : "max-w-6xl max-h-[90vh]"
-        )}>
+  "flex flex-col p-0 overflow-hidden rounded-3xl border-none shadow-2xl transition-all duration-500",
+  isChartMaximized
+    ? "!max-w-[99vw] !w-[99vw] h-[95vh]"
+    : "!max-w-[99vw] !w-[99vw] max-h-[90vh]"
+)}>
           <DialogHeader className="p-8 pb-0 bg-white">
             <div className="flex items-center justify-between gap-6">
               <div className="flex items-center gap-4">
@@ -2532,7 +2534,7 @@ export function TechnicalScheduleView({
                 </div>
 
                 <TabsContent value="evolution" className="flex-1">
-                   <div className="bg-white rounded-3xl border border-gray-100 shadow-inner p-6">
+                   <div className="bg-white rounded-3xl border border-gray-100 shadow-inner p-2">
                       <div className={cn("w-full transition-all duration-500", isChartMaximized ? "h-[60vh]" : "h-[400px]")}>
                         <ResponsiveContainer width="100%" height="100%">
                           <AnimatePresence mode="wait">
