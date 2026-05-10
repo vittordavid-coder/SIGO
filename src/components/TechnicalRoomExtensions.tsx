@@ -21,6 +21,7 @@ import {
   PluviometryRecord, TechnicalSchedule, TechnicalServiceSchedule,
   ServiceComposition, Resource, Schedule, TimeUnit, Quotation
 } from '../types';
+import { useLocalStorage } from '../lib/useLocalStorage';
 import { formatCurrency, formatNumber, cn } from '../lib/utils';
 import { calculateServiceUnitCost } from '../lib/calculations';
 import { exportTechnicalScheduleToExcel, exportTechnicalScheduleToPDF } from '../lib/exportUtils';
@@ -1028,7 +1029,7 @@ interface TechnicalScheduleViewProps {
   quotations: Quotation[];
   technicalSchedules: TechnicalSchedule[];
   schedules: Schedule[];
-  onUpdate: (s: TechnicalSchedule) => void;
+  onUpdate: (s: TechnicalSchedule) => Promise<void> | void;
   readonly?: boolean;
 }
 
@@ -1090,6 +1091,10 @@ const ScheduleCellInput = React.memo(({ value, onChange, disabled, className, pl
       disabled={disabled}
     />
   );
+}, (prevProps, nextProps) => {
+  return prevProps.value === nextProps.value && 
+         prevProps.disabled === nextProps.disabled && 
+         prevProps.className === nextProps.className;
 });
 
 interface ScheduleServiceRowProps {
@@ -1350,6 +1355,77 @@ const ScheduleServiceRow = React.memo(({
       )}
     </React.Fragment>
   );
+}, (prevProps, nextProps) => {
+  return (
+    prevProps.bi === nextProps.bi &&
+    prevProps.service === nextProps.service &&
+    prevProps.viewOptions === nextProps.viewOptions &&
+    prevProps.readonly === nextProps.readonly &&
+    prevProps.unitCost === nextProps.unitCost &&
+    prevProps.serviceSchedule === nextProps.serviceSchedule &&
+    prevProps.periods.length === nextProps.periods.length
+  );
+});
+
+const GlobalFooters = React.memo(({
+  periods,
+  budgetTotalSum,
+  totalPlannedSum,
+  totalActualSum,
+  periodPlannedTotals,
+  periodActualTotals
+}: {
+  periods: number[];
+  budgetTotalSum: number;
+  totalPlannedSum: number;
+  totalActualSum: number;
+  periodPlannedTotals: number[];
+  periodActualTotals: number[];
+}) => {
+  return (
+    <React.Fragment>
+      <TableRow className="bg-slate-900 text-white font-bold border-t-2 border-slate-700 z-30">
+        <TableCell colSpan={2} className="sticky left-0 bg-slate-900 z-20 shadow-[1px_0_0_0_rgba(255,255,255,0.1)] w-[180px] min-w-[180px] max-w-[180px] uppercase text-[11px] py-4 px-4 tracking-wider">Total Planejado (R$)</TableCell>
+        <TableCell className="text-right text-xs border-r px-4">
+          {formatCurrency(budgetTotalSum)}
+        </TableCell>
+        {periods.map(p => (
+          <TableCell key={p} className="text-right text-[10px] border-r text-slate-300 px-3">
+            {formatCurrency(periodPlannedTotals[p] || 0)}
+          </TableCell>
+        ))}
+        <TableCell className="text-right text-xs bg-slate-800 px-4">
+          {formatCurrency(totalPlannedSum)}
+        </TableCell>
+        <TableCell className="text-right text-xs border-l px-4 text-slate-400 bg-slate-900">
+          {formatCurrency(budgetTotalSum - totalPlannedSum)}
+        </TableCell>
+      </TableRow>
+
+      <TableRow className="bg-blue-900 text-white font-bold">
+        <TableCell colSpan={2} className="sticky left-0 bg-blue-900 z-10 shadow-[1px_0_0_0_rgba(255,255,255,0.1)] w-[150px] min-w-[150px] max-w-[150px] uppercase text-xs px-4 py-4">Total Executado (R$)</TableCell>
+        <TableCell className="text-right text-xs border-r text-blue-300 italic px-4">--</TableCell>
+        {periods.map(p => (
+          <TableCell key={p} className="text-right text-[10px] border-r text-blue-200 font-extrabold italic px-3">
+            {formatCurrency(periodActualTotals[p] || 0)}
+          </TableCell>
+        ))}
+        <TableCell className="text-right text-xs bg-blue-800 font-black px-4">
+          {formatCurrency(totalActualSum)}
+        </TableCell>
+        <TableCell className="text-right text-xs border-l text-blue-200 px-4 bg-blue-800">
+          {formatCurrency(budgetTotalSum - totalActualSum)}
+        </TableCell>
+      </TableRow>
+    </React.Fragment>
+  );
+}, (prevProps, nextProps) => {
+  return prevProps.budgetTotalSum === nextProps.budgetTotalSum &&
+         prevProps.totalPlannedSum === nextProps.totalPlannedSum &&
+         prevProps.totalActualSum === nextProps.totalActualSum &&
+         prevProps.periods.length === nextProps.periods.length &&
+         JSON.stringify(prevProps.periodPlannedTotals) === JSON.stringify(nextProps.periodPlannedTotals) &&
+         JSON.stringify(prevProps.periodActualTotals) === JSON.stringify(nextProps.periodActualTotals);
 });
 
 export function TechnicalScheduleView({ 
@@ -1369,42 +1445,107 @@ export function TechnicalScheduleView({
     actualValue: false
   });
   
-  const [localSchedule, setLocalSchedule] = useState<TechnicalSchedule>(existingSchedule || {
-    id: uuidv4(),
-    contractId: contract.id,
-    startDate: contract.startDate || new Date().toISOString().split('T')[0],
-    duration: 6,
-    timeUnit: 'months',
-    services: []
+  // Local storage draft for better performance and resilience
+  const [draftSchedule, setDraftSchedule] = useState<TechnicalSchedule | null>(() => {
+    try {
+      const item = window.localStorage.getItem(`sigo_tech_schedule_draft_${contract.id}`);
+      return item ? JSON.parse(item) : null;
+    } catch {
+      return null;
+    }
+  });
+
+  const [localSchedule, setLocalSchedule] = useState<TechnicalSchedule>(() => {
+    if (draftSchedule) return draftSchedule;
+    return existingSchedule || {
+      id: uuidv4(),
+      contractId: contract.id,
+      startDate: contract.startDate || new Date().toISOString().split('T')[0],
+      duration: 6,
+      timeUnit: 'months',
+      services: []
+    };
   });
   const [isChartModalOpen, setIsChartModalOpen] = useState(false);
   const [chartGroupFilter, setChartGroupFilter] = useState<'all' | string>('all');
   const [chartPeriodFilter, setChartPeriodFilter] = useState<number | null>(null);
   const [isChartMaximized, setIsChartMaximized] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const isDirty = React.useRef(false);
+  const scheduleRef = React.useRef(localSchedule);
+
+  React.useEffect(() => {
+    scheduleRef.current = localSchedule;
+  }, [localSchedule]);
+
+  // --- PERFORMANCE LOGS ---
+  const renderCount = React.useRef(0);
+  const mountTime = React.useRef(Date.now());
   
-  // Debounced auto-save
+  React.useEffect(() => {
+    console.log(`[Performance] Cronograma montado em ${Date.now() - mountTime.current}ms`);
+    console.log(`[Performance] Tamanho do cronograma: ${localSchedule.services.length} serviços, ${localSchedule.duration} períodos`);
+    return () => {
+      console.log(`[Performance] Cronograma desmontado. Total de renders: ${renderCount.current}`);
+    }
+  }, []);
+
+  React.useEffect(() => {
+    renderCount.current += 1;
+    if (renderCount.current % 10 === 0) {
+      console.log(`[Performance] Renders: ${renderCount.current}`);
+    }
+  });
+  // ------------------------
+
+  // Sync to local draft every 5 seconds if dirty
+  React.useEffect(() => {
+    if (isDirty.current) {
+      const timer = setInterval(() => {
+        setDraftSchedule(localSchedule);
+        try {
+          window.localStorage.setItem(`sigo_tech_schedule_draft_${contract.id}`, JSON.stringify(localSchedule));
+        } catch (e) {
+          console.error("Local draft save failed", e);
+        }
+      }, 5000);
+      return () => clearInterval(timer);
+    }
+  }, [localSchedule, contract.id]);
+
+  // Auto-save to Supabase after 2 minutes of idle
   React.useEffect(() => {
     if (isDirty.current && !readonly) {
-      const scheduleToSave = localSchedule;
       const timer = setTimeout(async () => {
         setIsSaving(true);
         try {
-          await onUpdate(scheduleToSave);
-          // Only clear dirty flag if no new changes happened during the save
-          if (isDirty.current && localSchedule === scheduleToSave) {
+          await onUpdate(localSchedule);
+          if (scheduleRef.current === localSchedule) {
             isDirty.current = false;
+            setHasUnsavedChanges(false);
           }
         } catch (error) {
           console.error("Auto-save failed", error);
         } finally {
           setIsSaving(false);
         }
-      }, 3000); // Increased debounce to 3s for better multi-field entry
+      }, 120000); // 2 minutes
       return () => clearTimeout(timer);
     }
   }, [localSchedule, onUpdate, readonly]);
+
+  // Clean up on unmount
+  React.useEffect(() => {
+    return () => {
+      if (isDirty.current && !readonly && scheduleRef.current) {
+        const result = onUpdate(scheduleRef.current);
+        if (result && result.catch) {
+          result.catch(console.error);
+        }
+      }
+    };
+  }, [readonly, onUpdate]);
 
   const groupsToRender = React.useMemo(() => {
     const groups = [...(contract.groups || [])];
@@ -1425,6 +1566,25 @@ export function TechnicalScheduleView({
     return groupsToRender.flatMap(g => g.services);
   }, [groupsToRender]);
 
+  const globalServicesMap = React.useMemo(() => {
+    const idMap: Record<string, ServiceComposition> = {};
+    const codeMap: Record<string, ServiceComposition> = {};
+    services.forEach(s => {
+      idMap[s.id] = s;
+      if (s.code) codeMap[s.code] = s;
+    });
+    return { idMap, codeMap };
+  }, [services]);
+
+  const unitCostsMap = React.useMemo(() => {
+    const map: Record<string, number> = {};
+    budgetItems.forEach(bi => {
+      const s = globalServicesMap.idMap[bi.serviceId] || globalServicesMap.codeMap[(bi as any).code];
+      map[bi.serviceId] = bi.price || (s ? calculateServiceUnitCost(s, resources, services) : 0);
+    });
+    return map;
+  }, [budgetItems, globalServicesMap, resources, services]);
+
   // Sync only if NOT dirty to prevent overwriting user input while it's being saved
   React.useEffect(() => {
     const existing = technicalSchedules.find(s => s.contractId === contract.id);
@@ -1444,11 +1604,28 @@ export function TechnicalScheduleView({
 
   const updateLocalSchedule = (updates: Partial<TechnicalSchedule>) => {
     isDirty.current = true;
+    setHasUnsavedChanges(true);
     setLocalSchedule(prev => ({ ...prev, ...updates }));
   };
 
-  const handleSave = () => {
-    onUpdate(localSchedule);
+  const handleSave = async () => {
+    setIsSaving(true);
+    try {
+      await onUpdate(localSchedule);
+      isDirty.current = false;
+      setHasUnsavedChanges(false);
+      setDraftSchedule(null); // Clear draft as it's saved to source of truth
+      try {
+        window.localStorage.removeItem(`sigo_tech_schedule_draft_${contract.id}`);
+      } catch (e) {
+        // ignore
+      }
+    } catch (err) {
+      console.error("Save error:", err);
+      alert("Erro ao salvar cronograma. Tente novamente.");
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleExportExcel = () => {
@@ -1474,8 +1651,7 @@ export function TechnicalScheduleView({
 
     budgetItems.forEach(bi => {
       const qs = quotationSchedule.services.find(s => s.serviceId === bi.serviceId);
-      const service = services.find(s => s.id === bi.serviceId);
-      const unitCost = bi.price || (service ? calculateServiceUnitCost(service, resources, services) : 0);
+      const unitCost = unitCostsMap[bi.serviceId] || 0;
       
       const distribution = qs ? qs.distribution.map(d => {
         const plannedQty = quotationSchedule.distributionType === 'percentage' 
@@ -1515,6 +1691,7 @@ export function TechnicalScheduleView({
   const updateDayValue = React.useCallback((serviceId: string, periodIndex: number, field: 'plannedQty' | 'actualQty' | 'plannedPerc' | 'actualPerc', value: number) => {
     if (readonly) return;
     isDirty.current = true;
+    setHasUnsavedChanges(true);
     
     setLocalSchedule(prev => {
       const newServices = [...prev.services];
@@ -1540,8 +1717,7 @@ export function TechnicalScheduleView({
       }
 
       const bi = budgetItems.find(i => i.serviceId === serviceId);
-      const service = services.find(s => s.id === serviceId);
-      const unitCost = bi?.price || (service ? calculateServiceUnitCost(service, resources, services) : 0);
+      const unitCost = unitCostsMap[serviceId] || 0;
       const totalQty = bi?.quantity || 1;
 
       let qtyValue = value;
@@ -1568,9 +1744,9 @@ export function TechnicalScheduleView({
       
       return { ...prev, services: newServices };
     });
-  }, [readonly, budgetItems, services, resources]);
+  }, [readonly, budgetItems, unitCostsMap]);
 
-  const periods = Array.from({ length: localSchedule.duration }, (_, i) => i);
+  const periods = React.useMemo(() => Array.from({ length: localSchedule.duration }, (_, i) => i), [localSchedule.duration]);
 
   const monthGroups = React.useMemo(() => {
     const groups: { monthYear: string; duration: number; startIndex: number }[] = [];
@@ -1647,15 +1823,80 @@ export function TechnicalScheduleView({
   const getServiceAccumulated = React.useCallback((serviceId: string, field: 'plannedQty' | 'actualQty' | 'plannedValue' | 'actualValue') => {
     const s = localSchedule.services.find(s => s.serviceId === serviceId);
     if (!s) return 0;
-    return s.distribution.reduce((acc, d) => acc + d[field], 0);
+    return s.distribution.reduce((acc, d) => acc + (d[field] || 0), 0);
   }, [localSchedule.services]);
 
+  const { periodPlannedTotals, periodActualTotals, totalPlannedSum, totalActualSum, budgetTotalSum } = React.useMemo(() => {
+    const planned = new Array(periods.length).fill(0);
+    const actual = new Array(periods.length).fill(0);
+    let plannedSum = 0;
+    let actualSum = 0;
+
+    localSchedule.services.forEach(s => {
+      s.distribution.forEach(d => {
+        if (d.periodIndex >= 0 && d.periodIndex < periods.length) {
+          planned[d.periodIndex] += d.plannedValue || 0;
+          actual[d.periodIndex] += d.actualValue || 0;
+          plannedSum += d.plannedValue || 0;
+          actualSum += d.actualValue || 0;
+        }
+      });
+    });
+
+    let bSum = 0;
+    budgetItems.forEach(bi => {
+      bSum += (bi.quantity || 0) * (unitCostsMap[bi.serviceId] || 0);
+    });
+
+    return {
+      periodPlannedTotals: planned,
+      periodActualTotals: actual,
+      totalPlannedSum: plannedSum,
+      totalActualSum: actualSum,
+      budgetTotalSum: bSum
+    };
+  }, [localSchedule.services, periods.length, budgetItems, unitCostsMap]);
+
   const getPeriodTotalValue = React.useCallback((periodIndex: number, field: 'plannedValue' | 'actualValue') => {
-    return localSchedule.services.reduce((acc, s) => {
-      const dist = s.distribution.find(d => d.periodIndex === periodIndex);
-      return acc + (dist ? (dist as any)[field] : 0);
-    }, 0);
+    if (field === 'plannedValue') return periodPlannedTotals[periodIndex] || 0;
+    return periodActualTotals[periodIndex] || 0;
+  }, [periodPlannedTotals, periodActualTotals]);
+
+  const localServicesMap = React.useMemo(() => {
+    const map: Record<string, TechnicalServiceSchedule> = {};
+    localSchedule.services.forEach(s => map[s.serviceId] = s);
+    return map;
   }, [localSchedule.services]);
+
+  const groupTotals = React.useMemo(() => {
+    const totals: Record<string, { planned: number[], actual: number[], totalPlanned: number, totalActual: number, budgetSum: number }> = {};
+    
+    groupsToRender.forEach(g => {
+       const planned = new Array(periods.length).fill(0);
+       const actual = new Array(periods.length).fill(0);
+       let tPlanned = 0;
+       let tActual = 0;
+       let bSum = 0;
+       
+       g.services.forEach(bi => {
+         const ls = localServicesMap[bi.serviceId];
+         if (ls) {
+           ls.distribution.forEach(d => {
+             if (d.periodIndex >= 0 && d.periodIndex < periods.length) {
+               planned[d.periodIndex] += d.plannedValue || 0;
+               actual[d.periodIndex] += d.actualValue || 0;
+               tPlanned += d.plannedValue || 0;
+               tActual += d.actualValue || 0;
+             }
+           });
+         }
+         bSum += (bi.quantity || 0) * (unitCostsMap[bi.serviceId] || 0);
+       });
+       
+       totals[g.id] = { planned, actual, totalPlanned: tPlanned, totalActual: tActual, budgetSum: bSum };
+    });
+    return totals;
+  }, [groupsToRender, localServicesMap, periods.length, unitCostsMap]);
 
   return (
     <div className="flex h-full min-h-0 overflow-hidden relative">
@@ -1683,14 +1924,24 @@ export function TechnicalScheduleView({
             )}
             {!readonly && (
               <div className="flex items-center gap-2">
-                {isSaving && (
+                {isSaving ? (
                   <div className="flex items-center gap-2 px-3 py-1 bg-amber-50 text-amber-700 border border-amber-200 rounded-full animate-pulse h-8">
                     <Clock className="w-3.5 h-3.5" />
                     <span className="text-[10px] font-bold uppercase">Salvando...</span>
                   </div>
+                ) : hasUnsavedChanges ? (
+                  <div className="flex items-center gap-2 px-3 py-1 bg-blue-50 text-blue-700 border border-blue-200 rounded-full h-8">
+                    <Clock className="w-3.5 h-3.5" />
+                    <span className="text-[10px] font-bold uppercase">Alterações não salvas</span>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2 px-3 py-1 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full h-8">
+                    <Save className="w-3.5 h-3.5" />
+                    <span className="text-[10px] font-bold uppercase">Sincronizado</span>
+                  </div>
                 )}
-                <Button size="sm" onClick={handleSave} className="bg-blue-600 hover:bg-blue-700 h-8">
-                  <Save className="w-4 h-4 mr-2" /> Salvar
+                <Button size="sm" onClick={handleSave} disabled={!hasUnsavedChanges || isSaving} className="bg-blue-600 hover:bg-blue-700 h-8">
+                  <Save className="w-4 h-4 mr-2" /> {hasUnsavedChanges ? "Salvar Alterações" : "Salvar"}
                 </Button>
               </div>
             )}
@@ -1786,14 +2037,9 @@ export function TechnicalScheduleView({
                       </TableRow>
 
                 {group.services.map((bi, biIdx) => {
-                  let s = services.find(serv => serv.id === bi.serviceId);
-                  // Fallback to code if ID lookup fails
-                  if (!s && (bi as any).code) {
-                    s = services.find(serv => serv.code === (bi as any).code);
-                  }
-                  
-                  const unitCost = bi.price || (s ? calculateServiceUnitCost(s, resources, services) : 0);
-                  const serviceSchedule = localSchedule.services.find(ls => ls.serviceId === bi.serviceId);
+                  const s = globalServicesMap.idMap[bi.serviceId] || globalServicesMap.codeMap[(bi as any).code];
+                  const unitCost = unitCostsMap[bi.serviceId] || 0;
+                  const serviceSchedule = localServicesMap[bi.serviceId];
                   
                   return (
                     <ScheduleServiceRow 
@@ -1818,54 +2064,18 @@ export function TechnicalScheduleView({
                         </TableCell>
                         <TableCell className="sticky left-[180px] bg-slate-50 z-20 shadow-[1px_0_0_0_rgba(0,0,0,0.1)] text-[8px] font-black text-slate-400 uppercase px-3">VALOR</TableCell>
                         <TableCell className="text-right text-[11px] font-mono px-4 text-slate-800">
-                          {formatCurrency(group.services.reduce((acc, bi) => {
-                            const s = services.find(serv => serv.id === bi.serviceId) || services.find(serv => serv.code === (bi as any).code);
-                            const unitCost = bi.price || (s ? calculateServiceUnitCost(s, resources, services) : 0);
-                            return acc + (bi.quantity * unitCost);
-                          }, 0))}
+                          {formatCurrency(groupTotals[group.id]?.budgetSum || 0)}
                         </TableCell>
-                        {periods.map(p => {
-                          const periodPlanned = group.services.reduce((acc, s) => {
-                            const ls = localSchedule.services.find(ls => ls.serviceId === s.serviceId) || 
-                                       localSchedule.services.find(ls => {
-                                         const foundS = services.find(serv => serv.id === ls.serviceId);
-                                         return foundS && foundS.code === (s as any).code;
-                                       });
-                            const dist = ls?.distribution.find(d => d.periodIndex === p);
-                            return acc + (dist ? dist.plannedValue : 0);
-                          }, 0);
-                          return (
-                            <TableCell key={p} className="text-right text-[10px] font-mono border-r px-3 text-slate-700 bg-slate-100/50">
-                              {formatCurrency(periodPlanned)}
-                            </TableCell>
-                          );
-                        })}
+                        {periods.map(p => (
+                          <TableCell key={p} className="text-right text-[10px] font-mono border-r px-3 text-slate-700 bg-slate-100/50">
+                            {formatCurrency(groupTotals[group.id]?.planned[p] || 0)}
+                          </TableCell>
+                        ))}
                         <TableCell className="text-right text-[11px] font-mono bg-slate-100 px-4 text-slate-900">
-                          {formatCurrency(periods.reduce((acc, p) => {
-                            return acc + group.services.reduce((gAcc, s) => {
-                              const ls = localSchedule.services.find(ls => ls.serviceId === s.serviceId) || 
-                                         localSchedule.services.find(ls => {
-                                           const foundS = services.find(serv => serv.id === ls.serviceId);
-                                           return foundS && foundS.code === (s as any).code;
-                                         });
-                              const dist = ls?.distribution.find(d => d.periodIndex === p);
-                              return gAcc + (dist ? dist.plannedValue : 0);
-                            }, 0);
-                          }, 0))}
+                          {formatCurrency(groupTotals[group.id]?.totalPlanned || 0)}
                         </TableCell>
                         <TableCell className="text-right text-[11px] font-mono px-4 text-slate-700 bg-slate-50">
-                          {formatCurrency(
-                            group.services.reduce((acc, bi) => {
-                              const s = services.find(serv => serv.id === bi.serviceId) || services.find(serv => serv.code === (bi as any).code);
-                              const unitCost = bi.price || (s ? calculateServiceUnitCost(s, resources, services) : 0);
-                              return acc + (bi.quantity * unitCost);
-                            }, 0) - periods.reduce((acc, p) => {
-                              return acc + group.services.reduce((gAcc, s) => {
-                                const dist = localSchedule.services.find(ls => ls.serviceId === s.serviceId)?.distribution.find(d => d.periodIndex === p);
-                                return gAcc + (dist ? dist.plannedValue : 0);
-                              }, 0);
-                            }, 0)
-                          )}
+                          {formatCurrency((groupTotals[group.id]?.budgetSum || 0) - (groupTotals[group.id]?.totalPlanned || 0))}
                         </TableCell>
                       </TableRow>
 
@@ -1876,93 +2086,30 @@ export function TechnicalScheduleView({
                         </TableCell>
                         <TableCell className="sticky left-[180px] bg-blue-50 z-20 shadow-[1px_0_0_0_rgba(0,0,0,0.1)] text-[8px] font-black text-blue-400 uppercase px-3">VALOR</TableCell>
                         <TableCell className="text-right text-[11px] font-mono px-4 text-blue-400 italic">--</TableCell>
-                        {periods.map(p => {
-                          const periodActual = group.services.reduce((acc, s) => {
-                            const dist = localSchedule.services.find(ls => ls.serviceId === s.serviceId)?.distribution.find(d => d.periodIndex === p);
-                            return acc + (dist ? dist.actualValue : 0);
-                          }, 0);
-                          return (
-                            <TableCell key={p} className="text-right text-[10px] font-mono border-r px-3 text-blue-700 bg-blue-100/30">
-                              {formatCurrency(periodActual)}
-                            </TableCell>
-                          );
-                        })}
+                        {periods.map(p => (
+                          <TableCell key={p} className="text-right text-[10px] font-mono border-r px-3 text-blue-700 bg-blue-100/30">
+                            {formatCurrency(groupTotals[group.id]?.actual[p] || 0)}
+                          </TableCell>
+                        ))}
                         <TableCell className="text-right text-[11px] font-mono bg-blue-100 px-4 text-blue-900">
-                          {formatCurrency(periods.reduce((acc, p) => {
-                            return acc + group.services.reduce((gAcc, s) => {
-                              const dist = localSchedule.services.find(ls => ls.serviceId === s.serviceId)?.distribution.find(d => d.periodIndex === p);
-                              return gAcc + (dist ? dist.actualValue : 0);
-                            }, 0);
-                          }, 0))}
+                          {formatCurrency(groupTotals[group.id]?.totalActual || 0)}
                         </TableCell>
                         <TableCell className="text-right text-[11px] font-mono px-4 text-blue-700 bg-blue-50">
-                          {formatCurrency(
-                            group.services.reduce((acc, bi) => {
-                              const s = services.find(serv => serv.id === bi.serviceId);
-                              const unitCost = bi.price || (s ? calculateServiceUnitCost(s, resources, services) : 0);
-                              return acc + (bi.quantity * unitCost);
-                            }, 0) - periods.reduce((acc, p) => {
-                              return acc + group.services.reduce((gAcc, s) => {
-                                const dist = localSchedule.services.find(ls => ls.serviceId === s.serviceId)?.distribution.find(d => d.periodIndex === p);
-                                return gAcc + (dist ? dist.actualValue : 0);
-                              }, 0);
-                            }, 0)
-                          )}
+                          {formatCurrency((groupTotals[group.id]?.budgetSum || 0) - (groupTotals[group.id]?.totalActual || 0))}
                         </TableCell>
                       </TableRow>
                     </React.Fragment>
                   ))}
 
                   {/* Global Footer: Totais Financeiros */}
-                  <TableRow className="bg-slate-900 text-white font-bold border-t-2 border-slate-700 z-30">
-                    <TableCell colSpan={2} className="sticky left-0 bg-slate-900 z-20 shadow-[1px_0_0_0_rgba(255,255,255,0.1)] w-[180px] min-w-[180px] max-w-[180px] uppercase text-[11px] py-4 px-4 tracking-wider">Total Planejado (R$)</TableCell>
-                    <TableCell className="text-right text-xs border-r px-4">
-                      {formatCurrency(budgetItems.reduce((acc, bi) => {
-                        const s = services.find(serv => serv.id === bi.serviceId);
-                        const unitCost = bi.price || (s ? calculateServiceUnitCost(s, resources, services) : 0);
-                        return acc + (bi.quantity * unitCost);
-                      }, 0))}
-                    </TableCell>
-                    {periods.map(p => (
-                      <TableCell key={p} className="text-right text-[10px] border-r text-slate-300 px-3">
-                        {formatCurrency(getPeriodTotalValue(p, 'plannedValue'))}
-                      </TableCell>
-                    ))}
-                    <TableCell className="text-right text-xs bg-slate-800 px-4">
-                      {formatCurrency(periods.reduce((acc, p) => acc + getPeriodTotalValue(p, 'plannedValue'), 0))}
-                    </TableCell>
-                    <TableCell className="text-right text-xs border-l px-4 text-slate-400 bg-slate-900">
-                      {formatCurrency(
-                        budgetItems.reduce((acc, bi) => {
-                          const s = services.find(serv => serv.id === bi.serviceId);
-                          const unitCost = bi.price || (s ? calculateServiceUnitCost(s, resources, services) : 0);
-                          return acc + (bi.quantity * unitCost);
-                        }, 0) - periods.reduce((acc, p) => acc + getPeriodTotalValue(p, 'plannedValue'), 0)
-                      )}
-                    </TableCell>
-                  </TableRow>
-
-                  <TableRow className="bg-blue-900 text-white font-bold">
-                    <TableCell colSpan={2} className="sticky left-0 bg-blue-900 z-10 shadow-[1px_0_0_0_rgba(255,255,255,0.1)] w-[150px] min-w-[150px] max-w-[150px] uppercase text-xs px-4 py-4">Total Executado (R$)</TableCell>
-                    <TableCell className="text-right text-xs border-r text-blue-300 italic px-4">--</TableCell>
-                    {periods.map(p => (
-                      <TableCell key={p} className="text-right text-[10px] border-r text-blue-200 font-extrabold italic px-3">
-                        {formatCurrency(getPeriodTotalValue(p, 'actualValue'))}
-                      </TableCell>
-                    ))}
-                    <TableCell className="text-right text-xs bg-blue-800 font-black px-4">
-                      {formatCurrency(periods.reduce((acc, p) => acc + getPeriodTotalValue(p, 'actualValue'), 0))}
-                    </TableCell>
-                    <TableCell className="text-right text-xs border-l text-blue-200 px-4 bg-blue-800">
-                      {formatCurrency(
-                        budgetItems.reduce((acc, bi) => {
-                          const s = services.find(serv => serv.id === bi.serviceId);
-                          const unitCost = bi.price || (s ? calculateServiceUnitCost(s, resources, services) : 0);
-                          return acc + (bi.quantity * unitCost);
-                        }, 0) - periods.reduce((acc, p) => acc + getPeriodTotalValue(p, 'actualValue'), 0)
-                      )}
-                    </TableCell>
-                  </TableRow>
+                  <GlobalFooters 
+                    periods={periods}
+                    budgetTotalSum={budgetTotalSum}
+                    totalPlannedSum={totalPlannedSum}
+                    totalActualSum={totalActualSum}
+                    periodPlannedTotals={periodPlannedTotals}
+                    periodActualTotals={periodActualTotals}
+                  />
                 </TableBody>
               </table>
             </div>
@@ -2059,30 +2206,20 @@ export function TechnicalScheduleView({
                  <div className="flex justify-between items-center">
                    <span className="text-[9px] text-blue-600 font-bold uppercase">Total Contrato</span>
                    <span className="text-[11px] font-mono font-bold text-blue-900">
-                     {formatCurrency(budgetItems.reduce((acc, bi) => {
-                       const s = services.find(serv => serv.id === bi.serviceId);
-                       const unitCost = bi.price || (s ? calculateServiceUnitCost(s, resources, services) : 0);
-                       return acc + (bi.quantity * unitCost);
-                     }, 0))}
+                     {formatCurrency(budgetTotalSum)}
                    </span>
                  </div>
                  <div className="flex justify-between items-center">
                    <span className="text-[9px] text-blue-600 font-bold uppercase">Acumulado</span>
                    <span className="text-[11px] font-mono font-bold text-amber-700">
-                     {formatCurrency(periods.reduce((acc, p) => acc + getPeriodTotalValue(p, 'actualValue'), 0))}
+                     {formatCurrency(totalActualSum)}
                    </span>
                  </div>
                  <div className="h-px bg-blue-200 my-1" />
                  <div className="flex justify-between items-center">
                    <span className="text-[9px] text-blue-800 font-black uppercase">Saldo</span>
                    <span className="text-xs font-mono font-black text-blue-900">
-                     {formatCurrency(
-                        budgetItems.reduce((acc, bi) => {
-                          const s = services.find(serv => serv.id === bi.serviceId);
-                          const unitCost = bi.price || (s ? calculateServiceUnitCost(s, resources, services) : 0);
-                          return acc + (bi.quantity * unitCost);
-                        }, 0) - periods.reduce((acc, p) => acc + getPeriodTotalValue(p, 'actualValue'), 0)
-                     )}
+                     {formatCurrency(budgetTotalSum - totalActualSum)}
                    </span>
                  </div>
                </div>
@@ -2103,7 +2240,7 @@ export function TechnicalScheduleView({
               <div>
                 <p className="text-xs text-gray-400 uppercase font-bold tracking-wider">Edição Rápida de Distribuição</p>
                 <p className="text-base font-bold text-gray-900 leading-tight">
-                  {services.find(s => s.id === editingServiceId)?.name}
+                  {(editingServiceId ? globalServicesMap.idMap[editingServiceId] : undefined)?.name}
                 </p>
               </div>
             </DialogTitle>
@@ -2123,8 +2260,8 @@ export function TechnicalScheduleView({
               
               {periods.map(p => {
                 const bi = budgetItems.find(i => i.serviceId === editingServiceId);
-                const s = services.find(serv => serv.id === editingServiceId);
-                const unitCost = bi?.price || (s ? calculateServiceUnitCost(s, resources, services) : 0);
+                const s = (editingServiceId ? globalServicesMap.idMap[editingServiceId] : undefined);
+                const unitCost = editingServiceId ? (unitCostsMap[editingServiceId] || 0) : 0;
                 const totalQty = bi?.quantity || 1;
                 
                 return (
@@ -2335,12 +2472,12 @@ export function TechnicalScheduleView({
 
                  const currentChartData = relevantPeriods.map(p => {
                    const planned = filterServices.reduce((acc, bi) => {
-                     const dist = localSchedule.services.find(ls => ls.serviceId === bi.serviceId)?.distribution.find(d => d.periodIndex === p);
+                     const dist = localServicesMap[bi.serviceId]?.distribution.find(d => d.periodIndex === p);
                      return acc + (dist ? dist.plannedValue : 0);
                    }, 0);
 
                    const actual = filterServices.reduce((acc, bi) => {
-                     const dist = localSchedule.services.find(ls => ls.serviceId === bi.serviceId)?.distribution.find(d => d.periodIndex === p);
+                     const dist = localServicesMap[bi.serviceId]?.distribution.find(d => d.periodIndex === p);
                      return acc + (dist ? dist.actualValue : 0);
                    }, 0);
 
@@ -2414,26 +2551,26 @@ export function TechnicalScheduleView({
                                         : groupsToRender.find(g => g.id === chartGroupFilter)?.services || [];
                                       
                                       const planned = filterServices.reduce((acc, bi) => {
-                                        const dist = localSchedule.services.find(ls => ls.serviceId === bi.serviceId)?.distribution.find(d => d.periodIndex === p);
+                                        const dist = localServicesMap[bi.serviceId]?.distribution.find(d => d.periodIndex === p);
                                         return acc + (dist ? dist.plannedValue : 0);
                                       }, 0);
 
                                       const actual = filterServices.reduce((acc, bi) => {
-                                        const dist = localSchedule.services.find(ls => ls.serviceId === bi.serviceId)?.distribution.find(d => d.periodIndex === p);
+                                        const dist = localServicesMap[bi.serviceId]?.distribution.find(d => d.periodIndex === p);
                                         return acc + (dist ? dist.actualValue : 0);
                                       }, 0);
 
                                       // Accumulated logic
                                       const accPlanned = periods.slice(0, p + 1).reduce((sum, sp) => {
                                         return sum + filterServices.reduce((acc, bi) => {
-                                          const dist = localSchedule.services.find(ls => ls.serviceId === bi.serviceId)?.distribution.find(d => d.periodIndex === sp);
+                                          const dist = localServicesMap[bi.serviceId]?.distribution.find(d => d.periodIndex === sp);
                                           return acc + (dist ? dist.plannedValue : 0);
                                         }, 0);
                                       }, 0);
 
                                       const accActual = periods.slice(0, p + 1).reduce((sum, sp) => {
                                         return sum + filterServices.reduce((acc, bi) => {
-                                          const dist = localSchedule.services.find(ls => ls.serviceId === bi.serviceId)?.distribution.find(d => d.periodIndex === sp);
+                                          const dist = localServicesMap[bi.serviceId]?.distribution.find(d => d.periodIndex === sp);
                                           return acc + (dist ? dist.actualValue : 0);
                                         }, 0);
                                       }, 0);
@@ -2556,11 +2693,11 @@ export function TechnicalScheduleView({
                                   margin={{ top: 10, right: 30, left: 20, bottom: 10 }}
                                   data={groupsToRender.map(g => {
                                     const planned = g.services.reduce((acc, s) => {
-                                      const dist = localSchedule.services.find(ls => ls.serviceId === s.serviceId)?.distribution.find(d => d.periodIndex === chartPeriodFilter);
+                                      const dist = localServicesMap[s.serviceId]?.distribution.find(d => d.periodIndex === chartPeriodFilter);
                                       return acc + (dist ? dist.plannedValue : 0);
                                     }, 0);
                                     const actual = g.services.reduce((acc, s) => {
-                                      const dist = localSchedule.services.find(ls => ls.serviceId === s.serviceId)?.distribution.find(d => d.periodIndex === chartPeriodFilter);
+                                      const dist = localServicesMap[s.serviceId]?.distribution.find(d => d.periodIndex === chartPeriodFilter);
                                       return acc + (dist ? dist.actualValue : 0);
                                     }, 0);
                                     return {
@@ -2640,11 +2777,11 @@ export function TechnicalScheduleView({
                                   layout="vertical"
                                   data={groupsToRender.map(g => {
                                     const planned = g.services.reduce((acc, s) => {
-                                      const dist = localSchedule.services.find(ls => ls.serviceId === s.serviceId);
+                                      const dist = localServicesMap[s.serviceId];
                                       return acc + (dist ? dist.distribution.reduce((dAcc, d) => dAcc + d.plannedValue, 0) : 0);
                                     }, 0);
                                     const actual = g.services.reduce((acc, s) => {
-                                      const dist = localSchedule.services.find(ls => ls.serviceId === s.serviceId);
+                                      const dist = localServicesMap[s.serviceId];
                                       return acc + (dist ? dist.distribution.reduce((dAcc, d) => dAcc + d.actualValue, 0) : 0);
                                     }, 0);
                                     return {
@@ -2724,10 +2861,10 @@ export function TechnicalScheduleView({
                                     layout="vertical"
                                     margin={{ top: 10, right: 30, left: 20, bottom: 10 }}
                                     data={(groupsToRender.find(g => g.id === chartGroupFilter)?.services || []).map(bi => {
-                                      const dist = localSchedule.services.find(ls => ls.serviceId === bi.serviceId);
+                                      const dist = localServicesMap[bi.serviceId];
                                       const planned = dist ? dist.distribution.reduce((acc, d) => acc + d.plannedValue, 0) : 0;
                                       const actual = dist ? dist.distribution.reduce((acc, d) => acc + d.actualValue, 0) : 0;
-                                      const serviceName = services.find(s => s.id === bi.serviceId)?.name || 'Serviço Desconhecido';
+                                      const serviceName = globalServicesMap.idMap[bi.serviceId]?.name || 'Serviço Desconhecido';
                                       return {
                                         name: serviceName,
                                         planned,

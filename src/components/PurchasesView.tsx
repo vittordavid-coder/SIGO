@@ -42,7 +42,7 @@ import {
   SelectValue 
 } from "@/components/ui/select";
 
-import { PurchaseOrderItem, PaymentCondition, PurchaseOrder, Supplier, Contract, PurchaseRequest, PurchaseQuotation, SupplierEvaluation, EquipmentMaintenance } from '../types';
+import { PurchaseOrderItem, PaymentCondition, PurchaseOrder, Supplier, Contract, PurchaseRequest, PurchaseQuotation, SupplierEvaluation, EquipmentMaintenance, User } from '../types';
 
 interface PurchasesViewProps {
   suppliers: Supplier[];
@@ -63,6 +63,7 @@ interface PurchasesViewProps {
   defaultOrganization?: string;
   equipmentMaintenance?: EquipmentMaintenance[];
   onUpdateMaintenance?: (val: EquipmentMaintenance[]) => void;
+  currentUser?: User | null;
 }
 
 export default function PurchasesView({ 
@@ -83,7 +84,8 @@ export default function PurchasesView({
   logoMode,
   defaultOrganization,
   equipmentMaintenance = [],
-  onUpdateMaintenance
+  onUpdateMaintenance,
+  currentUser
 }: PurchasesViewProps) {
   const [activeTab, setActiveTab] = useState<'requests' | 'suppliers' | 'quotations' | 'orders' | 'tracking' | 'evaluation'>(initialTab || 'requests');
   const [selectedContractId, setSelectedContractId] = useState<string>(contracts[0]?.id || 'all');
@@ -184,6 +186,7 @@ export default function PurchasesView({
                   setSelectedQuotationId={(id) => {
                     // Logic to find and open the quotation could go here or in QuotationsTab
                   }}
+                  currentUser={currentUser}
                 />
               </TabsContent>
               <TabsContent value="suppliers" className="mt-0 outline-none">
@@ -228,6 +231,7 @@ export default function PurchasesView({
                   companyLogoRight={companyLogoRight}
                   logoMode={logoMode}
                   defaultOrganization={defaultOrganization}
+                  currentUser={currentUser}
                 />
               </TabsContent>
               <TabsContent value="tracking" className="mt-0 outline-none">
@@ -261,7 +265,8 @@ function RequestsTab({
   selectedContractId,
   contracts,
   setSelectedQuotationId,
-  setActiveTab
+  setActiveTab,
+  currentUser
 }: { 
   requests: PurchaseRequest[], 
   setRequests: React.Dispatch<React.SetStateAction<PurchaseRequest[]>>,
@@ -275,6 +280,7 @@ function RequestsTab({
   contracts: Contract[];
   setSelectedQuotationId: (id: string | null) => void;
   setActiveTab: (tab: any) => void;
+  currentUser?: User | null;
 }) {
   const [selectedItemIds, setSelectedItemIds] = useState<string[]>([]);
   const [isQuotationDialogOpen, setIsQuotationDialogOpen] = useState(false);
@@ -395,7 +401,14 @@ function RequestsTab({
     
     setRequests(updatedRequests);
 
-    alert('Orçamento enviado com sucesso para os fornecedores selecionados!');
+    const isEmailConfigured = currentUser?.emailConfig?.smtpHost && currentUser?.emailConfig?.smtpUser;
+    
+    if (isEmailConfigured) {
+      alert('Orçamento enviado com sucesso para os fornecedores selecionados!');
+    } else {
+      alert('Orçamento gerado localmente. Como as configurações de e-mail não foram realizadas, o e-mail automático não pôde ser enviado. Por favor, configure o e-mail em "Configurações" ou entre em contato com o suporte.');
+    }
+    
     setIsQuotationDialogOpen(false);
     setSelectedItemIds([]);
     setSelectedSuppliers([]);
@@ -1156,7 +1169,8 @@ function OrdersTab({
   companyLogo,
   companyLogoRight,
   logoMode,
-  defaultOrganization
+  defaultOrganization,
+  currentUser
 }: { 
   suppliers: Supplier[], 
   orders: PurchaseOrder[], 
@@ -1174,7 +1188,8 @@ function OrdersTab({
   companyLogo?: string,
   companyLogoRight?: string,
   logoMode?: 'left' | 'right' | 'both' | 'none',
-  defaultOrganization?: string
+  defaultOrganization?: string,
+  currentUser?: User | null
 }) {
   const [isPrintDialogOpen, setIsPrintDialogOpen] = useState(false);
 
@@ -1303,7 +1318,12 @@ function OrdersTab({
     }
 
     if (isNew && orderToSave.email) {
-       alert(`Ordem de compra gerada com sucesso! Uma cópia foi enviada para o fornecedor: ${orderToSave.email}`);
+       const isEmailConfigured = currentUser?.emailConfig?.smtpHost && currentUser?.emailConfig?.smtpUser;
+       if (isEmailConfigured) {
+         alert(`Ordem de compra gerada com sucesso! Uma cópia foi enviada para o fornecedor: ${orderToSave.email}`);
+       } else {
+         alert(`Ordem de compra gerada com sucesso! Como as configurações de e-mail não foram realizadas, o e-mail não pôde ser enviado ao fornecedor. Você pode baixar a ordem de compra manualmente na lista de ordens.`);
+       }
     } else {
        alert('Ordem de compra salva com sucesso!');
     }

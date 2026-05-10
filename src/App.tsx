@@ -3443,6 +3443,7 @@ export default function App() {
                   defaultOrganization={defaultOrganization}
                   equipmentMaintenance={equipmentMaintenance}
                   onUpdateMaintenance={(val) => { lastLocalUpdate.current = Date.now(); setEquipmentMaintenance(val); }}
+                  currentUser={currentUser}
                 />
               )}
               {mainTab === 'project_admin' && currentUser && (
