@@ -64,7 +64,7 @@ export interface Quotation {
 
 export type UserRole = 'master' | 'admin' | 'editor' | 'reader' | 'project_admin';
 
-export type AppModule = 'quotations' | 'measurements' | 'rh' | 'control' | 'purchases' | 'project_admin' | 'settings';
+export type AppModule = 'quotations' | 'measurements' | 'rh' | 'control' | 'purchases' | 'project_admin' | 'settings' | 'financeiro';
 
 export interface Dependent {
   name: string;

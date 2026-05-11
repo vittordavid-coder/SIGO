@@ -19,6 +19,8 @@ const ALL_MODULE_OPTIONS: { id: AppModule, label: string }[] = [
   { id: 'control', label: 'Controlador' },
   { id: 'purchases', label: 'Compras' },
   { id: 'project_admin', label: 'Administrador da Obra' },
+  { id: 'gerencia', label: 'Gerência' },
+  { id: 'financeiro', label: 'Financeiro' },
   { id: 'settings', label: 'Administrador do Sistema' },
 ];
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -1024,7 +1026,7 @@ export function AdminView({
                       filteredLogs.map(log => (
                         <TableRow key={log.id} className="text-xs">
                           <TableCell className="text-gray-500 font-mono">
-                            {new Date(log.timestamp).toLocaleString('pt-BR')}
+                            {log.timestamp ? new Date(log.timestamp).toLocaleString('pt-BR') : 'Data inválida'}
                           </TableCell>
                           <TableCell className="font-semibold text-gray-700">
                             {log.userName}

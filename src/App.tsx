@@ -41,6 +41,8 @@ import PurchasesView from './components/PurchasesView';
 import { ProjectAdminView } from './components/ProjectAdminView';
 import { UserProfile } from './components/UserProfile';
 import { Chat } from './components/Chat';
+import { ManagementView } from './components/ManagementView';
+import { FinanceView } from './components/FinanceView';
 
 import { getSupabaseConfig, createSupabaseClient } from './lib/supabaseClient';
 
@@ -115,7 +117,7 @@ export default function App() {
 
   const compId = currentUser?.companyId;
 
-  const [mainTab, setMainTab] = useState<'home' | 'quotations' | 'measurements' | 'rh' | 'control' | 'purchases' | 'project_admin' | 'settings' | 'admin' | 'profile'>('home');
+  const [mainTab, setMainTab] = useState<'home' | 'quotations' | 'measurements' | 'rh' | 'control' | 'purchases' | 'project_admin' | 'settings' | 'admin' | 'profile' | 'gerencia' | 'financeiro'>('home');
   const [activeTab, setActiveTab] = useState<'resources' | 'services' | 'quotations' | 'budget' | 'bdi' | 'abc' | 'schedule' | 'reports'>('budget');
   const [activeMeasureTab, setActiveMeasureTab] = useState<'contracts' | 'measurements' | 'measure' | 'controls' | 'rdo' | 'pluviometria' | 'schedule' | 'teams' | 'reports' | 'summary'>('contracts');
   const [activeRHTab, setActiveRHTab] = useState('employees');
@@ -2761,7 +2763,8 @@ export default function App() {
               onClick={() => setMainTab('control')} 
             />
           )}
-          {(currentUser?.role === 'master' || currentUser?.role === 'admin' || currentUser?.allowedModules?.includes('purchases')) && (
+
+           {(currentUser?.role === 'master' || currentUser?.role === 'admin' || currentUser?.allowedModules?.includes('purchases')) && (
             <TopNavItem 
               icon={<ShoppingCart className="w-4 h-4" />} 
               label="Compras" 
@@ -2777,6 +2780,23 @@ export default function App() {
               onClick={() => setMainTab('project_admin')} 
             />
           )}
+
+          <TopNavItem 
+            icon={<Landmark className="w-4 h-4" />} 
+            label="Gerência" 
+            active={mainTab === 'gerencia'} 
+            onClick={() => setMainTab('gerencia')} 
+          />
+
+          {(currentUser?.role === 'master' || currentUser?.role === 'admin' || currentUser?.allowedModules?.includes('financeiro')) && (
+            <TopNavItem 
+              icon={<Calculator className="w-4 h-4" />} 
+              label="Financeiro" 
+              active={mainTab === 'financeiro'} 
+              onClick={() => setMainTab('financeiro')} 
+            />
+          )}
+
           {(currentUser?.role === 'master' || currentUser?.role === 'admin' || currentUser?.allowedModules?.includes('settings')) && (
             <TopNavItem 
               icon={<Settings className="w-4 h-4" />} 
@@ -3412,6 +3432,23 @@ export default function App() {
                   purchaseRequests={purchaseRequests}
                   onUpdatePurchaseRequests={(val) => { lastLocalUpdate.current = Date.now(); setPurchaseRequests(val); }}
                   initialTab={activeControlTab}
+                />
+              )}
+
+              {mainTab === 'gerencia' && currentUser && (
+                <ManagementView
+                  contracts={finalContracts}
+                  measurements={finalMeasurements}
+                  controllerEquipments={finalControllerEquipments}
+                  controllerTeams={finalControllerTeams}
+                  manpowerRecords={filteredControllerManpower}
+                  employees={filteredEmployees}
+                />
+              )}
+
+              {mainTab === 'financeiro' && currentUser && (
+                <FinanceView
+                  contracts={finalContracts}
                 />
               )}
 

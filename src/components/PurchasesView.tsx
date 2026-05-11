@@ -1511,7 +1511,7 @@ function OrdersTab({
                     <div className="font-medium text-gray-800">{order.supplierName}</div>
                   </TableCell>
                   <TableCell className="text-right font-bold text-emerald-600">
-                    R$ {order.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                    R$ {(order.total ?? 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                   </TableCell>
                   <TableCell className="text-center">
                      <span className={cn(
@@ -1667,17 +1667,17 @@ function OrdersTab({
                       <td className="border border-blue-200 p-1.5 text-[11px] font-medium text-left">{item.description}</td>
                       <td className="border border-blue-200 p-1.5 text-center text-[9px]">{item.unit}</td>
                       <td className="border border-blue-200 p-1.5 text-center font-bold text-[10px]">{item.quantity}</td>
-                      <td className="border border-blue-200 p-1.5 text-right text-[10px]">R$ {item.price.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</td>
-                      <td className="border border-blue-200 p-1.5 text-right font-bold text-blue-700 text-[10px]">R$ {(item.quantity * item.price).toLocaleString('pt-BR', {minimumFractionDigits: 2})}</td>
+                      <td className="border border-blue-200 p-1.5 text-right text-[10px]">R$ {(item.price ?? 0).toLocaleString('pt-BR', {minimumFractionDigits: 2})}</td>
+                      <td className="border border-blue-200 p-1.5 text-right font-bold text-blue-700 text-[10px]">R$ {((item.quantity ?? 0) * (item.price ?? 0)).toLocaleString('pt-BR', {minimumFractionDigits: 2})}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
               <div className="flex flex-col items-end text-[10px] mb-2 pb-1">
-                <div className="flex justify-between w-64 border-b border-gray-100 text-right"><span className="text-gray-500 uppercase font-bold text-[9px]">Subtotal:</span> <span>R$ {(currentOrder.subtotal || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2})}</span></div>
-                <div className="flex justify-between w-64 border-b border-gray-100 text-right"><span className="text-gray-500 uppercase font-bold text-[9px]">Desconto:</span> <span>R$ {(currentOrder.discount || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2})}</span></div>
-                <div className="flex justify-between w-64 border-b border-gray-100 text-right"><span className="text-gray-500 uppercase font-bold text-[9px]">Acréscimos:</span> <span>{(currentOrder.additions || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2})}</span></div>
-                <div className="flex justify-between w-64 mt-0.5 text-blue-800 text-right"><span className="font-bold uppercase font-bold text-[9px]">TOTAL:</span> <span className="font-black text-sm text-right">R$ {(currentOrder.total || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2})}</span></div>
+                <div className="flex justify-between w-64 border-b border-gray-100 text-right"><span className="text-gray-500 uppercase font-bold text-[9px]">Subtotal:</span> <span>R$ {(currentOrder.subtotal ?? 0).toLocaleString('pt-BR', {minimumFractionDigits: 2})}</span></div>
+                <div className="flex justify-between w-64 border-b border-gray-100 text-right"><span className="text-gray-500 uppercase font-bold text-[9px]">Desconto:</span> <span>R$ {(currentOrder.discount ?? 0).toLocaleString('pt-BR', {minimumFractionDigits: 2})}</span></div>
+                <div className="flex justify-between w-64 border-b border-gray-100 text-right"><span className="text-gray-500 uppercase font-bold text-[9px]">Acréscimos:</span> <span>{(currentOrder.additions ?? 0).toLocaleString('pt-BR', {minimumFractionDigits: 2})}</span></div>
+                <div className="flex justify-between w-64 mt-0.5 text-blue-800 text-right"><span className="font-bold uppercase font-bold text-[9px]">TOTAL:</span> <span className="font-black text-sm text-right">R$ {(currentOrder.total ?? 0).toLocaleString('pt-BR', {minimumFractionDigits: 2})}</span></div>
               </div>
 
               <div className="bg-blue-600 text-white px-2 py-0.5 rounded-sm mt-3 print:bg-blue-600 print:text-white text-left">
@@ -1697,7 +1697,7 @@ function OrdersTab({
                     <tr key={i} className="even:bg-blue-50/20 leading-tight">
                       <td className="border border-blue-200 p-0.5 text-left">{pay.condition}</td>
                       <td className="border border-blue-200 p-0.5 text-center">{pay.dueDate ? new Date(pay.dueDate).toLocaleDateString('pt-BR') : '-'}</td>
-                      <td className="border border-blue-200 p-0.5 text-right font-bold text-blue-700 text-[10px]">R$ {pay.value.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</td>
+                      <td className="border border-blue-200 p-0.5 text-right font-bold text-blue-700 text-[10px]">R$ {(pay.value ?? 0).toLocaleString('pt-BR', {minimumFractionDigits: 2})}</td>
                       <td className="border border-blue-200 p-0.5 text-[8px] italic text-left">{pay.observation || '-'}</td>
                     </tr>
                   ))}
@@ -2010,7 +2010,7 @@ function OrdersTab({
                             <Input disabled={isReadOnly} type="number" className="h-8 text-sm text-right bg-transparent border-transparent hover:border-gray-200 focus:border-emerald-500 focus:bg-white" value={item.price || ''} onChange={e => updateItem(index, 'price', parseFloat(e.target.value) || 0)} />
                           </TableCell>
                           <TableCell className="p-1 text-right text-sm font-medium pr-4">
-                            R$ {(item.quantity * item.price).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                            R$ {((item.quantity ?? 0) * (item.price ?? 0)).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                           </TableCell>
                           <TableCell className="p-1 text-center">
                             <Button disabled={isReadOnly} variant="ghost" size="icon" className="h-6 w-6 text-red-400 hover:text-red-600 hover:bg-red-50 disabled:opacity-30" onClick={() => removeItem(index)}>
@@ -2028,7 +2028,7 @@ function OrdersTab({
                   <div className="w-64 space-y-2">
                      <div className="flex justify-between items-center px-2">
                        <span className="text-gray-500 font-medium">Subtotal:</span>
-                       <span className="font-semibold text-gray-700">R$ {(currentOrder.subtotal || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                       <span className="font-semibold text-gray-700">R$ {(currentOrder.subtotal ?? 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
                      </div>
                      <div className="flex justify-between items-center px-2">
                        <span className="text-gray-500 font-medium">Desconto:</span>
@@ -2050,7 +2050,7 @@ function OrdersTab({
                      </div>
                      <div className="flex justify-between items-center pt-2 px-2 border-t border-gray-200">
                        <span className="text-gray-900 font-bold text-base">TOTAL:</span>
-                       <span className="text-emerald-700 font-black text-lg">R$ {(currentOrder.total || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                       <span className="text-emerald-700 font-black text-lg">R$ {(currentOrder.total ?? 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
                      </div>
                   </div>
                 </div>
@@ -2476,7 +2476,7 @@ function QuotationsTab({
                             isAdminSelected ? "bg-emerald-100/50 text-emerald-800" : "text-blue-600"
                           )}>
                             <div className="text-xl font-black italic tracking-tighter">
-                              R$ {total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                              R$ {(total ?? 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                             </div>
                             {isAdminSelected && (
                               <div className="text-[9px] text-emerald-600 uppercase font-black mt-2 flex items-center justify-center gap-1 bg-white py-1 px-2 rounded-lg shadow-sm mx-auto w-fit">

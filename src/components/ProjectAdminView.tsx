@@ -301,7 +301,7 @@ export function ProjectAdminView({
                             const res = (qs.responses || []).find(r => r.itemId === item.itemId);
                             return (
                               <TableCell key={qs.supplierId} className="text-center font-mono text-sm text-emerald-700 font-black">
-                                R$ {res?.price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                R$ {(res?.price ?? 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                               </TableCell>
                             );
                           })}
@@ -333,7 +333,7 @@ export function ProjectAdminView({
                               )}
                             >
                               <div className="text-base font-black">
-                                R$ {total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                R$ {(total ?? 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                               </div>
                               {isSelected ? (
                                 <div className="text-[10px] text-emerald-600 uppercase font-black mt-1 flex items-center justify-center gap-1">
