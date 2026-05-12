@@ -660,14 +660,86 @@ export default function App() {
     return null;
   };
 
-  // Ensure a contract is selected by default if active tab is dashboard or measurements
-  React.useEffect(() => {
-    if (!selectedContractId && finalContracts.length > 0) {
-      setSelectedContractId(finalContracts[0].id);
-    } else if (selectedContractId && finalContracts.length > 0 && !finalContracts.some(c => c.id === selectedContractId)) {
-      setSelectedContractId(finalContracts[0].id);
+  const updateSuppliers = async (val: Supplier[] | ((prev: Supplier[]) => Supplier[])) => {
+    lastLocalUpdate.current = Date.now();
+    const newVal = typeof val === 'function' ? val(suppliers) : val;
+    setSuppliers(newVal);
+
+    const config = getSupabaseConfig();
+    if (config.enabled && compId) {
+      const supabase = createSupabaseClient(config.url, config.key);
+      if (supabase) {
+        try {
+          // Identify changes
+          const mapped = newVal.map(s => mapToSnake({ ...s, companyId: compId }));
+          await supabase.from('suppliers').upsert(mapped);
+          console.log('[Supabase] Suppliers persisted immediately');
+        } catch (err) {
+          console.warn('[Sync] Suppliers persist failed', err);
+        }
+      }
     }
-  }, [finalContracts, selectedContractId]);
+  };
+
+  const updatePurchaseRequests = async (val: PurchaseRequest[] | ((prev: PurchaseRequest[]) => PurchaseRequest[])) => {
+    lastLocalUpdate.current = Date.now();
+    const newVal = typeof val === 'function' ? val(purchaseRequests) : val;
+    setPurchaseRequests(newVal);
+
+    const config = getSupabaseConfig();
+    if (config.enabled && compId) {
+      const supabase = createSupabaseClient(config.url, config.key);
+      if (supabase) {
+        try {
+          const mapped = newVal.map(r => mapToSnake({ ...r, companyId: compId }));
+          await supabase.from('purchase_requests').upsert(mapped);
+          console.log('[Supabase] Purchase requests persisted immediately');
+        } catch (err) {
+          console.warn('[Sync] Purchase requests persist failed', err);
+        }
+      }
+    }
+  };
+
+  const updatePurchaseOrders = async (val: PurchaseOrder[] | ((prev: PurchaseOrder[]) => PurchaseOrder[])) => {
+    lastLocalUpdate.current = Date.now();
+    const newVal = typeof val === 'function' ? val(purchaseOrders) : val;
+    setPurchaseOrders(newVal);
+
+    const config = getSupabaseConfig();
+    if (config.enabled && compId) {
+      const supabase = createSupabaseClient(config.url, config.key);
+      if (supabase) {
+        try {
+          const mapped = newVal.map(o => mapToSnake({ ...o, companyId: compId }));
+          await supabase.from('purchase_orders').upsert(mapped);
+          console.log('[Supabase] Purchase orders persisted immediately');
+        } catch (err) {
+          console.warn('[Sync] Purchase orders persist failed', err);
+        }
+      }
+    }
+  };
+
+  const updatePurchaseQuotations = async (val: PurchaseQuotation[] | ((prev: PurchaseQuotation[]) => PurchaseQuotation[])) => {
+    lastLocalUpdate.current = Date.now();
+    const newVal = typeof val === 'function' ? val(purchaseQuotations) : val;
+    setPurchaseQuotations(newVal);
+
+    const config = getSupabaseConfig();
+    if (config.enabled && compId) {
+      const supabase = createSupabaseClient(config.url, config.key);
+      if (supabase) {
+        try {
+          const mapped = newVal.map(q => mapToSnake({ ...q, companyId: compId }));
+          await supabase.from('purchase_quotations').upsert(mapped);
+          console.log('[Supabase] Purchase quotations persisted immediately');
+        } catch (err) {
+          console.warn('[Sync] Purchase quotations persist failed', err);
+        }
+      }
+    }
+  };
 
   const addAuditLog = (action: string, module: string, details: string) => {
     if (!currentUser) return;
@@ -3455,22 +3527,13 @@ export default function App() {
               {mainTab === 'purchases' && currentUser && (
                 <PurchasesView 
                   suppliers={suppliers} 
-                  setSuppliers={setSuppliers} 
+                  setSuppliers={updateSuppliers} 
                   orders={purchaseOrders} 
-                  setOrders={(val) => {
-                    lastLocalUpdate.current = Date.now();
-                    setPurchaseOrders(val);
-                  }}
+                  setOrders={updatePurchaseOrders}
                   requests={finalPurchaseRequests}
-                  setRequests={(val) => {
-                    lastLocalUpdate.current = Date.now();
-                    setPurchaseRequests(val);
-                  }}
+                  setRequests={updatePurchaseRequests}
                   purchaseQuotations={finalPurchaseQuotations}
-                  setPurchaseQuotations={(val) => {
-                    lastLocalUpdate.current = Date.now();
-                    setPurchaseQuotations(val);
-                  }}
+                  setPurchaseQuotations={updatePurchaseQuotations}
                   compId={compId}
                   contracts={finalContracts}
                   initialTab={activePurchasesTab}
@@ -3479,10 +3542,10 @@ export default function App() {
                   logoMode={logoMode}
                   defaultOrganization={defaultOrganization}
                   equipmentMaintenance={equipmentMaintenance}
-                  onUpdateMaintenance={(val) => { lastLocalUpdate.current = Date.now(); setEquipmentMaintenance(val); }}
+                  onUpdateMaintenance={updateEquipmentMaintenance}
                   currentUser={currentUser}
                   equipments={controllerEquipments}
-                  onUpdateEquipments={(val) => { lastLocalUpdate.current = Date.now(); updateTechnicalEquipments(val); }}
+                  onUpdateEquipments={updateTechnicalEquipments}
                 />
               )}
               {mainTab === 'project_admin' && currentUser && (

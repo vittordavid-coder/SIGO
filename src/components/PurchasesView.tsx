@@ -958,13 +958,18 @@ function SuppliersTab({ suppliers, setSuppliers, compId, contracts }: { supplier
   const [groupByObra, setGroupByObra] = useState(true);
 
   const handleSave = () => {
+    if (!currentSupplier.name) {
+      alert('O nome do fornecedor é obrigatório.');
+      return;
+    }
+
     if (currentSupplier.id) {
-      setSuppliers(suppliers.map(s => s.id === currentSupplier.id ? { ...s, ...currentSupplier } as Supplier : s));
+      setSuppliers(prev => prev.map(s => s.id === currentSupplier.id ? { ...s, ...currentSupplier } as Supplier : s));
     } else {
-      setSuppliers([...suppliers, { ...currentSupplier, id: uuidv4(), companyId: compId } as Supplier]);
+      setSuppliers(prev => [...prev, { ...currentSupplier, id: uuidv4(), companyId: compId } as Supplier]);
     }
     setIsDialogOpen(false);
-    setCurrentSupplier({});
+    setCurrentSupplier({ assignedContractIds: [] });
   };
 
   const handleDelete = (id: string) => {
@@ -979,7 +984,10 @@ function SuppliersTab({ suppliers, setSuppliers, compId, contracts }: { supplier
   };
 
   const openNew = () => {
-    setCurrentSupplier({ registrationNumber: (suppliers.length + 1).toString() });
+    setCurrentSupplier({ 
+      registrationNumber: (suppliers.length + 1).toString(),
+      assignedContractIds: []
+    });
     setIsDialogOpen(true);
   };
 

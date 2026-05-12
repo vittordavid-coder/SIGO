@@ -2920,11 +2920,11 @@ export default function ControlView({
         className="p-0 border-none overflow-hidden"
         headerClassName="hidden"
       >
-        <div className="bg-emerald-600 p-8 text-white relative overflow-hidden rounded-t-2xl">
-          <Package className="absolute -right-8 -bottom-8 w-40 h-40 opacity-10 rotate-12" />
+        <div className="bg-blue-600 p-8 text-white relative overflow-hidden rounded-t-2xl">
+          <ShoppingCart className="absolute -right-8 -bottom-8 w-40 h-40 opacity-10 rotate-12" />
           <div className="relative z-10 text-left">
-            <h2 className="text-3xl font-black tracking-tight">Solicitação de Itens</h2>
-            <p className="text-emerald-100 font-bold uppercase text-[10px] tracking-widest mt-1">Gerencie os detalhes e itens da solicitação para o Controlador</p>
+            <h2 className="text-3xl font-black tracking-tight">Solicitação de Compra</h2>
+            <p className="text-blue-100 font-bold uppercase text-[10px] tracking-widest mt-1">Gerencie os detalhes e itens da solicitação para o Controlador</p>
           </div>
         </div>
 
@@ -2934,7 +2934,7 @@ export default function ControlView({
               <Label className="text-[10px] uppercase font-bold text-gray-400">Data da Solicitação</Label>
               <Input 
                 type="date" 
-                className="h-12 border-gray-200 rounded-xl focus:ring-emerald-500 font-medium"
+                className="h-12 border-gray-200 rounded-xl focus:ring-blue-500 font-medium"
                 value={currentRequest.date || ''} 
                 onChange={e => setCurrentRequest({...currentRequest, date: e.target.value})}
               />
@@ -2942,9 +2942,10 @@ export default function ControlView({
             <div className="space-y-2">
               <Label className="text-[10px] uppercase font-bold text-gray-400">Setor Solicitante</Label>
               <Input 
-                disabled
-                value="CONTROLADOR"
-                className="h-12 border-gray-100 bg-gray-50 text-gray-400 font-bold rounded-xl"
+                placeholder="Ex: CONTROLADOR"
+                value={currentRequest.sector || 'CONTROLADOR'}
+                onChange={e => setCurrentRequest({...currentRequest, sector: e.target.value})}
+                className="h-12 border-gray-200 rounded-xl focus:ring-blue-500 font-medium"
               />
             </div>
           </div>
@@ -2953,10 +2954,41 @@ export default function ControlView({
             <Label className="text-[10px] uppercase font-bold text-gray-400">Descrição Geral / Motivo</Label>
             <Input 
               placeholder="Ex: Reposição de peças para equipamentos" 
-              className="h-12 border-gray-200 rounded-xl focus:ring-emerald-500 font-medium"
+              className="h-12 border-gray-200 rounded-xl focus:ring-blue-500 font-medium"
               value={currentRequest.description || ''} 
               onChange={e => setCurrentRequest({...currentRequest, description: e.target.value})}
             />
+          </div>
+
+          <div className="space-y-2">
+            <Label className="text-[10px] uppercase font-bold text-gray-400">Obra / Contrato Vinculado</Label>
+            <Select 
+              value={currentRequest.contractId || (selectedContractId !== 'all' ? selectedContractId : 'none')} 
+              onValueChange={v => setCurrentRequest({...currentRequest, contractId: v})}
+            >
+              <SelectTrigger className="h-12 border-gray-200 rounded-xl focus:ring-blue-500 font-bold text-blue-900">
+                <SelectValue placeholder="Vincular a uma obra...">
+                  {(() => {
+                    const val = currentRequest.contractId || (selectedContractId !== 'all' ? selectedContractId : 'none');
+                    if (val === 'none') return 'Sem vínculo específico';
+                    const c = contracts.find(curr => curr.id === val);
+                    if (!c) return null;
+                    return c.workName ? `${c.workName} ${c.contractNumber ? `(${c.contractNumber})` : ''}` : (c.contractNumber || c.client || 'Obra sem nome');
+                  })()}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent className="rounded-xl border-blue-100 shadow-2xl">
+                <SelectItem value="none" className="font-bold">Sem vínculo específico</SelectItem>
+                {contracts.map(c => {
+                  const label = c.workName ? `${c.workName} ${c.contractNumber ? `(${c.contractNumber})` : ''}` : (c.contractNumber || c.client || 'Obra sem nome');
+                  return (
+                    <SelectItem key={c.id} value={c.id} textValue={label} className="font-medium">
+                      {label}
+                    </SelectItem>
+                  );
+                })}
+              </SelectContent>
+            </Select>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -2966,7 +2998,7 @@ export default function ControlView({
                 value={currentRequest.priority || 'Normal'}
                 onValueChange={(v: any) => setCurrentRequest({ ...currentRequest, priority: v })}
               >
-                <SelectTrigger className="h-12 border-gray-200 rounded-xl focus:ring-emerald-500 font-bold">
+                <SelectTrigger className="h-12 border-gray-200 rounded-xl focus:ring-blue-500 font-bold">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent className="rounded-xl">
@@ -2999,7 +3031,7 @@ export default function ControlView({
                   onFocus={() => setShowCategorySuggestions(true)}
                   onBlur={() => setTimeout(() => setShowCategorySuggestions(false), 200)}
                   placeholder="Ex. Mecânica, Elétrica..." 
-                  className="h-12 border-gray-200 rounded-xl focus:ring-emerald-500 font-bold"
+                  className="h-12 border-gray-200 rounded-xl focus:ring-blue-500 font-bold"
                 />
                 {showCategorySuggestions && savedCategories.filter(c => c.toLowerCase().includes(newRequestCategory.toLowerCase())).length > 0 && (
                   <div className="absolute z-50 w-full mt-1 bg-white border border-gray-100 shadow-xl rounded-2xl overflow-hidden py-2">
@@ -3030,7 +3062,7 @@ export default function ControlView({
                 type="button" 
                 size="sm" 
                 onClick={addItemInput}
-                className="bg-emerald-50 text-emerald-600 hover:bg-emerald-100 border-none h-8 font-bold text-[10px] rounded-lg"
+                className="bg-blue-50 text-blue-600 hover:bg-blue-100 border-none h-8 font-bold text-[10px] rounded-lg"
               >
                 <Plus className="w-3 h-3 mr-1" /> Adicionar Item
               </Button>
@@ -3038,14 +3070,14 @@ export default function ControlView({
 
             <div className="space-y-3 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
               {(currentRequest.items || []).map((item, idx) => (
-                <div key={item.id} className="grid grid-cols-12 gap-3 p-4 bg-gray-50 rounded-2xl border border-gray-100 group transition-all hover:bg-white hover:shadow-md hover:border-emerald-100 relative">
+                <div key={item.id} className="grid grid-cols-12 gap-3 p-4 bg-gray-50 rounded-2xl border border-gray-100 group transition-all hover:bg-white hover:shadow-md hover:border-blue-100 relative">
                   <div className="col-span-12 sm:col-span-7 space-y-1">
                     <Label className="text-[9px] font-black text-gray-400 uppercase tracking-tighter">Descrição do Item / Aplicação</Label>
                     <Input 
                       placeholder="Ex: Filtro de Óleo - Placa ABC-1234"
                       value={item.description}
                       onChange={e => updateItem(idx, 'description', e.target.value)}
-                      className="h-10 border-gray-200 rounded-xl focus:ring-emerald-500 bg-white"
+                      className="h-10 border-gray-200 rounded-xl focus:ring-blue-500 bg-white"
                     />
                   </div>
                   <div className="col-span-6 sm:col-span-2 space-y-1">
@@ -3054,7 +3086,7 @@ export default function ControlView({
                       type="number"
                       value={item.quantity}
                       onChange={e => updateItem(idx, 'quantity', parseFloat(e.target.value) || 0)}
-                      className="h-10 border-gray-200 rounded-xl focus:ring-emerald-500 bg-white text-center"
+                      className="h-10 border-gray-200 rounded-xl focus:ring-blue-500 bg-white text-center"
                     />
                   </div>
                   <div className="col-span-6 sm:col-span-2 space-y-1">
@@ -3063,7 +3095,7 @@ export default function ControlView({
                       placeholder="un"
                       value={item.unit}
                       onChange={e => updateItem(idx, 'unit', e.target.value)}
-                      className="h-10 border-gray-200 rounded-xl focus:ring-emerald-500 bg-white"
+                      className="h-10 border-gray-200 rounded-xl focus:ring-blue-500 bg-white"
                     />
                   </div>
                   <div className="col-span-12 sm:col-span-1 flex items-end justify-center pb-1">
@@ -3099,7 +3131,7 @@ export default function ControlView({
         <div className="px-8 pb-8 pt-2">
           <Button 
             onClick={handleCreateMaterialRequest} 
-            className="w-full h-14 rounded-2xl bg-emerald-600 hover:bg-emerald-700 shadow-xl shadow-emerald-100 font-black uppercase text-xs tracking-widest transition-all active:scale-[0.98]"
+            className="w-full h-14 rounded-2xl bg-blue-600 hover:bg-blue-700 shadow-xl shadow-blue-100 font-black uppercase text-xs tracking-widest transition-all active:scale-[0.98]"
           >
             Enviar Solicitação
           </Button>

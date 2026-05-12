@@ -210,7 +210,7 @@ const TABLE_DESCRIPTIONS: Record<string, string> = {
   'employees': 'Cadastro de funcionários de RH alocados em obras.',
   'time_records': 'Registros de horas trabalhadas da equipe de RH.',
   'controller_teams': 'Equipes cadastradas no módulo do controlador (Apropriação).',
-  'controller_equipments': 'Cadastro de equipamentos e frota alocada.',
+  'equipments': 'Cadastro de equipamentos e frota alocada.',
   'controller_manpower': 'Saldos de Mão de obra da equipe (Controlador).',
   'team_assignments': 'Alocações de equipes e controle de vínculo nas frentes de serviço.',
   'equipment_monthly_data': 'Lançamentos e custos mensais de equipamentos.',
@@ -1111,7 +1111,7 @@ export function AdminView({
                           case 'service_productions': localCount = serviceProductions.length; break;
                           case 'measurement_templates': localCount = templates.length; break;
                           case 'controller_teams': localCount = controllerTeams.length; break;
-                          case 'controller_equipments': localCount = controllerEquipments.length; break;
+                          case 'equipments': localCount = controllerEquipments.length; break;
                           case 'controller_manpower': localCount = controllerManpower.length; break;
                           case 'audit_logs': localCount = auditLogs.length; break;
                           case 'daily_reports': localCount = dailyReports.length; break;
