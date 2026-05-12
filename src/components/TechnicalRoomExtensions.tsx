@@ -2638,7 +2638,7 @@ export function TechnicalScheduleView({
                                     barSize={20} 
                                     opacity={0.3} 
                                     style={{ cursor: 'pointer' }}
-                                    onMouseDown={(data) => {
+                                    onMouseDown={(data: any) => {
                                       if (data && typeof data.periodIndex === 'number') setChartPeriodFilter(data.periodIndex);
                                     }}
                                   />
@@ -2650,7 +2650,7 @@ export function TechnicalScheduleView({
                                     barSize={20} 
                                     opacity={0.3} 
                                     style={{ cursor: 'pointer' }}
-                                    onMouseDown={(data) => {
+                                    onMouseDown={(data: any) => {
                                       if (data && typeof data.periodIndex === 'number') setChartPeriodFilter(data.periodIndex);
                                     }}
                                   />

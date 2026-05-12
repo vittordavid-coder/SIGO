@@ -22,12 +22,16 @@ import {
   CheckSquare,
   Package,
   Filter,
-  Download
+  Download,
+  Archive,
+  ChevronUp,
+  ChevronDown
 } from 'lucide-react';
 import { applyPhoneMask, applyCEPMask, cn, hashPassword } from '../lib/utils';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger, DialogDescription } from '@/components/ui/dialog';
 import { Modal } from "@/components/ui/Modal";
@@ -56,7 +60,7 @@ interface PurchasesViewProps {
   compId?: string;
   contracts: Contract[];
   equipments?: any[];
-  initialTab?: 'requests' | 'suppliers' | 'orders' | 'tracking' | 'evaluation';
+  initialTab?: 'requests' | 'suppliers' | 'quotations' | 'orders' | 'tracking' | 'estoque' | 'evaluation';
   companyLogo?: string;
   companyLogoRight?: string;
   logoMode?: 'left' | 'right' | 'both' | 'none';
@@ -64,6 +68,7 @@ interface PurchasesViewProps {
   equipmentMaintenance?: EquipmentMaintenance[];
   onUpdateMaintenance?: (val: EquipmentMaintenance[]) => void;
   currentUser?: User | null;
+  onUpdateEquipments?: (val: any[]) => void;
 }
 
 export default function PurchasesView({ 
@@ -85,9 +90,10 @@ export default function PurchasesView({
   defaultOrganization,
   equipmentMaintenance = [],
   onUpdateMaintenance,
-  currentUser
+  currentUser,
+  onUpdateEquipments
 }: PurchasesViewProps) {
-  const [activeTab, setActiveTab] = useState<'requests' | 'suppliers' | 'quotations' | 'orders' | 'tracking' | 'evaluation'>(initialTab || 'requests');
+  const [activeTab, setActiveTab] = useState<'requests' | 'suppliers' | 'quotations' | 'orders' | 'tracking' | 'estoque' | 'evaluation'>(initialTab || 'requests');
   const [selectedContractId, setSelectedContractId] = useState<string>(contracts[0]?.id || 'all');
   
   // Ensure selectedContractId is valid when contracts change
@@ -152,12 +158,13 @@ export default function PurchasesView({
       </div>
 
       <Tabs value={activeTab} onValueChange={(v: any) => setActiveTab(v)} className="w-full">
-        <TabsList className="grid w-full grid-cols-6 max-w-[1200px] bg-gray-100 p-1 rounded-xl">
+        <TabsList className="grid w-full grid-cols-7 max-w-[1200px] bg-gray-100 p-1 rounded-xl">
           <TabsTrigger value="requests" className="rounded-lg font-bold text-xs sm:text-sm">Solicitações</TabsTrigger>
           <TabsTrigger value="suppliers" className="rounded-lg font-bold text-xs sm:text-sm">Fornecedores</TabsTrigger>
           <TabsTrigger value="quotations" className="rounded-lg font-bold text-xs sm:text-sm">Orçamentos</TabsTrigger>
           <TabsTrigger value="orders" className="rounded-lg font-bold text-xs sm:text-sm">Ordens de Compra</TabsTrigger>
           <TabsTrigger value="tracking" className="rounded-lg font-bold text-xs sm:text-sm">Acompanhamento</TabsTrigger>
+          <TabsTrigger value="estoque" className="rounded-lg font-bold text-xs sm:text-sm">Estoque</TabsTrigger>
           <TabsTrigger value="evaluation" className="rounded-lg font-bold text-xs sm:text-sm">Avaliação</TabsTrigger>
         </TabsList>
 
@@ -240,6 +247,16 @@ export default function PurchasesView({
                   setOrders={setOrders} 
                   equipmentMaintenance={equipmentMaintenance}
                   onUpdateMaintenance={onUpdateMaintenance}
+                  requests={requests}
+                  setRequests={setRequests}
+                />
+              </TabsContent>
+              <TabsContent value="estoque" className="mt-0 outline-none">
+                <EstoqueTab 
+                  requests={selectedContractId === 'all' ? requests : requests.filter(r => r.contractId === selectedContractId)}
+                  setRequests={setRequests}
+                  equipments={equipments}
+                  onUpdateEquipments={onUpdateEquipments}
                 />
               </TabsContent>
               <TabsContent value="evaluation" className="mt-0 outline-none">
@@ -299,6 +316,7 @@ function RequestsTab({
       requestDescription: req.description,
       requestCategory: req.category,
       requestSector: req.sector,
+      priority: req.priority,
       displayStatus: item.status || req.status
     }))
   ).filter(item => item.displayStatus !== 'Cancelado' && item.displayStatus !== 'Recebido');
@@ -319,21 +337,44 @@ function RequestsTab({
 
   const openNewRequest = () => {
     setCurrentRequest({
-      id: Math.random().toString(36).substr(2, 9),
+      id: uuidv4(),
       date: new Date().toISOString().split('T')[0],
       status: 'Pendente',
+      priority: 'Normal',
       contractId: selectedContractId !== 'all' ? selectedContractId : undefined,
-      items: []
+      items: [{ id: uuidv4(), description: '', quantity: 1, unit: 'un' }]
     });
     setIsRequestDialogOpen(true);
   };
 
   const handleSaveRequest = () => {
+    if (!currentRequest.items || currentRequest.items.length === 0) {
+      alert('Adicione pelo menos um item à solicitação.');
+      return;
+    }
+
+    if (currentRequest.items.some(i => !i.description)) {
+      alert('Todos os itens devem ter uma descrição.');
+      return;
+    }
+
     let newRequests: PurchaseRequest[];
-    if (requests.find(r => r.id === currentRequest.id)) {
-      newRequests = requests.map(r => r.id === currentRequest.id ? currentRequest as PurchaseRequest : r);
+    const requestToSave = { 
+      ...currentRequest, 
+      id: currentRequest.id || uuidv4(), 
+      companyId: compId,
+      status: currentRequest.status || 'Pendente',
+      priority: currentRequest.priority || 'Normal',
+      items: (currentRequest.items || []).map(item => ({
+        ...item,
+        status: item.status || 'Pendente'
+      }))
+    } as PurchaseRequest;
+
+    if (requests.find(r => r.id === requestToSave.id)) {
+      newRequests = requests.map(r => r.id === requestToSave.id ? requestToSave : r);
     } else {
-      newRequests = [...requests, { ...currentRequest, id: currentRequest.id || uuidv4(), companyId: compId } as PurchaseRequest];
+      newRequests = [requestToSave, ...requests];
     }
     setRequests(newRequests);
     setIsRequestDialogOpen(false);
@@ -417,8 +458,19 @@ function RequestsTab({
   const addItemInput = () => {
     setCurrentRequest({
       ...currentRequest,
-      items: [...(currentRequest.items || []), { id: crypto.randomUUID(), description: '', quantity: 1, unit: 'un' }]
+      items: [...(currentRequest.items || []), { id: uuidv4(), description: '', quantity: 1, unit: 'un', status: 'Pendente' }]
     });
+  };
+
+  const updateItem = (index: number, field: string, value: any) => {
+    const newItems = [...(currentRequest.items || [])];
+    newItems[index] = { ...newItems[index], [field]: value };
+    setCurrentRequest({ ...currentRequest, items: newItems });
+  };
+
+  const removeItem = (index: number) => {
+    const newItems = (currentRequest.items || []).filter((_, i) => i !== index);
+    setCurrentRequest({ ...currentRequest, items: newItems });
   };
 
   return (
@@ -497,7 +549,15 @@ function RequestsTab({
                     {new Date(item.requestDate).toLocaleDateString('pt-BR')}
                   </TableCell>
                   <TableCell>
-                    <div className="font-bold text-gray-900 leading-tight">{item.description}</div>
+                    <div className="flex items-center gap-2">
+                      {item.priority === 'Alta' && (
+                        <AlertCircle className="w-4 h-4 text-orange-500" />
+                      )}
+                      {item.priority === 'Urgente' && (
+                        <AlertCircle className="w-4 h-4 text-red-600 animate-pulse" />
+                      )}
+                      <div className="font-bold text-gray-900 leading-tight">{item.description}</div>
+                    </div>
                     <div className="text-[10px] text-gray-400 mt-0.5">{item.requestDescription}</div>
                   </TableCell>
                   <TableCell className="text-sm font-medium">
@@ -672,6 +732,33 @@ function RequestsTab({
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-2">
+                <Label className="text-[10px] uppercase font-bold text-gray-400">Prioridade</Label>
+                <Select 
+                  value={currentRequest.priority || 'Normal'}
+                  onValueChange={(v: any) => setCurrentRequest({ ...currentRequest, priority: v })}
+                >
+                  <SelectTrigger className="h-12 border-gray-200 rounded-xl focus:ring-blue-500 font-bold">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="rounded-xl">
+                    <SelectItem value="Urgente" className="text-red-600 font-black">
+                      <div className="flex items-center gap-2">
+                        <AlertCircle className="w-4 h-4 text-red-600" />
+                        URGENTE
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="Alta" className="text-orange-600 font-bold">
+                      <div className="flex items-center gap-2">
+                        <AlertCircle className="w-4 h-4 text-orange-600" />
+                        ALTA
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="Normal" className="text-blue-600 font-bold">NORMAL</SelectItem>
+                    <SelectItem value="Baixa" className="text-gray-600 font-bold">BAIXA</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
                 <Label className="text-[10px] uppercase font-bold text-gray-400">Categoria</Label>
                 <Select 
                   value={currentRequest.category || ''}
@@ -688,22 +775,77 @@ function RequestsTab({
                   </SelectContent>
                 </Select>
               </div>
-              <div className="space-y-2">
-                <Label className="text-[10px] uppercase font-bold text-gray-400">Prioridade</Label>
-                <Select 
-                  value={currentRequest.priority || 'Normal'}
-                  onValueChange={(v: any) => setCurrentRequest({ ...currentRequest, priority: v })}
+            </div>
+
+            <div className="space-y-4 pt-4 border-t border-gray-100">
+              <div className="flex justify-between items-center mb-2">
+                <Label className="text-[10px] uppercase font-black text-gray-400 tracking-widest">Itens da Solicitação</Label>
+                <Button 
+                  type="button" 
+                  size="sm" 
+                  onClick={addItemInput}
+                  className="bg-blue-50 text-blue-600 hover:bg-blue-100 border-none h-8 font-bold text-[10px] rounded-lg"
                 >
-                  <SelectTrigger className="h-12 border-gray-200 rounded-xl focus:ring-blue-500 font-bold">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent className="rounded-xl">
-                    <SelectItem value="Urgente" className="text-red-600 font-black">URGENTE</SelectItem>
-                    <SelectItem value="Alta" className="text-orange-600 font-bold">ALTA</SelectItem>
-                    <SelectItem value="Normal" className="text-blue-600 font-bold">NORMAL</SelectItem>
-                    <SelectItem value="Baixa" className="text-gray-600 font-bold">BAIXA</SelectItem>
-                  </SelectContent>
-                </Select>
+                  <Plus className="w-3 h-3 mr-1" /> Adicionar Item
+                </Button>
+              </div>
+
+              <div className="space-y-3 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
+                {(currentRequest.items || []).map((item, idx) => (
+                  <div key={item.id} className="grid grid-cols-12 gap-3 p-4 bg-gray-50 rounded-2xl border border-gray-100 group transition-all hover:bg-white hover:shadow-md hover:border-blue-100 relative">
+                    <div className="col-span-12 sm:col-span-7 space-y-1">
+                      <Label className="text-[9px] font-black text-gray-400 uppercase tracking-tighter">Descrição do Material</Label>
+                      <Input 
+                        placeholder="Ex: Cimento CP II"
+                        value={item.description}
+                        onChange={e => updateItem(idx, 'description', e.target.value)}
+                        className="h-10 border-gray-200 rounded-xl focus:ring-blue-500 bg-white"
+                      />
+                    </div>
+                    <div className="col-span-6 sm:col-span-2 space-y-1">
+                      <Label className="text-[9px] font-black text-gray-400 uppercase tracking-tighter">Qtd</Label>
+                      <Input 
+                        type="number"
+                        value={item.quantity}
+                        onChange={e => updateItem(idx, 'quantity', parseFloat(e.target.value) || 0)}
+                        className="h-10 border-gray-200 rounded-xl focus:ring-blue-500 bg-white text-center"
+                      />
+                    </div>
+                    <div className="col-span-6 sm:col-span-2 space-y-1">
+                      <Label className="text-[9px] font-black text-gray-400 uppercase tracking-tighter">Unid</Label>
+                      <Input 
+                        placeholder="un"
+                        value={item.unit}
+                        onChange={e => updateItem(idx, 'unit', e.target.value)}
+                        className="h-10 border-gray-200 rounded-xl focus:ring-blue-500 bg-white"
+                      />
+                    </div>
+                    <div className="col-span-12 sm:col-span-1 flex items-end justify-center pb-1">
+                      <Button 
+                        variant="ghost" 
+                        size="icon"
+                        onClick={() => removeItem(idx)}
+                        className="h-8 w-8 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-xl"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+                
+                {(currentRequest.items || []).length === 0 && (
+                  <div className="py-8 text-center bg-gray-50 rounded-2xl border border-dashed border-gray-200">
+                    <p className="text-gray-400 text-xs font-medium">Nenhum item adicionado ainda.</p>
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={addItemInput}
+                      className="mt-2 text-blue-600 border-blue-200"
+                    >
+                      Clique para adicionar
+                    </Button>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -2563,11 +2705,13 @@ function QuotationsTab({
   );
 }
 
-function TrackingTab({ orders, setOrders, equipmentMaintenance, onUpdateMaintenance }: { 
+function TrackingTab({ orders, setOrders, equipmentMaintenance, onUpdateMaintenance, requests, setRequests }: { 
   orders: PurchaseOrder[], 
   setOrders: React.Dispatch<React.SetStateAction<PurchaseOrder[]>>,
   equipmentMaintenance: EquipmentMaintenance[],
-  onUpdateMaintenance?: (val: EquipmentMaintenance[]) => void
+  onUpdateMaintenance?: (val: EquipmentMaintenance[]) => void,
+  requests: PurchaseRequest[],
+  setRequests: React.Dispatch<React.SetStateAction<PurchaseRequest[]>>
 }) {
   const trackingOrders = orders.filter(o => o.status !== 'draft' && o.status !== 'cancelled' && o.status !== 'delivered' && o.status !== 'finalizada');
   const [evaluationOrder, setEvaluationOrder] = useState<PurchaseOrder | null>(null);
@@ -2651,6 +2795,31 @@ function TrackingTab({ orders, setOrders, equipmentMaintenance, onUpdateMaintena
     }
 
     setOrders(updatedOrders);
+
+    // Update related purchase requests to 'Recebido'
+    if (setRequests) {
+      const relatedRequestIds = new Set(evaluationOrder.items.map(i => i.requestId).filter(Boolean));
+      if (relatedRequestIds.size > 0) {
+        const updatedRequests = requests.map(r => {
+          if (relatedRequestIds.has(r.id)) {
+            return {
+              ...r,
+              status: 'Recebido' as const,
+              items: r.items.map(item => {
+                const orderItem = evaluationOrder.items.find(oi => oi.requestId === r.id && oi.itemId === item.id);
+                if (orderItem) {
+                  return { ...item, status: 'Recebido' as const };
+                }
+                return item;
+              })
+            };
+          }
+          return r;
+        });
+        setRequests(updatedRequests);
+      }
+    }
+
     setEvaluationOrder(null);
     alert('Entrega recebida e avaliação registrada com sucesso!');
   };
@@ -2884,6 +3053,196 @@ function SupplierTable({
         ))}
       </TableBody>
     </Table>
+  );
+}
+
+function EstoqueTab({ 
+  requests, 
+  setRequests,
+  equipments,
+  onUpdateEquipments
+}: { 
+  requests: PurchaseRequest[], 
+  setRequests: React.Dispatch<React.SetStateAction<PurchaseRequest[]>>,
+  equipments: any[],
+  onUpdateEquipments?: (val: any[]) => void
+}) {
+  const stockItems = requests
+    .filter(r => r.status === 'Recebido')
+    .flatMap(r => r.items.map(item => ({ ...item, requestId: r.id, sector: r.sector, requestDesc: r.description, contractId: r.contractId })))
+    .filter(item => (item.quantity - (item.appliedQuantity || 0)) > 0);
+
+  const [selectedItem, setSelectedItem] = useState<any | null>(null);
+  const [applyQty, setApplyQty] = useState(1);
+  const [selectedEquipId, setSelectedEquipId] = useState('');
+
+  const handleApply = () => {
+    if (!selectedItem || !selectedEquipId || applyQty <= 0) return;
+
+    const currentApplied = selectedItem.appliedQuantity || 0;
+    if (applyQty > (selectedItem.quantity - currentApplied)) {
+      alert('Quantidade insuficiente em estoque.');
+      return;
+    }
+
+    // Update Request
+    const updatedRequests = requests.map(r => {
+      if (r.id === selectedItem.requestId) {
+        return {
+          ...r,
+          items: r.items.map(i => i.id === selectedItem.id ? { ...i, appliedQuantity: (i.appliedQuantity || 0) + applyQty } : i)
+        };
+      }
+      return r;
+    });
+    setRequests(updatedRequests);
+
+    // Update Equipment History
+    if (onUpdateEquipments) {
+      const equip = equipments.find(e => e.id === selectedEquipId);
+      if (equip) {
+        const newHistory: any = {
+          id: crypto.randomUUID(),
+          date: new Date().toISOString(),
+          type: 'part_application',
+          description: `Aplicação de material do estoque (${selectedItem.description})`,
+          relatedId: selectedItem.requestId,
+          parts: [{
+            description: selectedItem.description,
+            quantity: applyQty,
+            unit: selectedItem.unit
+          }]
+        };
+
+        const updatedEquips = equipments.map(e => e.id === selectedEquipId ? {
+          ...e,
+          history: [...(e.history || []), newHistory]
+        } : e);
+        onUpdateEquipments(updatedEquips);
+      }
+    }
+
+    setSelectedItem(null);
+    setApplyQty(1);
+    setSelectedEquipId('');
+    alert('Material aplicado com sucesso!');
+  };
+
+  return (
+    <Card className="border-[10px] border-white shadow-xl rounded-3xl">
+      <CardHeader className="border-b border-gray-50 pb-6">
+        <div className="flex justify-between items-center">
+          <div>
+            <CardTitle className="text-2xl font-bold flex items-center gap-2">
+              <Package className="w-6 h-6 text-emerald-600" />
+              Estoque por Setor
+            </CardTitle>
+            <CardDescription className="text-gray-500 mt-1">
+              Materiais recebidos aguardando aplicação
+            </CardDescription>
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent className="p-0">
+        <Table>
+          <TableHeader className="bg-gray-50/50">
+            <TableRow>
+              <TableHead>Material / Peça</TableHead>
+              <TableHead>Setor Origem</TableHead>
+              <TableHead>Solicitação</TableHead>
+              <TableHead className="text-center">Total</TableHead>
+              <TableHead className="text-center">Aplicado</TableHead>
+              <TableHead className="text-center">Saldo</TableHead>
+              <TableHead className="text-right">Ações</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {stockItems.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={7} className="h-32 text-center text-gray-400 font-medium">
+                  Nenhum item em estoque.
+                </TableCell>
+              </TableRow>
+            ) : (
+              stockItems.map((item, idx) => (
+                <TableRow key={`${item.requestId}-${item.id}`} className="hover:bg-blue-50/30">
+                  <TableCell>
+                    <div className="font-bold text-gray-900">{item.description}</div>
+                    <div className="text-[10px] text-gray-400 uppercase font-black">{item.unit}</div>
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-100 font-black text-[10px] uppercase">
+                      {item.sector}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="max-w-[200px] truncate">
+                    <div className="text-xs text-gray-600">{item.requestDesc}</div>
+                  </TableCell>
+                  <TableCell className="text-center font-bold">{item.quantity}</TableCell>
+                  <TableCell className="text-center font-bold text-blue-600">{item.appliedQuantity || 0}</TableCell>
+                  <TableCell className="text-center">
+                    <span className="bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full font-black text-xs">
+                      {item.quantity - (item.appliedQuantity || 0)}
+                    </span>
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <Button 
+                      size="sm" 
+                      onClick={() => {
+                        setSelectedItem(item);
+                        setApplyQty(item.quantity - (item.appliedQuantity || 0));
+                      }}
+                      className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold h-8 text-[10px]"
+                    >
+                      Aplicar
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
+          </TableBody>
+        </Table>
+
+        <Dialog open={!!selectedItem} onOpenChange={() => setSelectedItem(null)}>
+          <DialogContent className="max-w-md rounded-3xl p-0 border-none bg-white overflow-hidden">
+            <div className="bg-blue-600 p-6 text-white">
+              <DialogTitle className="text-xl font-bold">Aplicar Material em Equipamento</DialogTitle>
+              <DialogDescription className="text-blue-100 mt-1">Registre a aplicação de {selectedItem?.description} do estoque</DialogDescription>
+            </div>
+            <div className="p-6 space-y-6">
+              <div className="space-y-2">
+                <Label className="text-xs font-black uppercase text-gray-500">Selecionar Equipamento</Label>
+                <Select value={selectedEquipId} onValueChange={setSelectedEquipId}>
+                  <SelectTrigger className="rounded-xl h-12 border-gray-200">
+                    <SelectValue placeholder="Escolha um equipamento..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {equipments.map(e => (
+                      <SelectItem key={e.id} value={e.id}>{e.name} ({e.plate})</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-xs font-black uppercase text-gray-500">Quantidade a Aplicar (Saldo: {selectedItem ? selectedItem.quantity - (selectedItem.appliedQuantity || 0) : 0})</Label>
+                <Input 
+                  type="number" 
+                  value={applyQty} 
+                  onChange={e => setApplyQty(parseFloat(e.target.value) || 0)}
+                  className="rounded-xl h-12 border-gray-200 font-bold"
+                />
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <Button variant="outline" className="flex-1 rounded-xl h-12 font-bold" onClick={() => setSelectedItem(null)}>Cancelar</Button>
+                <Button className="flex-1 rounded-xl h-12 bg-blue-600 hover:bg-blue-700 text-white font-black shadow-lg shadow-blue-100" onClick={handleApply}>Confirmar Aplicação</Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+      </CardContent>
+    </Card>
   );
 }
 

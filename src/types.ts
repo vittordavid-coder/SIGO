@@ -64,7 +64,7 @@ export interface Quotation {
 
 export type UserRole = 'master' | 'admin' | 'editor' | 'reader' | 'project_admin';
 
-export type AppModule = 'quotations' | 'measurements' | 'rh' | 'control' | 'purchases' | 'project_admin' | 'settings' | 'financeiro';
+export type AppModule = 'quotations' | 'measurements' | 'rh' | 'control' | 'purchases' | 'project_admin' | 'settings' | 'financeiro' | 'gerencia';
 
 export interface Dependent {
   name: string;
@@ -544,6 +544,7 @@ export interface PurchaseRequest {
   category: string;
   costCenter?: string;
   sector: string;
+  priority?: 'Normal' | 'Alta' | 'Urgente';
   status: 'Cancelado' | 'Pendente' | 'Em orçamento' | 'Compra Aprovado' | 'Comprado' | 'Recebido';
   deliveryDeadline?: string;
   items: {
@@ -689,7 +690,9 @@ export interface MaterialRequestItem {
   id: string;
   quantity: number;
   description: string;
+  unit?: string;
   application: string; // Equipment ID or Plate
+  priority?: 'Normal' | 'Alta' | 'Urgente';
 }
 
 export interface MaterialRequest {

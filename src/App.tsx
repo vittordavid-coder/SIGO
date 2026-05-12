@@ -122,7 +122,7 @@ export default function App() {
   const [activeMeasureTab, setActiveMeasureTab] = useState<'contracts' | 'measurements' | 'measure' | 'controls' | 'rdo' | 'pluviometria' | 'schedule' | 'teams' | 'reports' | 'summary'>('contracts');
   const [activeRHTab, setActiveRHTab] = useState('employees');
   const [activeControlTab, setActiveControlTab] = useState('list');
-  const [activePurchasesTab, setActivePurchasesTab] = useState('suppliers');
+  const [activePurchasesTab, setActivePurchasesTab] = useState<'requests' | 'suppliers' | 'quotations' | 'orders' | 'tracking' | 'estoque' | 'evaluation'>('suppliers');
   const [selectedMeasurementId, setSelectedMeasurementId] = useState<string | null>(null);
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
@@ -3481,6 +3481,8 @@ export default function App() {
                   equipmentMaintenance={equipmentMaintenance}
                   onUpdateMaintenance={(val) => { lastLocalUpdate.current = Date.now(); setEquipmentMaintenance(val); }}
                   currentUser={currentUser}
+                  equipments={controllerEquipments}
+                  onUpdateEquipments={(val) => { lastLocalUpdate.current = Date.now(); updateTechnicalEquipments(val); }}
                 />
               )}
               {mainTab === 'project_admin' && currentUser && (

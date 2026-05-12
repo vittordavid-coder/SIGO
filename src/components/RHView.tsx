@@ -1707,7 +1707,7 @@ export default function RHView({
               <Card key={idx} className="border-none shadow-sm hover:ring-2 hover:ring-blue-500 transition-all cursor-pointer group">
                 <CardHeader>
                   <div className="bg-blue-50 p-3 rounded-xl w-fit group-hover:bg-blue-600 group-hover:text-white transition-colors">
-                    {React.cloneElement(doc.icon as React.ReactElement, { className: 'w-6 h-6' })}
+                    {React.cloneElement(doc.icon as React.ReactElement<any>, { className: 'w-6 h-6' })}
                   </div>
                   <div className="pt-4">
                     <CardTitle className="text-lg">{doc.title}</CardTitle>

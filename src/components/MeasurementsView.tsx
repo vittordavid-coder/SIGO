@@ -1259,7 +1259,7 @@ function MeasurementSummaryView({
   };
 
   const handleExportExcel = () => {
-    const wsData = [
+    const wsData: any[][] = [
       ['RESUMO DE MEDIÇÃO'],
       [`Contrato: ${contract.contractNumber}`],
       [`Cliente: ${contract.client}`],

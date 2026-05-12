@@ -18,6 +18,7 @@ import {
   ArrowUpAZ,
   ArrowDownAZ,
   Filter,
+  AlertCircle,
   Wrench,
   XCircle,
   ArrowRightLeft,
@@ -128,8 +129,11 @@ export default function ControlView({
   const [openDest, setOpenDest] = useState(false);
 
   const [isMaterialRequestModalOpen, setIsMaterialRequestModalOpen] = useState(false);
-  const [newMaterialRequestItems, setNewMaterialRequestItems] = useState<Partial<MaterialRequestItem>[]>([]);
-  const [newMaterialRequestEntry, setNewMaterialRequestEntry] = useState<Partial<MaterialRequestItem>>({ quantity: 1, description: '', application: '' });
+  const [currentRequest, setCurrentRequest] = useState<Partial<PurchaseRequest>>({
+    items: [{ id: crypto.randomUUID(), description: '', quantity: 1, unit: 'un' }],
+    status: 'Pendente',
+    priority: 'Normal'
+  });
   const [newRequestCategory, setNewRequestCategory] = useState('');
   const [showCategorySuggestions, setShowCategorySuggestions] = useState(false);
   
@@ -564,42 +568,60 @@ export default function ControlView({
     setNewFuelLog({ type: 'saida', date: new Date().toISOString().split('T')[0], quantity: 0, tankId: '', equipmentId: '', supplier: '', invoiceNumber: '', unitPrice: 0, cost: 0 });
   };
 
-  const handleAddMaterialItem = () => {
-    if (!newMaterialRequestEntry.description || !newMaterialRequestEntry.quantity || !newMaterialRequestEntry.application) return;
-    setNewMaterialRequestItems([...newMaterialRequestItems, { ...newMaterialRequestEntry }]);
-    setNewMaterialRequestEntry({ ...newMaterialRequestEntry, description: '', quantity: 1 });
+  const addItemInput = () => {
+    setCurrentRequest({
+      ...currentRequest,
+      items: [...(currentRequest.items || []), { id: crypto.randomUUID(), description: '', quantity: 1, unit: 'un', status: 'Pendente' }]
+    });
+  };
+
+  const updateItem = (index: number, field: string, value: any) => {
+    const newItems = [...(currentRequest.items || [])];
+    newItems[index] = { ...newItems[index], [field]: value };
+    setCurrentRequest({ ...currentRequest, items: newItems });
+  };
+
+  const removeItem = (index: number) => {
+    const newItems = (currentRequest.items || []).filter((_, i) => i !== index);
+    setCurrentRequest({ ...currentRequest, items: newItems });
   };
 
   const handleCreateMaterialRequest = () => {
-    if (newMaterialRequestItems.length === 0 || !newRequestCategory) return;
+    if (!currentRequest.items || currentRequest.items.length === 0 || !newRequestCategory) {
+      alert('Preencha os itens e a categoria da solicitação.');
+      return;
+    }
     
     const newRequest: PurchaseRequest = {
+      ...currentRequest,
       id: crypto.randomUUID(),
       companyId: currentUser?.companyId,
       contractId: selectedContractId || undefined,
       date: new Date().toISOString().split('T')[0],
-      description: `Solicitação do Controlador: ${newMaterialRequestItems.map(i => i.description).join(', ')}`,
+      description: currentRequest.description || `Solicitação do Controlador: ${(currentRequest.items || []).map(i => i.description).join(', ')}`,
       category: newRequestCategory,
       sector: 'CONTROLADOR',
-      status: 'Pendente',
-      items: newMaterialRequestItems.map(item => ({
-        id: crypto.randomUUID(),
-        description: `${item.description} (Aplicação: ${item.application})`,
-        quantity: item.quantity || 1,
-        unit: 'un'
+      status: currentRequest.status || 'Pendente',
+      priority: currentRequest.priority || 'Normal',
+      items: (currentRequest.items || []).map(item => ({
+        ...item,
+        id: item.id || crypto.randomUUID(),
+        status: item.status || 'Pendente'
       }))
-    };
+    } as PurchaseRequest;
 
     onUpdatePurchaseRequests([newRequest, ...purchaseRequests]);
     
-    // Save category if it's new
     if (newRequestCategory && !savedCategories.includes(newRequestCategory)) {
       setSavedCategories([...savedCategories, newRequestCategory]);
     }
 
     setIsMaterialRequestModalOpen(false);
-    setNewMaterialRequestItems([]);
-    setNewMaterialRequestEntry({ quantity: 1, description: '', application: '' });
+    setCurrentRequest({
+      items: [{ id: crypto.randomUUID(), description: '', quantity: 1, unit: 'un' }],
+      status: 'Pendente',
+      priority: 'Normal'
+    });
     setNewRequestCategory('');
   };
 
@@ -1507,7 +1529,16 @@ export default function ControlView({
                             variant="ghost" 
                             size="icon" 
                             onClick={() => {
-                              setNewMaterialRequestEntry(prev => ({ ...prev, application: `${e.name} (${e.plate})` }));
+                              setCurrentRequest({ 
+                                id: uuidv4(),
+                                date: new Date().toISOString().split('T')[0],
+                                status: 'Pendente',
+                                priority: 'Normal',
+                                sector: 'CONTROLADOR',
+                                description: `${e.name} (${e.plate})`,
+                                contractId: e.contractId || (selectedContractId !== 'all' ? selectedContractId : undefined),
+                                items: [{ id: uuidv4(), description: '', quantity: 1, unit: 'un' }]
+                              });
                               setIsMaterialRequestModalOpen(true);
                             }} 
                             className="h-7 w-7 text-gray-300 hover:text-emerald-500"
@@ -1657,7 +1688,16 @@ export default function ControlView({
                             variant="ghost" 
                             size="icon" 
                             onClick={() => {
-                              setNewMaterialRequestEntry(prev => ({ ...prev, application: `${e.name} (${e.plate})` }));
+                              setCurrentRequest({ 
+                                id: uuidv4(),
+                                date: new Date().toISOString().split('T')[0],
+                                status: 'Pendente',
+                                priority: 'Normal',
+                                sector: 'CONTROLADOR',
+                                description: `${e.name} (${e.plate})`,
+                                contractId: e.contractId || (selectedContractId !== 'all' ? selectedContractId : undefined),
+                                items: [{ id: uuidv4(), description: '', quantity: 1, unit: 'un' }]
+                              });
                               setIsMaterialRequestModalOpen(true);
                             }} 
                             className="text-gray-300 hover:text-emerald-500"
@@ -1929,8 +1969,14 @@ export default function ControlView({
               </div>
               <Button 
                 onClick={() => {
-                  setNewMaterialRequestEntry({ quantity: 1, description: '', application: 'ESTOQUE/GERAL' });
-                  setNewMaterialRequestItems([]);
+                  setCurrentRequest({
+                    id: crypto.randomUUID(),
+                    date: new Date().toISOString().split('T')[0],
+                    status: 'Pendente',
+                    priority: 'Normal',
+                    contractId: selectedContractId !== 'all' ? selectedContractId : undefined,
+                    items: [{ id: crypto.randomUUID(), description: '', quantity: 1, unit: 'un' }]
+                  });
                   setIsMaterialRequestModalOpen(true);
                 }} 
                 className="rounded-xl bg-blue-600 gap-2 font-bold text-xs"
@@ -1956,14 +2002,22 @@ export default function ControlView({
                         {new Date(request.date).toLocaleDateString('pt-BR')}
                       </TableCell>
                       <TableCell>
-                        <div>
-                          <p className="font-bold text-gray-900 text-sm">{request.description}</p>
-                          <div className="flex flex-wrap gap-1 mt-1">
-                            {request.items.map(item => (
-                              <Badge key={item.id} variant="secondary" className="text-[9px] h-4 px-1 bg-gray-100 text-gray-600 border-none">
-                                {item.quantity}x {item.description}
-                              </Badge>
-                            ))}
+                        <div className="flex items-center gap-2">
+                          {request.priority === 'Alta' && (
+                            <AlertCircle className="w-4 h-4 text-orange-500" />
+                          )}
+                          {request.priority === 'Urgente' && (
+                            <AlertCircle className="w-4 h-4 text-red-600 animate-pulse" />
+                          )}
+                          <div>
+                            <p className="font-bold text-gray-900 text-sm">{request.description}</p>
+                            <div className="flex flex-wrap gap-1 mt-1">
+                              {request.items.map(item => (
+                                <Badge key={item.id} variant="secondary" className="text-[9px] h-4 px-1 bg-gray-100 text-gray-600 border-none">
+                                  {item.quantity}x {item.description}
+                                </Badge>
+                              ))}
+                            </div>
                           </div>
                         </div>
                       </TableCell>
@@ -2059,7 +2113,7 @@ export default function ControlView({
                           <Button 
                             className="bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-[10px] uppercase h-8"
                             onClick={() => {
-                              setSelectedStockItem(item);
+                              setSelectedStockItem({ requestId: item.requestId, itemIdx: item.itemIdx, item });
                               setIsApplyStockOpen(true);
                               setApplyQuantity(item.quantity - (item.appliedQuantity || 0));
                             }}
@@ -2862,122 +2916,190 @@ export default function ControlView({
       <Modal
         isOpen={isMaterialRequestModalOpen}
         onClose={() => setIsMaterialRequestModalOpen(false)}
-        maxWidth="md"
+        maxWidth="2xl"
         className="p-0 border-none overflow-hidden"
         headerClassName="hidden"
       >
-        <div className="bg-emerald-600 p-8 text-white relative overflow-hidden">
+        <div className="bg-emerald-600 p-8 text-white relative overflow-hidden rounded-t-2xl">
           <Package className="absolute -right-8 -bottom-8 w-40 h-40 opacity-10 rotate-12" />
           <div className="relative z-10 text-left">
-            <h2 className="text-2xl font-black text-white leading-tight">Solicitar Itens</h2>
-            <p className="text-emerald-100 text-[10px] font-bold uppercase tracking-widest mt-1 opacity-80">Requisição de peças e consumíveis</p>
+            <h2 className="text-3xl font-black tracking-tight">Solicitação de Itens</h2>
+            <p className="text-emerald-100 font-bold uppercase text-[10px] tracking-widest mt-1">Gerencie os detalhes e itens da solicitação para o Controlador</p>
           </div>
         </div>
 
-        <div className="p-8 space-y-6">
-          <div className="space-y-4">
-            <div className="space-y-2 relative">
-              <Label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Categoria da Requisição</Label>
-              <Input 
-                value={newRequestCategory} 
-                onChange={e => {
-                  setNewRequestCategory(e.target.value);
-                  setShowCategorySuggestions(true);
-                }}
-                onFocus={() => setShowCategorySuggestions(true)}
-                onBlur={() => setTimeout(() => setShowCategorySuggestions(false), 200)}
-                placeholder="Ex. Mecânica, Elétrica, Consumo..." 
-                className="h-14 border-gray-100 bg-gray-50/50 rounded-2xl text-sm font-bold shadow-sm"
-              />
-              {showCategorySuggestions && savedCategories.filter(c => c.toLowerCase().includes(newRequestCategory.toLowerCase())).length > 0 && (
-                <div className="absolute z-50 w-full mt-1 bg-white border border-gray-100 shadow-xl rounded-2xl overflow-hidden py-2">
-                  {savedCategories
-                    .filter(c => c.toLowerCase().includes(newRequestCategory.toLowerCase()))
-                    .map(cat => (
-                      <div 
-                        key={cat} 
-                        className="px-4 py-3 hover:bg-emerald-50 cursor-pointer text-xs font-bold text-gray-700 transition-colors"
-                        onClick={() => {
-                          setNewRequestCategory(cat);
-                          setShowCategorySuggestions(false);
-                        }}
-                      >
-                        {cat}
-                      </div>
-                    ))}
-                </div>
-              )}
-            </div>
-
+        <div className="p-8 space-y-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-2">
-              <Label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Aplicação / Destino</Label>
+              <Label className="text-[10px] uppercase font-bold text-gray-400">Data da Solicitação</Label>
               <Input 
-                value={newMaterialRequestEntry.application || ''} 
-                onChange={e => setNewMaterialRequestEntry({...newMaterialRequestEntry, application: e.target.value})} 
-                disabled
-                className="h-14 border-gray-50 bg-gray-100/50 rounded-2xl text-sm font-bold text-gray-500 opacity-70"
+                type="date" 
+                className="h-12 border-gray-200 rounded-xl focus:ring-emerald-500 font-medium"
+                value={currentRequest.date || ''} 
+                onChange={e => setCurrentRequest({...currentRequest, date: e.target.value})}
               />
             </div>
-            
-            <div className="flex items-end gap-3 p-4 bg-gray-50 rounded-2xl border border-gray-100">
-              <div className="flex-1 space-y-2 text-left">
-                <Label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Descrição do Item</Label>
-                <Input 
-                  value={newMaterialRequestEntry.description || ''} 
-                  onChange={e => setNewMaterialRequestEntry({...newMaterialRequestEntry, description: e.target.value})} 
-                  placeholder="Nome do produto"
-                  className="h-12 border-white bg-white rounded-xl text-sm font-medium focus:ring-2 focus:ring-emerald-500/20"
-                />
-              </div>
-              <div className="w-20 space-y-2 text-left">
-                <Label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Qtd</Label>
-                <Input 
-                  type="number" 
-                  min={1}
-                  value={newMaterialRequestEntry.quantity || ''} 
-                  onChange={e => setNewMaterialRequestEntry({...newMaterialRequestEntry, quantity: Number(e.target.value)})} 
-                  className="h-12 border-white bg-white rounded-xl text-sm font-medium text-center focus:ring-2 focus:ring-emerald-500/20"
-                />
-              </div>
-              <Button 
-                onClick={handleAddMaterialItem} 
-                className="h-12 w-12 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg shadow-emerald-100 transition-all active:scale-90"
+            <div className="space-y-2">
+              <Label className="text-[10px] uppercase font-bold text-gray-400">Setor Solicitante</Label>
+              <Input 
+                disabled
+                value="CONTROLADOR"
+                className="h-12 border-gray-100 bg-gray-50 text-gray-400 font-bold rounded-xl"
+              />
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label className="text-[10px] uppercase font-bold text-gray-400">Descrição Geral / Motivo</Label>
+            <Input 
+              placeholder="Ex: Reposição de peças para equipamentos" 
+              className="h-12 border-gray-200 rounded-xl focus:ring-emerald-500 font-medium"
+              value={currentRequest.description || ''} 
+              onChange={e => setCurrentRequest({...currentRequest, description: e.target.value})}
+            />
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="space-y-2">
+              <Label className="text-[10px] uppercase font-bold text-gray-400">Prioridade</Label>
+              <Select 
+                value={currentRequest.priority || 'Normal'}
+                onValueChange={(v: any) => setCurrentRequest({ ...currentRequest, priority: v })}
               >
-                <Plus className="w-5 h-5" />
+                <SelectTrigger className="h-12 border-gray-200 rounded-xl focus:ring-emerald-500 font-bold">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="rounded-xl">
+                  <SelectItem value="Urgente" className="text-red-600 font-black">
+                    <div className="flex items-center gap-2">
+                      <AlertCircle className="w-4 h-4 text-red-600" />
+                      URGENTE
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="Alta" className="text-orange-600 font-bold">
+                    <div className="flex items-center gap-2">
+                      <AlertCircle className="w-4 h-4 text-orange-600" />
+                      ALTA
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="Normal" className="text-blue-600 font-bold">NORMAL</SelectItem>
+                  <SelectItem value="Baixa" className="text-gray-600 font-bold">BAIXA</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2 relative">
+              <Label className="text-[10px] uppercase font-bold text-gray-400">Categoria</Label>
+              <div className="relative">
+                <Input 
+                  value={newRequestCategory} 
+                  onChange={e => {
+                    setNewRequestCategory(e.target.value);
+                    setShowCategorySuggestions(true);
+                  }}
+                  onFocus={() => setShowCategorySuggestions(true)}
+                  onBlur={() => setTimeout(() => setShowCategorySuggestions(false), 200)}
+                  placeholder="Ex. Mecânica, Elétrica..." 
+                  className="h-12 border-gray-200 rounded-xl focus:ring-emerald-500 font-bold"
+                />
+                {showCategorySuggestions && savedCategories.filter(c => c.toLowerCase().includes(newRequestCategory.toLowerCase())).length > 0 && (
+                  <div className="absolute z-50 w-full mt-1 bg-white border border-gray-100 shadow-xl rounded-2xl overflow-hidden py-2">
+                    {savedCategories
+                      .filter(c => c.toLowerCase().includes(newRequestCategory.toLowerCase()))
+                      .map(cat => (
+                        <div 
+                          key={cat} 
+                          className="px-4 py-3 hover:bg-emerald-50 cursor-pointer text-xs font-bold text-gray-700"
+                          onClick={() => {
+                            setNewRequestCategory(cat);
+                            setShowCategorySuggestions(false);
+                          }}
+                        >
+                          {cat}
+                        </div>
+                      ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-4 pt-4 border-t border-gray-100">
+            <div className="flex justify-between items-center mb-2">
+              <Label className="text-[10px] uppercase font-black text-gray-400 tracking-widest">Itens da Solicitação</Label>
+              <Button 
+                type="button" 
+                size="sm" 
+                onClick={addItemInput}
+                className="bg-emerald-50 text-emerald-600 hover:bg-emerald-100 border-none h-8 font-bold text-[10px] rounded-lg"
+              >
+                <Plus className="w-3 h-3 mr-1" /> Adicionar Item
               </Button>
             </div>
 
-            {newMaterialRequestItems.length > 0 && (
-              <div className="space-y-2">
-                <Label className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-1">Itens Preparados ({newMaterialRequestItems.length})</Label>
-                <div className="space-y-2 max-h-48 overflow-y-auto pr-2 custom-scrollbar">
-                  {newMaterialRequestItems.map((item, idx) => (
-                    <div key={idx} className="flex items-center justify-between p-4 bg-white rounded-2xl border border-gray-100 shadow-sm group hover:border-emerald-200 transition-all">
-                      <div className="flex flex-col text-left">
-                        <span className="font-bold text-gray-900 text-sm leading-tight">{item.description}</span>
-                        <span className="text-[10px] text-emerald-600 font-black mt-1 uppercase tracking-widest">{item.quantity} {item.unit || 'un'}</span>
-                      </div>
-                      <Button 
-                        variant="ghost" 
-                        size="icon"
-                        onClick={() => setNewMaterialRequestItems(prev => prev.filter((_, i) => i !== idx))}
-                        className="h-8 w-8 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
-                    </div>
-                  ))}
+            <div className="space-y-3 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
+              {(currentRequest.items || []).map((item, idx) => (
+                <div key={item.id} className="grid grid-cols-12 gap-3 p-4 bg-gray-50 rounded-2xl border border-gray-100 group transition-all hover:bg-white hover:shadow-md hover:border-emerald-100 relative">
+                  <div className="col-span-12 sm:col-span-7 space-y-1">
+                    <Label className="text-[9px] font-black text-gray-400 uppercase tracking-tighter">Descrição do Item / Aplicação</Label>
+                    <Input 
+                      placeholder="Ex: Filtro de Óleo - Placa ABC-1234"
+                      value={item.description}
+                      onChange={e => updateItem(idx, 'description', e.target.value)}
+                      className="h-10 border-gray-200 rounded-xl focus:ring-emerald-500 bg-white"
+                    />
+                  </div>
+                  <div className="col-span-6 sm:col-span-2 space-y-1">
+                    <Label className="text-[9px] font-black text-gray-400 uppercase tracking-tighter">Qtd</Label>
+                    <Input 
+                      type="number"
+                      value={item.quantity}
+                      onChange={e => updateItem(idx, 'quantity', parseFloat(e.target.value) || 0)}
+                      className="h-10 border-gray-200 rounded-xl focus:ring-emerald-500 bg-white text-center"
+                    />
+                  </div>
+                  <div className="col-span-6 sm:col-span-2 space-y-1">
+                    <Label className="text-[9px] font-black text-gray-400 uppercase tracking-tighter">Unid</Label>
+                    <Input 
+                      placeholder="un"
+                      value={item.unit}
+                      onChange={e => updateItem(idx, 'unit', e.target.value)}
+                      className="h-10 border-gray-200 rounded-xl focus:ring-emerald-500 bg-white"
+                    />
+                  </div>
+                  <div className="col-span-12 sm:col-span-1 flex items-end justify-center pb-1">
+                    <Button 
+                      variant="ghost" 
+                      size="icon"
+                      onClick={() => removeItem(idx)}
+                      className="h-8 w-8 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-xl"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </div>
                 </div>
-              </div>
-            )}
+              ))}
+              
+              {(currentRequest.items || []).length === 0 && (
+                <div className="py-8 text-center bg-gray-50 rounded-2xl border border-dashed border-gray-200">
+                  <p className="text-gray-400 text-xs font-medium">Nenhum item adicionado ainda.</p>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={addItemInput}
+                    className="mt-2 text-emerald-600 border-emerald-200"
+                  >
+                    Clique para adicionar
+                  </Button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
         <div className="px-8 pb-8 pt-2">
           <Button 
             onClick={handleCreateMaterialRequest} 
-            disabled={newMaterialRequestItems.length === 0 || !newRequestCategory}
-            className="w-full h-14 rounded-2xl bg-emerald-600 hover:bg-emerald-700 shadow-xl shadow-emerald-100 font-black uppercase text-xs tracking-widest transition-all active:scale-[0.98] disabled:opacity-50"
+            className="w-full h-14 rounded-2xl bg-emerald-600 hover:bg-emerald-700 shadow-xl shadow-emerald-100 font-black uppercase text-xs tracking-widest transition-all active:scale-[0.98]"
           >
             Enviar Solicitação
           </Button>
@@ -3104,11 +3226,11 @@ export default function ControlView({
             <div className="space-y-6 pt-4">
               <div className="p-4 bg-gray-50 rounded-2xl flex flex-col gap-1">
                 <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Material Selecionado</span>
-                <span className="text-sm font-black text-gray-900">{selectedStockItem.description}</span>
+                <span className="text-sm font-black text-gray-900">{selectedStockItem.item.description}</span>
                 <div className="flex justify-between items-center mt-2 pt-2 border-t border-gray-200">
                   <span className="text-[10px] font-bold text-gray-400 uppercase">Saldo Disponível</span>
                   <Badge className="bg-blue-100 text-blue-700 border-none font-black">
-                    {(selectedStockItem.quantity - (selectedStockItem.appliedQuantity || 0))} {selectedStockItem.unit}
+                    {(selectedStockItem.item.quantity - (selectedStockItem.item.appliedQuantity || 0))} {selectedStockItem.item.unit}
                   </Badge>
                 </div>
               </div>
@@ -3142,7 +3264,7 @@ export default function ControlView({
                     type="number"
                     value={applyQuantity}
                     onChange={e => setApplyQuantity(Number(e.target.value))}
-                    max={(selectedStockItem.quantity - (selectedStockItem.appliedQuantity || 0))}
+                    max={(selectedStockItem.item.quantity - (selectedStockItem.item.appliedQuantity || 0))}
                     min={1}
                     className="h-12 border-gray-200 rounded-xl font-black text-blue-600 focus:ring-blue-500"
                   />
@@ -3155,7 +3277,7 @@ export default function ControlView({
           <DialogFooter className="mt-8">
             <Button 
               onClick={handleApplyStock} 
-              disabled={!applyEquipmentId || applyQuantity <= 0 || (selectedStockItem ? applyQuantity > (selectedStockItem.quantity - (selectedStockItem.appliedQuantity || 0)) : true)}
+              disabled={!applyEquipmentId || applyQuantity <= 0 || (selectedStockItem ? applyQuantity > (selectedStockItem.item.quantity - (selectedStockItem.item.appliedQuantity || 0)) : true)}
               className="w-full h-12 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white font-bold shadow-lg shadow-blue-200"
             >
               Confirmar Aplicação

@@ -17,7 +17,7 @@ export const FinanceView = ({ contracts }: any) => {
           <div className="space-y-0.5">
             <Label className="text-[10px] font-black uppercase text-blue-600 tracking-wider">Selecionar Obra / Contrato</Label>
             <Select value={selectedContractId || 'all'} onValueChange={setSelectedContractId}>
-              <SelectTrigger className="w-[450px] h-10 bg-white border-blue-200 rounded-xl font-bold text-blue-900 ring-offset-blue-50">
+              <SelectTrigger className="w-[450px] h-14 bg-white border-blue-100 shadow-sm rounded-2xl font-black text-blue-900 ring-offset-blue-50 focus:ring-blue-500/20">
                 <SelectValue>
                   {selectedContractId === 'all'
                     ? "Todos os Contratos"
