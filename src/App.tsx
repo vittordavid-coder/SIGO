@@ -841,6 +841,22 @@ export default function App() {
     }
   };
 
+  const deleteFuelLog = async (id: string) => {
+    setFuelLogs(prev => prev.filter(l => l.id !== id));
+    
+    const config = getSupabaseConfig();
+    if (config.enabled && compId) {
+      const supabase = createSupabaseClient(config.url, config.key);
+      if (supabase) {
+        try {
+          await supabase.from('fuel_logs').delete().eq('id', id);
+        } catch (err) {
+          console.warn('[Sync] Fuel log delete failed', err);
+        }
+      }
+    }
+  };
+
   const addAuditLog = (action: string, module: string, details: string) => {
     if (!currentUser) return;
     const newLog: AuditLog = {
@@ -3607,6 +3623,7 @@ export default function App() {
                   setFuelTanks={updateFuelTanks}
                   fuelLogs={fuelLogs}
                   setFuelLogs={updateFuelLogs}
+                  onDeleteFuelLog={deleteFuelLog}
                   initialTab={activeControlTab}
                 />
               )}

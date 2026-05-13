@@ -100,6 +100,7 @@ interface ControlViewProps {
   setFuelTanks: (val: FuelTank[] | ((prev: FuelTank[]) => FuelTank[])) => void;
   fuelLogs: FuelLog[];
   setFuelLogs: (val: FuelLog[] | ((prev: FuelLog[]) => FuelLog[])) => void;
+  onDeleteFuelLog?: (id: string) => void;
   initialTab?: string;
 }
 
@@ -122,6 +123,7 @@ export default function ControlView({
   setFuelTanks,
   fuelLogs = [],
   setFuelLogs,
+  onDeleteFuelLog,
   initialTab
 }: ControlViewProps) {
   const [activeTab, setActiveTab] = React.useState(initialTab || 'list');
@@ -2026,7 +2028,7 @@ export default function ControlView({
                             </TableCell>
                             <TableCell>
                               <div className="flex flex-col">
-                                <span className="text-xs font-bold text-gray-900">{tk?.name || log.tankId || 'N/A'}</span>
+                                <span className="text-xs font-bold text-gray-900">{tk?.name || '---'}</span>
                                 <span className="text-[9px] text-gray-400 font-bold uppercase tracking-tight">{tk?.fuelType || 'Diesel'}</span>
                               </div>
                             </TableCell>
@@ -2054,7 +2056,7 @@ export default function ControlView({
                                   size="icon" 
                                   className="h-7 w-7 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg"
                                   onClick={() => {
-                                    if (!window.confirm("Excluir este registro e estornar o estoque?")) return;
+                                    if (!confirm("Excluir este registro e estornar o estoque?")) return;
                                     
                                     let updatedTanks = [...fuelTanks];
                                     const quantity = Number(log.quantity);
@@ -2075,7 +2077,11 @@ export default function ControlView({
                                     }
                                     
                                     setFuelTanks(updatedTanks);
-                                    setFuelLogs(fuelLogs.filter(fl => fl.id !== log.id));
+                                    if (onDeleteFuelLog) {
+                                      onDeleteFuelLog(log.id);
+                                    } else {
+                                      setFuelLogs(prev => prev.filter(fl => fl.id !== log.id));
+                                    }
                                   }}
                                 >
                                   <Trash2 className="w-3.5 h-3.5" />
