@@ -608,27 +608,26 @@ export default function ControlView({
       }
     }
 
-    setFuelTanks(updatedTanks);
-
     // Save the log
     const calculatedCost = newFuelLog.type === 'entrada' 
       ? (newFuelLog.cost || unitPrice * quantityNum) 
       : (unitPrice * quantityNum);
 
+    const logToSave: FuelLog = {
+      ...newFuelLog as FuelLog,
+      id: editingFuelLogId || crypto.randomUUID(),
+      companyId: currentUser?.companyId,
+      unitPrice: unitPrice,
+      cost: calculatedCost
+    };
+
+    // Update tanks first to ensure consistency
+    setFuelTanks(updatedTanks);
+
     if (editingFuelLogId) {
-      setFuelLogs(fuelLogs.map(l => l.id === editingFuelLogId ? {
-        ...newFuelLog as FuelLog,
-        unitPrice: unitPrice,
-        cost: calculatedCost
-      } : l));
+      setFuelLogs(fuelLogs.map(l => l.id === editingFuelLogId ? logToSave : l));
     } else {
-      setFuelLogs([{
-        ...newFuelLog as FuelLog,
-        id: crypto.randomUUID(),
-        companyId: currentUser?.companyId,
-        unitPrice: unitPrice,
-        cost: calculatedCost
-      }, ...fuelLogs]);
+      setFuelLogs([logToSave, ...fuelLogs]);
     }
 
     setIsFuelLogModalOpen(false);
@@ -2945,9 +2944,7 @@ export default function ControlView({
               <Label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Reservatório de Origem</Label>
               <Select value={newFuelLog.tankId || ''} onValueChange={val => setNewFuelLog({...newFuelLog, tankId: val})}>
                 <SelectTrigger className="h-12 border-gray-100 bg-gray-50/50 rounded-xl font-bold">
-                  <SelectValue placeholder="Selecione o reservatório">
-                    {newFuelLog.tankId ? (fuelTanks.find(t => t.id === newFuelLog.tankId)?.name || 'Reservatório Selecionado') : "Selecione o reservatório"}
-                  </SelectValue>
+                  <SelectValue placeholder="Selecione o reservatório" />
                 </SelectTrigger>
                 <SelectContent className="rounded-xl">
                   {fuelTanks.map(t => (

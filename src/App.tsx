@@ -512,7 +512,7 @@ export default function App() {
           'pluviometry_records': { key: 'sigo_pluviometry_records', setter: setPluviometryRecords },
           'technical_schedules': { key: 'sigo_technical_schedules', setter: setTechnicalSchedules },
           'controller_teams': { key: 'sigo_controller_teams', setter: setControllerTeams },
-          'equipments': { key: 'sigo_controller_equipments', setter: setControllerEquipments },
+          'controller_equipments': { key: 'sigo_controller_equipments', setter: setControllerEquipments },
           'equipment_maintenance': { key: 'sigo_equipment_maintenance', setter: setEquipmentMaintenance },
           'equipment_monthly_data': { key: 'sigo_equipment_monthly', setter: setEquipmentMonthlyData },
           'controller_manpower': { key: 'sigo_controller_manpower', setter: setManpowerRecords },
@@ -536,7 +536,7 @@ export default function App() {
           'users': { key: 'sigo_users', setter: setUsers }
         };
 
-        const isMaster = currentUser?.role === 'master' && !targetCompanyId;
+        const isMaster = currentUser?.role === 'master';
 
         // Configuration and Tables
         const finalData: Record<string, any> = { ...blobMap };
@@ -546,7 +546,9 @@ export default function App() {
           const namespacedKey = activeId ? `${activeId}_${key}` : key;
           
           // Skip fetching mostly everything if no activeId (user not logged in)
-          if (!activeId && tableName !== 'users') {
+          // Exception: allow master users to fetch without activeId context if needed, 
+          // or if they are in root context
+          if (!activeId && tableName !== 'users' && !isMaster) {
              return;
           }
           
@@ -805,7 +807,8 @@ export default function App() {
 
   const updateFuelTanks = async (val: FuelTank[] | ((prev: FuelTank[]) => FuelTank[])) => {
     lastLocalUpdate.current = Date.now();
-    const newVal = typeof val === 'function' ? val(fuelTanks) : val;
+    const prevVal = fuelTanks;
+    const newVal = typeof val === 'function' ? val(prevVal) : val;
     setFuelTanks(newVal);
 
     const config = getSupabaseConfig();
@@ -813,8 +816,17 @@ export default function App() {
       const supabase = createSupabaseClient(config.url, config.key);
       if (supabase) {
         try {
-          const mapped = newVal.map(t => mapToSnake({ ...t, companyId: compId }));
-          await supabase.from('fuel_reservoirs').upsert(mapped);
+          // Optimization: only upsert changed items
+          const changed = newVal.filter(item => {
+            const old = prevVal.find(p => p.id === item.id);
+            if (!old) return true;
+            return JSON.stringify(old) !== JSON.stringify(item);
+          });
+
+          if (changed.length > 0) {
+            const mapped = changed.map(t => mapToSnake({ ...t, companyId: compId }));
+            await supabase.from('fuel_reservoirs').upsert(mapped);
+          }
         } catch (err) {
           console.warn('[Sync] Fuel tanks persist failed', err);
         }
@@ -824,7 +836,8 @@ export default function App() {
 
   const updateFuelLogs = async (val: FuelLog[] | ((prev: FuelLog[]) => FuelLog[])) => {
     lastLocalUpdate.current = Date.now();
-    const newVal = typeof val === 'function' ? val(fuelLogs) : val;
+    const prevVal = fuelLogs;
+    const newVal = typeof val === 'function' ? val(prevVal) : val;
     setFuelLogs(newVal);
 
     const config = getSupabaseConfig();
@@ -832,8 +845,17 @@ export default function App() {
       const supabase = createSupabaseClient(config.url, config.key);
       if (supabase) {
         try {
-          const mapped = newVal.map(l => mapToSnake({ ...l, companyId: compId }));
-          await supabase.from('fuel_logs').upsert(mapped);
+          // Optimization: only upsert changed items
+          const changed = newVal.filter(item => {
+            const old = prevVal.find(p => p.id === item.id);
+            if (!old) return true;
+            return JSON.stringify(old) !== JSON.stringify(item);
+          });
+
+          if (changed.length > 0) {
+            const mapped = changed.map(l => mapToSnake({ ...l, companyId: compId }));
+            await supabase.from('fuel_logs').upsert(mapped);
+          }
         } catch (err) {
           console.warn('[Sync] Fuel logs persist failed', err);
         }
@@ -3606,7 +3628,7 @@ export default function App() {
               {mainTab === 'control' && currentUser && (
                 <ControlView
                   currentUser={currentUser}
-                  equipments={controllerEquipments}
+                  equipments={finalControllerEquipments}
                   equipmentMonthly={equipmentMonthlyData}
                   contracts={finalContracts}
                   selectedContractId={selectedContractId}
@@ -3665,16 +3687,16 @@ export default function App() {
                   equipmentMaintenance={equipmentMaintenance}
                   onUpdateMaintenance={updateEquipmentMaintenance}
                   currentUser={currentUser}
-                  equipments={controllerEquipments}
+                  equipments={finalControllerEquipments}
                   onUpdateEquipments={updateTechnicalEquipments}
                 />
               )}
               {mainTab === 'project_admin' && currentUser && (
                 <ProjectAdminView 
-                  purchaseQuotations={purchaseQuotations}
+                  purchaseQuotations={finalPurchaseQuotations}
                   setPurchaseQuotations={updatePurchaseQuotations}
                   suppliers={suppliers}
-                  requests={purchaseRequests}
+                  requests={finalPurchaseRequests}
                   setRequests={updatePurchaseRequests}
                 />
               )}
