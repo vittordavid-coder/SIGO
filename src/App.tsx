@@ -250,6 +250,8 @@ export default function App() {
   const [purchaseOrders, setPurchaseOrders] = useLocalStorage<PurchaseOrder[]>('sigo_purchase_orders', [], compId);
   const [purchaseRequests, setPurchaseRequests] = useLocalStorage<PurchaseRequest[]>('sigo_purchase_requests', [], compId);
   const [purchaseQuotations, setPurchaseQuotations] = useLocalStorage<PurchaseQuotation[]>('sigo_purchase_quotations', [], compId);
+  const [fuelTanks, setFuelTanks] = useLocalStorage<FuelTank[]>('sigo_fuel_tanks', [], compId);
+  const [fuelLogs, setFuelLogs] = useLocalStorage<FuelLog[]>('sigo_fuel_logs', [], compId);
   const [dashboardConfig, setDashboardConfig] = useLocalStorage<DashboardConfig>('sigo_dashboard_config', defaultDashboardConfig, compId);
   const [chargesPerc, setChargesPerc] = useLocalStorage<number>('sigo_ctrl_charges', 0, compId);
   const [otPerc, setOtPerc] = useLocalStorage<number>('sigo_ctrl_ot', 50, compId);
@@ -523,6 +525,8 @@ export default function App() {
           'equipment_transfers': { key: 'sigo_equipment_transfers', setter: setEquipmentTransfers },
           'employees': { key: 'sigo_employees', setter: setEmployees },
           'time_records': { key: 'sigo_time_records', setter: setTimeRecords },
+          'fuel_reservoirs': { key: 'sigo_fuel_tanks', setter: setFuelTanks },
+          'fuel_logs': { key: 'sigo_fuel_logs', setter: setFuelLogs },
           'dashboard_config': { key: 'sigo_dashboard_config', setter: setDashboardConfig },
           'ctrl_charges': { key: 'sigo_ctrl_charges', setter: setChargesPerc },
           'ctrl_ot': { key: 'sigo_ctrl_ot', setter: setOtPerc },
@@ -794,6 +798,44 @@ export default function App() {
           await supabase.from('quotations').upsert(mapped);
         } catch (err) {
           console.warn('[Sync] Quotations persist failed', err);
+        }
+      }
+    }
+  };
+
+  const updateFuelTanks = async (val: FuelTank[] | ((prev: FuelTank[]) => FuelTank[])) => {
+    lastLocalUpdate.current = Date.now();
+    const newVal = typeof val === 'function' ? val(fuelTanks) : val;
+    setFuelTanks(newVal);
+
+    const config = getSupabaseConfig();
+    if (config.enabled && compId) {
+      const supabase = createSupabaseClient(config.url, config.key);
+      if (supabase) {
+        try {
+          const mapped = newVal.map(t => mapToSnake({ ...t, companyId: compId }));
+          await supabase.from('fuel_reservoirs').upsert(mapped);
+        } catch (err) {
+          console.warn('[Sync] Fuel tanks persist failed', err);
+        }
+      }
+    }
+  };
+
+  const updateFuelLogs = async (val: FuelLog[] | ((prev: FuelLog[]) => FuelLog[])) => {
+    lastLocalUpdate.current = Date.now();
+    const newVal = typeof val === 'function' ? val(fuelLogs) : val;
+    setFuelLogs(newVal);
+
+    const config = getSupabaseConfig();
+    if (config.enabled && compId) {
+      const supabase = createSupabaseClient(config.url, config.key);
+      if (supabase) {
+        try {
+          const mapped = newVal.map(l => mapToSnake({ ...l, companyId: compId }));
+          await supabase.from('fuel_logs').upsert(mapped);
+        } catch (err) {
+          console.warn('[Sync] Fuel logs persist failed', err);
         }
       }
     }
@@ -3561,6 +3603,10 @@ export default function App() {
                   onUpdateTransfers={(val) => { lastLocalUpdate.current = Date.now(); updateEquipmentTransfers(val); }}
                   purchaseRequests={purchaseRequests}
                   onUpdatePurchaseRequests={updatePurchaseRequests}
+                  fuelTanks={fuelTanks}
+                  setFuelTanks={updateFuelTanks}
+                  fuelLogs={fuelLogs}
+                  setFuelLogs={updateFuelLogs}
                   initialTab={activeControlTab}
                 />
               )}

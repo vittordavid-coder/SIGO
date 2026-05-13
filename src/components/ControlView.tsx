@@ -96,6 +96,10 @@ interface ControlViewProps {
   onUpdateEquipmentMonthly: (data: EquipmentMonthlyData[]) => void;
   onUpdateTransfers: (transfers: EquipmentTransfer[]) => void;
   onUpdateMaintenance: (maintenance: EquipmentMaintenance[]) => void;
+  fuelTanks: FuelTank[];
+  setFuelTanks: (val: FuelTank[] | ((prev: FuelTank[]) => FuelTank[])) => void;
+  fuelLogs: FuelLog[];
+  setFuelLogs: (val: FuelLog[] | ((prev: FuelLog[]) => FuelLog[])) => void;
   initialTab?: string;
 }
 
@@ -114,18 +118,23 @@ export default function ControlView({
   onUpdateEquipmentMonthly,
   onUpdateTransfers,
   onUpdateMaintenance,
+  fuelTanks = [],
+  setFuelTanks,
+  fuelLogs = [],
+  setFuelLogs,
   initialTab
 }: ControlViewProps) {
   const [activeTab, setActiveTab] = React.useState(initialTab || 'list');
 
-  const [fuelTanks, setFuelTanks] = useLocalStorage<FuelTank[]>('sigo_fuel_tanks', [], currentUser?.companyId);
-  const [fuelLogs, setFuelLogs] = useLocalStorage<FuelLog[]>('sigo_fuel_logs', [], currentUser?.companyId);
   const [savedCategories, setSavedCategories] = useLocalStorage<string[]>('sigo_control_categories', [], currentUser?.companyId);
 
+  const DEFAULT_FUELS = ["Diesel S10", "Diesel S500", "Gasolina Comum", "Gasolina Aditivada", "Etanol", "Arla 32"];
+
   const [isTankModalOpen, setIsTankModalOpen] = useState(false);
-  const [newTank, setNewTank] = useState<Partial<FuelTank>>({ name: '', capacity: 0, currentLevel: 0 });
+  const [newTank, setNewTank] = useState<Partial<FuelTank>>({ name: '', capacity: 0, currentLevel: 0, fuelType: 'Diesel S10' });
   const [isFuelLogModalOpen, setIsFuelLogModalOpen] = useState(false);
   const [newFuelLog, setNewFuelLog] = useState<Partial<FuelLog>>({ type: 'saida', date: new Date().toISOString().split('T')[0], quantity: 0, tankId: '', equipmentId: '' });
+  const [customFuel, setCustomFuel] = useState('');
   const [openDest, setOpenDest] = useState(false);
 
   const [isMaterialRequestModalOpen, setIsMaterialRequestModalOpen] = useState(false);
@@ -530,10 +539,12 @@ export default function ControlView({
       id: crypto.randomUUID(),
       companyId: currentUser?.companyId,
       contractId: selectedContractId || undefined,
-      currentLevel: newTank.currentLevel || 0
+      currentLevel: newTank.currentLevel || 0,
+      fuelType: customFuel || newTank.fuelType || 'Diesel S10'
     }]);
     setIsTankModalOpen(false);
-    setNewTank({ name: '', capacity: 0, currentLevel: 0 });
+    setNewTank({ name: '', capacity: 0, currentLevel: 0, fuelType: 'Diesel S10' });
+    setCustomFuel('');
   };
 
   const handleCreateFuelLog = () => {
@@ -543,6 +554,19 @@ export default function ControlView({
     
     // Update source tank level
     const sourceTank = fuelTanks.find(t => t.id === newFuelLog.tankId);
+    let unitPrice = newFuelLog.unitPrice || 0;
+
+    if (newFuelLog.type === 'saida' && sourceTank) {
+      // Find the last entry price for this tank
+      const entries = fuelLogs
+        .filter(l => l.tankId === sourceTank.id && l.type === 'entrada' && l.unitPrice)
+        .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      
+      if (entries.length > 0) {
+        unitPrice = entries[0].unitPrice || 0;
+      }
+    }
+
     if (sourceTank) {
       const newLevel = newFuelLog.type === 'entrada' 
         ? sourceTank.currentLevel + quantityNum 
@@ -563,6 +587,8 @@ export default function ControlView({
       ...newFuelLog as FuelLog,
       id: crypto.randomUUID(),
       companyId: currentUser?.companyId,
+      unitPrice: unitPrice,
+      cost: newFuelLog.type === 'entrada' ? (newFuelLog.cost || unitPrice * quantityNum) : (unitPrice * quantityNum)
     }, ...fuelLogs]);
     setIsFuelLogModalOpen(false);
     setNewFuelLog({ type: 'saida', date: new Date().toISOString().split('T')[0], quantity: 0, tankId: '', equipmentId: '', supplier: '', invoiceNumber: '', unitPrice: 0, cost: 0 });
@@ -1848,7 +1874,7 @@ export default function ControlView({
               <CardHeader className="border-b border-gray-50 flex flex-row items-center justify-between">
                 <div className="flex items-center gap-2">
                   <div className="p-2 bg-blue-50 rounded-xl"><Droplet className="w-5 h-5 text-blue-600" /></div>
-                  <CardTitle className="text-lg font-black">Tanques</CardTitle>
+                  <CardTitle className="text-lg font-black">Reservatórios</CardTitle>
                 </div>
                 <Button size="sm" variant="outline" className="rounded-xl font-bold gap-2 text-xs" onClick={() => setIsTankModalOpen(true)}>
                   <Plus className="w-4 h-4" /> Novo
@@ -1862,7 +1888,10 @@ export default function ControlView({
                       <div className="flex justify-between items-start mb-2 relative z-10">
                         <div>
                           <h4 className="font-bold text-gray-900">{tank.name}</h4>
-                          <p className="text-[10px] uppercase font-bold text-gray-500">{getContractName(tank.contractId)}</p>
+                          <div className="flex items-center gap-2">
+                            <p className="text-[10px] uppercase font-bold text-gray-500">{getContractName(tank.contractId)}</p>
+                            <Badge variant="outline" className="text-[8px] px-1 h-3.5 bg-blue-50 text-blue-600 border-blue-100 font-black">{tank.fuelType || 'Diesel S10'}</Badge>
+                          </div>
                         </div>
                         <p className="font-mono font-black text-sm">{tank.currentLevel} / {tank.capacity} L</p>
                       </div>
@@ -1880,7 +1909,7 @@ export default function ControlView({
                 {fuelTanks.filter(t => !selectedContractId || t.contractId === selectedContractId).length === 0 && (
                   <div className="text-center py-10 opacity-30">
                     <Fuel className="w-8 h-8 mx-auto mb-2" />
-                    <p className="text-xs font-bold uppercase">Nenhum tanque cadastrado</p>
+                    <p className="text-xs font-bold uppercase">Nenhum reservatório cadastrado</p>
                   </div>
                 )}
               </CardContent>
@@ -1916,8 +1945,10 @@ export default function ControlView({
                     <TableRow>
                       <TableHead className="font-bold text-[10px] uppercase tracking-widest text-gray-400 py-4">Data</TableHead>
                       <TableHead className="font-bold text-[10px] uppercase tracking-widest text-gray-400">Tipo / Ref</TableHead>
-                      <TableHead className="font-bold text-[10px] uppercase tracking-widest text-gray-400">Tanque</TableHead>
+                      <TableHead className="font-bold text-[10px] uppercase tracking-widest text-gray-400">Reservatório</TableHead>
                       <TableHead className="font-bold text-[10px] uppercase tracking-widest text-gray-400 text-right">Quantidade (L)</TableHead>
+                      <TableHead className="font-bold text-[10px] uppercase tracking-widest text-gray-400 text-right whitespace-nowrap">Vlr. Unit.</TableHead>
+                      <TableHead className="font-bold text-[10px] uppercase tracking-widest text-gray-400 text-right">Total</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -1934,7 +1965,7 @@ export default function ControlView({
                                 {log.type === 'entrada' ? 'Entrada' : destTank ? 'Transferência' : 'Saída'}
                               </Badge>
                               {eq && <span className="text-xs font-bold text-gray-700">{eq.name} ({eq.plate})</span>}
-                              {destTank && <span className="text-xs font-bold text-blue-700">Tanque: {destTank.name}</span>}
+                              {destTank && <span className="text-xs font-bold text-blue-700">Reservatório: {destTank.name}</span>}
                               {!eq && !destTank && log.type === 'saida' && <span className="text-xs text-gray-400 italic">Destino não identificado</span>}
                               {log.type === 'entrada' && (log.supplier || log.invoiceNumber) && (
                                 <span className="text-[10px] text-gray-500 font-medium">
@@ -1946,6 +1977,12 @@ export default function ControlView({
                           <TableCell className="text-xs font-bold text-gray-900">{tk?.name}</TableCell>
                           <TableCell className={cn("text-right font-mono font-bold", log.type === 'entrada' ? 'text-emerald-600' : 'text-orange-600')}>
                             {log.type === 'entrada' ? '+' : '-'}{log.quantity}
+                          </TableCell>
+                          <TableCell className="text-right font-mono text-[10px] text-gray-500">
+                            {log.unitPrice ? log.unitPrice.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : '-'}
+                          </TableCell>
+                          <TableCell className="text-right font-mono font-bold text-xs text-gray-900">
+                            {log.cost ? log.cost.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : (log.unitPrice && log.quantity ? (log.unitPrice * log.quantity).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : '-')}
                           </TableCell>
                         </TableRow>
                       );
@@ -2693,20 +2730,47 @@ export default function ControlView({
         <div className="bg-blue-600 p-8 text-white relative overflow-hidden">
           <Droplet className="absolute -right-8 -bottom-8 w-40 h-40 opacity-10 rotate-12" />
           <div className="relative z-10">
-            <h2 className="text-2xl font-black text-white leading-tight">Novo Tanque</h2>
+            <h2 className="text-2xl font-black text-white leading-tight">Novo Reservatório</h2>
             <p className="text-blue-100 text-[10px] font-bold uppercase tracking-widest mt-1 opacity-80">Cadastro de armazenamento de combustível</p>
           </div>
         </div>
 
         <div className="p-8 space-y-6">
-          <div className="space-y-2">
-            <Label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Nome/Identificação</Label>
-            <Input 
-              placeholder="Ex: Tanque Principal Obra" 
-              value={newTank.name} 
-              onChange={e => setNewTank({...newTank, name: e.target.value})} 
-              className="h-14 border-gray-100 bg-gray-50/50 rounded-2xl text-sm font-bold"
-            />
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Nome/Identificação</Label>
+              <Input 
+                placeholder="Ex: Reservatório Principal Obra" 
+                value={newTank.name} 
+                onChange={e => setNewTank({...newTank, name: e.target.value})} 
+                className="h-14 border-gray-100 bg-gray-50/50 rounded-2xl text-sm font-bold"
+              />
+            </div>
+
+            <div className="space-y-2 text-left">
+              <Label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Tipo de Combustível</Label>
+              <div className="grid grid-cols-2 gap-4">
+                <Select value={newTank.fuelType || 'Diesel S10'} onValueChange={val => setNewTank({...newTank, fuelType: val})}>
+                  <SelectTrigger className="h-14 border-gray-100 bg-gray-50/50 rounded-2xl font-bold">
+                    <SelectValue placeholder="Selecione o tipo" />
+                  </SelectTrigger>
+                  <SelectContent className="rounded-xl">
+                    {DEFAULT_FUELS.map(f => (
+                      <SelectItem key={f} value={f} className="font-bold">{f}</SelectItem>
+                    ))}
+                    <SelectItem value="Outro" className="font-bold italic">Outro (Personalizado)</SelectItem>
+                  </SelectContent>
+                </Select>
+                {(newTank.fuelType === 'Outro' || !DEFAULT_FUELS.includes(newTank.fuelType || '')) && (
+                  <Input 
+                    placeholder="Digite o combustível" 
+                    value={customFuel || (DEFAULT_FUELS.includes(newTank.fuelType || '') ? '' : newTank.fuelType)} 
+                    onChange={e => setCustomFuel(e.target.value)} 
+                    className="h-14 border-gray-100 bg-gray-50/50 rounded-2xl text-sm font-bold"
+                  />
+                )}
+              </div>
+            </div>
           </div>
           
           <div className="grid grid-cols-2 gap-4">
@@ -2716,7 +2780,7 @@ export default function ControlView({
                 type="number" 
                 value={newTank.capacity || ''} 
                 onChange={e => setNewTank({...newTank, capacity: Number(e.target.value)})} 
-                className="h-14 border-gray-100 bg-gray-50/50 rounded-2xl text-sm font-bold"
+                className="h-12 border-gray-100 bg-gray-50/50 rounded-xl text-sm font-bold"
               />
             </div>
             <div className="space-y-2">
@@ -2725,7 +2789,7 @@ export default function ControlView({
                 type="number" 
                 value={newTank.currentLevel || ''} 
                 onChange={e => setNewTank({...newTank, currentLevel: Number(e.target.value)})} 
-                className="h-14 border-gray-100 bg-gray-50/50 rounded-2xl text-sm font-bold"
+                className="h-12 border-gray-100 bg-gray-50/50 rounded-xl text-sm font-bold"
               />
             </div>
           </div>
@@ -2736,7 +2800,7 @@ export default function ControlView({
             onClick={handleCreateTank} 
             className="w-full h-14 rounded-2xl bg-blue-600 hover:bg-blue-700 shadow-xl shadow-blue-100 font-black uppercase text-xs tracking-widest transition-all active:scale-[0.98]"
           >
-            Salvar Tanque
+            Salvar Reservatório
           </Button>
         </div>
       </Modal>
@@ -2773,14 +2837,14 @@ export default function ControlView({
             </div>
             
             <div className="space-y-2 text-left">
-              <Label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Tanque de Origem</Label>
+              <Label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Reservatório de Origem</Label>
               <Select value={newFuelLog.tankId || ''} onValueChange={val => setNewFuelLog({...newFuelLog, tankId: val})}>
                 <SelectTrigger className="h-12 border-gray-100 bg-gray-50/50 rounded-xl font-bold">
-                  <SelectValue placeholder="Selecione o tanque" />
+                  <SelectValue placeholder="Selecione o reservatório" />
                 </SelectTrigger>
                 <SelectContent className="rounded-xl">
                   {fuelTanks.filter(t => !selectedContractId || t.contractId === selectedContractId).map(t => (
-                    <SelectItem key={t.id} value={t.id} className="font-bold">{t.name} ({t.currentLevel}/{t.capacity}L)</SelectItem>
+                    <SelectItem key={t.id} value={t.id} className="font-bold">{t.name} ({t.currentLevel}/{t.capacity}L) - {t.fuelType}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -2815,14 +2879,14 @@ export default function ControlView({
                           <CommandEmpty>Nenhum destino encontrado.</CommandEmpty>
                           
                           {fuelTanks.filter(t => t.id !== newFuelLog.tankId && (!selectedContractId || t.contractId === selectedContractId)).length > 0 && (
-                            <CommandGroup heading="Tanques">
+                            <CommandGroup heading="Reservatórios">
                               {fuelTanks
                                 .filter(t => t.id !== newFuelLog.tankId)
                                 .filter(t => !selectedContractId || t.contractId === selectedContractId)
                                 .map(t => (
                                   <CommandItem
                                     key={t.id}
-                                    value={t.name + " tanque"}
+                                    value={t.name + " reservatório"}
                                     onSelect={() => {
                                       setNewFuelLog({ ...newFuelLog, equipmentId: t.id });
                                       setOpenDest(false);
@@ -2831,7 +2895,7 @@ export default function ControlView({
                                   >
                                     <Check className={cn("mr-2 h-4 w-4 text-blue-600", newFuelLog.equipmentId === t.id ? "opacity-100" : "opacity-0")} />
                                     <div className="flex flex-col">
-                                      <span className="font-black text-gray-900 uppercase text-[10px]">Tanque: {t.name}</span>
+                                      <span className="font-black text-gray-900 uppercase text-[10px]">Reservatório: {t.name}</span>
                                       <span className="text-[9px] text-gray-500 font-bold">Nível: {t.currentLevel}L / {t.capacity}L</span>
                                     </div>
                                   </CommandItem>
@@ -2873,7 +2937,10 @@ export default function ControlView({
               <Input 
                 type="number" 
                 value={newFuelLog.quantity || ''} 
-                onChange={e => setNewFuelLog({...newFuelLog, quantity: Number(e.target.value)})} 
+                onChange={e => {
+                  const qty = Number(e.target.value);
+                  setNewFuelLog({...newFuelLog, quantity: qty, cost: qty * (newFuelLog.unitPrice || 0)});
+                }} 
                 className="h-12 border-gray-100 bg-gray-50/50 rounded-xl font-black text-blue-600 focus:ring-blue-500"
               />
             </div>
@@ -2890,7 +2957,16 @@ export default function ControlView({
                 <div className="grid grid-cols-2 gap-2">
                   <div className="space-y-2 text-left">
                     <Label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Preço Un. (R$)</Label>
-                    <Input type="number" step="0.01" value={newFuelLog.unitPrice || ''} onChange={e => setNewFuelLog({...newFuelLog, unitPrice: Number(e.target.value)})} className="h-12 border-gray-100 bg-gray-50/50 rounded-xl font-bold" />
+                    <Input 
+                      type="number" 
+                      step="0.01" 
+                      value={newFuelLog.unitPrice || ''} 
+                      onChange={e => {
+                        const up = Number(e.target.value);
+                        setNewFuelLog({...newFuelLog, unitPrice: up, cost: up * (newFuelLog.quantity || 0)});
+                      }} 
+                      className="h-12 border-gray-100 bg-gray-50/50 rounded-xl font-bold" 
+                    />
                   </div>
                   <div className="space-y-2 text-left">
                     <Label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Custo Total (R$)</Label>

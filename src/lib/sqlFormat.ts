@@ -100,7 +100,7 @@ export const DB_TABLES = [
   'budget_schedules', 'measurement_templates', 'password_reset_requests', 
   'chat_messages', 'chat_notifications', 'suppliers', 
   'purchase_requests', 'purchase_quotations', 'purchase_orders',
-  'purchase_order_items', 'purchase_order_payments'
+  'purchase_order_items', 'purchase_order_payments', 'fuel_reservoirs', 'fuel_logs'
 ];
 
 export function generateFullSQLScript(data: {
@@ -180,7 +180,9 @@ export function generateFullSQLScript(data: {
     suppliers: `id TEXT PRIMARY KEY, company_id TEXT, name TEXT NOT NULL, category TEXT, activity TEXT, cnpj TEXT, contact_person TEXT, email_website TEXT, phone TEXT, mobile TEXT, address TEXT, assigned_contract_ids JSONB DEFAULT '[]', created_at TIMESTAMPTZ DEFAULT now(), updated_at TIMESTAMPTZ DEFAULT now()`,
     purchase_requests: `id TEXT PRIMARY KEY, company_id TEXT, contract_id TEXT, equipment_id TEXT, date DATE, description TEXT, sector TEXT, category TEXT, cost_center TEXT, priority TEXT DEFAULT 'Normal', status TEXT DEFAULT 'Aguardando', delivery_deadline DATE, items JSONB DEFAULT '[]', created_at TIMESTAMPTZ DEFAULT now(), updated_at TIMESTAMPTZ DEFAULT now()`,
     purchase_quotations: `id TEXT PRIMARY KEY, company_id TEXT, date DATE, items JSONB DEFAULT '[]', suppliers JSONB DEFAULT '[]', status TEXT DEFAULT 'draft', created_at TIMESTAMPTZ DEFAULT now(), updated_at TIMESTAMPTZ DEFAULT now()`,
-    purchase_orders: `id TEXT PRIMARY KEY, company_id TEXT, request_id TEXT, contract_id TEXT, equipment_id TEXT, order_number TEXT, supplier_id TEXT, supplier_name TEXT, phone TEXT, email TEXT, order_date DATE, delivery_date DATE, category TEXT, cost_center TEXT, delivery_address JSONB DEFAULT '{}', subtotal NUMERIC DEFAULT 0, discount NUMERIC DEFAULT 0, additions NUMERIC DEFAULT 0, total NUMERIC DEFAULT 0, status TEXT DEFAULT 'draft', items JSONB DEFAULT '[]', payment_conditions JSONB DEFAULT '[]', tracking_number TEXT, notes TEXT, observations TEXT, origin_quotation_id TEXT, created_at TIMESTAMPTZ DEFAULT now(), updated_at TIMESTAMPTZ DEFAULT now()`
+    purchase_orders: `id TEXT PRIMARY KEY, company_id TEXT, request_id TEXT, contract_id TEXT, equipment_id TEXT, order_number TEXT, supplier_id TEXT, supplier_name TEXT, phone TEXT, email TEXT, order_date DATE, delivery_date DATE, category TEXT, cost_center TEXT, delivery_address JSONB DEFAULT '{}', subtotal NUMERIC DEFAULT 0, discount NUMERIC DEFAULT 0, additions NUMERIC DEFAULT 0, total NUMERIC DEFAULT 0, status TEXT DEFAULT 'draft', items JSONB DEFAULT '[]', payment_conditions JSONB DEFAULT '[]', tracking_number TEXT, notes TEXT, observations TEXT, origin_quotation_id TEXT, created_at TIMESTAMPTZ DEFAULT now(), updated_at TIMESTAMPTZ DEFAULT now()`,
+    fuel_reservoirs: `id TEXT PRIMARY KEY, company_id TEXT, contract_id TEXT, name TEXT NOT NULL, capacity NUMERIC DEFAULT 0, current_level NUMERIC DEFAULT 0, fuel_type TEXT, created_at TIMESTAMPTZ DEFAULT now(), updated_at TIMESTAMPTZ DEFAULT now()`,
+    fuel_logs: `id TEXT PRIMARY KEY, company_id TEXT, tank_id TEXT, type TEXT NOT NULL, date DATE NOT NULL, quantity NUMERIC NOT NULL, equipment_id TEXT, notes TEXT, unit_price NUMERIC, cost NUMERIC, supplier TEXT, invoice_number TEXT, created_at TIMESTAMPTZ DEFAULT now(), updated_at TIMESTAMPTZ DEFAULT now()`
   };
 
   DB_TABLES.forEach(table => {
@@ -237,6 +239,10 @@ export function generateFullSQLScript(data: {
   sql += generateInsert('purchase_requests', (data as any).purchaseRequests || []);
   sql += generateInsert('purchase_quotations', (data as any).purchaseQuotations || []);
   sql += generateInsert('purchase_orders', (data as any).purchaseOrders || []);
+  sql += generateInsert('purchase_order_items', (data as any).purchaseOrderItems || []);
+  sql += generateInsert('purchase_order_payments', (data as any).purchaseOrderPayments || []);
+  sql += generateInsert('fuel_reservoirs', (data as any).fuelTanks || []);
+  sql += generateInsert('fuel_logs', (data as any).fuelLogs || []);
   if (data.chatMessages) sql += generateInsert('chat_messages', data.chatMessages);
 
   sql += `\nCOMMIT;\n`;
@@ -321,6 +327,8 @@ export function generateDataPartsSQL(data: any): Record<string, string> {
   part05 += generateInsert('team_assignments', data.teamAssignments);
   part05 += generateInsert('equipment_transfers', data.equipmentTransfers);
   part05 += generateInsert('equipment_maintenance', data.equipmentMaintenance);
+  part05 += generateInsert('fuel_reservoirs', (data as any).fuelTanks || []);
+  part05 += generateInsert('fuel_logs', (data as any).fuelLogs || []);
   addPart('05_rh_controlador_dados.sql', part05);
 
   return parts;
@@ -338,6 +346,8 @@ export function getSupabaseMigrationParts() {
 DROP TABLE IF EXISTS purchase_order_payments CASCADE;
 DROP TABLE IF EXISTS purchase_order_items CASCADE;
 DROP TABLE IF EXISTS purchase_orders CASCADE;
+DROP TABLE IF EXISTS fuel_logs CASCADE;
+DROP TABLE IF EXISTS fuel_reservoirs CASCADE;
 DROP TABLE IF EXISTS suppliers CASCADE;
 DROP TABLE IF EXISTS chat_notifications CASCADE;
 DROP TABLE IF EXISTS chat_messages CASCADE;
@@ -1008,6 +1018,35 @@ CREATE TABLE IF NOT EXISTS manpower_monthly_data (
   UNIQUE(manpower_id, month)
 );
 
+CREATE TABLE IF NOT EXISTS fuel_reservoirs (
+    id TEXT PRIMARY KEY,
+    company_id TEXT,
+    contract_id TEXT,
+    name TEXT NOT NULL,
+    capacity NUMERIC DEFAULT 0,
+    current_level NUMERIC DEFAULT 0,
+    fuel_type TEXT,
+    created_at TIMESTAMPTZ DEFAULT now(),
+    updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS fuel_logs (
+    id TEXT PRIMARY KEY,
+    company_id TEXT,
+    tank_id TEXT REFERENCES fuel_reservoirs(id) ON DELETE CASCADE,
+    type TEXT NOT NULL, -- 'entrada' or 'saida'
+    date DATE NOT NULL,
+    quantity NUMERIC NOT NULL,
+    equipment_id TEXT,
+    notes TEXT,
+    unit_price NUMERIC,
+    cost NUMERIC,
+    supplier TEXT,
+    invoice_number TEXT,
+    created_at TIMESTAMPTZ DEFAULT now(),
+    updated_at TIMESTAMPTZ DEFAULT now()
+);
+
 ALTER TABLE daily_reports ENABLE ROW LEVEL SECURITY;
 ALTER TABLE pluviometry_records ENABLE ROW LEVEL SECURITY;
 ALTER TABLE time_records ENABLE ROW LEVEL SECURITY;
@@ -1053,6 +1092,12 @@ DO $$ BEGIN
   END IF;
   IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Allow public access' AND tablename = 'manpower_monthly_data') THEN
     CREATE POLICY "Allow public access" ON manpower_monthly_data FOR ALL USING (true) WITH CHECK (true);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Allow public access' AND tablename = 'fuel_reservoirs') THEN
+    CREATE POLICY "Allow public access" ON fuel_reservoirs FOR ALL USING (true) WITH CHECK (true);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Allow public access' AND tablename = 'fuel_logs') THEN
+    CREATE POLICY "Allow public access" ON fuel_logs FOR ALL USING (true) WITH CHECK (true);
   END IF;
 END $$;
 `,

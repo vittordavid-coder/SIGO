@@ -789,6 +789,7 @@ export interface FuelTank {
   name: string;
   capacity: number;
   currentLevel: number;
+  fuelType?: string;
 }
 
 export interface FuelLog {
