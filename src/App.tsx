@@ -10,7 +10,7 @@ import {
 import { motion, AnimatePresence, Reorder } from 'motion/react';
 import { v4 as uuidv4 } from 'uuid';
 import { useLocalStorage } from './lib/useLocalStorage';
-import { Resource, ServiceComposition, Quotation, User, ABCConfig, BudgetGroup, BDIConfig, AuditLog, UserRole, Contract, Measurement, MeasurementTemplate, CalculationMemory, HighwayLocation, StationGroup, CubationData, TransportData, ServiceProduction, Employee, TimeRecord, DailyReport, DailyReportActivity, PluviometryRecord, TechnicalSchedule, DashboardConfig, ControllerTeam, ControllerEquipment, EquipmentMonthlyData, ControllerManpower, ManpowerMonthlyData, TeamAssignment, MarketingConfig, AppModule, PasswordResetRequest, EquipmentTransfer, Supplier, PurchaseOrder, EmailConfig, PurchaseRequest, PurchaseQuotation, EquipmentMaintenance } from './types';
+import { Resource, ServiceComposition, Quotation, User, ABCConfig, BudgetGroup, BDIConfig, AuditLog, UserRole, Contract, Measurement, MeasurementTemplate, CalculationMemory, HighwayLocation, StationGroup, CubationData, TransportData, ServiceProduction, Employee, TimeRecord, DailyReport, DailyReportActivity, PluviometryRecord, TechnicalSchedule, DashboardConfig, ControllerTeam, ControllerEquipment, EquipmentMonthlyData, ControllerManpower, ManpowerMonthlyData, TeamAssignment, MarketingConfig, AppModule, PasswordResetRequest, EquipmentTransfer, Supplier, PurchaseOrder, EmailConfig, PurchaseRequest, PurchaseQuotation, EquipmentMaintenance, FuelTank, FuelLog } from './types';
 import { cn, hashPassword } from './lib/utils';
 import { calculateBDI } from './lib/calculations';
 import { compressImage } from './lib/imageUtils';

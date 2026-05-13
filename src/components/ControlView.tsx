@@ -133,9 +133,16 @@ export default function ControlView({
   const [isTankModalOpen, setIsTankModalOpen] = useState(false);
   const [newTank, setNewTank] = useState<Partial<FuelTank>>({ name: '', capacity: 0, currentLevel: 0, fuelType: 'Diesel S10' });
   const [isFuelLogModalOpen, setIsFuelLogModalOpen] = useState(false);
+  const [editingFuelLogId, setEditingFuelLogId] = useState<string | null>(null);
   const [newFuelLog, setNewFuelLog] = useState<Partial<FuelLog>>({ type: 'saida', date: new Date().toISOString().split('T')[0], quantity: 0, tankId: '', equipmentId: '' });
   const [customFuel, setCustomFuel] = useState('');
   const [openDest, setOpenDest] = useState(false);
+
+  const handleEditFuelLog = (log: FuelLog) => {
+    setEditingFuelLogId(log.id);
+    setNewFuelLog({ ...log });
+    setIsFuelLogModalOpen(true);
+  };
 
   const [isMaterialRequestModalOpen, setIsMaterialRequestModalOpen] = useState(false);
   const [currentRequest, setCurrentRequest] = useState<Partial<PurchaseRequest>>({
@@ -551,46 +558,79 @@ export default function ControlView({
     if (!newFuelLog.tankId || !newFuelLog.quantity) return;
     
     const quantityNum = Number(newFuelLog.quantity);
+    let updatedTanks = [...fuelTanks];
     
-    // Update source tank level
-    const sourceTank = fuelTanks.find(t => t.id === newFuelLog.tankId);
+    // Reverse previous level adjustments if editing
+    if (editingFuelLogId) {
+      const oldLog = fuelLogs.find(l => l.id === editingFuelLogId);
+      if (oldLog) {
+        const oldQty = Number(oldLog.quantity);
+        if (oldLog.type === 'entrada') {
+          updatedTanks = updatedTanks.map(t => t.id === oldLog.tankId ? { ...t, currentLevel: Math.max(0, t.currentLevel - oldQty) } : t);
+        } else {
+          updatedTanks = updatedTanks.map(t => t.id === oldLog.tankId ? { ...t, currentLevel: t.currentLevel + oldQty } : t);
+          const oldDestId = oldLog.equipmentId;
+          if (oldDestId && fuelTanks.some(t => t.id === oldDestId)) {
+            updatedTanks = updatedTanks.map(t => t.id === oldDestId ? { ...t, currentLevel: Math.max(0, t.currentLevel - oldQty) } : t);
+          }
+        }
+      }
+    }
+    
+    // Find source tank in the fresh list
+    const sourceTank = updatedTanks.find(t => t.id === newFuelLog.tankId);
+    if (!sourceTank) return;
+
     let unitPrice = newFuelLog.unitPrice || 0;
 
-    if (newFuelLog.type === 'saida' && sourceTank) {
-      // Find the last entry price for this tank
-      const entries = fuelLogs
-        .filter(l => l.tankId === sourceTank.id && l.type === 'entrada' && l.unitPrice)
-        .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    // Logic: for exit, use price from last entry of this tank
+    if (newFuelLog.type === 'saida') {
+      const lastEntry = fuelLogs.find(l => l.tankId === newFuelLog.tankId && l.type === 'entrada' && l.unitPrice);
+      if (lastEntry) {
+        unitPrice = lastEntry.unitPrice || 0;
+      }
+    }
+
+    // Apply new level adjustments to source
+    const newSourceLevel = newFuelLog.type === 'entrada' 
+      ? sourceTank.currentLevel + quantityNum 
+      : sourceTank.currentLevel - quantityNum;
       
-      if (entries.length > 0) {
-        unitPrice = entries[0].unitPrice || 0;
-      }
-    }
+    updatedTanks = updatedTanks.map(t => t.id === sourceTank.id ? { ...t, currentLevel: Math.max(0, newSourceLevel) } : t);
 
-    if (sourceTank) {
-      const newLevel = newFuelLog.type === 'entrada' 
-        ? sourceTank.currentLevel + quantityNum 
-        : sourceTank.currentLevel - quantityNum;
-        
-      setFuelTanks(prev => prev.map(t => t.id === sourceTank.id ? { ...t, currentLevel: Math.max(0, newLevel) } : t));
-    }
-
-    // Update destination tank level if applicable
+    // If it's a transfer, apply to destination tank too
     if (newFuelLog.type === 'saida' && newFuelLog.equipmentId) {
-      const destTank = fuelTanks.find(t => t.id === newFuelLog.equipmentId);
+      const destTank = updatedTanks.find(t => t.id === newFuelLog.equipmentId);
       if (destTank) {
-        setFuelTanks(prev => prev.map(t => t.id === destTank.id ? { ...t, currentLevel: t.currentLevel + quantityNum } : t));
+        updatedTanks = updatedTanks.map(t => t.id === destTank.id ? { ...t, currentLevel: t.currentLevel + quantityNum } : t);
       }
     }
 
-    setFuelLogs([{
-      ...newFuelLog as FuelLog,
-      id: crypto.randomUUID(),
-      companyId: currentUser?.companyId,
-      unitPrice: unitPrice,
-      cost: newFuelLog.type === 'entrada' ? (newFuelLog.cost || unitPrice * quantityNum) : (unitPrice * quantityNum)
-    }, ...fuelLogs]);
+    setFuelTanks(updatedTanks);
+
+    // Save the log
+    const calculatedCost = newFuelLog.type === 'entrada' 
+      ? (newFuelLog.cost || unitPrice * quantityNum) 
+      : (unitPrice * quantityNum);
+
+    if (editingFuelLogId) {
+      setFuelLogs(fuelLogs.map(l => l.id === editingFuelLogId ? {
+        ...newFuelLog as FuelLog,
+        unitPrice: unitPrice,
+        cost: calculatedCost
+      } : l));
+    } else {
+      setFuelLogs([{
+        ...newFuelLog as FuelLog,
+        id: crypto.randomUUID(),
+        companyId: currentUser?.companyId,
+        unitPrice: unitPrice,
+        cost: calculatedCost
+      }, ...fuelLogs]);
+    }
+
     setIsFuelLogModalOpen(false);
+    setEditingFuelLogId(null);
     setNewFuelLog({ type: 'saida', date: new Date().toISOString().split('T')[0], quantity: 0, tankId: '', equipmentId: '', supplier: '', invoiceNumber: '', unitPrice: 0, cost: 0 });
   };
 
@@ -1926,12 +1966,14 @@ export default function ControlView({
                 </div>
                 <div className="flex items-center gap-2">
                   <Button size="sm" variant="outline" className="rounded-xl font-bold gap-2 text-xs text-purple-700 bg-purple-50 border-purple-100 hover:bg-purple-100" onClick={() => {
+                    setEditingFuelLogId(null);
                     setNewFuelLog({ type: 'entrada', date: new Date().toISOString().split('T')[0], quantity: 0, tankId: '', equipmentId: '', supplier: '', invoiceNumber: '', unitPrice: undefined, cost: undefined });
                     setIsFuelLogModalOpen(true);
                   }}>
                     <Plus className="w-4 h-4" /> Nova Entrada
                   </Button>
                   <Button size="sm" variant="outline" className="rounded-xl font-bold gap-2 text-xs text-orange-700 bg-orange-50 border-orange-100 hover:bg-orange-100" onClick={() => {
+                    setEditingFuelLogId(null);
                     setNewFuelLog({ type: 'saida', date: new Date().toISOString().split('T')[0], quantity: 0, tankId: '', equipmentId: '', supplier: '', invoiceNumber: '', unitPrice: undefined, cost: undefined });
                     setIsFuelLogModalOpen(true);
                   }}>
@@ -1949,44 +1991,101 @@ export default function ControlView({
                       <TableHead className="font-bold text-[10px] uppercase tracking-widest text-gray-400 text-right">Quantidade (L)</TableHead>
                       <TableHead className="font-bold text-[10px] uppercase tracking-widest text-gray-400 text-right whitespace-nowrap">Vlr. Unit.</TableHead>
                       <TableHead className="font-bold text-[10px] uppercase tracking-widest text-gray-400 text-right">Total</TableHead>
+                      <TableHead className="font-bold text-[10px] uppercase tracking-widest text-gray-400 text-right">Ações</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {fuelLogs.slice(0, 50).map(log => {
-                      const tk = fuelTanks.find(t => t.id === log.tankId);
-                      const eq = equipments.find(e => e.id === log.equipmentId);
-                      const destTank = fuelTanks.find(t => t.id === log.equipmentId);
-                      return (
-                        <TableRow key={log.id} className="hover:bg-gray-50">
-                          <TableCell className="font-mono text-xs text-gray-600">{new Date(log.date + 'T12:00:00').toLocaleDateString('pt-BR')}</TableCell>
-                          <TableCell>
-                            <div className="flex items-center gap-2">
-                              <Badge variant="outline" className={cn("text-[9px] uppercase font-black", log.type === 'entrada' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-orange-50 text-orange-600 border-orange-100')}>
-                                {log.type === 'entrada' ? 'Entrada' : destTank ? 'Transferência' : 'Saída'}
-                              </Badge>
-                              {eq && <span className="text-xs font-bold text-gray-700">{eq.name} ({eq.plate})</span>}
-                              {destTank && <span className="text-xs font-bold text-blue-700">Reservatório: {destTank.name}</span>}
-                              {!eq && !destTank && log.type === 'saida' && <span className="text-xs text-gray-400 italic">Destino não identificado</span>}
-                              {log.type === 'entrada' && (log.supplier || log.invoiceNumber) && (
-                                <span className="text-[10px] text-gray-500 font-medium">
-                                  {log.supplier} {log.invoiceNumber ? `(NF: ${log.invoiceNumber})` : ''}
-                                </span>
-                              )}
-                            </div>
-                          </TableCell>
-                          <TableCell className="text-xs font-bold text-gray-900">{tk?.name}</TableCell>
-                          <TableCell className={cn("text-right font-mono font-bold", log.type === 'entrada' ? 'text-emerald-600' : 'text-orange-600')}>
-                            {log.type === 'entrada' ? '+' : '-'}{log.quantity}
-                          </TableCell>
-                          <TableCell className="text-right font-mono text-[10px] text-gray-500">
-                            {log.unitPrice ? log.unitPrice.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : '-'}
-                          </TableCell>
-                          <TableCell className="text-right font-mono font-bold text-xs text-gray-900">
-                            {log.cost ? log.cost.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : (log.unitPrice && log.quantity ? (log.unitPrice * log.quantity).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : '-')}
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
+                    {(() => {
+                      const tankMap = new Map(fuelTanks.map(t => [t.id, t]));
+                      const equipMap = new Map(equipments.map(e => [e.id, e]));
+                      
+                      return fuelLogs.slice(0, 100).map(log => {
+                        const tk = tankMap.get(log.tankId);
+                        const eq = equipMap.get(log.equipmentId);
+                        const destTank = tankMap.get(log.equipmentId);
+                        
+                        return (
+                          <TableRow key={log.id} className="hover:bg-gray-50 transition-colors">
+                            <TableCell className="font-mono text-[10px] text-gray-600">{new Date(log.date + 'T12:00:00').toLocaleDateString('pt-BR')}</TableCell>
+                            <TableCell>
+                              <div className="flex flex-col gap-1">
+                                <div className="flex items-center gap-2">
+                                  <Badge variant="outline" className={cn("text-[9px] uppercase font-black px-1 h-4", log.type === 'entrada' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-orange-50 text-orange-600 border-orange-100')}>
+                                    {log.type === 'entrada' ? 'Entrada' : destTank ? 'Transferência' : 'Saída'}
+                                  </Badge>
+                                  {eq && <span className="text-xs font-bold text-gray-700">{eq.name} ({eq.plate})</span>}
+                                  {destTank && <span className="text-xs font-bold text-blue-700">Para: {destTank.name}</span>}
+                                  {!eq && !destTank && log.type === 'saida' && <span className="text-xs text-gray-400 italic">Consumo Geral</span>}
+                                </div>
+                                {log.type === 'entrada' && (log.supplier || log.invoiceNumber) && (
+                                  <span className="text-[10px] text-gray-500 font-medium">
+                                    {log.supplier} {log.invoiceNumber ? `(NF: ${log.invoiceNumber})` : ''}
+                                  </span>
+                                )}
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex flex-col">
+                                <span className="text-xs font-bold text-gray-900">{tk?.name || log.tankId || 'N/A'}</span>
+                                <span className="text-[9px] text-gray-400 font-bold uppercase tracking-tight">{tk?.fuelType || 'Diesel'}</span>
+                              </div>
+                            </TableCell>
+                            <TableCell className={cn("text-right font-mono font-bold", log.type === 'entrada' ? 'text-emerald-600' : 'text-orange-600')}>
+                              {log.type === 'entrada' ? '+' : '-'}{log.quantity}
+                            </TableCell>
+                            <TableCell className="text-right font-mono text-[10px] text-gray-500">
+                              {log.unitPrice ? log.unitPrice.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : '-'}
+                            </TableCell>
+                            <TableCell className="text-right font-mono font-bold text-xs text-gray-900">
+                              {log.cost ? log.cost.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : (log.unitPrice && log.quantity ? (log.unitPrice * log.quantity).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : '-')}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <div className="flex items-center justify-end gap-1">
+                                <Button 
+                                  variant="ghost" 
+                                  size="icon" 
+                                  className="h-7 w-7 text-blue-500 hover:text-blue-700 hover:bg-blue-50 rounded-lg"
+                                  onClick={() => handleEditFuelLog(log)}
+                                >
+                                  <Edit className="w-3.5 h-3.5" />
+                                </Button>
+                                <Button 
+                                  variant="ghost" 
+                                  size="icon" 
+                                  className="h-7 w-7 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg"
+                                  onClick={() => {
+                                    if (!window.confirm("Excluir este registro e estornar o estoque?")) return;
+                                    
+                                    let updatedTanks = [...fuelTanks];
+                                    const quantity = Number(log.quantity);
+                                    
+                                    // Reverse inventory changes
+                                    if (log.type === 'entrada') {
+                                      // Removed entry: subtract from tank level
+                                      updatedTanks = updatedTanks.map(t => t.id === log.tankId ? { ...t, currentLevel: Math.max(0, t.currentLevel - quantity) } : t);
+                                    } else {
+                                      // Removed exit: add back to source tank level
+                                      updatedTanks = updatedTanks.map(t => t.id === log.tankId ? { ...t, currentLevel: t.currentLevel + quantity } : t);
+                                      
+                                      // If it was a transfer to another reservoir, subtract from destination
+                                      const destId = log.equipmentId;
+                                      if (destId && fuelTanks.some(t => t.id === destId)) {
+                                        updatedTanks = updatedTanks.map(t => t.id === destId ? { ...t, currentLevel: Math.max(0, t.currentLevel - quantity) } : t);
+                                      }
+                                    }
+                                    
+                                    setFuelTanks(updatedTanks);
+                                    setFuelLogs(fuelLogs.filter(fl => fl.id !== log.id));
+                                  }}
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </Button>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      });
+                    })()}
                   </TableBody>
                 </Table>
               </CardContent>
@@ -2840,10 +2939,12 @@ export default function ControlView({
               <Label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Reservatório de Origem</Label>
               <Select value={newFuelLog.tankId || ''} onValueChange={val => setNewFuelLog({...newFuelLog, tankId: val})}>
                 <SelectTrigger className="h-12 border-gray-100 bg-gray-50/50 rounded-xl font-bold">
-                  <SelectValue placeholder="Selecione o reservatório" />
+                  <SelectValue placeholder="Selecione o reservatório">
+                    {newFuelLog.tankId ? (fuelTanks.find(t => t.id === newFuelLog.tankId)?.name || 'Reservatório Selecionado') : "Selecione o reservatório"}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent className="rounded-xl">
-                  {fuelTanks.filter(t => !selectedContractId || t.contractId === selectedContractId).map(t => (
+                  {fuelTanks.map(t => (
                     <SelectItem key={t.id} value={t.id} className="font-bold">{t.name} ({t.currentLevel}/{t.capacity}L) - {t.fuelType}</SelectItem>
                   ))}
                 </SelectContent>
@@ -2866,7 +2967,7 @@ export default function ControlView({
                           const eq = equipments.find(e => e.id === newFuelLog.equipmentId);
                           if (eq) return `${eq.name} (${eq.plate})`;
                           const tk = fuelTanks.find(t => t.id === newFuelLog.equipmentId);
-                          if (tk) return `Tanque: ${tk.name}`;
+                          if (tk) return `Reservatório: ${tk.name}`;
                           return "Destino selecionado";
                         })()}
                         <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
