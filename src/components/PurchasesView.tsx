@@ -863,7 +863,7 @@ function RequestsTab({
           isOpen={isQuotationDialogOpen}
           onClose={() => setIsQuotationDialogOpen(false)}
           maxWidth="2xl"
-          className="p-0 border-none overflow-hidden"
+          className="p-0 border-none"
           headerClassName="hidden"
         >
           <div className="bg-emerald-600 p-8 text-white relative overflow-hidden rounded-t-2xl">
@@ -1108,7 +1108,7 @@ function SuppliersTab({ suppliers, setSuppliers, compId, contracts }: { supplier
         isOpen={isDialogOpen}
         onClose={() => setIsDialogOpen(false)}
         maxWidth="3xl"
-        className="p-0 border-none overflow-hidden"
+        className="p-0 border-none"
         headerClassName="hidden"
       >
         <div className="bg-blue-600 p-8 text-white relative overflow-hidden rounded-t-2xl">
@@ -1429,44 +1429,6 @@ function OrdersTab({
     
     setIsDialogOpen(false);
 
-    // Immediate Sync
-    const config = (window as any).getSupabaseConfig?.();
-    if (config?.enabled && compIdSelected) {
-      try {
-        const { createClient } = await import('@supabase/supabase-js');
-        const supabase = createClient(config.url, config.key);
-        
-        const mapToSnake = (obj: any) => {
-          const newObj: any = { company_id: compIdSelected };
-          for (const k in obj) {
-            const snakeKey = k.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);
-            newObj[snakeKey] = obj[k];
-          }
-          return newObj;
-        };
-
-        // Sync order
-        await supabase.from('purchase_orders').upsert(mapToSnake(orderToSave));
-
-        // Sync affected requests and quotation
-        if (isNew && currentOrder.originQuotationId) {
-          const qUpdate = updatedQuotations.find(q => q.id === currentOrder.originQuotationId);
-          if (qUpdate) {
-            await supabase.from('purchase_quotations').upsert(mapToSnake(qUpdate));
-          }
-          const affectedRequestIds = Array.from(new Set((currentOrder.items || []).map(i => i.requestId)));
-          for (const rid of affectedRequestIds) {
-            const rUpdate = updatedRequests.find(r => r.id === rid);
-            if (rUpdate) {
-              await supabase.from('purchase_requests').upsert(mapToSnake(rUpdate));
-            }
-          }
-        }
-      } catch (err) {
-        console.warn('[OrdersTab] Immediate sync failed', err);
-      }
-    }
-
     if (isNew && orderToSave.email) {
        const isEmailConfigured = currentUser?.emailConfig?.smtpHost && currentUser?.emailConfig?.smtpUser;
        if (isEmailConfigured) {
@@ -1714,7 +1676,7 @@ function OrdersTab({
           isOpen={isPrintDialogOpen}
           onClose={() => setIsPrintDialogOpen(false)}
           maxWidth="4xl"
-          className="p-0 border-none overflow-hidden"
+          className="p-0 border-none"
           headerClassName="hidden"
           footer={
             <div className="flex justify-end gap-3 w-full p-4 bg-gray-50 border-t">
@@ -1881,7 +1843,7 @@ function OrdersTab({
           isOpen={isDialogOpen}
           onClose={() => setIsDialogOpen(false)}
           maxWidth="5xl"
-          className="p-0 border-none overflow-hidden"
+          className="p-0 border-none"
           headerClassName="hidden"
         >
           <div className="bg-emerald-600 p-8 text-white relative overflow-hidden rounded-t-2xl sticky top-0 z-10 shadow-md">
@@ -2553,7 +2515,7 @@ function QuotationsTab({
           isOpen={isDetailsOpen}
           onClose={() => setIsDetailsOpen(false)}
           maxWidth="5xl"
-          className="p-0 border-none overflow-hidden"
+          className="p-0 border-none"
           headerClassName="hidden"
         >
           <div className="bg-emerald-600 p-8 text-white relative overflow-hidden rounded-t-2xl">
@@ -2951,7 +2913,7 @@ function TrackingTab({ orders, setOrders, equipmentMaintenance, onUpdateMaintena
         )}
 
         <Dialog open={!!evaluationOrder} onOpenChange={() => setEvaluationOrder(null)}>
-          <DialogContent className="max-w-xl rounded-3xl p-0 border-none shadow-2xl overflow-hidden bg-white">
+          <DialogContent className="max-w-xl rounded-3xl p-0 border-none shadow-2xl bg-white">
             <div className="bg-emerald-600 p-6 text-white">
               <DialogTitle className="text-xl font-bold flex items-center gap-2">
                 <CheckCircle className="w-6 h-6" />
@@ -3212,7 +3174,7 @@ function EstoqueTab({
         </Table>
 
         <Dialog open={!!selectedItem} onOpenChange={() => setSelectedItem(null)}>
-          <DialogContent className="max-w-md rounded-3xl p-0 border-none bg-white overflow-hidden">
+          <DialogContent className="max-w-md rounded-3xl p-0 border-none bg-white">
             <div className="bg-blue-600 p-6 text-white">
               <DialogTitle className="text-xl font-bold">Aplicar Material em Equipamento</DialogTitle>
               <DialogDescription className="text-blue-100 mt-1">Registre a aplicação de {selectedItem?.description} do estoque</DialogDescription>

@@ -257,7 +257,7 @@ export function ProjectAdminView({
       </Tabs>
 
       <Dialog open={isDetailsOpen} onOpenChange={setIsDetailsOpen}>
-        <DialogContent className="max-w-7xl p-0 overflow-hidden rounded-3xl border-none shadow-2xl">
+        <DialogContent className="max-w-7xl p-0 rounded-3xl border-none shadow-2xl">
           <div className="bg-slate-900 p-8 text-white relative overflow-hidden">
             <div className="absolute top-0 right-0 w-64 h-64 bg-blue-600/20 blur-3xl -mr-32 -mt-32 rounded-full"></div>
             <div className="relative z-10">

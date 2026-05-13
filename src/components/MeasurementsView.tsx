@@ -1854,7 +1854,7 @@ function ContractTab({
                 <Plus className="w-4 h-4 mr-2" /> Novo Contrato
               </Button>
             </DialogTrigger>
-            <DialogContent className="sm:max-w-2xl md:max-w-3xl lg:max-w-4xl w-[95vw] max-h-[95vh] flex flex-col overflow-hidden">
+            <DialogContent className="sm:max-w-2xl md:max-w-3xl lg:max-w-4xl w-[95vw] max-h-[95vh] flex flex-col">
               <form onSubmit={handleSubmit} className="flex flex-col h-full">
                 <DialogHeader className="p-6 pb-2 border-b border-gray-100">
                   <DialogTitle className="text-2xl font-bold">
@@ -2323,7 +2323,7 @@ function MeasurementsSpreadsheet({
                     <Ruler className="w-4 h-4 mr-1" /> Configurar Planilhas
                   </Button>
                 </DialogTrigger>
-                <DialogContent className="max-w-[95vw] sm:max-w-[900px] h-fit max-h-[90vh] flex flex-col overflow-hidden">
+                <DialogContent className="max-w-[95vw] sm:max-w-[900px] h-fit max-h-[90vh] flex flex-col">
                   <div className="p-6 pb-2">
                     <DialogHeader>
                       <DialogTitle className="text-xl font-bold flex items-center gap-2">

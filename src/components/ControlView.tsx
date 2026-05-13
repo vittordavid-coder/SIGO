@@ -825,7 +825,7 @@ export default function ControlView({
         isOpen={isMaintenanceModalOpen}
         onClose={() => setIsMaintenanceModalOpen(false)}
         maxWidth="xl"
-        className="p-0 border-none overflow-hidden"
+        className="p-0 border-none"
         headerClassName="hidden"
       >
         <div className="bg-emerald-600 p-6 text-white relative overflow-hidden">
@@ -1099,7 +1099,7 @@ export default function ControlView({
                   isOpen={isAddOpen}
                   onClose={() => setIsAddOpen(false)}
                   maxWidth="5xl"
-                  className="p-0 border-none overflow-hidden"
+                  className="p-0 border-none"
                   headerClassName="hidden"
                 >
                   <div className="bg-gradient-to-r from-blue-600 to-indigo-700 p-8 flex justify-between items-center shrink-0 relative overflow-hidden">
@@ -2228,7 +2228,7 @@ export default function ControlView({
         isOpen={isEditOpen}
         onClose={() => setIsEditOpen(false)}
         maxWidth="5xl"
-        className="p-0 border-none overflow-hidden"
+        className="p-0 border-none"
         headerClassName="hidden"
       >
         <div className="bg-gradient-to-r from-blue-700 to-indigo-800 p-8 flex justify-between items-center shrink-0 relative overflow-hidden">
@@ -2553,7 +2553,7 @@ export default function ControlView({
         isOpen={isTransferOpen}
         onClose={() => setIsTransferOpen(false)}
         maxWidth="md"
-        className="p-0 border-none overflow-hidden"
+        className="p-0 border-none"
         headerClassName="hidden"
       >
         <div className="bg-emerald-600 p-8 text-white relative overflow-hidden">
@@ -2636,7 +2636,7 @@ export default function ControlView({
         isOpen={isDeleteOpen}
         onClose={() => setIsDeleteOpen(false)}
         maxWidth="md"
-        className="p-0 border-none overflow-hidden"
+        className="p-0 border-none"
         headerClassName="hidden"
       >
         <div className="bg-orange-600 p-8 text-white relative overflow-hidden">
@@ -2687,7 +2687,7 @@ export default function ControlView({
         isOpen={isTankModalOpen}
         onClose={() => setIsTankModalOpen(false)}
         maxWidth="md"
-        className="p-0 border-none overflow-hidden"
+        className="p-0 border-none"
         headerClassName="hidden"
       >
         <div className="bg-blue-600 p-8 text-white relative overflow-hidden">
@@ -2745,7 +2745,7 @@ export default function ControlView({
         isOpen={isFuelLogModalOpen}
         onClose={() => setIsFuelLogModalOpen(false)}
         maxWidth="md"
-        className="p-0 border-none overflow-hidden"
+        className="p-0 border-none"
         headerClassName="hidden"
       >
         <div className={cn("p-8 text-white relative overflow-hidden", newFuelLog.type === 'entrada' ? 'bg-emerald-600' : 'bg-orange-600')}>
@@ -2917,7 +2917,7 @@ export default function ControlView({
         isOpen={isMaterialRequestModalOpen}
         onClose={() => setIsMaterialRequestModalOpen(false)}
         maxWidth="2xl"
-        className="p-0 border-none overflow-hidden"
+        className="p-0 border-none"
         headerClassName="hidden"
       >
         <div className="bg-blue-600 p-8 text-white relative overflow-hidden rounded-t-2xl">

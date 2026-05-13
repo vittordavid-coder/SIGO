@@ -877,7 +877,7 @@ export default function RHView({
                       <UserPlus className="w-4 h-4" /> Novo Colaborador
                     </Button>
                   </DialogTrigger>
-                  <DialogContent className="max-w-[95vw] md:max-w-[95vw] h-[95vh] flex flex-col p-0 overflow-hidden border border-border shadow-2xl">
+                  <DialogContent className="max-w-[95vw] md:max-w-[95vw] h-[95vh] flex flex-col p-0 border border-border shadow-2xl">
                     <div className="bg-blue-600 p-6 text-white shrink-0">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">

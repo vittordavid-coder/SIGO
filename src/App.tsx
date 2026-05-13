@@ -46,13 +46,14 @@ import { FinanceView } from './components/FinanceView';
 
 import { getSupabaseConfig, createSupabaseClient } from './lib/supabaseClient';
 
-const mapToSnake = (obj: any) => {
-  if (!obj) return obj;
+const mapToSnake = (obj: any): any => {
+  if (!obj || typeof obj !== 'object') return obj;
+  if (Array.isArray(obj)) return obj.map(mapToSnake);
+  
   const result: any = {};
   for (const key in obj) {
-    // Basic camelCase to snake_case
     const snakeKey = key.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);
-    result[snakeKey] = obj[key];
+    result[snakeKey] = mapToSnake(obj[key]);
   }
   return result;
 };
@@ -736,6 +737,63 @@ export default function App() {
           console.log('[Supabase] Purchase quotations persisted immediately');
         } catch (err) {
           console.warn('[Sync] Purchase quotations persist failed', err);
+        }
+      }
+    }
+  };
+
+  const updateResources = async (val: Resource[] | ((prev: Resource[]) => Resource[])) => {
+    lastLocalUpdate.current = Date.now();
+    const newVal = typeof val === 'function' ? val(resources) : val;
+    setResources(newVal);
+
+    const config = getSupabaseConfig();
+    if (config.enabled && compId) {
+      const supabase = createSupabaseClient(config.url, config.key);
+      if (supabase) {
+        try {
+          const mapped = newVal.map(r => mapToSnake({ ...r, companyId: compId }));
+          await supabase.from('resources').upsert(mapped);
+        } catch (err) {
+          console.warn('[Sync] Resources persist failed', err);
+        }
+      }
+    }
+  };
+
+  const updateServices = async (val: ServiceComposition[] | ((prev: ServiceComposition[]) => ServiceComposition[])) => {
+    lastLocalUpdate.current = Date.now();
+    const newVal = typeof val === 'function' ? val(services) : val;
+    setServices(newVal);
+
+    const config = getSupabaseConfig();
+    if (config.enabled && compId) {
+      const supabase = createSupabaseClient(config.url, config.key);
+      if (supabase) {
+        try {
+          const mapped = newVal.map(s => mapToSnake({ ...s, companyId: compId }));
+          await supabase.from('service_compositions').upsert(mapped);
+        } catch (err) {
+          console.warn('[Sync] Services persist failed', err);
+        }
+      }
+    }
+  };
+
+  const updateQuotations = async (val: Quotation[] | ((prev: Quotation[]) => Quotation[])) => {
+    lastLocalUpdate.current = Date.now();
+    const newVal = typeof val === 'function' ? val(quotations) : val;
+    setQuotations(newVal);
+
+    const config = getSupabaseConfig();
+    if (config.enabled && compId) {
+      const supabase = createSupabaseClient(config.url, config.key);
+      if (supabase) {
+        try {
+          const mapped = newVal.map(q => mapToSnake({ ...q, companyId: compId }));
+          await supabase.from('quotations').upsert(mapped);
+        } catch (err) {
+          console.warn('[Sync] Quotations persist failed', err);
         }
       }
     }
@@ -1613,14 +1671,14 @@ export default function App() {
       return;
     }
     const newId = uuidv4();
-    setResources([...resources, { ...resource, id: newId, companyId: currentUser?.companyId }]);
+    updateResources([...resources, { ...resource, id: newId, companyId: currentUser?.companyId }]);
     addAuditLog('Adição', 'Insumos', `Insumo adicionado: ${resource.code} - ${resource.name}`);
   };
 
   const deleteResource = (id: string) => {
     if (!window.confirm("Deseja realmente excluir este recurso?")) return;
     const resource = resources.find(r => r.id === id);
-    setResources(resources.filter(r => r.id !== id));
+    updateResources(resources.filter(r => r.id !== id));
     if (resource) addAuditLog('Exclusão', 'Insumos', `Insumo excluído: ${resource.code}`);
   };
 
@@ -1630,7 +1688,7 @@ export default function App() {
       alert(`O código ${updatedResource.code} já está em uso.`);
       return;
     }
-    setResources(resources.map(r => r.id === updatedResource.id ? updatedResource : r));
+    updateResources(resources.map(r => r.id === updatedResource.id ? updatedResource : r));
     addAuditLog('Edição', 'Insumos', `Insumo editado: ${updatedResource.code}`);
   };
 
@@ -1641,7 +1699,7 @@ export default function App() {
       return;
     }
     const newId = uuidv4();
-    setServices([...services, { ...service, id: newId, companyId: currentUser?.companyId }]);
+    updateServices([...services, { ...service, id: newId, companyId: currentUser?.companyId }]);
     addAuditLog('Adição', 'Serviços', `Serviço adicionado: ${service.code} - ${service.name}`);
   };
 
@@ -1692,7 +1750,7 @@ export default function App() {
   const deleteService = (id: string) => {
     if (!window.confirm("Deseja realmente excluir este serviço?")) return;
     const service = services.find(s => s.id === id);
-    setServices(services.filter(s => s.id !== id));
+    updateServices(services.filter(s => s.id !== id));
     if (service) addAuditLog('Exclusão', 'Serviços', `Serviço excluído: ${service.code}`);
   };
 
@@ -1702,26 +1760,26 @@ export default function App() {
       alert(`O código ${updatedService.code} já está em uso.`);
       return;
     }
-    setServices(services.map(s => s.id === updatedService.id ? updatedService : s));
+    updateServices(services.map(s => s.id === updatedService.id ? updatedService : s));
     addAuditLog('Edição', 'Serviços', `Serviço editado: ${updatedService.code}`);
   };
 
   // --- Quotation Management ---
   const addQuotation = (quotation: Omit<Quotation, 'id'>) => {
     const newId = uuidv4();
-    setQuotations([...quotations, { ...quotation, id: newId, companyId: currentUser?.companyId }]);
+    updateQuotations([...quotations, { ...quotation, id: newId, companyId: currentUser?.companyId }]);
     addAuditLog('Adição', 'Cotações', `Cotação adicionada: ${quotation.budgetName}`);
   };
 
   const deleteQuotation = (id: string) => {
     if (!window.confirm("Deseja realmente excluir esta cotação?")) return;
     const quot = quotations.find(q => q.id === id);
-    setQuotations(quotations.filter(q => q.id !== id));
+    updateQuotations(quotations.filter(q => q.id !== id));
     if (quot) addAuditLog('Exclusão', 'Cotações', `Cotação excluída: ${quot.budgetName}`);
   };
 
   const updateQuotation = (updatedQuotation: Quotation) => {
-    setQuotations(quotations.map(q => q.id === updatedQuotation.id ? updatedQuotation : q));
+    updateQuotations(quotations.map(q => q.id === updatedQuotation.id ? updatedQuotation : q));
     addAuditLog('Edição', 'Cotações', `Cotação editada: ${updatedQuotation.budgetName}`);
   };
 
@@ -3502,7 +3560,7 @@ export default function App() {
                   transfers={equipmentTransfers}
                   onUpdateTransfers={(val) => { lastLocalUpdate.current = Date.now(); updateEquipmentTransfers(val); }}
                   purchaseRequests={purchaseRequests}
-                  onUpdatePurchaseRequests={(val) => { lastLocalUpdate.current = Date.now(); setPurchaseRequests(val); }}
+                  onUpdatePurchaseRequests={updatePurchaseRequests}
                   initialTab={activeControlTab}
                 />
               )}
@@ -3551,16 +3609,10 @@ export default function App() {
               {mainTab === 'project_admin' && currentUser && (
                 <ProjectAdminView 
                   purchaseQuotations={purchaseQuotations}
-                  setPurchaseQuotations={(val) => {
-                    lastLocalUpdate.current = Date.now();
-                    setPurchaseQuotations(val);
-                  }}
+                  setPurchaseQuotations={updatePurchaseQuotations}
                   suppliers={suppliers}
                   requests={purchaseRequests}
-                  setRequests={(val) => {
-                    lastLocalUpdate.current = Date.now();
-                    setPurchaseRequests(val);
-                  }}
+                  setRequests={updatePurchaseRequests}
                 />
               )}
 

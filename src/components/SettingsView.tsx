@@ -1236,7 +1236,7 @@ function MeasurementTemplatesTab({ templates, onSave, onDelete }: { templates: M
       </div>
 
       <Dialog open={!!editingTemplate} onOpenChange={open => !open && setEditingTemplate(null)}>
-        <DialogContent className="sm:max-w-[850px] max-h-[90vh] flex flex-col p-0 overflow-hidden border border-border shadow-2xl">
+        <DialogContent className="sm:max-w-[850px] max-h-[90vh] flex flex-col p-0 border border-border shadow-2xl">
           <DialogHeader className="p-8 pb-4 shrink-0 bg-white">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
