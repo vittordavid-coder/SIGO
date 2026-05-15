@@ -733,6 +733,8 @@ export interface ControllerEquipment {
   plate: string;
   origin: string;
   category: string; // Porte / Categoria
+  ownerName?: string; // Proprietário (para alugados)
+  ownerCnpj?: string; // CNPJ (para alugados)
   entryDate: string;
   exitDate?: string;
   inMaintenance?: boolean;
@@ -741,8 +743,9 @@ export interface ControllerEquipment {
   maintenance_type?: 'preventive' | 'corrective';
   chargesPercentage?: number;
   overtimePercentage?: number;
-  measurementUnit?: 'Horímetro' | 'Quilometragem';
+  measurementUnit?: 'Horímetro' | 'Quilometragem' | 'Mensal';
   currentReading?: number; // Última leitura de horímetro/odômetro
+  contractedPrice?: number; // Preço Contratado
   observations?: string;
   customFields?: Record<string, EquipmentAttribute>; // JSONB Data
   photos?: string[]; // URLs das fotos (Supabase Storage)
@@ -830,6 +833,25 @@ export interface ManpowerMonthlyData {
   salary: number;
   overtimeRate: number;
   dailyRate: number;
+}
+
+export interface DailyEquipmentMeasurement {
+  date: string;
+  initialReading: number;
+  finalReading: number;
+  status: 'Trabalhando' | 'Chuva' | 'Manutenção' | 'Aguardando Frente' | 'à Disposição';
+}
+
+export interface EquipmentMeasurement {
+  id: string;
+  equipmentId: string;
+  companyId: string;
+  number: number;
+  month: string; 
+  period: string; 
+  totalUnits: number;
+  totalValue: number;
+  details: DailyEquipmentMeasurement[];
 }
 
 export interface TeamAssignment {

@@ -52,7 +52,9 @@ import {
   PurchaseRequest,
   EquipmentMaintenance,
   EquipmentAttribute,
-  ServiceHistoryEntry
+  ServiceHistoryEntry,
+  EquipmentMeasurement,
+  DailyEquipmentMeasurement
 } from '../types';
 import { EQUIPMENT_TYPES, EQUIPMENT_TEMPLATES } from '../lib/equipmentTemplates';
 import { useLocalStorage } from '../lib/useLocalStorage';
@@ -159,6 +161,14 @@ export default function ControlView({
   });
   const [newRequestCategory, setNewRequestCategory] = useState('');
   const [showCategorySuggestions, setShowCategorySuggestions] = useState(false);
+
+  const [equipmentMeasurements, setEquipmentMeasurements] = useLocalStorage<EquipmentMeasurement[]>('sigo_equipment_measurements', [], currentUser?.companyId);
+  const [isNewMeasurementModalOpen, setIsNewMeasurementModalOpen] = useState(false);
+  const [isPeriodSelectionOpen, setIsPeriodSelectionOpen] = useState(false);
+  const [measurementPeriod, setMeasurementPeriod] = useState({ start: '', end: '' });
+  const [tempDailyData, setTempDailyData] = useState<DailyEquipmentMeasurement[]>([]);
+  const [measurementMonth, setMeasurementMonth] = useState('');
+  const [editingMeasurementId, setEditingMeasurementId] = useState<string | null>(null);
   
   const [isApplyStockOpen, setIsApplyStockOpen] = useState(false);
   const [selectedStockItem, setSelectedStockItem] = useState<{requestId: string, itemIdx: number, item: any} | null>(null);
@@ -455,6 +465,8 @@ export default function ControlView({
     situation: 'Ativo',
     plate: '',
     origin: 'Próprio',
+    ownerName: '',
+    ownerCnpj: '',
     category: 'Médio',
     measurementUnit: 'Horímetro',
     entryDate: new Date().toISOString().split('T')[0],
@@ -537,6 +549,8 @@ export default function ControlView({
       situation: 'Ativo',
       plate: '',
       origin: 'Próprio',
+      ownerName: '',
+      ownerCnpj: '',
       category: 'Médio',
       measurementUnit: 'Horímetro',
       entryDate: new Date().toISOString().split('T')[0],
@@ -554,6 +568,61 @@ export default function ControlView({
     setNewTank({ ...tank });
     setCustomFuel(!DEFAULT_FUELS.includes(tank.fuelType) ? tank.fuelType : '');
     setIsTankModalOpen(true);
+  };
+
+  const generateDailyMeasurementData = (start: string, end: string) => {
+    if (!start || !end) return;
+    const startDate = new Date(start);
+    const endDate = new Date(end);
+    const dailyData: DailyEquipmentMeasurement[] = [];
+    
+    let current = new Date(startDate);
+    while (current <= endDate) {
+      dailyData.push({
+        date: current.toISOString().split('T')[0],
+        initialReading: 0,
+        finalReading: 0,
+        status: 'Trabalhando'
+      });
+      current.setDate(current.getDate() + 1);
+    }
+    setTempDailyData(dailyData);
+  };
+
+  const handleSaveMeasurement = () => {
+    if (!selectedEquipment) return;
+    
+    const totalUnits = tempDailyData.reduce((acc, curr) => acc + (curr.finalReading - curr.initialReading), 0);
+    const unitPrice = selectedEquipment.contractedPrice || 0;
+    const totalValue = totalUnits * unitPrice;
+
+    if (editingMeasurementId) {
+      setEquipmentMeasurements(prev => prev.map(m => m.id === editingMeasurementId ? {
+        ...m,
+        month: measurementMonth,
+        period: `${measurementPeriod.start} a ${measurementPeriod.end}`,
+        totalUnits,
+        totalValue,
+        details: tempDailyData
+      } : m));
+      setEditingMeasurementId(null);
+    } else {
+      const newMeasurement: EquipmentMeasurement = {
+        id: crypto.randomUUID(),
+        equipmentId: selectedEquipment.id,
+        companyId: currentUser?.companyId || '',
+        number: (equipmentMeasurements.filter(m => m.equipmentId === selectedEquipment.id).length + 1),
+        month: measurementMonth,
+        period: `${measurementPeriod.start} a ${measurementPeriod.end}`,
+        totalUnits,
+        totalValue,
+        details: tempDailyData
+      };
+      setEquipmentMeasurements([...equipmentMeasurements, newMeasurement]);
+    }
+    
+    setIsNewMeasurementModalOpen(false);
+    setIsPeriodSelectionOpen(false);
   };
 
   const handleCreateTank = () => {
@@ -1386,23 +1455,6 @@ export default function ControlView({
                               </Select>
                             </div>
                             <div className="space-y-2">
-                              <Label className="text-[11px] uppercase font-black text-slate-500 tracking-tight">Marca / Fabricante</Label>
-                              <Input className="rounded-xl border-slate-200 bg-slate-50/50 h-12 text-sm font-bold" value={newEquip.brand} onChange={e => setNewEquip({...newEquip, brand: e.target.value})} placeholder="Ex: Caterpillar" />
-                            </div>
-                            <div className="space-y-2">
-                              <Label className="text-[11px] uppercase font-black text-slate-500 tracking-tight">Modelo / Versão</Label>
-                              <Input className="rounded-xl border-slate-200 bg-slate-50/50 h-12 text-sm font-bold" value={newEquip.model} onChange={e => setNewEquip({...newEquip, model: e.target.value})} placeholder="Ex: 320 NG" />
-                            </div>
-
-                            <div className="space-y-2">
-                              <Label className="text-[11px] uppercase font-black text-slate-500 tracking-tight">Ano de Fabricação</Label>
-                              <Input type="number" className="rounded-xl border-slate-200 bg-slate-50/50 h-12 text-sm font-bold" value={newEquip.year} onChange={e => setNewEquip({...newEquip, year: parseInt(e.target.value)})} />
-                            </div>
-                            <div className="space-y-2">
-                              <Label className="text-[11px] uppercase font-black text-slate-500 tracking-tight">Placa ou Serial</Label>
-                              <Input className="rounded-xl border-slate-200 bg-slate-50/50 h-12 text-sm font-bold" value={newEquip.plate} onChange={e => setNewEquip({...newEquip, plate: e.target.value})} placeholder="ABC-1234" />
-                            </div>
-                            <div className="space-y-2">
                               <Label className="text-[11px] uppercase font-black text-slate-500 tracking-tight">Origem do Ativo</Label>
                               <Select value={newEquip.origin} onValueChange={val => setNewEquip({...newEquip, origin: val})}>
                                 <SelectTrigger className="rounded-xl border-slate-200 bg-slate-50/50 h-12 text-sm font-bold"><SelectValue /></SelectTrigger>
@@ -1412,6 +1464,19 @@ export default function ControlView({
                                 </SelectContent>
                               </Select>
                             </div>
+
+                            {newEquip.origin === 'Alugado' && (
+                              <>
+                                <div className="space-y-2">
+                                  <Label className="text-[11px] uppercase font-black text-slate-500 tracking-tight">Proprietário / Locador</Label>
+                                  <Input className="rounded-xl border-slate-200 bg-slate-50/50 h-12 text-sm font-bold" value={newEquip.ownerName} onChange={e => setNewEquip({...newEquip, ownerName: e.target.value})} placeholder="Razão Social" />
+                                </div>
+                                <div className="space-y-2">
+                                  <Label className="text-[11px] uppercase font-black text-slate-500 tracking-tight">CNPJ Proprietário</Label>
+                                  <Input className="rounded-xl border-slate-200 bg-slate-50/50 h-12 text-sm font-bold" value={newEquip.ownerCnpj} onChange={e => setNewEquip({...newEquip, ownerCnpj: e.target.value})} placeholder="00.000.000/0000-00" />
+                                </div>
+                              </>
+                            )}
 
                             <div className="space-y-2">
                               <Label className="text-[11px] uppercase font-black text-slate-500 tracking-tight">Situação Operacional</Label>
@@ -1432,12 +1497,19 @@ export default function ControlView({
                                 <SelectContent>
                                   <SelectItem value="Horímetro">Horímetro (h)</SelectItem>
                                   <SelectItem value="Quilometragem">Quilometragem (km)</SelectItem>
+                                  <SelectItem value="Mensal">Mensal</SelectItem>
                                 </SelectContent>
                               </Select>
                             </div>
                             <div className="space-y-2">
                               <Label className="text-[11px] uppercase font-black text-slate-500 tracking-tight">Leitura Inicial</Label>
                               <NumericInput className="rounded-xl border-slate-200 bg-slate-50/50 h-12 text-sm font-bold" value={newEquip.currentReading} onChange={val => setNewEquip({...newEquip, currentReading: val})} />
+                            </div>
+                            <div className="space-y-2">
+                              <Label className="text-[11px] uppercase font-black text-slate-500 tracking-tight">
+                                {newEquip.measurementUnit === 'Horímetro' ? 'Preço Hora' : newEquip.measurementUnit === 'Quilometragem' ? 'Preço KM' : 'Preço Mês'}
+                              </Label>
+                              <NumericInput className="rounded-xl border-slate-200 bg-slate-50/50 h-12 text-sm font-bold" value={newEquip.contractedPrice} onChange={val => setNewEquip({...newEquip, contractedPrice: val})} prefix="R$" />
                             </div>
                             
                             <div className="md:col-span-2 lg:col-span-3 space-y-2">
@@ -1473,6 +1545,24 @@ export default function ControlView({
                           </div>
 
                           <div className="grid grid-cols-2 gap-6 bg-gray-50/50 p-6 rounded-3xl border border-gray-100 border-dashed">
+                            {/* Standard Technical Fields moved from Basic */}
+                            <div className="space-y-2">
+                              <Label className="text-[10px] uppercase font-black text-blue-600 tracking-tight">Marca / Fabricante</Label>
+                              <Input className="rounded-xl bg-white border-gray-100 h-10 font-bold text-xs" value={newEquip.brand} onChange={e => setNewEquip({...newEquip, brand: e.target.value})} placeholder="Ex: Caterpillar" />
+                            </div>
+                            <div className="space-y-2">
+                              <Label className="text-[10px] uppercase font-black text-blue-600 tracking-tight">Modelo / Versão</Label>
+                              <Input className="rounded-xl bg-white border-gray-100 h-10 font-bold text-xs" value={newEquip.model} onChange={e => setNewEquip({...newEquip, model: e.target.value})} placeholder="Ex: 320 NG" />
+                            </div>
+                            <div className="space-y-2">
+                              <Label className="text-[10px] uppercase font-black text-blue-600 tracking-tight">Ano de Fabricação</Label>
+                              <Input type="number" className="rounded-xl bg-white border-gray-100 h-10 font-bold text-xs" value={newEquip.year} onChange={e => setNewEquip({...newEquip, year: parseInt(e.target.value)})} />
+                            </div>
+                            <div className="space-y-2">
+                              <Label className="text-[10px] uppercase font-black text-blue-600 tracking-tight">Placa ou Serial</Label>
+                              <Input className="rounded-xl bg-white border-gray-100 h-10 font-bold text-xs" value={newEquip.plate} onChange={e => setNewEquip({...newEquip, plate: e.target.value})} placeholder="ABC-1234" />
+                            </div>
+
                             {Object.entries(newEquip.customFields || {}).map(([key, f]) => {
                               const field = f as EquipmentAttribute;
                               return (
@@ -1720,23 +1810,7 @@ export default function ControlView({
                       <TableCell className="py-0.5 text-[10px] font-bold text-slate-500 uppercase tracking-tight">{e.category}</TableCell>
                       <TableCell className="py-0.5 text-center font-black uppercase text-[9px] tracking-widest"><Badge variant="outline" className={cn("rounded-lg h-5 px-2", e.origin === 'Próprio' ? "bg-blue-50 text-blue-700 border-blue-100" : "bg-amber-50 text-amber-700 border-amber-100")}>{e.origin}</Badge></TableCell>
                       <TableCell className="py-0.5 text-right font-mono text-[10px] font-black text-slate-700">
-                        <NumericInput 
-                          className="w-24 h-7 text-right bg-slate-50/50 rounded-lg border-transparent hover:border-slate-200 transition-all focus-visible:ring-1 focus-visible:ring-blue-500/20 text-[11px]" 
-                          value={equipmentMonthly.find(d => d.equipmentId === e.id && d.month === selectedMonth)?.cost || 0} 
-                          onChange={val => {
-                            const idx = equipmentMonthly.findIndex(d => d.equipmentId === e.id && d.month === selectedMonth);
-                            if (idx >= 0) onUpdateEquipmentMonthly(equipmentMonthly.map((d, i) => i === idx ? { ...d, cost: val } : d));
-                            else onUpdateEquipmentMonthly([...equipmentMonthly, { 
-                               id: crypto.randomUUID(), 
-                               equipmentId: e.id, 
-                               month: selectedMonth, 
-                               cost: val, 
-                               companyId: currentUser?.companyId,
-                               contractId: e.contractId
-                             }]);
-                          }}
-                          prefix="R$"
-                        />
+                        {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(equipmentMonthly.find(d => d.equipmentId === e.id && d.month === selectedMonth)?.cost || 0)}
                       </TableCell>
                       <TableCell className="py-0.5">
                         <div className="flex items-center justify-end gap-0.5">
@@ -2552,6 +2626,7 @@ export default function ControlView({
             <TabsList className="w-full justify-start rounded-none bg-slate-50 border-b px-6 h-14 gap-6 shrink-0">
               <TabsTrigger value="basic" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:text-blue-600 border-b-2 border-transparent data-[state=active]:border-blue-600 rounded-none h-full px-0 font-black text-[11px] uppercase tracking-widest">Dados Principais</TabsTrigger>
               <TabsTrigger value="technical" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:text-blue-600 border-b-2 border-transparent data-[state=active]:border-blue-600 rounded-none h-full px-0 font-black text-[11px] uppercase tracking-widest">Atributos Técnicos</TabsTrigger>
+              <TabsTrigger value="measure" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:text-blue-600 border-b-2 border-transparent data-[state=active]:border-blue-600 rounded-none h-full px-0 font-black text-[11px] uppercase tracking-widest">Medição</TabsTrigger>
               <TabsTrigger value="history" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:text-blue-600 border-b-2 border-transparent data-[state=active]:border-blue-600 rounded-none h-full px-0 font-black text-[11px] uppercase tracking-widest">Histórico</TabsTrigger>
               <TabsTrigger value="photos" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:text-blue-600 border-b-2 border-transparent data-[state=active]:border-blue-600 rounded-none h-full px-0 font-black text-[11px] uppercase tracking-widest">Fotos</TabsTrigger>
               <TabsTrigger value="obs" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:text-blue-600 border-b-2 border-transparent data-[state=active]:border-blue-600 rounded-none h-full px-0 font-black text-[11px] uppercase tracking-widest">Observações</TabsTrigger>
@@ -2578,23 +2653,6 @@ export default function ControlView({
                       </SelectContent>
                     </Select>
                   </div>
-                  <div className="space-y-2">
-                    <Label className="text-[11px] uppercase font-black text-slate-500 tracking-tight">Marca</Label>
-                    <Input className="rounded-xl border-slate-200 bg-slate-50/50 h-12 text-sm font-bold" value={equipmentToEdit?.brand || ''} onChange={e => setEquipmentToEdit(prev => prev ? {...prev, brand: e.target.value} : null)} />
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-[11px] uppercase font-black text-slate-500 tracking-tight">Modelo</Label>
-                    <Input className="rounded-xl border-slate-200 bg-slate-50/50 h-12 text-sm font-bold" value={equipmentToEdit?.model || ''} onChange={e => setEquipmentToEdit(prev => prev ? {...prev, model: e.target.value} : null)} />
-                  </div>
-
-                  <div className="space-y-3">
-                    <Label className="text-[12px] uppercase font-black text-slate-500 tracking-tight">Ano</Label>
-                    <Input type="number" className="rounded-xl border-slate-200 bg-slate-50/50 h-16 text-base font-bold" value={equipmentToEdit?.year || ''} onChange={e => setEquipmentToEdit(prev => prev ? {...prev, year: parseInt(e.target.value)} : null)} />
-                  </div>
-                  <div className="space-y-3">
-                    <Label className="text-[12px] uppercase font-black text-slate-500 tracking-tight">Placa / Serial</Label>
-                    <Input className="rounded-xl border-slate-200 bg-slate-50/50 h-16 text-base font-bold" value={equipmentToEdit?.plate || ''} onChange={e => setEquipmentToEdit(prev => prev ? {...prev, plate: e.target.value} : null)} />
-                  </div>
                   <div className="space-y-3">
                     <Label className="text-[12px] uppercase font-black text-slate-500 tracking-tight">Origem</Label>
                     <Select value={equipmentToEdit?.origin || 'Próprio'} onValueChange={val => setEquipmentToEdit(prev => prev ? {...prev, origin: val} : null)}>
@@ -2605,6 +2663,19 @@ export default function ControlView({
                       </SelectContent>
                     </Select>
                   </div>
+
+                  {equipmentToEdit?.origin === 'Alugado' && (
+                    <>
+                      <div className="space-y-3">
+                        <Label className="text-[12px] uppercase font-black text-slate-500 tracking-tight">Proprietário / Locador</Label>
+                        <Input className="rounded-xl border-slate-200 bg-slate-50/50 h-16 text-base font-bold" value={equipmentToEdit?.ownerName || ''} onChange={e => setEquipmentToEdit(prev => prev ? {...prev, ownerName: e.target.value} : null)} />
+                      </div>
+                      <div className="space-y-3">
+                        <Label className="text-[12px] uppercase font-black text-slate-500 tracking-tight">CNPJ Proprietário</Label>
+                        <Input className="rounded-xl border-slate-200 bg-slate-50/50 h-16 text-base font-bold" value={equipmentToEdit?.ownerCnpj || ''} onChange={e => setEquipmentToEdit(prev => prev ? {...prev, ownerCnpj: e.target.value} : null)} />
+                      </div>
+                    </>
+                  )}
 
                   <div className="space-y-3">
                     <Label className="text-[12px] uppercase font-black text-slate-500 tracking-tight">Situação</Label>
@@ -2626,6 +2697,28 @@ export default function ControlView({
                   <div className="space-y-3">
                     <Label className="text-[12px] uppercase font-black text-slate-500 tracking-tight">Saída</Label>
                     <Input type="date" className="rounded-xl border-slate-200 bg-slate-50/50 h-16 text-base font-bold" value={equipmentToEdit?.exitDate || ''} onChange={e => setEquipmentToEdit(prev => prev ? {...prev, exitDate: e.target.value} : null)} />
+                  </div>
+
+                  <div className="space-y-3">
+                    <Label className="text-[12px] uppercase font-black text-slate-500 tracking-tight">Medição por</Label>
+                    <Select value={equipmentToEdit?.measurementUnit || 'Horímetro'} onValueChange={val => setEquipmentToEdit(prev => prev ? {...prev, measurementUnit: val as any} : null)}>
+                      <SelectTrigger className="rounded-xl border-slate-200 bg-slate-50/50 h-16 text-base font-bold"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Horímetro">Horímetro (h)</SelectItem>
+                        <SelectItem value="Quilometragem">Quilometragem (km)</SelectItem>
+                        <SelectItem value="Mensal">Mensal</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-3">
+                    <Label className="text-[12px] uppercase font-black text-slate-500 tracking-tight">Leitura Atual / Inicial</Label>
+                    <NumericInput className="rounded-xl border-slate-200 bg-slate-50/50 h-16 text-base font-bold" value={equipmentToEdit?.currentReading || 0} onChange={val => setEquipmentToEdit(prev => prev ? {...prev, currentReading: val} : null)} />
+                  </div>
+                  <div className="space-y-3">
+                    <Label className="text-[12px] uppercase font-black text-slate-500 tracking-tight">
+                      {equipmentToEdit?.measurementUnit === 'Horímetro' ? 'Preço Hora' : equipmentToEdit?.measurementUnit === 'Quilometragem' ? 'Preço KM' : 'Preço Mês'}
+                    </Label>
+                    <NumericInput className="rounded-xl border-slate-200 bg-slate-50/50 h-16 text-base font-bold" value={equipmentToEdit?.contractedPrice || 0} onChange={val => setEquipmentToEdit(prev => prev ? {...prev, contractedPrice: val} : null)} prefix="R$" />
                   </div>
 
                   <div className="md:col-span-2 lg:col-span-3 space-y-3">
@@ -2669,6 +2762,32 @@ export default function ControlView({
                 </div>
 
                 <div className="grid grid-cols-2 gap-6 bg-gray-50/50 p-8 rounded-3xl border border-gray-100">
+                  {/* Standard Technical Fields moved from Basic */}
+                  <div className="space-y-2">
+                    <Label className="text-xs uppercase font-black text-blue-600 tracking-tight flex items-center gap-2">
+                      <Settings className="w-4 h-4" /> Marca / Fabricante
+                    </Label>
+                    <Input className="rounded-xl bg-white border-gray-100 h-12 font-bold text-sm shadow-sm" value={equipmentToEdit?.brand || ''} onChange={e => setEquipmentToEdit(prev => prev ? {...prev, brand: e.target.value} : null)} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-xs uppercase font-black text-blue-600 tracking-tight flex items-center gap-2">
+                      <Settings className="w-4 h-4" /> Modelo / Versão
+                    </Label>
+                    <Input className="rounded-xl bg-white border-gray-100 h-12 font-bold text-sm shadow-sm" value={equipmentToEdit?.model || ''} onChange={e => setEquipmentToEdit(prev => prev ? {...prev, model: e.target.value} : null)} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-xs uppercase font-black text-blue-600 tracking-tight flex items-center gap-2">
+                      <Settings className="w-4 h-4" /> Ano de Fabricação
+                    </Label>
+                    <Input type="number" className="rounded-xl bg-white border-gray-100 h-12 font-bold text-sm shadow-sm" value={equipmentToEdit?.year || ''} onChange={e => setEquipmentToEdit(prev => prev ? {...prev, year: parseInt(e.target.value)} : null)} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-xs uppercase font-black text-blue-600 tracking-tight flex items-center gap-2">
+                      <Settings className="w-4 h-4" /> Placa / Serial
+                    </Label>
+                    <Input className="rounded-xl bg-white border-gray-100 h-12 font-bold text-sm shadow-sm" value={equipmentToEdit?.plate || ''} onChange={e => setEquipmentToEdit(prev => prev ? {...prev, plate: e.target.value} : null)} />
+                  </div>
+
                   {Object.entries(equipmentToEdit?.customFields || {}).map(([key, f]) => {
                     const field = f as EquipmentAttribute;
                     return (
@@ -2743,6 +2862,82 @@ export default function ControlView({
                   onChange={e => setEquipmentToEdit(prev => prev ? {...prev, observations: e.target.value} : null)}
                   placeholder="Insira detalhes importantes sobre o estado, uso ou restrições do equipamento..."
                 />
+              </TabsContent>
+
+              <TabsContent value="measure" className="mt-0 space-y-4">
+                <div className="border border-slate-100 rounded-3xl overflow-hidden">
+                  <Table>
+                    <TableHeader className="bg-slate-50">
+                      <TableRow>
+                        <TableHead className="text-[10px] uppercase font-black">Número</TableHead>
+                        <TableHead className="text-[10px] uppercase font-black">Mês</TableHead>
+                        <TableHead className="text-[10px] uppercase font-black">Período</TableHead>
+                        <TableHead className="text-[10px] uppercase font-black text-right">Total Produção</TableHead>
+                        <TableHead className="text-[10px] uppercase font-black text-right">Valor Total</TableHead>
+                        <TableHead className="w-[50px]"></TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {equipmentMeasurements.filter(m => m.equipmentId === equipmentToEdit?.id).map(m => (
+                        <TableRow key={m.id}>
+                          <TableCell className="font-bold text-xs">{m.number}</TableCell>
+                          <TableCell className="font-bold text-xs">{m.month}</TableCell>
+                          <TableCell className="text-xs text-slate-500">
+                            {m.period.includes(' a ') ? m.period.split(' a ').map(d => {
+                              const date = new Date(d + 'T12:00:00');
+                              return isNaN(date.getTime()) ? d : date.toLocaleDateString('pt-BR');
+                            }).join(' a ') : m.period}
+                          </TableCell>
+                          <TableCell className="text-right font-bold text-xs">
+                            {m.totalUnits || 0}{equipmentToEdit?.measurementUnit === 'Horímetro' ? 'h' : equipmentToEdit?.measurementUnit === 'Quilometragem' ? 'km' : ''}
+                          </TableCell>
+                          <TableCell className="text-right font-bold text-xs text-blue-600">
+                            {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(m.totalValue || 0)}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <Button 
+                              variant="ghost" 
+                              size="icon" 
+                              className="h-8 w-8 text-blue-600 hover:bg-blue-50"
+                              onClick={() => {
+                                const parts = m.period.split(' a ');
+                                if (parts.length === 2) {
+                                  setMeasurementPeriod({ start: parts[0], end: parts[1] });
+                                }
+                                setMeasurementMonth(m.month);
+                                setTempDailyData(m.details);
+                                setEditingMeasurementId(m.id);
+                                setSelectedEquipment(equipmentToEdit);
+                                setIsNewMeasurementModalOpen(true);
+                              }}
+                            >
+                              <Edit className="w-4 h-4" />
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                      {equipmentMeasurements.filter(m => m.equipmentId === equipmentToEdit?.id).length === 0 && (
+                        <TableRow>
+                          <TableCell colSpan={6} className="text-center py-10 text-slate-400">Nenhuma medição registrada</TableCell>
+                        </TableRow>
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
+
+                <div className="flex justify-end p-4 bg-slate-50/50 rounded-2xl border border-slate-100">
+                  <Button 
+                    onClick={() => {
+                      setMeasurementMonth(new Date().toLocaleDateString('pt-BR', { month: '2-digit', year: 'numeric' }));
+                      setIsPeriodSelectionOpen(true);
+                      setSelectedEquipment(equipmentToEdit);
+                      setEditingMeasurementId(null);
+                    }}
+                    className="rounded-xl bg-blue-600 font-bold text-xs h-11 px-6 shadow-lg shadow-blue-100 transition-all hover:scale-[1.02] active:scale-95"
+                  >
+                    <Plus className="w-4 h-4 mr-2" /> Nova Medição
+                  </Button>
+                </div>
               </TabsContent>
 
               <TabsContent value="history" className="mt-0 space-y-4">
@@ -2850,6 +3045,143 @@ export default function ControlView({
               </div>
             </div>
           </Tabs>
+      </Modal>
+
+      <Modal 
+        isOpen={isPeriodSelectionOpen} 
+        onClose={() => setIsPeriodSelectionOpen(false)}
+        title="Novo Período de Medição"
+        description="Selecione o período para iniciar a medição"
+      >
+        <div className="space-y-6 pt-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2 col-span-2">
+              <Label>Mês Referência</Label>
+              <Input type="month" value={measurementMonth ? measurementMonth.split('/').reverse().join('-') : ''} onChange={e => {
+                const [y, m] = e.target.value.split('-');
+                setMeasurementMonth(`${m}/${y}`);
+              }} />
+            </div>
+            <div className="space-y-2">
+              <Label>Início</Label>
+              <Input type="date" value={measurementPeriod.start} onChange={e => setMeasurementPeriod({...measurementPeriod, start: e.target.value})} />
+            </div>
+            <div className="space-y-2">
+              <Label>Fim</Label>
+              <Input type="date" value={measurementPeriod.end} onChange={e => setMeasurementPeriod({...measurementPeriod, end: e.target.value})} />
+            </div>
+          </div>
+          <Button 
+            className="w-full h-12 rounded-xl bg-blue-600 font-bold"
+            onClick={() => {
+              generateDailyMeasurementData(measurementPeriod.start, measurementPeriod.end);
+              setIsNewMeasurementModalOpen(true);
+            }}
+          >
+            Iniciar Medição
+          </Button>
+        </div>
+      </Modal>
+
+      <Modal 
+        isOpen={isNewMeasurementModalOpen} 
+        onClose={() => setIsNewMeasurementModalOpen(false)}
+        title={`Lançamento de Medição - ${measurementMonth}`}
+        description={`Período: ${measurementPeriod.start ? new Date(measurementPeriod.start + 'T12:00:00').toLocaleDateString('pt-BR') : ''} a ${measurementPeriod.end ? new Date(measurementPeriod.end + 'T12:00:00').toLocaleDateString('pt-BR') : ''}`}
+        className="max-w-4xl max-h-[90vh]"
+      >
+        <div className="flex flex-col h-full bg-white overflow-hidden">
+          <div className="flex-1 overflow-y-auto p-6 space-y-4 custom-scrollbar">
+            <Table>
+              <TableHeader className="bg-slate-50 sticky top-0 z-10">
+                <TableRow>
+                  <TableHead className="w-24 text-[10px] font-black uppercase">Data</TableHead>
+                  <TableHead className="w-32 text-[10px] font-black uppercase">Inicial</TableHead>
+                  <TableHead className="w-32 text-[10px] font-black uppercase">Final</TableHead>
+                  <TableHead className="w-24 text-[10px] font-black uppercase text-center">Total</TableHead>
+                  <TableHead className="w-48 text-[10px] font-black uppercase">Status</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {tempDailyData.map((day, idx) => (
+                  <TableRow key={day.date}>
+                    <TableCell className="text-xs font-bold">{new Date(day.date + 'T12:00:00').toLocaleDateString('pt-BR')}</TableCell>
+                    <TableCell>
+                      <NumericInput 
+                        value={day.initialReading} 
+                        onChange={val => {
+                          const newDays = [...tempDailyData];
+                          newDays[idx].initialReading = val;
+                          setTempDailyData(newDays);
+                        }}
+                        className="h-9 rounded-lg"
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <NumericInput 
+                        value={day.finalReading} 
+                        onChange={val => {
+                          const newDays = [...tempDailyData];
+                          newDays[idx].finalReading = val;
+                          setTempDailyData(newDays);
+                        }}
+                        className="h-9 rounded-lg"
+                      />
+                    </TableCell>
+                    <TableCell className="text-center">
+                      <span className="text-xs font-black text-blue-600">
+                        {day.finalReading - day.initialReading}
+                      </span>
+                    </TableCell>
+                    <TableCell>
+                      <Select value={day.status} onValueChange={(val: any) => {
+                        const newDays = [...tempDailyData];
+                        newDays[idx].status = val;
+                        setTempDailyData(newDays);
+                      }}>
+                        <SelectTrigger className="h-9 rounded-lg px-2"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Trabalhando">Trabalhando</SelectItem>
+                          <SelectItem value="Chuva">Chuva</SelectItem>
+                          <SelectItem value="Manutenção">Manutenção</SelectItem>
+                          <SelectItem value="Aguardando Frente">Aguardando Frente</SelectItem>
+                          <SelectItem value="à Disposição">à Disposição</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+          <div className="p-6 border-t border-slate-100 flex justify-between items-center bg-slate-50">
+            <div className="flex gap-8">
+              <div>
+                <p className="text-[10px] uppercase font-black text-slate-400">Total Acumulado</p>
+                <p className="text-xl font-black text-blue-600">
+                  {tempDailyData.reduce((acc, curr) => acc + (curr.finalReading - curr.initialReading), 0)}
+                  <span className="text-xs ml-1 uppercase">{selectedEquipment?.measurementUnit === 'Horímetro' ? 'h' : selectedEquipment?.measurementUnit === 'Quilometragem' ? 'km' : ''}</span>
+                </p>
+              </div>
+              <div>
+                <p className="text-[10px] uppercase font-black text-slate-400">Preço Unitário</p>
+                <p className="text-xl font-black text-slate-600">
+                  {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(selectedEquipment?.contractedPrice || 0)}
+                </p>
+              </div>
+              <div>
+                <p className="text-[10px] uppercase font-black text-slate-400">Valor Total</p>
+                <p className="text-xl font-black text-emerald-600">
+                  {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(tempDailyData.reduce((acc, curr) => acc + (curr.finalReading - curr.initialReading), 0) * (selectedEquipment?.contractedPrice || 0))}
+                </p>
+              </div>
+            </div>
+            <div className="flex gap-3">
+              <Button variant="outline" onClick={() => setIsNewMeasurementModalOpen(false)}>Cancelar</Button>
+              <Button className="bg-blue-600 font-bold px-8" onClick={handleSaveMeasurement}>Salvar Medição</Button>
+            </div>
+          </div>
+        </div>
       </Modal>
 
       <Modal

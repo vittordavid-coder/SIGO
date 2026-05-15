@@ -3244,53 +3244,6 @@ export default function App() {
       </header>
 
       <div className="flex flex-1 overflow-hidden relative">
-        {/* Floating Connection Status */}
-        {getSupabaseConfig().enabled && (
-          <div className="absolute bottom-6 left-6 z-50">
-            <motion.div 
-              animate={{ 
-                boxShadow: [
-                  "0 0 0px 0px rgba(59, 130, 246, 0)",
-                  "0 0 15px 5px rgba(59, 130, 246, 0.4)",
-                  "0 0 0px 0px rgba(59, 130, 246, 0)"
-                ],
-                scale: isSupabaseSynced ? 1 : [1, 1.05, 1]
-              }}
-              transition={{ 
-                repeat: Infinity, 
-                duration: isSupabaseSynced ? 4 : 2,
-                ease: "easeInOut"
-              }}
-              className={cn(
-                "flex items-center gap-3 p-1 padding-right-3 rounded-full border shadow-lg transition-all backdrop-blur-md",
-                supabaseSyncError 
-                  ? "bg-red-50/90 border-red-200 text-red-600" 
-                  : isSupabaseSynced 
-                    ? "bg-white/90 border-gray-100 text-emerald-600"
-                    : "bg-blue-50/90 border-blue-200 text-blue-600"
-              )}
-              title={supabaseSyncError ? "Cloud Offline" : isSupabaseSynced ? "Cloud Online" : "Sincronizando..."}
-            >
-              <div className={cn(
-                "w-10 h-10 rounded-full flex items-center justify-center shrink-0",
-                supabaseSyncError 
-                  ? "bg-red-100" 
-                  : isSupabaseSynced 
-                    ? "bg-emerald-100"
-                    : "bg-blue-100"
-              )}>
-                <Cloud className={cn("w-5 h-5", !isSupabaseSynced && !supabaseSyncError && "animate-bounce")} />
-              </div>
-              <div className="flex flex-col pr-4">
-                <span className="text-[10px] font-black uppercase tracking-tight leading-none">Status</span>
-                <span className="text-[9px] font-bold opacity-70">
-                  {supabaseSyncError ? "Offline" : isSupabaseSynced ? "Conectado" : "Sincronizando"}
-                </span>
-              </div>
-            </motion.div>
-          </div>
-        )}
-
         {/* Sidebar - Visible in Quotations and Measurements tab */}
         {(mainTab === 'quotations' || mainTab === 'measurements') && (
           <motion.aside 
