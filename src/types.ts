@@ -839,6 +839,7 @@ export interface DailyEquipmentMeasurement {
   date: string;
   initialReading: number;
   finalReading: number;
+  discount: boolean;
   status: 'Trabalhando' | 'Chuva' | 'Manutenção' | 'Aguardando Frente' | 'à Disposição';
 }
 

@@ -582,6 +582,7 @@ export default function ControlView({
         date: current.toISOString().split('T')[0],
         initialReading: 0,
         finalReading: 0,
+        discount: false,
         status: 'Trabalhando'
       });
       current.setDate(current.getDate() + 1);
@@ -592,7 +593,7 @@ export default function ControlView({
   const handleSaveMeasurement = () => {
     if (!selectedEquipment) return;
     
-    const totalUnits = tempDailyData.reduce((acc, curr) => acc + (curr.finalReading - curr.initialReading), 0);
+    const totalUnits = tempDailyData.reduce((acc, curr) => acc + (curr.discount ? 0 : (curr.finalReading - curr.initialReading)), 0);
     const unitPrice = selectedEquipment.contractedPrice || 0;
     const totalValue = totalUnits * unitPrice;
 
@@ -2905,7 +2906,10 @@ export default function ControlView({
                                   setMeasurementPeriod({ start: parts[0], end: parts[1] });
                                 }
                                 setMeasurementMonth(m.month);
-                                setTempDailyData(m.details);
+                                setTempDailyData(m.details.map(d => ({
+                                  ...d,
+                                  discount: d.discount ?? false
+                                })));
                                 setEditingMeasurementId(m.id);
                                 setSelectedEquipment(equipmentToEdit);
                                 setIsNewMeasurementModalOpen(true);
@@ -3088,7 +3092,8 @@ export default function ControlView({
         onClose={() => setIsNewMeasurementModalOpen(false)}
         title={`Lançamento de Medição - ${measurementMonth}`}
         description={`Período: ${measurementPeriod.start ? new Date(measurementPeriod.start + 'T12:00:00').toLocaleDateString('pt-BR') : ''} a ${measurementPeriod.end ? new Date(measurementPeriod.end + 'T12:00:00').toLocaleDateString('pt-BR') : ''}`}
-        className="max-w-4xl max-h-[90vh]"
+        maxWidth="5xl"
+        className="max-h-[90vh]"
       >
         <div className="flex flex-col h-full bg-white overflow-hidden">
           <div className="flex-1 overflow-y-auto p-6 space-y-4 custom-scrollbar">
@@ -3098,6 +3103,7 @@ export default function ControlView({
                   <TableHead className="w-24 text-[10px] font-black uppercase">Data</TableHead>
                   <TableHead className="w-32 text-[10px] font-black uppercase">Inicial</TableHead>
                   <TableHead className="w-32 text-[10px] font-black uppercase">Final</TableHead>
+                  <TableHead className="w-48 text-[10px] font-black uppercase text-center">Desconto</TableHead>
                   <TableHead className="w-24 text-[10px] font-black uppercase text-center">Total</TableHead>
                   <TableHead className="w-48 text-[10px] font-black uppercase">Status</TableHead>
                 </TableRow>
@@ -3128,8 +3134,22 @@ export default function ControlView({
                         className="h-9 rounded-lg"
                       />
                     </TableCell>
+                    <TableCell>
+                      <div className="flex justify-center items-center">
+                        <input 
+                          type="checkbox" 
+                          className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                          checked={day.discount}
+                          onChange={e => {
+                            const newDays = [...tempDailyData];
+                            newDays[idx].discount = e.target.checked;
+                            setTempDailyData(newDays);
+                          }}
+                        />
+                      </div>
+                    </TableCell>
                     <TableCell className="text-center">
-                      <span className="text-xs font-black text-blue-600">
+                      <span className={cn("text-xs font-black", day.discount ? "line-through text-slate-300" : "text-blue-600")}>
                         {day.finalReading - day.initialReading}
                       </span>
                     </TableCell>
@@ -3137,6 +3157,12 @@ export default function ControlView({
                       <Select value={day.status} onValueChange={(val: any) => {
                         const newDays = [...tempDailyData];
                         newDays[idx].status = val;
+                        // Auto-mark discount if not "Trabalhando", but allow user to unmark later
+                        if (val !== 'Trabalhando') {
+                          newDays[idx].discount = true;
+                        } else {
+                          newDays[idx].discount = false;
+                        }
                         setTempDailyData(newDays);
                       }}>
                         <SelectTrigger className="h-9 rounded-lg px-2"><SelectValue /></SelectTrigger>
@@ -3154,12 +3180,19 @@ export default function ControlView({
               </TableBody>
             </Table>
           </div>
-          <div className="p-6 border-t border-slate-100 flex justify-between items-center bg-slate-50">
+          <div className="p-6 border-t border-slate-100 flex justify-between items-center bg-slate-50 overflow-x-auto">
             <div className="flex gap-8">
               <div>
-                <p className="text-[10px] uppercase font-black text-slate-400">Total Acumulado</p>
-                <p className="text-xl font-black text-blue-600">
+                <p className="text-[10px] uppercase font-black text-slate-400">Total Bruto</p>
+                <p className="text-xl font-black text-slate-500">
                   {tempDailyData.reduce((acc, curr) => acc + (curr.finalReading - curr.initialReading), 0)}
+                  <span className="text-xs ml-1 uppercase">{selectedEquipment?.measurementUnit === 'Horímetro' ? 'h' : selectedEquipment?.measurementUnit === 'Quilometragem' ? 'km' : ''}</span>
+                </p>
+              </div>
+              <div>
+                <p className="text-[10px] uppercase font-black text-slate-400 font-bold text-blue-600">Total Líquido</p>
+                <p className="text-xl font-black text-blue-600">
+                  {tempDailyData.reduce((acc, curr) => acc + (curr.discount ? 0 : (curr.finalReading - curr.initialReading)), 0)}
                   <span className="text-xs ml-1 uppercase">{selectedEquipment?.measurementUnit === 'Horímetro' ? 'h' : selectedEquipment?.measurementUnit === 'Quilometragem' ? 'km' : ''}</span>
                 </p>
               </div>
@@ -3170,9 +3203,16 @@ export default function ControlView({
                 </p>
               </div>
               <div>
+                <p className="text-[10px] uppercase font-black text-slate-400">Total de Descontos</p>
+                <p className="text-xl font-black text-amber-600">
+                  {tempDailyData.reduce((acc, curr) => acc + (curr.discount ? (curr.finalReading - curr.initialReading) : 0), 0)}
+                  <span className="text-xs ml-1 uppercase">{selectedEquipment?.measurementUnit === 'Horímetro' ? 'h' : selectedEquipment?.measurementUnit === 'Quilometragem' ? 'km' : ''}</span>
+                </p>
+              </div>
+              <div>
                 <p className="text-[10px] uppercase font-black text-slate-400">Valor Total</p>
                 <p className="text-xl font-black text-emerald-600">
-                  {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(tempDailyData.reduce((acc, curr) => acc + (curr.finalReading - curr.initialReading), 0) * (selectedEquipment?.contractedPrice || 0))}
+                  {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(tempDailyData.reduce((acc, curr) => acc + (curr.discount ? 0 : (curr.finalReading - curr.initialReading)), 0) * (selectedEquipment?.contractedPrice || 0))}
                 </p>
               </div>
             </div>
