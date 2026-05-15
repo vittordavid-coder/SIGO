@@ -2663,7 +2663,7 @@ export function TechnicalScheduleView({
                                     fillOpacity={1} 
                                     fill="url(#colorPrev)" 
                                     style={{ cursor: 'pointer' }}
-                                    onClick={(data) => {
+                                    onClick={(data: any) => {
                                       if (data && typeof data.periodIndex === 'number') setChartPeriodFilter(data.periodIndex);
                                     }}
                                   />
@@ -2676,7 +2676,7 @@ export function TechnicalScheduleView({
                                     fillOpacity={1} 
                                     fill="url(#colorExec)" 
                                     style={{ cursor: 'pointer' }}
-                                    onClick={(data) => {
+                                    onClick={(data: any) => {
                                       if (data && typeof data.periodIndex === 'number') setChartPeriodFilter(data.periodIndex);
                                     }}
                                   />
@@ -2724,7 +2724,7 @@ export function TechnicalScheduleView({
                                     axisLine={false} 
                                     tickLine={false} 
                                     width={180}
-                                    tick={{fontSize: 9, fontWeight: 'black', fill: '#1e293b', textTransform: 'uppercase'}}
+                                    tick={{fontSize: 9, fontWeight: 'black', fill: '#1e293b'}}
                                   />
                                   <Tooltip 
                                     contentStyle={{ borderRadius: '24px', border: 'none', boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1)', padding: '16px' }}
@@ -2809,7 +2809,7 @@ export function TechnicalScheduleView({
                                     axisLine={false} 
                                     tickLine={false} 
                                     width={180}
-                                    tick={{fontSize: 9, fontWeight: 'black', fill: '#1e293b', textTransform: 'uppercase'}}
+                                    tick={{fontSize: 9, fontWeight: 'black', fill: '#1e293b'}}
                                   />
                                   <Tooltip 
                                     contentStyle={{ borderRadius: '24px', border: 'none', boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1)', padding: '16px' }}
@@ -2888,7 +2888,7 @@ export function TechnicalScheduleView({
                                     axisLine={false} 
                                     tickLine={false} 
                                     width={220}
-                                    tick={{fontSize: 9, fontWeight: 'black', fill: '#1e293b', textTransform: 'uppercase'}}
+                                    tick={{fontSize: 9, fontWeight: 'black', fill: '#1e293b'}}
                                   />
                                   <Tooltip 
                                     contentStyle={{ borderRadius: '24px', border: 'none', boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1)', padding: '16px' }}

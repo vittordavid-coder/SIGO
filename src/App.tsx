@@ -5,7 +5,7 @@ import {
   FileSpreadsheet, Settings, Calendar, Percent, ShieldCheck,
   ClipboardList, Users, Calculator, BarChart3, Landmark,
   BookOpen, CloudRain, Cloud, HardHat, Truck, Users2, Activity,
-  RefreshCw, ShoppingCart, GripVertical, AlertCircle, Database, XCircle
+  RefreshCw, ShoppingCart, GripVertical, AlertCircle, Database, XCircle, MoreHorizontal, Filter
 } from 'lucide-react';
 import { motion, AnimatePresence, Reorder } from 'motion/react';
 import { v4 as uuidv4 } from 'uuid';
@@ -19,6 +19,9 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger, SheetDescription } from '@/components/ui/sheet';
 import { Separator } from '@/components/ui/separator';
 import { Switch } from '@/components/ui/switch';
 
@@ -261,6 +264,7 @@ export default function App() {
   const [emailConfig, setEmailConfig] = useLocalStorage<EmailConfig>('sigo_email_config', {}, compId);
   
   const [selectedContractId, setSelectedContractId] = useState<string | null>(null);
+  const [isContractSheetOpen, setIsContractSheetOpen] = useState(false);
 
   // Custom navigation helper to support sub-tabs
   const handleNavigate = (target: string | { tab: string; subTab?: string; measureTab?: string; rhTab?: string; controlTab?: string; purchasesTab?: string }) => {
@@ -386,6 +390,75 @@ export default function App() {
   const allowedContractIds = useMemo(() => new Set(finalContracts.map(c => c.id)), [finalContracts]);
 
   const finalMeasurements = useMemo(() => filteredMeasurements.filter(m => allowedContractIds.has(m.contractId)), [filteredMeasurements, allowedContractIds]);
+
+  const navItems = useMemo(() => {
+    if (!currentUser) return [];
+    
+    const items = [
+      { id: 'home', label: 'Início', icon: <LayoutDashboard className="w-4 h-4" />, visible: true },
+      { 
+        id: 'quotations', 
+        label: 'Cotações', 
+        icon: <Briefcase className="w-4 h-4" />, 
+        visible: currentUser.role === 'master' || currentUser.role === 'admin' || currentUser.allowedModules?.includes('quotations') 
+      },
+      { 
+        id: 'measurements', 
+        label: 'Sala Técnica', 
+        icon: <ClipboardList className="w-4 h-4" />, 
+        visible: currentUser.role === 'master' || currentUser.role === 'admin' || currentUser.allowedModules?.includes('measurements') 
+      },
+      { 
+        id: 'rh', 
+        label: 'RH', 
+        icon: <Users className="w-4 h-4" />, 
+        visible: currentUser.role === 'master' || currentUser.role === 'admin' || currentUser.allowedModules?.includes('rh') 
+      },
+      { 
+        id: 'control', 
+        label: 'Controlador', 
+        icon: <Activity className="w-4 h-4" />, 
+        visible: currentUser.role === 'master' || currentUser.role === 'admin' || currentUser.allowedModules?.includes('control') 
+      },
+      { 
+        id: 'purchases', 
+        label: 'Compras', 
+        icon: <ShoppingCart className="w-4 h-4" />, 
+        visible: currentUser.role === 'master' || currentUser.role === 'admin' || currentUser.allowedModules?.includes('purchases') 
+      },
+      { 
+        id: 'project_admin', 
+        label: 'Administrador da Obra', 
+        icon: <HardHat className="w-4 h-4" />, 
+        visible: currentUser.role === 'master' || currentUser.role === 'admin' || currentUser.role === 'project_admin' 
+      },
+      { id: 'gerencia', label: 'Gerência', icon: <Landmark className="w-4 h-4" />, visible: true },
+      { 
+        id: 'financeiro', 
+        label: 'Financeiro', 
+        icon: <Calculator className="w-4 h-4" />, 
+        visible: currentUser.role === 'master' || currentUser.role === 'admin' || currentUser.allowedModules?.includes('financeiro') 
+      },
+      { 
+        id: 'settings', 
+        label: 'Administrador do Sistema', 
+        icon: <Settings className="w-4 h-4" />, 
+        visible: currentUser.role === 'master' || currentUser.role === 'admin' || currentUser.allowedModules?.includes('settings') 
+      },
+      { 
+        id: 'admin', 
+        label: 'Administrador Master', 
+        icon: <ShieldCheck className="w-4 h-4" />, 
+        visible: currentUser.role === 'master' 
+      },
+    ];
+
+    return items.filter(i => i.visible);
+  }, [currentUser]);
+
+  const visibleNavItems = navItems.slice(0, 6);
+  const overflowNavItems = navItems.slice(6);
+
   const finalDailyReports = useMemo(() => filteredDailyReports.filter(r => allowedContractIds.has(r.contractId)), [filteredDailyReports, allowedContractIds]);
   const finalTechnicalSchedules = useMemo(() => technicalSchedules.filter(s => allowedContractIds.has(s.contractId)), [technicalSchedules, allowedContractIds]);
   const finalControllerTeams = useMemo(() => controllerTeams.filter(t => !t.contractId || allowedContractIds.has(t.contractId)), [controllerTeams, allowedContractIds]);
@@ -2936,141 +3009,179 @@ export default function App() {
     );
   }
 
-  return (
+    return (
     <div className="flex flex-col h-screen bg-[#F5F5F5] font-sans text-gray-900 overflow-hidden">
       {/* Superior Tab Layer */}
-      <header className="h-14 bg-white border-b border-gray-200 flex items-center px-6 z-30 shrink-0">
-        <div className="flex items-center gap-4 mr-8">
+      <header className="h-14 bg-white border-b border-gray-200 flex items-center px-6 z-40 shrink-0">
+        <div className="flex items-center gap-4 mr-8 shrink-0">
           <div className="bg-blue-600 p-1.5 rounded-lg">
             <LayoutDashboard className="w-5 h-5 text-white" />
           </div>
-          <span className="font-bold text-xl tracking-tight hidden md:block">SIGO</span>
+          <span className="font-bold text-xl tracking-tight hidden lg:block">SIGO</span>
         </div>
         
-        <div className="flex h-full">
-          <TopNavItem 
-            icon={<LayoutDashboard className="w-4 h-4" />} 
-            label="Início" 
-            active={mainTab === 'home'} 
-            onClick={() => setMainTab('home')} 
-          />
-          {(currentUser?.role === 'master' || currentUser?.role === 'admin' || currentUser?.allowedModules?.includes('quotations')) && (
-            <TopNavItem 
-              icon={<Briefcase className="w-4 h-4" />} 
-              label="Cotações" 
-              active={mainTab === 'quotations'} 
-              onClick={() => setMainTab('quotations')} 
-            />
-          )}
-          {(currentUser?.role === 'master' || currentUser?.role === 'admin' || currentUser?.allowedModules?.includes('measurements')) && (
-            <TopNavItem 
-              icon={<ClipboardList className="w-4 h-4" />} 
-              label="Sala Técnica" 
-              active={mainTab === 'measurements'} 
-              onClick={() => setMainTab('measurements')} 
-            />
-          )}
-          {(currentUser?.role === 'master' || currentUser?.role === 'admin' || currentUser?.allowedModules?.includes('rh')) && (
-            <TopNavItem 
-              icon={<Users className="w-4 h-4" />} 
-              label="RH" 
-              active={mainTab === 'rh'} 
-              onClick={() => setMainTab('rh')} 
-            />
-          )}
-          {(currentUser?.role === 'master' || currentUser?.role === 'admin' || currentUser?.allowedModules?.includes('control')) && (
-            <TopNavItem 
-              icon={<Activity className="w-4 h-4" />} 
-              label="Controlador" 
-              active={mainTab === 'control'} 
-              onClick={() => setMainTab('control')} 
-            />
-          )}
+        <nav className="flex h-full items-center overflow-hidden">
+          <div className="hidden xl:flex h-full items-center">
+            {navItems.map(item => (
+              <TopNavItem 
+                key={item.id}
+                icon={item.icon} 
+                label={item.label} 
+                active={mainTab === item.id} 
+                onClick={() => setMainTab(item.id as any)} 
+              />
+            ))}
+          </div>
 
-           {(currentUser?.role === 'master' || currentUser?.role === 'admin' || currentUser?.allowedModules?.includes('purchases')) && (
-            <TopNavItem 
-              icon={<ShoppingCart className="w-4 h-4" />} 
-              label="Compras" 
-              active={mainTab === 'purchases'} 
-              onClick={() => setMainTab('purchases')} 
-            />
-          )}
-          {(currentUser?.role === 'master' || currentUser?.role === 'admin' || currentUser?.role === 'project_admin') && (
-            <TopNavItem 
-              icon={<HardHat className="w-4 h-4" />} 
-              label="Administrador da Obra" 
-              active={mainTab === 'project_admin'} 
-              onClick={() => setMainTab('project_admin')} 
-            />
-          )}
+          <div className="flex xl:hidden h-full items-center">
+            {visibleNavItems.map(item => (
+              <TopNavItem 
+                key={item.id}
+                icon={item.icon} 
+                label={item.label} 
+                active={mainTab === item.id} 
+                onClick={() => setMainTab(item.id as any)} 
+              />
+            ))}
 
-          <TopNavItem 
-            icon={<Landmark className="w-4 h-4" />} 
-            label="Gerência" 
-            active={mainTab === 'gerencia'} 
-            onClick={() => setMainTab('gerencia')} 
-          />
-
-          {(currentUser?.role === 'master' || currentUser?.role === 'admin' || currentUser?.allowedModules?.includes('financeiro')) && (
-            <TopNavItem 
-              icon={<Calculator className="w-4 h-4" />} 
-              label="Financeiro" 
-              active={mainTab === 'financeiro'} 
-              onClick={() => setMainTab('financeiro')} 
-            />
-          )}
-
-          {(currentUser?.role === 'master' || currentUser?.role === 'admin' || currentUser?.allowedModules?.includes('settings')) && (
-            <TopNavItem 
-              icon={<Settings className="w-4 h-4" />} 
-              label="Administrador do Sistema" 
-              active={mainTab === 'settings'} 
-              onClick={() => setMainTab('settings')} 
-            />
-          )}
-          {currentUser?.role === 'master' && (
-            <TopNavItem 
-              icon={<ShieldCheck className="w-4 h-4" />} 
-              label="Administrador Master" 
-              active={mainTab === 'admin'} 
-              onClick={() => setMainTab('admin')} 
-            />
-          )}
-        </div>
-
-        <div className="ml-auto flex items-center gap-3">
-          {finalContracts.length > 0 && (
-            <div className="flex items-center px-4 bg-white border border-gray-100 rounded-2xl h-10 shadow-sm transition-all hover:border-blue-200">
-              <Select 
-                value={selectedContractId || "all"} 
-                onValueChange={(val) => setSelectedContractId(val === "all" ? null : val)}
-              >
-                <SelectTrigger className="w-[200px] lg:w-[320px] h-8 border-none bg-transparent hover:bg-transparent transition-colors font-black text-xs shadow-none focus:ring-0 px-2 group">
-                  <div className="flex items-center gap-2 truncate">
-                    <div className="bg-blue-50 p-1 rounded-lg group-hover:bg-blue-100 transition-colors">
-                      <Briefcase className="w-4 h-4 text-blue-600 shrink-0" />
-                    </div>
-                    <SelectValue placeholder="Selecione a Obra">
-                      {selectedContractId === null ? "Todas as Obras" : (() => {
-                        const c = finalContracts.find(x => x.id === selectedContractId);
-                        return c ? `${c.workName || c.client || 'Sem Nome'} - ${c.contractNumber || 'S/N'}` : "Selecione a Obra";
-                      })()}
-                    </SelectValue>
-                  </div>
-                </SelectTrigger>
-                <SelectContent className="max-w-[450px] rounded-2xl border-gray-100 shadow-2xl p-1">
-                  <SelectItem value="all" className="font-bold text-blue-600 rounded-xl mb-1 mt-1">Todas as Obras / Contratos</SelectItem>
-                  {finalContracts.map(c => (
-                    <SelectItem key={c.id} value={c.id} className="rounded-xl">
-                      <div className="flex flex-col py-1">
-                        <span className="font-black text-[12px] leading-tight text-gray-900 group-hover:text-blue-700">{c.workName || c.client || 'Sem Nome'}</span>
-                        <span className="text-[10px] text-gray-400 font-bold tracking-tight mt-0.5 uppercase">{c.contractNumber || 'S/N'}</span>
-                      </div>
-                    </SelectItem>
+            {overflowNavItems.length > 0 && (
+              <DropdownMenu>
+                <DropdownMenuTrigger render={
+                  <button className="flex items-center gap-2 px-6 h-full text-gray-500 hover:text-gray-900 transition-colors border-b-2 border-transparent focus:outline-none group">
+                    <MoreHorizontal className="w-4 h-4" />
+                    <span className="text-sm font-medium">Mais</span>
+                  </button>
+                } />
+                <DropdownMenuContent align="start" className="w-56 p-2 rounded-2xl shadow-2xl border-gray-100">
+                  {overflowNavItems.map(item => (
+                    <DropdownMenuItem 
+                      key={item.id}
+                      onClick={() => setMainTab(item.id as any)}
+                      className={cn(
+                        "flex items-center gap-3 px-4 py-2.5 rounded-xl cursor-pointer transition-colors",
+                        mainTab === item.id ? "bg-blue-50 text-blue-600 font-bold" : "text-gray-600 hover:bg-gray-50"
+                      )}
+                    >
+                      {item.icon}
+                      <span className="text-sm">{item.label}</span>
+                    </DropdownMenuItem>
                   ))}
-                </SelectContent>
-              </Select>
-            </div>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+          </div>
+        </nav>
+
+        <div className="ml-auto flex items-center gap-3 shrink-0">
+          {finalContracts.length > 0 && (
+            <Popover open={isContractSheetOpen} onOpenChange={setIsContractSheetOpen}>
+              <PopoverTrigger render={
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className={cn(
+                    "h-10 rounded-2xl bg-white border border-gray-100 shadow-sm px-4 gap-2 transition-all hover:border-blue-200 group font-black text-xs",
+                    selectedContractId ? "text-blue-600 border-blue-100 bg-blue-50/20" : "text-gray-600"
+                  )}
+                >
+                  <Briefcase className="w-4 h-4" />
+                  <span className="max-w-[100px] sm:max-w-[120px] lg:max-w-[200px] truncate">
+                    {selectedContractId === null ? "Geral" : (() => {
+                      const c = finalContracts.find(x => x.id === selectedContractId);
+                      return c ? `${c.workName || c.client || 'Sem Nome'}` : "Selecionar";
+                    })()}
+                  </span>
+                  <div className={cn("transition-transform duration-200", isContractSheetOpen ? "rotate-180" : "rotate-0")}>
+                    <Filter className="w-3 h-3 opacity-40 group-hover:opacity-100 transition-opacity" />
+                  </div>
+                </Button>
+              } />
+              <PopoverContent align="end" className="w-[400px] sm:w-[500px] p-0 border border-gray-100 shadow-2xl rounded-2xl overflow-hidden mt-1">
+                <div className="bg-blue-600 p-6 text-white relative overflow-hidden">
+                  <Briefcase className="absolute -right-6 -bottom-6 w-32 h-32 opacity-10 rotate-12" />
+                  <div className="relative z-10">
+                    <h3 className="text-xl font-black text-white">Filtro de Contratos</h3>
+                    <p className="text-blue-100 text-[10px] font-bold uppercase tracking-widest mt-0.5 opacity-80">
+                      Selecione a obra para isolar os dados
+                    </p>
+                  </div>
+                </div>
+
+                <div className="p-4 bg-gray-50 border-b border-gray-100">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <Input 
+                      placeholder="Pesquisar obra ou contrato..." 
+                      className="pl-10 h-10 rounded-xl bg-white border-transparent shadow-sm focus:ring-blue-500 text-sm"
+                    />
+                  </div>
+                </div>
+
+                <div className="max-h-[70vh] overflow-y-auto p-2 custom-scrollbar space-y-1">
+                  <button
+                    onClick={() => {
+                      setSelectedContractId(null);
+                      setIsContractSheetOpen(false);
+                    }}
+                    className={cn(
+                      "w-full flex items-center justify-between p-3 rounded-xl border transition-all text-left",
+                      selectedContractId === null 
+                        ? "bg-blue-50 border-blue-200 shadow-sm" 
+                        : "bg-transparent border-transparent hover:bg-gray-100"
+                    )}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className={cn("p-2 rounded-lg", selectedContractId === null ? "bg-blue-600 text-white" : "bg-gray-200 text-gray-400")}>
+                        <LayoutDashboard className="w-3.5 h-3.5" />
+                      </div>
+                      <div>
+                        <p className="font-bold text-sm text-gray-900">Visão Geral da Empresa</p>
+                        <p className="text-[9px] text-gray-400 font-bold uppercase">Todos os contratos consolidados</p>
+                      </div>
+                    </div>
+                    {selectedContractId === null && <div className="w-1.5 h-1.5 rounded-full bg-blue-600" />}
+                  </button>
+
+                  <div className="pt-2 pb-1 px-3">
+                    <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Obras Recentes</p>
+                  </div>
+
+                  {finalContracts.map(c => (
+                    <button
+                      key={c.id}
+                      onClick={() => {
+                        setSelectedContractId(c.id);
+                        setIsContractSheetOpen(false);
+                      }}
+                      className={cn(
+                        "w-full flex flex-col p-3 rounded-xl border transition-all text-left group",
+                        selectedContractId === c.id 
+                          ? "bg-blue-50 border-blue-200 shadow-sm" 
+                          : "bg-transparent border-transparent hover:bg-blue-50/30 hover:border-blue-100"
+                      )}
+                    >
+                      <div className="flex justify-between items-start mb-1">
+                         <span className="font-black text-[12px] leading-tight text-gray-900 group-hover:text-blue-700">
+                           {c.workName || c.client || 'Sem Nome'}
+                         </span>
+                         <span className={cn(
+                           "text-[8px] font-black px-1.5 py-0.5 rounded-md uppercase tracking-tighter",
+                           selectedContractId === c.id ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-500"
+                         )}>
+                           {c.contractNumber || 'S/N'}
+                         </span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <Landmark className="w-3 h-3 text-gray-400" />
+                        <span className="text-[10px] text-gray-400 font-bold truncate">
+                          {c.client || 'Cliente não identificado'}
+                        </span>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </PopoverContent>
+            </Popover>
           )}
 
           <div className="h-8 w-[1px] bg-gray-100 mx-1" />
