@@ -774,38 +774,6 @@ export default function RHView({
           <h1 className="text-2xl font-bold text-gray-900">Recursos Humanos</h1>
           <p className="text-gray-500 text-sm">Gerencie colaboradores, pontos e documentos.</p>
         </div>
-        <div className="flex items-center gap-3 bg-blue-50 p-2 rounded-2xl border border-blue-100">
-          <Building2 className="w-5 h-5 text-blue-600 ml-2" />
-          <div className="space-y-0.5">
-            <Label className="text-[10px] font-black uppercase text-blue-600 tracking-wider">Selecionar Obra / Contrato</Label>
-            <Select value={selectedContractId || ''} onValueChange={onUpdateContractId}>
-              <SelectTrigger className="w-[450px] h-10 bg-white border-blue-200 rounded-xl font-bold text-blue-900 ring-offset-blue-50">
-                <SelectValue>
-                  {selectedContractId ? (
-                    (() => {
-                      const c = contracts.find(x => x.id === selectedContractId);
-                      return c ? `${c.workName || c.client || 'Sem nome'} (${c.contractNumber || 'S/N'})` : "Selecionar Contrato";
-                    })()
-                  ) : "Todos os Contratos"}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent className="max-h-80 rounded-xl border-blue-100">
-                <SelectItem value="" textValue="Todos os Contratos">Todos os Contratos</SelectItem>
-                {contracts.filter(c => !currentUser || currentUser.role === 'master' || c.companyId === currentUser.companyId).map(c => {
-                  const label = `${c.workName || c.client || 'Sem nome'} (${c.contractNumber || 'S/N'})`;
-                  return (
-                    <SelectItem key={c.id} value={c.id} textValue={label}>
-                      <div className="flex flex-col">
-                        <span className="font-bold text-gray-900 leading-tight">{c.workName || c.client || 'Sem nome'}</span>
-                        <span className="text-[10px] text-gray-500 uppercase">{c.contractNumber || 'S/N'}</span>
-                      </div>
-                    </SelectItem>
-                  );
-                })}
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
       </header>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">

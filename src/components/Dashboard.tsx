@@ -136,8 +136,7 @@ export function Dashboard({
       initial={{ opacity: 0, scale: 0.95 }}
       animate={{ opacity: 1, scale: 1 }}
       className="space-y-8"
-    >
-      {/* Header with improved selector */}
+    >      {/* Header with main title */}
       <div className="bg-white p-8 rounded-[40px] shadow-sm border border-gray-100 flex flex-col md:flex-row md:items-center justify-between gap-8">
         <div className="flex items-center gap-6">
           <div className="bg-blue-600 p-4 rounded-[24px] shadow-xl shadow-blue-200">
@@ -146,39 +145,6 @@ export function Dashboard({
           <div>
             <h2 className="text-3xl font-black text-gray-900 tracking-tighter">Painel Executivo</h2>
             <p className="text-gray-500 font-medium">Controle em tempo real da sua operação.</p>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-3 bg-blue-50 p-2 rounded-2xl border border-blue-100">
-          <Landmark className="w-5 h-5 text-blue-600 ml-2" />
-          <div className="space-y-0.5">
-            <Label className="text-[10px] font-black uppercase text-blue-600 tracking-wider">Selecionar Obra / Contrato</Label>
-            <Select value={selectedContractId || 'all'} onValueChange={val => onUpdateContractId(val === 'all' ? null : val)}>
-              <SelectTrigger className="w-[450px] h-10 bg-white border-blue-200 rounded-xl font-bold text-blue-900 ring-offset-blue-50">
-              <SelectValue>
-                {selectedContractId ? (
-                  (() => {
-                    const c = contracts.find(x => x.id === selectedContractId);
-                    return c ? `${c.workName || c.client || 'Sem nome'} (${c.contractNumber || 'S/N'})` : "Selecionar Contrato";
-                  })()
-                ) : "Todos os Contratos"}
-              </SelectValue>
-            </SelectTrigger>
-              <SelectContent className="max-h-80 rounded-xl border-blue-100">
-                <SelectItem value="all" className="font-bold">Todos os Contratos</SelectItem>
-                {(contracts || []).map(c => {
-                  const label = `${c.workName || c.client || 'Sem nome'} (${c.contractNumber || 'S/N'})`;
-                  return (
-                    <SelectItem key={c.id} value={c.id} textValue={label} className="font-medium">
-                      <div className="flex flex-col">
-                        <span className="font-bold text-gray-900 leading-tight">{c.workName || c.client || 'Sem nome'}</span>
-                        <span className="text-[10px] text-gray-500 uppercase">{c.contractNumber || 'S/N'}</span>
-                      </div>
-                    </SelectItem>
-                  );
-                })}
-              </SelectContent>
-            </Select>
           </div>
         </div>
       </div>

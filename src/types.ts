@@ -737,6 +737,7 @@ export interface ControllerEquipment {
   exitDate?: string;
   inMaintenance?: boolean;
   maintenance_entry_date?: string;
+  maintenance_exit_date?: string;
   maintenance_type?: 'preventive' | 'corrective';
   chargesPercentage?: number;
   overtimePercentage?: number;

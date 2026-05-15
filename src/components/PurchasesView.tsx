@@ -69,6 +69,8 @@ interface PurchasesViewProps {
   onUpdateMaintenance?: (val: EquipmentMaintenance[]) => void;
   currentUser?: User | null;
   onUpdateEquipments?: (val: any[]) => void;
+  selectedContractId?: string | null;
+  onUpdateContractId?: (id: string) => void;
 }
 
 export default function PurchasesView({ 
@@ -91,17 +93,22 @@ export default function PurchasesView({
   equipmentMaintenance = [],
   onUpdateMaintenance,
   currentUser,
-  onUpdateEquipments
+  onUpdateEquipments,
+  selectedContractId: propSelectedContractId,
+  onUpdateContractId
 }: PurchasesViewProps) {
   const [activeTab, setActiveTab] = useState<'requests' | 'suppliers' | 'quotations' | 'orders' | 'tracking' | 'estoque' | 'evaluation'>(initialTab || 'requests');
-  const [selectedContractId, setSelectedContractId] = useState<string>(contracts[0]?.id || 'all');
+  const [localSelectedContractId, setLocalSelectedContractId] = useState<string>(contracts[0]?.id || 'all');
+  
+  const selectedContractId = propSelectedContractId || localSelectedContractId;
+  const setSelectedContractId = onUpdateContractId || setLocalSelectedContractId;
   
   // Ensure selectedContractId is valid when contracts change
   React.useEffect(() => {
     if (selectedContractId !== 'all' && contracts.length > 0 && !contracts.some(c => c.id === selectedContractId)) {
       setSelectedContractId(contracts[0]?.id || 'all');
     }
-  }, [contracts, selectedContractId]);
+  }, [contracts, selectedContractId, setSelectedContractId]);
 
   // Shared Order Dialog State
   const [isOrderDialogOpen, setIsOrderDialogOpen] = useState(false);
@@ -122,38 +129,6 @@ export default function PurchasesView({
             Compras e Suprimentos
           </h1>
           <p className="text-gray-500 font-medium">Gestão de fornecedores, pedidos, entregas e avaliações.</p>
-        </div>
-
-        <div className="flex items-center gap-3 bg-blue-50 p-2 rounded-2xl border border-blue-100">
-          <Building2 className="w-5 h-5 text-blue-600 ml-2" />
-          <div className="space-y-0.5">
-            <Label className="text-[10px] font-black uppercase text-blue-600 tracking-wider">Selecionar Obra / Contrato</Label>
-            <Select value={selectedContractId} onValueChange={setSelectedContractId}>
-              <SelectTrigger className="w-[450px] h-10 bg-white border-blue-200 rounded-xl font-bold text-blue-900 ring-offset-blue-50">
-                <SelectValue placeholder="Selecione a obra...">
-                  {selectedContractId === 'all' 
-                    ? 'Todas as Obras' 
-                    : (() => {
-                        const c = contracts.find(curr => curr.id === selectedContractId);
-                        if (!c) return null;
-                        return c.workName ? `${c.workName} ${c.contractNumber ? `(${c.contractNumber})` : ''}` : (c.contractNumber || c.client || 'Obra sem nome');
-                      })()
-                  }
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent className="rounded-xl border-blue-100">
-                <SelectItem value="all" className="font-bold">Todas as Obras</SelectItem>
-                {contracts.map(c => {
-                  const label = c.workName ? `${c.workName} ${c.contractNumber ? `(${c.contractNumber})` : ''}` : (c.contractNumber || c.client || 'Obra sem nome');
-                  return (
-                    <SelectItem key={c.id} value={c.id} textValue={label} className="font-medium">
-                      {label}
-                    </SelectItem>
-                  );
-                })}
-              </SelectContent>
-            </Select>
-          </div>
         </div>
       </div>
 

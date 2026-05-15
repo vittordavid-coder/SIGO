@@ -4,7 +4,7 @@ import {
   ChevronRight, LogOut, User as UserIcon, Lock, Edit, 
   FileSpreadsheet, Settings, Calendar, Percent, ShieldCheck,
   ClipboardList, Users, Calculator, BarChart3, Landmark,
-  BookOpen, CloudRain, HardHat, Truck, Users2, Activity,
+  BookOpen, CloudRain, Cloud, HardHat, Truck, Users2, Activity,
   RefreshCw, ShoppingCart, GripVertical, AlertCircle, Database, XCircle
 } from 'lucide-react';
 import { motion, AnimatePresence, Reorder } from 'motion/react';
@@ -369,6 +369,19 @@ export default function App() {
   const finalContracts = (currentUser?.role === 'master' || currentUser?.role === 'admin')
     ? filteredContracts 
     : filteredContracts.filter(c => currentUser?.allowedContractIds?.includes(c.id));
+
+  // Auto-select contract if only one is available
+  useEffect(() => {
+    if (currentUser && finalContracts.length === 1 && (!selectedContractId || !finalContracts.some(c => c.id === selectedContractId))) {
+      setSelectedContractId(finalContracts[0].id);
+    } else if (currentUser && selectedContractId && finalContracts.length > 0) {
+      // Ensure selected contract is still valid/accessible
+      const exists = finalContracts.some(c => c.id === selectedContractId);
+      if (!exists) {
+        setSelectedContractId(finalContracts.length === 1 ? finalContracts[0].id : null);
+      }
+    }
+  }, [finalContracts, selectedContractId, currentUser]);
 
   const allowedContractIds = useMemo(() => new Set(finalContracts.map(c => c.id)), [finalContracts]);
 
@@ -3025,37 +3038,59 @@ export default function App() {
           )}
         </div>
 
-        <div className="ml-auto flex items-center gap-4">
+        <div className="ml-auto flex items-center gap-3">
+          {finalContracts.length > 0 && (
+            <div className="flex items-center px-4 bg-white border border-gray-100 rounded-2xl h-10 shadow-sm transition-all hover:border-blue-200">
+              <Select 
+                value={selectedContractId || "all"} 
+                onValueChange={(val) => setSelectedContractId(val === "all" ? null : val)}
+              >
+                <SelectTrigger className="w-[200px] lg:w-[320px] h-8 border-none bg-transparent hover:bg-transparent transition-colors font-black text-xs shadow-none focus:ring-0 px-2 group">
+                  <div className="flex items-center gap-2 truncate">
+                    <div className="bg-blue-50 p-1 rounded-lg group-hover:bg-blue-100 transition-colors">
+                      <Briefcase className="w-4 h-4 text-blue-600 shrink-0" />
+                    </div>
+                    <SelectValue placeholder="Selecione a Obra">
+                      {selectedContractId === null ? "Todas as Obras" : (() => {
+                        const c = finalContracts.find(x => x.id === selectedContractId);
+                        return c ? `${c.workName || c.client || 'Sem Nome'} - ${c.contractNumber || 'S/N'}` : "Selecione a Obra";
+                      })()}
+                    </SelectValue>
+                  </div>
+                </SelectTrigger>
+                <SelectContent className="max-w-[450px] rounded-2xl border-gray-100 shadow-2xl p-1">
+                  <SelectItem value="all" className="font-bold text-blue-600 rounded-xl mb-1 mt-1">Todas as Obras / Contratos</SelectItem>
+                  {finalContracts.map(c => (
+                    <SelectItem key={c.id} value={c.id} className="rounded-xl">
+                      <div className="flex flex-col py-1">
+                        <span className="font-black text-[12px] leading-tight text-gray-900 group-hover:text-blue-700">{c.workName || c.client || 'Sem Nome'}</span>
+                        <span className="text-[10px] text-gray-400 font-bold tracking-tight mt-0.5 uppercase">{c.contractNumber || 'S/N'}</span>
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
+          <div className="h-8 w-[1px] bg-gray-100 mx-1" />
+
           {getSupabaseConfig().enabled ? (
             <div className={cn(
-              "hidden lg:flex items-center gap-2 text-[10px] font-bold px-2.5 py-1.5 rounded-full border uppercase tracking-wider",
+              "flex items-center justify-center w-9 h-9 rounded-full border transition-all duration-300",
               supabaseSyncError 
-                ? "text-red-600 bg-red-50 border-red-100" 
+                ? "text-red-500 bg-red-50 border-red-200" 
                 : isSupabaseSynced 
-                  ? "text-emerald-600 bg-emerald-50 border-emerald-100"
-                  : "text-amber-600 bg-amber-50 border-amber-100 animate-pulse"
-            )}>
-              {supabaseSyncError ? (
-                <>
-                  <XCircle className="w-3 h-3" />
-                  Cloud Offline
-                </>
-              ) : isSupabaseSynced ? (
-                <>
-                  <Activity className="w-3 h-3" />
-                  Cloud Online
-                </>
-              ) : (
-                <>
-                  <Activity className="w-3 h-3 shadow-sm shadow-amber-200" />
-                  Sincronizando...
-                </>
-              )}
+                  ? "text-emerald-500 bg-emerald-50 border-emerald-200"
+                  : "text-amber-500 bg-amber-50 border-amber-200 animate-pulse"
+            )}
+            title={supabaseSyncError ? "Cloud Offline" : isSupabaseSynced ? "Cloud Online" : "Sincronizando..."}
+            >
+              <Cloud className={cn("w-5 h-5", !isSupabaseSynced && !supabaseSyncError && "animate-bounce")} />
             </div>
           ) : (
-            <div className="hidden lg:flex items-center gap-2 text-[10px] font-bold text-gray-500 bg-gray-100 px-2.5 py-1.5 rounded-full border border-gray-200 uppercase tracking-wider">
-              <Database className="w-3 h-3" />
-              Local Storage
+            <div className="flex items-center justify-center w-9 h-9 rounded-full border border-gray-200 bg-gray-50 text-gray-400" title="Local Storage">
+              <Database className="w-5 h-5" />
             </div>
           )}
           <button 
@@ -3658,12 +3693,16 @@ export default function App() {
                   controllerTeams={finalControllerTeams}
                   manpowerRecords={filteredControllerManpower}
                   employees={filteredEmployees}
+                  selectedContractId={selectedContractId}
+                  onUpdateContractId={(id) => setSelectedContractId(id)}
                 />
               )}
 
               {mainTab === 'financeiro' && currentUser && (
                 <FinanceView
                   contracts={finalContracts}
+                  selectedContractId={selectedContractId}
+                  onUpdateContractId={(id) => setSelectedContractId(id)}
                 />
               )}
 
@@ -3689,6 +3728,8 @@ export default function App() {
                   currentUser={currentUser}
                   equipments={finalControllerEquipments}
                   onUpdateEquipments={updateTechnicalEquipments}
+                  selectedContractId={selectedContractId}
+                  onUpdateContractId={(id) => setSelectedContractId(id)}
                 />
               )}
               {mainTab === 'project_admin' && currentUser && (

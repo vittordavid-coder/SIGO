@@ -9,9 +9,14 @@ import { Label } from '@/components/ui/label';
 import { Landmark } from 'lucide-react';
 
 export const ManagementView = ({ 
-  contracts, measurements, controllerEquipments, controllerTeams, manpowerRecords, employees 
+  contracts, measurements, controllerEquipments, controllerTeams, manpowerRecords, employees,
+  selectedContractId: propSelectedContractId,
+  onUpdateContractId
 }: any) => {
-  const [selectedContractId, setSelectedContractId] = useState<string>('all');
+  const [localSelectedContractId, setLocalSelectedContractId] = useState<string>('all');
+  const selectedContractId = propSelectedContractId || localSelectedContractId;
+  const setSelectedContractId = onUpdateContractId || setLocalSelectedContractId;
+
   const [activeDrillDown, setActiveDrillDown] = useState<{title: string, data: any[]} | null>(null);
 
   const stats = useMemo(() => {
@@ -53,29 +58,6 @@ export const ManagementView = ({
     <div className="p-6 space-y-6 bg-slate-50 min-h-screen">
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-bold">Gestão Global</h1>
-        <div className="flex items-center gap-3 bg-blue-50 p-2 rounded-2xl border border-blue-100">
-          <Landmark className="w-5 h-5 text-blue-600 ml-2" />
-          <div className="space-y-0.5">
-            <Label className="text-[10px] font-black uppercase text-blue-600 tracking-wider">Selecionar Obra / Contrato</Label>
-            <Select value={selectedContractId || 'all'} onValueChange={val => setSelectedContractId(val === 'all' ? 'all' : val)}>
-              <SelectTrigger className="w-[450px] h-14 bg-white border-blue-100 shadow-sm rounded-2xl font-black text-blue-900 ring-offset-blue-50 focus:ring-blue-500/20">
-                <SelectValue>
-                  {selectedContractId === 'all'
-                    ? "Todos os Contratos"
-                    : contracts?.find((c: any) => c.id === selectedContractId)?.workName || "Selecione um contrato"}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent className="max-h-80 rounded-xl border-blue-100">
-                <SelectItem value="all" className="font-bold">Todos os Contratos</SelectItem>
-                {contracts?.map((c: any) => (
-                  <SelectItem key={c.id} value={c.id} textValue={c.workName} className="font-medium">
-                    {c.workName}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
       </div>
       
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">

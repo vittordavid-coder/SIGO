@@ -133,8 +133,13 @@ export default function ControlView({
   const DEFAULT_FUELS = ["Diesel S10", "Diesel S500", "Gasolina Comum", "Gasolina Aditivada", "Etanol", "Arla 32"];
 
   const [isTankModalOpen, setIsTankModalOpen] = useState(false);
+  const [editingTankId, setEditingTankId] = useState<string | null>(null);
+  const [isDeleteTankDialogOpen, setIsDeleteTankDialogOpen] = useState(false);
+  const [tankToDelete, setTankToDelete] = useState<FuelTank | null>(null);
   const [newTank, setNewTank] = useState<Partial<FuelTank>>({ name: '', capacity: 0, currentLevel: 0, fuelType: 'Diesel S10' });
   const [isFuelLogModalOpen, setIsFuelLogModalOpen] = useState(false);
+  const [isDeleteFuelLogDialogOpen, setIsDeleteFuelLogDialogOpen] = useState(false);
+  const [fuelLogToDelete, setFuelLogToDelete] = useState<FuelLog | null>(null);
   const [editingFuelLogId, setEditingFuelLogId] = useState<string | null>(null);
   const [newFuelLog, setNewFuelLog] = useState<Partial<FuelLog>>({ type: 'saida', date: new Date().toISOString().split('T')[0], quantity: 0, tankId: '', equipmentId: '' });
   const [customFuel, setCustomFuel] = useState('');
@@ -174,6 +179,9 @@ export default function ControlView({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [isMaintenanceModalOpen, setIsMaintenanceModalOpen] = useState(false);
+  const [isExitMaintenanceModalOpen, setIsExitMaintenanceModalOpen] = useState(false);
+  const [maintenanceExitDate, setMaintenanceExitDate] = useState(new Date().toISOString().split('T')[0]);
+  const [equipmentToExit, setEquipmentToExit] = useState<ControllerEquipment | null>(null);
   const [maintenanceEquipment, setMaintenanceEquipment] = useState<ControllerEquipment | null>(null);
   const [maintenanceEntryDate, setMaintenanceEntryDate] = useState(new Date().toISOString().split('T')[0]);
   const [maintenanceType, setMaintenanceType] = useState<'preventive' | 'corrective'>('preventive');
@@ -272,7 +280,7 @@ export default function ControlView({
   const filteredEquipments = useMemo(() => {
     let result = (equipments || []).filter(e => {
       const matchesCompany = currentUser?.role === 'master' || e.companyId === currentUser?.companyId;
-      const matchesContract = !selectedContractId || e.contractId === selectedContractId;
+      const matchesContract = !selectedContractId || selectedContractId === 'all' || e.contractId === selectedContractId;
       const matchesActive = filterOnlyActive ? !e.exitDate : true;
       
       if (!matchesCompany || !matchesContract || !matchesActive) return false;
@@ -541,19 +549,57 @@ export default function ControlView({
     });
   };
 
+  const handleEditTank = (tank: FuelTank) => {
+    setEditingTankId(tank.id);
+    setNewTank({ ...tank });
+    setCustomFuel(!DEFAULT_FUELS.includes(tank.fuelType) ? tank.fuelType : '');
+    setIsTankModalOpen(true);
+  };
+
   const handleCreateTank = () => {
     if (!newTank.name || !newTank.capacity) return;
-    setFuelTanks([...fuelTanks, {
+    
+    const tankData = {
       ...newTank as FuelTank,
-      id: crypto.randomUUID(),
       companyId: currentUser?.companyId,
-      contractId: selectedContractId || undefined,
+      contractId: selectedContractId || newTank.contractId,
       currentLevel: newTank.currentLevel || 0,
       fuelType: customFuel || newTank.fuelType || 'Diesel S10'
-    }]);
+    };
+
+    if (editingTankId) {
+      setFuelTanks(prev => prev.map(t => t.id === editingTankId ? { ...tankData, id: editingTankId } : t));
+    } else {
+      setFuelTanks([...fuelTanks, {
+        ...tankData,
+        id: crypto.randomUUID(),
+      }]);
+    }
+    
     setIsTankModalOpen(false);
+    setEditingTankId(null);
     setNewTank({ name: '', capacity: 0, currentLevel: 0, fuelType: 'Diesel S10' });
     setCustomFuel('');
+  };
+
+  const handleDeleteTankRequest = (tank: FuelTank) => {
+    // Check if there are any logs for this tank
+    const hasLogs = fuelLogs.some(log => log.tankId === tank.id);
+    if (hasLogs) {
+      alert('Não é possível excluir um reservatório que possui movimentações de entrada ou saída no histórico.');
+      return;
+    }
+    setTankToDelete(tank);
+    setIsDeleteTankDialogOpen(true);
+  };
+
+  const handleConfirmDeleteTank = () => {
+    if (!tankToDelete) return;
+    setFuelTanks(prev => prev.filter(t => t.id !== tankToDelete.id));
+    setIsDeleteTankDialogOpen(false);
+    setTankToDelete(null);
+    setIsTankModalOpen(false);
+    setEditingTankId(null);
   };
 
   const handleCreateFuelLog = () => {
@@ -776,31 +822,44 @@ export default function ControlView({
       setNewMaintenanceItem({description: '', quantity: 1});
       setIsMaintenanceModalOpen(true);
     } else {
-      // Closing maintenance - clear fields
-      const exitDate = new Date().toISOString().split('T')[0];
-      
-      onUpdateEquipments(equipments.map(e => 
-        e.id === equipment.id ? { 
-          ...e, 
-          inMaintenance: false,
-          maintenance_entry_date: undefined,
-          maintenance_type: undefined
-        } : e
-      ));
-
-      // Update maintenance record in history
-      const activeMaintenance = equipmentMaintenance.find(m => m.equipmentId === equipment.id && !m.exitDate);
-      if (activeMaintenance) {
-        const entry = new Date(activeMaintenance.entryDate + 'T12:00:00');
-        const exit = new Date(exitDate + 'T12:00:00');
-        const diffTime = Math.abs(exit.getTime() - entry.getTime());
-        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
-        onUpdateMaintenance(equipmentMaintenance.map(m => 
-          m.id === activeMaintenance.id ? { ...m, exitDate, daysInMaintenance: diffDays } : m
-        ));
-      }
+      // Closing maintenance - show confirmation modal
+      setEquipmentToExit(equipment);
+      setMaintenanceExitDate(new Date().toISOString().split('T')[0]);
+      setIsExitMaintenanceModalOpen(true);
     }
+  };
+
+  const handleConfirmExitMaintenance = () => {
+    if (!equipmentToExit) return;
+
+    const exitDate = maintenanceExitDate;
+    
+    onUpdateEquipments(equipments.map(e => 
+      e.id === equipmentToExit.id ? { 
+        ...e, 
+        situation: 'Ativo',
+        inMaintenance: false,
+        maintenance_exit_date: exitDate,
+        maintenance_entry_date: null as any,
+        maintenance_type: null as any
+      } : e
+    ));
+
+    // Update maintenance record in history
+    const activeMaintenance = equipmentMaintenance.find(m => m.equipmentId === equipmentToExit.id && !m.exitDate);
+    if (activeMaintenance) {
+      const entry = new Date(activeMaintenance.entryDate + 'T12:00:00');
+      const exit = new Date(exitDate + 'T12:00:00');
+      const diffTime = Math.abs(exit.getTime() - entry.getTime());
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+      onUpdateMaintenance(equipmentMaintenance.map(m => 
+        m.id === activeMaintenance.id ? { ...m, exitDate, daysInMaintenance: diffDays } : m
+      ));
+    }
+
+    setIsExitMaintenanceModalOpen(false);
+    setEquipmentToExit(null);
   };
 
   const handleConfirmMaintenance = () => {
@@ -809,6 +868,7 @@ export default function ControlView({
     onUpdateEquipments(equipments.map(e => 
       e.id === maintenanceEquipment.id ? { 
         ...e, 
+        situation: 'Em Manutenção',
         inMaintenance: true,
         maintenance_entry_date: maintenanceEntryDate,
         maintenance_type: maintenanceType
@@ -858,8 +918,102 @@ export default function ControlView({
     setMaintenanceItems([]);
   };
 
+  const handleConfirmDeleteFuelLog = () => {
+    if (!fuelLogToDelete) return;
+    
+    // Reverse inventory changes
+    let updatedTanks = [...fuelTanks];
+    const quantity = Number(fuelLogToDelete.quantity);
+    
+    if (fuelLogToDelete.type === 'entrada') {
+      // Removed entry: subtract from tank level
+      updatedTanks = updatedTanks.map(t => t.id === fuelLogToDelete.tankId ? { ...t, currentLevel: Math.max(0, t.currentLevel - quantity) } : t);
+    } else {
+      // Removed exit: add back to source tank level
+      updatedTanks = updatedTanks.map(t => t.id === fuelLogToDelete.tankId ? { ...t, currentLevel: t.currentLevel + quantity } : t);
+      
+      // If it was a transfer to another reservoir, subtract from destination
+      const destId = fuelLogToDelete.equipmentId;
+      if (destId && fuelTanks.some(t => t.id === destId)) {
+        updatedTanks = updatedTanks.map(t => t.id === destId ? { ...t, currentLevel: Math.max(0, t.currentLevel - quantity) } : t);
+      }
+    }
+    
+    setFuelTanks(updatedTanks);
+    if (onDeleteFuelLog) {
+      onDeleteFuelLog(fuelLogToDelete.id);
+    } else {
+      setFuelLogs(prev => prev.filter(fl => fl.id !== fuelLogToDelete.id));
+    }
+    
+    setIsDeleteFuelLogDialogOpen(false);
+    setFuelLogToDelete(null);
+  };
+
   return (
-    <div className="p-6 max-w-[1600px] mx-auto space-y-6">
+    <div className="p-6 max-w-[1600px] mx-auto space-y-6 text-sans">
+      <Dialog open={isDeleteFuelLogDialogOpen} onOpenChange={setIsDeleteFuelLogDialogOpen}>
+        <DialogContent className="max-w-md rounded-3xl p-8 border-none shadow-2xl">
+          <DialogHeader className="flex flex-col items-center text-center">
+            <div className="w-16 h-16 rounded-full bg-red-50 flex items-center justify-center mb-4">
+              <Trash2 className="w-8 h-8 text-red-500" />
+            </div>
+            <DialogTitle className="text-2xl font-black text-gray-900 tracking-tight">Confirmar Exclusão</DialogTitle>
+            <DialogDescription className="text-gray-500 font-medium pt-2 text-center">
+              Você tem certeza que deseja excluir este registro de combustível? 
+              <br/>
+              <span className="text-red-500 font-bold mt-2 block">O estoque do reservatório será estornado automaticamente.</span>
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex gap-3 sm:justify-center mt-8">
+            <Button 
+              variant="outline" 
+              onClick={() => setIsDeleteFuelLogDialogOpen(false)}
+              className="flex-1 h-12 rounded-2xl border-gray-100 font-bold hover:bg-gray-50"
+            >
+              Cancelar
+            </Button>
+            <Button 
+              onClick={handleConfirmDeleteFuelLog}
+              className="flex-1 h-12 rounded-2xl bg-red-600 hover:bg-red-700 text-white font-bold shadow-lg shadow-red-100"
+            >
+              Excluir Registro
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isDeleteTankDialogOpen} onOpenChange={setIsDeleteTankDialogOpen}>
+        <DialogContent className="max-w-md rounded-3xl p-8 border-none shadow-2xl">
+          <DialogHeader className="flex flex-col items-center text-center">
+            <div className="w-16 h-16 rounded-full bg-red-50 flex items-center justify-center mb-4">
+              <AlertCircle className="w-8 h-8 text-red-500" />
+            </div>
+            <DialogTitle className="text-2xl font-black text-gray-900 tracking-tight">Excluir Reservatório</DialogTitle>
+            <DialogDescription className="text-gray-500 font-medium pt-2 text-center">
+              Tem certeza que deseja excluir o reservatório <span className="font-bold text-gray-900">"{tankToDelete?.name}"</span>?
+              <br/>
+              Esta ação é irreversível.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex gap-3 sm:justify-center mt-8">
+            <Button 
+              variant="outline" 
+              onClick={() => setIsDeleteTankDialogOpen(false)}
+              className="flex-1 h-12 rounded-2xl border-gray-100 font-bold hover:bg-gray-50"
+            >
+              Cancelar
+            </Button>
+            <Button 
+              onClick={handleConfirmDeleteTank}
+              className="flex-1 h-12 rounded-2xl bg-red-600 hover:bg-red-700 text-white font-bold shadow-lg shadow-red-100"
+            >
+              Confirmar Exclusão
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <input type="file" ref={fileInputRef} className="hidden" accept=".xlsx, .xls" onChange={handleFileChange} />
 
       <Modal
@@ -1013,42 +1167,59 @@ export default function ControlView({
         </div>
       </Modal>
 
+      <Modal
+        isOpen={isExitMaintenanceModalOpen}
+        onClose={() => setIsExitMaintenanceModalOpen(false)}
+        maxWidth="md"
+        className="p-0 border-none"
+        headerClassName="hidden"
+      >
+        <div className="bg-red-600 p-6 text-white relative overflow-hidden">
+          <Trash2 className="absolute -right-4 -bottom-4 w-24 h-24 opacity-20 rotate-12" />
+          <div className="relative z-10">
+            <h2 className="text-xl font-black flex items-center gap-2">
+              <Check className="w-5 h-5 text-red-200" />
+              Finalizar Manutenção
+            </h2>
+            <p className="text-[10px] text-red-100 font-bold uppercase tracking-widest mt-1">
+              {equipmentToExit?.name} - {equipmentToExit?.plate}
+            </p>
+          </div>
+        </div>
+
+        <div className="p-8 space-y-6 bg-white">
+          <div className="space-y-2">
+            <Label htmlFor="exit_maintenance_date" className="text-[10px] uppercase font-black text-gray-500 tracking-tight">Data de Saída</Label>
+            <Input
+              type="date"
+              id="exit_maintenance_date"
+              value={maintenanceExitDate}
+              onChange={(e) => setMaintenanceExitDate(e.target.value)}
+              className="h-14 rounded-xl border-gray-100 bg-gray-50 font-bold focus:ring-red-500 focus:border-red-500"
+            />
+          </div>
+
+          <div className="p-4 bg-gray-50 rounded-xl border border-dashed border-gray-200">
+            <p className="text-sm font-medium text-gray-600">
+              Ao confirmar, o equipamento retornará ao status de <strong>Ativo</strong> e o histórico de manutenção será encerrado.
+            </p>
+          </div>
+        </div>
+
+        <div className="p-6 bg-gray-50 border-t flex flex-col sm:flex-row gap-3 rounded-b-2xl">
+          <Button variant="ghost" className="rounded-xl font-black uppercase text-[10px] tracking-widest h-12 flex-1" onClick={() => setIsExitMaintenanceModalOpen(false)}>Cancelar</Button>
+          <Button className="rounded-xl font-black uppercase text-[10px] tracking-widest bg-red-600 hover:bg-red-700 h-12 flex-[2] shadow-xl shadow-red-100" onClick={handleConfirmExitMaintenance}>
+            Confirmar Saída
+          </Button>
+        </div>
+      </Modal>
+
       <header className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-black text-gray-900">Controlador de Equipamentos</h1>
           <p className="text-xs text-gray-500 font-medium">Gestão de frotas e manutenção preventiva/corretiva.</p>
         </div>
-        <div className="flex items-center gap-3 bg-blue-50 p-2 rounded-2xl border border-blue-100">
-          <Building2 className="w-5 h-5 text-blue-600 ml-2" />
-          <div className="space-y-0.5">
-            <Label className="text-[10px] font-black uppercase text-blue-600 tracking-wider">Selecionar Obra / Contrato</Label>
-            <Select value={selectedContractId || ''} onValueChange={id => onUpdateContractId(id)}>
-              <SelectTrigger className="w-full lg:w-[400px] h-10 bg-white border-blue-200 rounded-xl font-bold text-blue-900 ring-offset-blue-50">
-                <SelectValue>
-                  {selectedContractId ? (
-                    (() => {
-                      const c = availableContracts.find(x => x.id === selectedContractId);
-                      return c ? `${c.workName || c.client || 'Sem nome'} (${c.contractNumber || 'S/N'})` : "Selecionar Obra";
-                    })()
-                  ) : "Todas as Obras"}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent className="max-h-80 rounded-xl border-blue-100">
-                <SelectItem value="" textValue="Todas as Obras">Todas as Obras</SelectItem>
-                {availableContracts.map(c => {
-                  const label = `${c.workName || c.client || 'Sem nome'} (${c.contractNumber || 'S/N'})`;
-                  return (
-                    <SelectItem key={c.id} value={c.id} textValue={label}>
-                      <div className="flex flex-col">
-                        <span className="font-bold text-gray-900 leading-tight">{c.workName || c.client || 'Sem nome'}</span>
-                        <span className="text-[10px] text-gray-500 uppercase">{c.contractNumber || 'S/N'}</span>
-                      </div>
-                    </SelectItem>
-                  );
-                })}
-              </SelectContent>
-            </Select>
-          </div>
+        <div className="flex items-center gap-3">
           <div className="relative w-full sm:w-64">
             <Search className="absolute left-3 top-3 w-4 h-4 text-gray-400" />
             <Input className="pl-10 h-10 w-full rounded-xl shadow-sm bg-white" placeholder="Pesquisar..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
@@ -1917,7 +2088,12 @@ export default function ControlView({
                   <div className="p-2 bg-blue-50 rounded-xl"><Droplet className="w-5 h-5 text-blue-600" /></div>
                   <CardTitle className="text-lg font-black">Reservatórios</CardTitle>
                 </div>
-                <Button size="sm" variant="outline" className="rounded-xl font-bold gap-2 text-xs" onClick={() => setIsTankModalOpen(true)}>
+                <Button size="sm" variant="outline" className="rounded-xl font-bold gap-2 text-xs" onClick={() => {
+                  setEditingTankId(null);
+                  setNewTank({ name: '', capacity: 0, currentLevel: 0, fuelType: 'Diesel S10' });
+                  setCustomFuel('');
+                  setIsTankModalOpen(true);
+                }}>
                   <Plus className="w-4 h-4" /> Novo
                 </Button>
               </CardHeader>
@@ -1928,7 +2104,17 @@ export default function ControlView({
                     <div key={tank.id} className="p-4 bg-gray-50 rounded-2xl border border-gray-100 relative overflow-hidden group">
                       <div className="flex justify-between items-start mb-2 relative z-10">
                         <div>
-                          <h4 className="font-bold text-gray-900">{tank.name}</h4>
+                          <div className="flex items-center gap-2">
+                            <h4 className="font-bold text-gray-900">{tank.name}</h4>
+                            <Button 
+                              variant="ghost" 
+                              size="icon" 
+                              className="h-6 w-6 opacity-0 group-hover:opacity-100 text-blue-500 hover:bg-blue-50 transition-opacity"
+                              onClick={() => handleEditTank(tank)}
+                            >
+                              <Edit className="w-3 h-3" />
+                            </Button>
+                          </div>
                           <div className="flex items-center gap-2">
                             <p className="text-[10px] uppercase font-bold text-gray-500">{getContractName(tank.contractId)}</p>
                             <Badge variant="outline" className="text-[8px] px-1 h-3.5 bg-blue-50 text-blue-600 border-blue-100 font-black">{tank.fuelType || 'Diesel S10'}</Badge>
@@ -2055,32 +2241,8 @@ export default function ControlView({
                                   size="icon" 
                                   className="h-7 w-7 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg"
                                   onClick={() => {
-                                    if (!confirm("Excluir este registro e estornar o estoque?")) return;
-                                    
-                                    let updatedTanks = [...fuelTanks];
-                                    const quantity = Number(log.quantity);
-                                    
-                                    // Reverse inventory changes
-                                    if (log.type === 'entrada') {
-                                      // Removed entry: subtract from tank level
-                                      updatedTanks = updatedTanks.map(t => t.id === log.tankId ? { ...t, currentLevel: Math.max(0, t.currentLevel - quantity) } : t);
-                                    } else {
-                                      // Removed exit: add back to source tank level
-                                      updatedTanks = updatedTanks.map(t => t.id === log.tankId ? { ...t, currentLevel: t.currentLevel + quantity } : t);
-                                      
-                                      // If it was a transfer to another reservoir, subtract from destination
-                                      const destId = log.equipmentId;
-                                      if (destId && fuelTanks.some(t => t.id === destId)) {
-                                        updatedTanks = updatedTanks.map(t => t.id === destId ? { ...t, currentLevel: Math.max(0, t.currentLevel - quantity) } : t);
-                                      }
-                                    }
-                                    
-                                    setFuelTanks(updatedTanks);
-                                    if (onDeleteFuelLog) {
-                                      onDeleteFuelLog(log.id);
-                                    } else {
-                                      setFuelLogs(prev => prev.filter(fl => fl.id !== log.id));
-                                    }
+                                    setFuelLogToDelete(log);
+                                    setIsDeleteFuelLogDialogOpen(true);
                                   }}
                                 >
                                   <Trash2 className="w-3.5 h-3.5" />
@@ -2834,8 +2996,8 @@ export default function ControlView({
         <div className="bg-blue-600 p-8 text-white relative overflow-hidden">
           <Droplet className="absolute -right-8 -bottom-8 w-40 h-40 opacity-10 rotate-12" />
           <div className="relative z-10">
-            <h2 className="text-2xl font-black text-white leading-tight">Novo Reservatório</h2>
-            <p className="text-blue-100 text-[10px] font-bold uppercase tracking-widest mt-1 opacity-80">Cadastro de armazenamento de combustível</p>
+            <h2 className="text-2xl font-black text-white leading-tight">{editingTankId ? 'Editar Reservatório' : 'Novo Reservatório'}</h2>
+            <p className="text-blue-100 text-[10px] font-bold uppercase tracking-widest mt-1 opacity-80">{editingTankId ? 'Atualize as informações do seu ativo' : 'Cadastro de armazenamento de combustível'}</p>
           </div>
         </div>
 
@@ -2899,13 +3061,26 @@ export default function ControlView({
           </div>
         </div>
 
-        <div className="px-8 pb-8 pt-2">
+        <div className="px-8 pb-8 pt-2 space-y-3">
           <Button 
             onClick={handleCreateTank} 
             className="w-full h-14 rounded-2xl bg-blue-600 hover:bg-blue-700 shadow-xl shadow-blue-100 font-black uppercase text-xs tracking-widest transition-all active:scale-[0.98]"
           >
-            Salvar Reservatório
+            <Check className="w-4 h-4 mr-2" /> {editingTankId ? 'Salvar Alterações' : 'Salvar Reservatório'}
           </Button>
+
+          {editingTankId && (
+            <Button 
+              variant="outline"
+              onClick={() => {
+                const tank = fuelTanks.find(t => t.id === editingTankId);
+                if (tank) handleDeleteTankRequest(tank);
+              }}
+              className="w-full h-14 rounded-2xl border-red-50 text-red-500 hover:bg-red-50 hover:text-red-600 font-black uppercase text-xs tracking-widest transition-colors"
+            >
+              <Trash2 className="w-4 h-4 mr-2" /> Excluir Reservatório
+            </Button>
+          )}
         </div>
       </Modal>
 
