@@ -3794,6 +3794,9 @@ export default function App() {
                   setFuelLogs={updateFuelLogs}
                   onDeleteFuelLog={deleteFuelLog}
                   initialTab={activeControlTab}
+                  companyLogo={companyLogo}
+                  companyLogoRight={companyLogoRight}
+                  logoMode={logoMode}
                 />
               )}
 

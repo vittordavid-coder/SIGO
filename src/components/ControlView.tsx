@@ -38,7 +38,8 @@ import {
   Layers,
   DollarSign,
   Camera,
-  FileText
+  FileText,
+  X
 } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -107,6 +108,9 @@ interface ControlViewProps {
   setFuelLogs: (val: FuelLog[] | ((prev: FuelLog[]) => FuelLog[])) => void;
   onDeleteFuelLog?: (id: string) => void;
   initialTab?: string;
+  companyLogo?: string;
+  companyLogoRight?: string;
+  logoMode?: 'left' | 'right' | 'both' | 'none';
 }
 
 export default function ControlView({
@@ -129,13 +133,31 @@ export default function ControlView({
   fuelLogs = [],
   setFuelLogs,
   onDeleteFuelLog,
-  initialTab
+  initialTab,
+  companyLogo,
+  companyLogoRight,
+  logoMode = 'left'
 }: ControlViewProps) {
   const [activeTab, setActiveTab] = React.useState(initialTab || 'list');
 
   const [savedCategories, setSavedCategories] = useLocalStorage<string[]>('sigo_control_categories', [], currentUser?.companyId);
 
   const DEFAULT_FUELS = ["Diesel S10", "Diesel S500", "Gasolina Comum", "Gasolina Aditivada", "Etanol", "Arla 32"];
+
+  const [dynamicTypes, setDynamicTypes] = useLocalStorage<string[]>('sigo_equipment_types', EQUIPMENT_TYPES);
+  const [typeSearchTerm, setTypeSearchTerm] = useState('');
+
+  const handleAddType = (newType: string) => {
+    const trimmedType = newType.trim();
+    if (trimmedType && !dynamicTypes.includes(trimmedType)) {
+      setDynamicTypes([...dynamicTypes, trimmedType]);
+    }
+  };
+
+  const handleRemoveType = (e: React.MouseEvent, typeToRemove: string) => {
+    e.stopPropagation();
+    setDynamicTypes(dynamicTypes.filter(t => t !== typeToRemove));
+  };
 
   const [isTankModalOpen, setIsTankModalOpen] = useState(false);
   const [editingTankId, setEditingTankId] = useState<string | null>(null);
@@ -605,8 +627,8 @@ export default function ControlView({
     while (current <= endDate) {
       dailyData.push({
         date: current.toISOString().split('T')[0],
-        initialReading: dailyData.length === 0 ? lastKnownReading : 0,
-        finalReading: dailyData.length === 0 ? lastKnownReading : 0,
+        initialReading: lastKnownReading,
+        finalReading: lastKnownReading,
         discount: false,
         status: 'Trabalhando'
       });
@@ -616,51 +638,99 @@ export default function ControlView({
   };
 
   const generateMeasurementPDF = (measurement: EquipmentMeasurement, equipment: ControllerEquipment) => {
-    const doc = new jsPDF();
+    const doc = new jsPDF() as any;
     const pageWidth = doc.internal.pageSize.getWidth();
     const pageHeight = doc.internal.pageSize.getHeight();
-    
-    const addHeaderFooter = (pageNum: number) => {
-      // Header
-      doc.setFillColor(30, 41, 59);
-      doc.rect(0, 0, pageWidth, 40, 'F');
+    const margin = 10;
+    const contentWidth = pageWidth - (margin * 2);
+
+    const addHeaderFooter = () => {
+      // White background for header
+      doc.setFillColor(255, 255, 255);
+      doc.rect(margin, margin, contentWidth, 25, 'F');
       
-      doc.setFontSize(22);
-      doc.setTextColor(255, 255, 255);
+      // Left Logo
+      if (companyLogo) {
+        try {
+          const props = doc.getImageProperties(companyLogo);
+          const ratio = props.width / props.height;
+          let w = 20;
+          let h = 20 / ratio;
+          if (h > 18) { h = 18; w = 18 * ratio; }
+          doc.addImage(companyLogo, 'PNG', margin, margin + (25 - h) / 2, w, h);
+        } catch (e) {}
+      }
+
+      // Company Info (Center)
+      doc.setTextColor(0);
+      doc.setFontSize(10);
       doc.setFont("helvetica", "bold");
-      doc.text("RELATÓRIO DE MEDIÇÃO", 20, 20);
+      const companyName = currentUser?.companyName || "NOME DA EMPRESA";
+      doc.text(companyName.toUpperCase(), pageWidth / 2, margin + 8, { align: 'center' });
       
-      doc.setFontSize(8);
-      doc.setTextColor(200, 200, 200);
-      doc.text(`SISTEMA DE GESTÃO - SIGO`, 20, 30);
+      doc.setFontSize(7);
+      doc.setFont("helvetica", "normal");
+      const companyDetails = [
+        currentUser?.email ? `Email: ${currentUser.email}` : '',
+        currentUser?.phone ? `Telefone: ${currentUser.phone}` : '',
+        currentUser?.address ? `Endereço: ${currentUser.address}` : ''
+      ].filter(Boolean).join(' | ');
+      doc.text(companyDetails, pageWidth / 2, margin + 13, { align: 'center' });
       
-      // Footer
-      doc.setFillColor(30, 41, 59);
-      doc.rect(0, pageHeight - 20, pageWidth, 20, 'F');
-      doc.setTextColor(255, 255, 255);
-      doc.setFontSize(8);
-      doc.text(`Página ${pageNum}`, pageWidth / 2, pageHeight - 10, { align: 'center' });
-      doc.text(`Gerado em ${new Date().toLocaleString('pt-BR')}`, 20, pageHeight - 10);
-      doc.text(`SIGO System - Automação e Controle`, pageWidth - 20, pageHeight - 10, { align: 'right' });
+      doc.setFontSize(9);
+      doc.setFont("helvetica", "bold");
+      doc.text("RELATÓRIO DE MEDIÇÃO TÉCNICA", pageWidth / 2, margin + 20, { align: 'center' });
+
+      // Right Logo
+      if (companyLogoRight && (logoMode === 'right' || logoMode === 'both')) {
+        try {
+          const props = doc.getImageProperties(companyLogoRight);
+          const ratio = props.width / props.height;
+          let w = 20;
+          let h = 20 / ratio;
+          if (h > 18) { h = 18; w = 18 * ratio; }
+          doc.addImage(companyLogoRight, 'PNG', pageWidth - margin - w, margin + (25 - h) / 2, w, h);
+        } catch (e) {}
+      }
+
+      // Border and title separator
+      doc.setDrawColor(0);
+      doc.setLineWidth(0.5);
+      doc.line(margin, margin + 25, pageWidth - margin, margin + 25);
+
+      // Footer - Last line only
+      doc.setTextColor(150);
+      doc.setFontSize(6);
+      doc.setFont("helvetica", "italic");
+      doc.text('SIGO - Sistema Integrado de Gerenciamento de Obra', pageWidth / 2, pageHeight - 5, { align: 'center' });
     };
 
-    addHeaderFooter(1);
+    addHeaderFooter();
     
-    doc.setTextColor(0, 0, 0);
-    doc.setFontSize(10);
-    doc.setFont("helvetica", "bold");
-    doc.text("DADOS DO EQUIPAMENTO", 20, 50);
-    
-    doc.setFont("helvetica", "normal");
-    doc.text(`Equipamento: ${equipment.code} - ${equipment.name}`, 20, 58);
-    doc.text(`Série/Placa: ${equipment.plate || 'N/A'}`, 20, 64);
+    // Header Info Table
+    const headerData = [
+      ['EQUIPAMENTO:', `${equipment.code || ''} - ${equipment.name}`, 'MODELO:', equipment.brand ? `${equipment.brand} ${equipment.model}` : equipment.model],
+      ['SÉRIE/PLACA:', equipment.plate || 'N/A', 'MÊS REF:', measurement.month],
+      ['PERÍODO:', measurement.period, 'UNIDADE:', equipment.measurementUnit || 'h']
+    ];
+
+    autoTable(doc, {
+      startY: margin + 28,
+      body: headerData,
+      theme: 'grid',
+      styles: { fontSize: 7, cellPadding: 1.5, fontStyle: 'bold' },
+      columnStyles: { 
+        0: { cellWidth: 25, fillColor: [240, 240, 240] }, 
+        1: { cellWidth: 70 },
+        2: { cellWidth: 25, fillColor: [240, 240, 240] },
+        3: { cellWidth: 70 }
+      }
+    });
+
+    let currentY = (doc as any).lastAutoTable.finalY + 5;
+
     const pStartDay = measurement.period.split(' a ')[0];
     const pEndDay = measurement.period.split(' a ')[1];
-    doc.text(`Período: ${new Date(pStartDay + 'T12:00:00').toLocaleDateString('pt-BR')} a ${new Date(pEndDay + 'T12:00:00').toLocaleDateString('pt-BR')}`, 20, 70);
-    doc.text(`Unidade: ${equipment.measurementUnit}`, 20, 76);
-    doc.text(`Mês Referência: ${measurement.month}`, 20, 82);
-
-    // Filter data for the period
     const startRange = new Date(pStartDay + 'T00:00:00');
     const endRange = new Date(pEndDay + 'T23:59:59');
     
@@ -670,119 +740,102 @@ export default function ControlView({
       new Date(f.date) <= endRange
     );
 
-    const relatedMaint = equipmentMaintenance.filter(m => 
+    const relatedMaint = (equipmentMaintenance || []).filter(m => 
       m.equipmentId === equipment.id && 
       new Date(m.entryDate) >= startRange && 
       new Date(m.entryDate) <= endRange
     );
 
-    // Measurement Table (Left Side)
-    const measurementTableData = (measurement.details || []).map(day => [
-      new Date(day.date + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }),
-      day.initialReading.toLocaleString('pt-BR'),
-      day.finalReading > 0 ? day.finalReading.toLocaleString('pt-BR') : '-',
-      (day.finalReading > 0 && !day.discount) ? (day.finalReading - day.initialReading).toLocaleString('pt-BR') : '-',
-      day.status.substring(0, 3)
-    ]);
+    // Two-Column Layout for Production and Fuel
+    const colWidth = (contentWidth - 5) / 2;
+    
+    // Production Table (Column 1)
+    const measurementTableData = (measurement.details || [])
+      .filter(d => d.finalReading > 0 && d.initialReading > 0)
+      .map(day => [
+        new Date(day.date + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }),
+        day.initialReading,
+        day.finalReading,
+        day.discount ? '0' : (day.finalReading - day.initialReading)
+      ]);
 
     autoTable(doc, {
-      startY: 90,
-      margin: { right: pageWidth / 2 + 5, left: 20 },
-      head: [['Data', 'Ini', 'Fim', 'Liq', 'St']],
+      startY: currentY,
+      margin: { left: margin },
+      tableWidth: colWidth,
+      head: [['Data', 'Ini', 'Fim', 'Prod']],
       body: measurementTableData,
       theme: 'grid',
-      headStyles: { fillColor: [30, 41, 59], fontSize: 7 },
-      styles: { fontSize: 7, cellPadding: 1 },
-      columnStyles: {
-        0: { cellWidth: 15 },
-        1: { cellWidth: 15 },
-        2: { cellWidth: 15 },
-        3: { cellWidth: 15 },
-        4: { cellWidth: 15 }
-      }
+      headStyles: { fillColor: [50, 50, 50], fontSize: 6 },
+      styles: { fontSize: 6, cellPadding: 1 }
     });
 
-    const measurementFinalY = (doc as any).lastAutoTable.finalY || 90;
+    const productionFinalY = (doc as any).lastAutoTable.finalY;
 
-    // Fuel Table (Right Side)
-    if (relatedFuel.length > 0) {
-      doc.setFontSize(10);
-      doc.setFont("helvetica", "bold");
-      doc.text("ABASTECIMENTOS", pageWidth / 2 + 5, 50);
-      
-      const fuelData = relatedFuel.map(f => [
+    // Fuel Table (Column 2)
+    autoTable(doc, {
+      startY: currentY,
+      margin: { left: margin + colWidth + 5 },
+      tableWidth: colWidth,
+      head: [['Data', 'Qtd (L)', 'Custo']],
+      body: relatedFuel.map(f => [
         new Date(f.date).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }),
-        f.quantity.toLocaleString('pt-BR') + ' L',
-        f.cost ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(f.cost) : '-',
-      ]);
+        f.quantity,
+        f.cost ? f.cost.toFixed(2) : '-'
+      ]),
+      theme: 'grid',
+      headStyles: { fillColor: [50, 50, 50], fontSize: 6 },
+      styles: { fontSize: 6, cellPadding: 1 }
+    });
 
-      autoTable(doc, {
-        startY: 55,
-        margin: { left: pageWidth / 2 + 5, right: 20 },
-        head: [['Data', 'Qtd', 'Custo']],
-        body: fuelData,
-        theme: 'grid',
-        headStyles: { fillColor: [16, 185, 129], fontSize: 7 },
-        styles: { fontSize: 7, cellPadding: 1 }
-      });
-    } else {
-       doc.setFontSize(10);
-       doc.setFont("helvetica", "italic");
-       doc.text("Nenhum abastecimento no período", pageWidth / 2 + 5, 50);
-    }
+    const fuelFinalY = (doc as any).lastAutoTable.finalY;
+    currentY = Math.max(productionFinalY, fuelFinalY) + 5;
 
-    const fuelFinalY = (doc as any).lastAutoTable.finalY || 90;
-    let nextY = Math.max(measurementFinalY, fuelFinalY) + 15;
-
-    // Maintenance Table (Below)
+    // Maintenance Table (Full Width)
     if (relatedMaint.length > 0) {
-      if (nextY > pageHeight - 60) { doc.addPage(); addHeaderFooter(2); nextY = 50; }
-      doc.setFontSize(10);
+      doc.setFontSize(7);
       doc.setFont("helvetica", "bold");
-      doc.text("HISTÓRICO DE MANUTENÇÃO NO PERÍODO", 20, nextY);
-      
-      const maintData = relatedMaint.map(m => [
-        new Date(m.entryDate).toLocaleDateString('pt-BR'),
-        m.exitDate ? new Date(m.exitDate).toLocaleDateString('pt-BR') : 'Aberto',
-        m.type === 'preventive' ? 'Prev.' : 'Corr.',
-        m.requestedItems || '',
-        m.totalCost ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(m.totalCost) : '-'
-      ]);
+      doc.text("HISTÓRICO DE MANUTENÇÃO NO PERÍODO", margin, currentY);
+      currentY += 2;
 
       autoTable(doc, {
-        startY: nextY + 5,
-        margin: { left: 20, right: 20 },
-        head: [['Entrada', 'Saída', 'Tipo', 'Descrição', 'Custo']],
-        body: maintData,
+        startY: currentY,
+        head: [['Entrada', 'Saída', 'Tipo', 'Descrição']],
+        body: relatedMaint.map(m => [
+          new Date(m.entryDate).toLocaleDateString('pt-BR'),
+          m.exitDate ? new Date(m.exitDate).toLocaleDateString('pt-BR') : 'Aberto',
+          m.type === 'preventive' ? 'PREV' : 'CORR',
+          m.requestedItems || ''
+        ]),
         theme: 'grid',
-        headStyles: { fillColor: [239, 68, 68], fontSize: 8 },
-        styles: { fontSize: 8 }
+        headStyles: { fillColor: [80, 80, 80], fontSize: 6 },
+        styles: { fontSize: 6, cellPadding: 1 }
       });
-      nextY = (doc as any).lastAutoTable.finalY + 15;
+      currentY = (doc as any).lastAutoTable.finalY + 5;
     }
 
-    // Totals bar
-    if (nextY > pageHeight - 40) { doc.addPage(); addHeaderFooter(doc.getNumberOfPages()); nextY = 50; }
-    doc.setFillColor(248, 250, 252);
-    doc.rect(20, nextY, pageWidth - 40, 20, 'F');
-    doc.setDrawColor(226, 232, 240);
-    doc.rect(20, nextY, pageWidth - 40, 20, 'S');
-
-    doc.setFontSize(10);
+    // Totals Summary at the bottom
+    const totalY = pageHeight - 25;
+    doc.setDrawColor(0);
+    doc.setLineWidth(0.2);
+    doc.line(margin, totalY, pageWidth - margin, totalY);
+    
+    doc.setFontSize(8);
     doc.setFont("helvetica", "bold");
-    doc.setTextColor(30, 41, 59);
-    doc.text(`TOTAL PRODUÇÃO: ${measurement.totalUnits.toLocaleString('pt-BR')} ${equipment.measurementUnit === 'Horímetro' ? 'h' : 'km'}`, 30, nextY + 12);
-    doc.text(`VALOR TOTAL: ${new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(measurement.totalValue || 0)}`, pageWidth - 30, nextY + 12, { align: 'right' });
+    doc.text(`TOTAL PRODUÇÃO: ${measurement.totalUnits.toLocaleString('pt-BR')} ${equipment.measurementUnit === 'Horímetro' ? 'h' : 'km'}`, margin, totalY + 6);
+    doc.text(`VALOR TOTAL: ${new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(measurement.totalValue || 0)}`, pageWidth - margin, totalY + 6, { align: 'right' });
 
-    doc.save(`Medicao_${equipment.code}_${measurement.month.replace('/','-')}.pdf`);
+    doc.save(`Medicao_${equipment.code || 'EQ'}_${measurement.month.replace('/','-')}.pdf`);
   };
 
   const handleSaveMeasurement = () => {
     if (!selectedEquipment) return;
-    
     const tempMeasurements = selectedEquipment.measurements || [];
-    // DESCONSIDERA DIAS NÃO PREENCHIDOS (FINAL READING <= 0)
-    const filledDays = tempDailyData.filter(d => d.finalReading > 0);
+    
+    // FILTRAR DIAS COM HORIMETRO FINAL > 0 E TODOS OS CAMPOS PREENCHIDOS E FINAL > INICIAL
+    const filledDays = tempDailyData.filter(d => d.initialReading > 0 && d.finalReading > 0 && d.finalReading > d.initialReading);
+    const savedDetails = tempDailyData.filter(d => d.finalReading > 0 && d.initialReading > 0 && d.finalReading > d.initialReading);
+    
     const totalUnits = filledDays.reduce((acc, curr) => acc + (curr.discount ? 0 : (curr.finalReading - curr.initialReading)), 0);
     const unitPrice = selectedEquipment.contractedPrice || 0;
     const totalValue = totalUnits * unitPrice;
@@ -796,7 +849,7 @@ export default function ControlView({
         period: `${measurementPeriod.start} a ${measurementPeriod.end}`,
         totalUnits,
         totalValue,
-        details: tempDailyData
+        details: savedDetails
       } : m);
       setEditingMeasurementId(null);
     } else {
@@ -809,7 +862,7 @@ export default function ControlView({
         period: `${measurementPeriod.start} a ${measurementPeriod.end}`,
         totalUnits,
         totalValue,
-        details: tempDailyData
+        details: savedDetails
       };
       updatedMeasurements = [...tempMeasurements, newMeasurement];
     }
@@ -1710,14 +1763,68 @@ export default function ControlView({
 
                             <div className="space-y-2">
                               <Label className="text-[11px] uppercase font-black text-slate-500 tracking-tight">Tipo de Equipamento</Label>
-                              <Select value={newEquip.type} onValueChange={handleTypeChange}>
-                                <SelectTrigger className="rounded-xl border-slate-200 bg-slate-50/50 h-12 text-sm font-bold">
-                                  <SelectValue placeholder="Selecione o tipo..." />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {EQUIPMENT_TYPES.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
-                                </SelectContent>
-                              </Select>
+                              <Popover>
+                                <PopoverTrigger asChild>
+                                  <Button
+                                    variant="outline"
+                                    role="combobox"
+                                    className="w-full justify-between h-12 rounded-xl border-slate-200 bg-slate-50/50 text-sm font-bold"
+                                  >
+                                    {newEquip.type || "Selecione ou digite..."}
+                                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                                  </Button>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-full p-0 rounded-xl" align="start">
+                                  <Command>
+                                    <CommandInput 
+                                      placeholder="Pesquisar ou adicionar..." 
+                                      value={typeSearchTerm}
+                                      onValueChange={setTypeSearchTerm}
+                                    />
+                                    <CommandList className="max-h-[200px]">
+                                      <CommandEmpty>
+                                        <Button 
+                                          variant="ghost" 
+                                          className="w-full justify-start text-xs font-bold text-blue-600 h-10"
+                                          onClick={() => {
+                                            handleAddType(typeSearchTerm);
+                                            handleTypeChange(typeSearchTerm);
+                                            setTypeSearchTerm('');
+                                          }}
+                                        >
+                                          <Plus className="w-3 h-3 mr-2" /> Adicionar "{typeSearchTerm}"
+                                        </Button>
+                                      </CommandEmpty>
+                                      <CommandGroup>
+                                        {dynamicTypes.map(t => (
+                                          <CommandItem
+                                            key={t}
+                                            value={t}
+                                            onSelect={() => {
+                                              handleTypeChange(t);
+                                              setTypeSearchTerm('');
+                                            }}
+                                            className="flex items-center justify-between py-2.5"
+                                          >
+                                            <div className="flex items-center">
+                                              <Check className={cn("mr-2 h-4 w-4 text-blue-600", newEquip.type === t ? "opacity-100" : "opacity-0")} />
+                                              <span className="font-bold">{t}</span>
+                                            </div>
+                                            <Button
+                                              variant="ghost"
+                                              size="icon"
+                                              className="h-6 w-6 text-slate-300 hover:text-red-500"
+                                              onClick={(e) => handleRemoveType(e, t)}
+                                            >
+                                              <X className="w-3.5 h-3.5" />
+                                            </Button>
+                                          </CommandItem>
+                                        ))}
+                                      </CommandGroup>
+                                    </CommandList>
+                                  </Command>
+                                </PopoverContent>
+                              </Popover>
                             </div>
                             <div className="space-y-2">
                               <Label className="text-[11px] uppercase font-black text-slate-500 tracking-tight">Origem do Ativo</Label>
@@ -2917,14 +3024,70 @@ export default function ControlView({
                     <Input className="rounded-xl border-slate-200 bg-slate-50/50 h-12 text-sm font-bold" value={equipmentToEdit?.name || ''} onChange={e => setEquipmentToEdit(prev => prev ? {...prev, name: e.target.value} : null)} />
                   </div>
 
-                  <div className="space-y-2">
+                  <div className="space-y-4">
                     <Label className="text-[11px] uppercase font-black text-slate-500 tracking-tight">Tipo de Equipamento</Label>
-                    <Select value={equipmentToEdit?.type || ''} onValueChange={val => setEquipmentToEdit(prev => prev ? {...prev, type: val} : null)}>
-                      <SelectTrigger className="rounded-xl border-slate-200 bg-slate-50/50 h-12 text-sm font-bold"><SelectValue placeholder="Selecione o tipo..." /></SelectTrigger>
-                      <SelectContent>
-                        {EQUIPMENT_TYPES.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          role="combobox"
+                          className="w-full justify-between h-12 rounded-xl border-slate-200 bg-slate-50/50 text-sm font-bold"
+                        >
+                          {equipmentToEdit?.type || "Selecione ou digite..."}
+                          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-full p-0 rounded-xl" align="start">
+                        <Command>
+                          <CommandInput 
+                            placeholder="Pesquisar ou adicionar..." 
+                            value={typeSearchTerm}
+                            onValueChange={setTypeSearchTerm}
+                          />
+                          <CommandList className="max-h-[200px]">
+                            <CommandEmpty>
+                              <Button 
+                                variant="ghost" 
+                                className="w-full justify-start text-xs font-bold text-blue-600 h-10"
+                                onClick={() => {
+                                  handleAddType(typeSearchTerm);
+                                  setEquipmentToEdit(prev => prev ? { ...prev, type: typeSearchTerm } : null);
+                                  setTypeSearchTerm('');
+                                }}
+                              >
+                                <Plus className="w-3 h-3 mr-2" /> Adicionar "{typeSearchTerm}"
+                              </Button>
+                            </CommandEmpty>
+                            <CommandGroup>
+                              {dynamicTypes.map(t => (
+                                <CommandItem
+                                  key={t}
+                                  value={t}
+                                  onSelect={() => {
+                                    setEquipmentToEdit(prev => prev ? { ...prev, type: t } : null);
+                                    setTypeSearchTerm('');
+                                  }}
+                                  className="flex items-center justify-between py-2.5"
+                                >
+                                  <div className="flex items-center">
+                                    <Check className={cn("mr-2 h-4 w-4 text-blue-600", equipmentToEdit?.type === t ? "opacity-100" : "opacity-0")} />
+                                    <span className="font-bold">{t}</span>
+                                  </div>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-6 w-6 text-slate-300 hover:text-red-500"
+                                    onClick={(e) => handleRemoveType(e, t)}
+                                  >
+                                    <X className="w-3.5 h-3.5" />
+                                  </Button>
+                                </CommandItem>
+                              ))}
+                            </CommandGroup>
+                          </CommandList>
+                        </Command>
+                      </PopoverContent>
+                    </Popover>
                   </div>
                   <div className="space-y-3">
                     <Label className="text-[12px] uppercase font-black text-slate-500 tracking-tight">Origem</Label>
@@ -3428,9 +3591,12 @@ export default function ControlView({
                         onChange={val => {
                           const newDays = [...tempDailyData];
                           newDays[idx].finalReading = val;
-                          // AUTO PROPAGATE
-                          if (idx + 1 < newDays.length) {
-                             newDays[idx+1].initialReading = val;
+                          // PROPAGATE TO SUBSEQUENT DAYS
+                          for (let i = idx + 1; i < newDays.length; i++) {
+                            newDays[i].initialReading = val;
+                            if (newDays[i].finalReading < val) {
+                              newDays[i].finalReading = val;
+                            }
                           }
                           setTempDailyData(newDays);
                         }}
@@ -3452,7 +3618,7 @@ export default function ControlView({
                       </div>
                     </TableCell>
                     <TableCell className="text-center font-black text-blue-600 text-[11px]">
-                      {day.finalReading > 0 ? (day.finalReading - day.initialReading).toLocaleString('pt-BR') : '-'}
+                      {(day.initialReading > 0 && day.finalReading > 0 && day.finalReading > day.initialReading) ? (day.finalReading - day.initialReading).toLocaleString('pt-BR') : '-'}
                     </TableCell>
                     <TableCell>
                       <Select value={day.status} onValueChange={(val: any) => {
@@ -3489,7 +3655,7 @@ export default function ControlView({
                 <div className="flex flex-col">
                   <span className="text-[9px] uppercase font-black text-slate-400 tracking-wider">Total Líquido</span>
                   <span className="text-2xl font-black text-blue-600 leading-none">
-                    {tempDailyData.filter(d => d.finalReading > 0).reduce((acc, curr) => acc + (curr.discount ? 0 : (curr.finalReading - curr.initialReading)), 0).toLocaleString('pt-BR')}
+                    {tempDailyData.filter(d => d.initialReading > 0 && d.finalReading > 0 && d.finalReading > d.initialReading).reduce((acc, curr) => acc + (curr.discount ? 0 : (curr.finalReading - curr.initialReading)), 0).toLocaleString('pt-BR')}
                     <span className="text-[10px] ml-1 uppercase">{selectedEquipment?.measurementUnit === 'Horímetro' ? 'h' : 'km'}</span>
                   </span>
                 </div>
@@ -3497,14 +3663,14 @@ export default function ControlView({
                   <span className="text-[9px] uppercase font-black text-slate-400 tracking-wider">Valor Total</span>
                   <span className="text-2xl font-black text-emerald-600 leading-none">
                     {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(
-                      tempDailyData.filter(d => d.finalReading > 0).reduce((acc, curr) => acc + (curr.discount ? 0 : (curr.finalReading - curr.initialReading)), 0) * (selectedEquipment?.contractedPrice || 0)
+                      tempDailyData.filter(d => d.initialReading > 0 && d.finalReading > 0 && d.finalReading > d.initialReading).reduce((acc, curr) => acc + (curr.discount ? 0 : (curr.finalReading - curr.initialReading)), 0) * (selectedEquipment?.contractedPrice || 0)
                     )}
                   </span>
                 </div>
                 <div className="hidden lg:flex flex-col">
                   <span className="text-[9px] uppercase font-black text-slate-400 tracking-wider">Média Diária</span>
                   <span className="text-2xl font-black text-slate-600 leading-none">
-                    {(tempDailyData.filter(d => d.finalReading > 0).reduce((acc, curr) => acc + (curr.discount ? 0 : (curr.finalReading - curr.initialReading)), 0) / (tempDailyData.filter(d => d.finalReading > 0).length || 1)).toFixed(1).toLocaleString()}
+                    {(tempDailyData.filter(d => d.initialReading > 0 && d.finalReading > 0 && d.finalReading > d.initialReading).reduce((acc, curr) => acc + (curr.discount ? 0 : (curr.finalReading - curr.initialReading)), 0) / (tempDailyData.filter(d => d.initialReading > 0 && d.finalReading > 0 && d.finalReading > d.initialReading).length || 1)).toFixed(1).toLocaleString()}
                     <span className="text-[10px] ml-1 uppercase font-bold text-slate-400">/dia</span>
                   </span>
                 </div>
