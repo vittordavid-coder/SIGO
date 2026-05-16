@@ -3591,12 +3591,12 @@ export default function ControlView({
                         onChange={val => {
                           const newDays = [...tempDailyData];
                           newDays[idx].finalReading = val;
-                          // PROPAGATE TO SUBSEQUENT DAYS
-                          for (let i = idx + 1; i < newDays.length; i++) {
-                            newDays[i].initialReading = val;
-                            if (newDays[i].finalReading < val) {
-                              newDays[i].finalReading = val;
-                            }
+                          // AUTO PROPAGATE NEXT DAY INITIAL
+                          if (idx + 1 < newDays.length) {
+                             newDays[idx+1].initialReading = val;
+                             if (newDays[idx+1].finalReading < val && newDays[idx+1].finalReading > 0) {
+                               newDays[idx+1].finalReading = val;
+                             }
                           }
                           setTempDailyData(newDays);
                         }}
