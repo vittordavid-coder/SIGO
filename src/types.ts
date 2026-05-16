@@ -746,10 +746,12 @@ export interface ControllerEquipment {
   measurementUnit?: 'Horímetro' | 'Quilometragem' | 'Mensal';
   currentReading?: number; // Última leitura de horímetro/odômetro
   contractedPrice?: number; // Preço Contratado
+  monthlyPrice?: number; // Preço Mensal
   observations?: string;
   customFields?: Record<string, EquipmentAttribute>; // JSONB Data
   photos?: string[]; // URLs das fotos (Supabase Storage)
   history?: ServiceHistoryEntry[];
+  measurements?: EquipmentMeasurement[];
 }
 
 export interface ServiceHistoryEntry {

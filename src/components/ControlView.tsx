@@ -162,7 +162,7 @@ export default function ControlView({
   const [newRequestCategory, setNewRequestCategory] = useState('');
   const [showCategorySuggestions, setShowCategorySuggestions] = useState(false);
 
-  const [equipmentMeasurements, setEquipmentMeasurements] = useLocalStorage<EquipmentMeasurement[]>('sigo_equipment_measurements', [], currentUser?.companyId);
+  // Removed internal equipmentMeasurements state as it's now a prop
   const [isNewMeasurementModalOpen, setIsNewMeasurementModalOpen] = useState(false);
   const [isPeriodSelectionOpen, setIsPeriodSelectionOpen] = useState(false);
   const [measurementPeriod, setMeasurementPeriod] = useState({ start: '', end: '' });
@@ -183,6 +183,7 @@ export default function ControlView({
   }, [initialTab]);
   const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7));
   const [searchTerm, setSearchTerm] = useState('');
+  const [priceDisplayMode, setPriceDisplayMode] = useState<'monthly' | 'measurement'>('monthly');
   const [sortField, setSortField] = useState<'name' | 'category' | 'origin' | 'cost'>('name');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
   const [filterOnlyActive, setFilterOnlyActive] = useState(false);
@@ -324,13 +325,17 @@ export default function ControlView({
       } else if (sortField === 'origin') {
         comparison = (a.origin || '').localeCompare(b.origin || '');
       } else if (sortField === 'cost') {
-        const costA = equipmentMonthly.find(d => d.equipmentId === a.id && d.month === selectedMonth)?.cost || 0;
-        const costB = equipmentMonthly.find(d => d.equipmentId === b.id && d.month === selectedMonth)?.cost || 0;
-        comparison = costA - costB;
+        const getPrice = (e: ControllerEquipment) => {
+          if (priceDisplayMode === 'monthly') {
+            return e.monthlyPrice || (equipmentMonthly.find(d => d.equipmentId === e.id && d.month === selectedMonth)?.cost || 0);
+          }
+          return e.contractedPrice || 0;
+        };
+        comparison = getPrice(a) - getPrice(b);
       }
       return sortOrder === 'asc' ? comparison : -comparison;
     });
-  }, [equipments, currentUser, searchTerm, filterOnlyActive, sortField, sortOrder, selectedContractId, equipmentMonthly, selectedMonth]);
+  }, [equipments, currentUser, searchTerm, filterOnlyActive, sortField, sortOrder, selectedContractId, equipmentMonthly, selectedMonth, priceDisplayMode]);
 
   const handleSort = (field: 'name' | 'category' | 'origin' | 'cost') => {
     if (sortField === field) {
@@ -472,6 +477,8 @@ export default function ControlView({
     entryDate: new Date().toISOString().split('T')[0],
     contractId: '',
     currentReading: 0,
+    contractedPrice: 0,
+    monthlyPrice: 0,
     observations: '',
     customFields: {},
     photos: [],
@@ -593,37 +600,57 @@ export default function ControlView({
   const handleSaveMeasurement = () => {
     if (!selectedEquipment) return;
     
+    const tempMeasurements = selectedEquipment.measurements || [];
     const totalUnits = tempDailyData.reduce((acc, curr) => acc + (curr.discount ? 0 : (curr.finalReading - curr.initialReading)), 0);
     const unitPrice = selectedEquipment.contractedPrice || 0;
     const totalValue = totalUnits * unitPrice;
 
+    let updatedMeasurements: EquipmentMeasurement[] = [];
+
     if (editingMeasurementId) {
-      setEquipmentMeasurements(prev => prev.map(m => m.id === editingMeasurementId ? {
+      updatedMeasurements = tempMeasurements.map(m => m.id === editingMeasurementId ? {
         ...m,
         month: measurementMonth,
         period: `${measurementPeriod.start} a ${measurementPeriod.end}`,
         totalUnits,
         totalValue,
         details: tempDailyData
-      } : m));
+      } : m);
       setEditingMeasurementId(null);
     } else {
       const newMeasurement: EquipmentMeasurement = {
         id: crypto.randomUUID(),
         equipmentId: selectedEquipment.id,
         companyId: currentUser?.companyId || '',
-        number: (equipmentMeasurements.filter(m => m.equipmentId === selectedEquipment.id).length + 1),
+        number: (tempMeasurements.length + 1),
         month: measurementMonth,
         period: `${measurementPeriod.start} a ${measurementPeriod.end}`,
         totalUnits,
         totalValue,
         details: tempDailyData
       };
-      setEquipmentMeasurements([...equipmentMeasurements, newMeasurement]);
+      updatedMeasurements = [...tempMeasurements, newMeasurement];
     }
+    
+    // Update the equipment in the main list
+    const updatedEquipments = equipments.map(e => 
+      e.id === selectedEquipment.id ? { ...e, measurements: updatedMeasurements } : e
+    );
+    onUpdateEquipments(updatedEquipments);
     
     setIsNewMeasurementModalOpen(false);
     setIsPeriodSelectionOpen(false);
+  };
+
+  const handleDeleteMeasurement = (id: string) => {
+    if (!selectedEquipment) return;
+    if (window.confirm('Tem certeza que deseja excluir esta medição?')) {
+      const updatedMeasurements = (selectedEquipment.measurements || []).filter(m => m.id !== id);
+      const updatedEquipments = equipments.map(e => 
+        e.id === selectedEquipment.id ? { ...e, measurements: updatedMeasurements } : e
+      );
+      onUpdateEquipments(updatedEquipments);
+    }
   };
 
   const handleCreateTank = () => {
@@ -1400,9 +1427,55 @@ export default function ControlView({
                  </div>
               </div>
               <div className="flex items-center gap-2">
+                <div className="flex bg-slate-100 p-1 rounded-xl mr-2">
+                  <button 
+                    onClick={() => setPriceDisplayMode('monthly')}
+                    className={cn(
+                      "px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all",
+                      priceDisplayMode === 'monthly' ? "bg-white text-blue-600 shadow-sm" : "text-slate-400 hover:text-slate-600"
+                    )}
+                  >
+                    Preço Mensal
+                  </button>
+                  <button 
+                    onClick={() => setPriceDisplayMode('measurement')}
+                    className={cn(
+                      "px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all",
+                      priceDisplayMode === 'measurement' ? "bg-white text-blue-600 shadow-sm" : "text-slate-400 hover:text-slate-600"
+                    )}
+                  >
+                    Preço Medição
+                  </button>
+                </div>
                 <Button variant="outline" size="sm" onClick={downloadTemplate} className="rounded-xl gap-2 font-bold text-xs"><FileDown className="w-4 h-4" /> Modelo</Button>
                 <Button variant="outline" size="sm" onClick={() => setIsImportModalOpen(true)} className="rounded-xl gap-2 font-bold text-xs"><Upload className="w-4 h-4" /> Importar</Button>
-                <Button onClick={() => setIsAddOpen(true)} className="rounded-xl bg-blue-600 gap-2 font-bold text-xs"><Plus className="w-4 h-4 mr-2" /> Novo</Button>
+                <Button onClick={() => {
+                  setNewEquip({
+                    id: uuidv4(),
+                    code: '',
+                    name: '',
+                    type: '',
+                    brand: '',
+                    model: '',
+                    year: new Date().getFullYear(),
+                    situation: 'Ativo',
+                    plate: '',
+                    origin: 'Próprio',
+                    ownerName: '',
+                    ownerCnpj: '',
+                    category: 'Médio',
+                    measurementUnit: 'Horímetro',
+                    entryDate: new Date().toISOString().split('T')[0],
+                    contractId: selectedContractId !== 'all' ? selectedContractId : '',
+                    currentReading: 0,
+                    contractedPrice: 0,
+                    monthlyPrice: 0,
+                    observations: '',
+                    customFields: {},
+                    photos: []
+                  });
+                  setIsAddOpen(true);
+                }} className="rounded-xl bg-blue-600 gap-2 font-bold text-xs"><Plus className="w-4 h-4 mr-2" /> Novo</Button>
                 <Modal
                   isOpen={isAddOpen}
                   onClose={() => setIsAddOpen(false)}
@@ -1508,9 +1581,13 @@ export default function ControlView({
                             </div>
                             <div className="space-y-2">
                               <Label className="text-[11px] uppercase font-black text-slate-500 tracking-tight">
-                                {newEquip.measurementUnit === 'Horímetro' ? 'Preço Hora' : newEquip.measurementUnit === 'Quilometragem' ? 'Preço KM' : 'Preço Mês'}
+                                {newEquip.measurementUnit === 'Horímetro' ? 'Preço Hora' : newEquip.measurementUnit === 'Quilometragem' ? 'Preço KM' : 'Preço Medição'}
                               </Label>
                               <NumericInput className="rounded-xl border-slate-200 bg-slate-50/50 h-12 text-sm font-bold" value={newEquip.contractedPrice} onChange={val => setNewEquip({...newEquip, contractedPrice: val})} prefix="R$" />
+                            </div>
+                            <div className="space-y-2">
+                              <Label className="text-[11px] uppercase font-black text-slate-500 tracking-tight">Preço Mensal</Label>
+                              <NumericInput className="rounded-xl border-slate-200 bg-slate-50/50 h-12 text-sm font-bold" value={newEquip.monthlyPrice} onChange={val => setNewEquip({...newEquip, monthlyPrice: val})} prefix="R$" />
                             </div>
                             
                             <div className="md:col-span-2 lg:col-span-3 space-y-2">
@@ -1763,7 +1840,7 @@ export default function ControlView({
                       onClick={() => handleSort('cost')}
                     >
                       <div className="flex items-center justify-end gap-2">
-                        Custo Mensal
+                        {priceDisplayMode === 'monthly' ? 'Custo Mensal' : 'Preço Medição'}
                         {sortField === 'cost' && (sortOrder === 'asc' ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />)}
                       </div>
                     </TableHead>
@@ -1811,7 +1888,11 @@ export default function ControlView({
                       <TableCell className="py-0.5 text-[10px] font-bold text-slate-500 uppercase tracking-tight">{e.category}</TableCell>
                       <TableCell className="py-0.5 text-center font-black uppercase text-[9px] tracking-widest"><Badge variant="outline" className={cn("rounded-lg h-5 px-2", e.origin === 'Próprio' ? "bg-blue-50 text-blue-700 border-blue-100" : "bg-amber-50 text-amber-700 border-amber-100")}>{e.origin}</Badge></TableCell>
                       <TableCell className="py-0.5 text-right font-mono text-[10px] font-black text-slate-700">
-                        {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(equipmentMonthly.find(d => d.equipmentId === e.id && d.month === selectedMonth)?.cost || 0)}
+                        {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(
+                          priceDisplayMode === 'monthly' 
+                            ? (e.monthlyPrice || equipmentMonthly.find(d => d.equipmentId === e.id && d.month === selectedMonth)?.cost || 0)
+                            : (e.contractedPrice || 0)
+                        )}
                       </TableCell>
                       <TableCell className="py-0.5">
                         <div className="flex items-center justify-end gap-0.5">
@@ -2717,9 +2798,13 @@ export default function ControlView({
                   </div>
                   <div className="space-y-3">
                     <Label className="text-[12px] uppercase font-black text-slate-500 tracking-tight">
-                      {equipmentToEdit?.measurementUnit === 'Horímetro' ? 'Preço Hora' : equipmentToEdit?.measurementUnit === 'Quilometragem' ? 'Preço KM' : 'Preço Mês'}
+                      {equipmentToEdit?.measurementUnit === 'Horímetro' ? 'Preço Hora' : equipmentToEdit?.measurementUnit === 'Quilometragem' ? 'Preço KM' : 'Preço Medição'}
                     </Label>
                     <NumericInput className="rounded-xl border-slate-200 bg-slate-50/50 h-16 text-base font-bold" value={equipmentToEdit?.contractedPrice || 0} onChange={val => setEquipmentToEdit(prev => prev ? {...prev, contractedPrice: val} : null)} prefix="R$" />
+                  </div>
+                  <div className="space-y-3">
+                    <Label className="text-[12px] uppercase font-black text-slate-500 tracking-tight">Preço Mensal</Label>
+                    <NumericInput className="rounded-xl border-slate-200 bg-slate-50/50 h-16 text-base font-bold" value={equipmentToEdit?.monthlyPrice || 0} onChange={val => setEquipmentToEdit(prev => prev ? {...prev, monthlyPrice: val} : null)} prefix="R$" />
                   </div>
 
                   <div className="md:col-span-2 lg:col-span-3 space-y-3">
@@ -2879,7 +2964,7 @@ export default function ControlView({
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {equipmentMeasurements.filter(m => m.equipmentId === equipmentToEdit?.id).map(m => (
+                      {(equipmentToEdit?.measurements || []).map(m => (
                         <TableRow key={m.id}>
                           <TableCell className="font-bold text-xs">{m.number}</TableCell>
                           <TableCell className="font-bold text-xs">{m.month}</TableCell>
@@ -2917,10 +3002,18 @@ export default function ControlView({
                             >
                               <Edit className="w-4 h-4" />
                             </Button>
+                            <Button 
+                              variant="ghost" 
+                              size="icon" 
+                              className="h-8 w-8 text-red-600 hover:bg-red-50"
+                              onClick={() => handleDeleteMeasurement(m.id)}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
                           </TableCell>
                         </TableRow>
                       ))}
-                      {equipmentMeasurements.filter(m => m.equipmentId === equipmentToEdit?.id).length === 0 && (
+                      {(equipmentToEdit?.measurements || []).length === 0 && (
                         <TableRow>
                           <TableCell colSpan={6} className="text-center py-10 text-slate-400">Nenhuma medição registrada</TableCell>
                         </TableRow>
@@ -3093,11 +3186,11 @@ export default function ControlView({
         title={`Lançamento de Medição - ${measurementMonth}`}
         description={`Período: ${measurementPeriod.start ? new Date(measurementPeriod.start + 'T12:00:00').toLocaleDateString('pt-BR') : ''} a ${measurementPeriod.end ? new Date(measurementPeriod.end + 'T12:00:00').toLocaleDateString('pt-BR') : ''}`}
         maxWidth="5xl"
-        className="max-h-[90vh]"
+        className="max-h-[90vh] overflow-hidden"
       >
         <div className="flex flex-col h-full bg-white overflow-hidden">
-          <div className="flex-1 overflow-y-auto p-6 space-y-4 custom-scrollbar">
-            <Table>
+          <div className="flex-1 overflow-auto p-0 space-y-4 custom-scrollbar">
+            <Table className="w-full min-w-max border-collapse">
               <TableHeader className="bg-slate-50 sticky top-0 z-10">
                 <TableRow>
                   <TableHead className="w-24 text-[10px] font-black uppercase">Data</TableHead>

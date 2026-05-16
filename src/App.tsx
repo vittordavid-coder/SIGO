@@ -10,7 +10,7 @@ import {
 import { motion, AnimatePresence, Reorder } from 'motion/react';
 import { v4 as uuidv4 } from 'uuid';
 import { useLocalStorage } from './lib/useLocalStorage';
-import { Resource, ServiceComposition, Quotation, User, ABCConfig, BudgetGroup, BDIConfig, AuditLog, UserRole, Contract, Measurement, MeasurementTemplate, CalculationMemory, HighwayLocation, StationGroup, CubationData, TransportData, ServiceProduction, Employee, TimeRecord, DailyReport, DailyReportActivity, PluviometryRecord, TechnicalSchedule, DashboardConfig, ControllerTeam, ControllerEquipment, EquipmentMonthlyData, ControllerManpower, ManpowerMonthlyData, TeamAssignment, MarketingConfig, AppModule, PasswordResetRequest, EquipmentTransfer, Supplier, PurchaseOrder, EmailConfig, PurchaseRequest, PurchaseQuotation, EquipmentMaintenance, FuelTank, FuelLog } from './types';
+import { Resource, ServiceComposition, Quotation, User, ABCConfig, BudgetGroup, BDIConfig, AuditLog, UserRole, Contract, Measurement, MeasurementTemplate, CalculationMemory, HighwayLocation, StationGroup, CubationData, TransportData, ServiceProduction, Employee, TimeRecord, DailyReport, DailyReportActivity, PluviometryRecord, TechnicalSchedule, DashboardConfig, ControllerTeam, ControllerEquipment, EquipmentMonthlyData, ControllerManpower, ManpowerMonthlyData, TeamAssignment, MarketingConfig, AppModule, PasswordResetRequest, EquipmentTransfer, Supplier, PurchaseOrder, EmailConfig, PurchaseRequest, PurchaseQuotation, EquipmentMaintenance, FuelTank, FuelLog, EquipmentMeasurement, DailyEquipmentMeasurement } from './types';
 import { cn, hashPassword } from './lib/utils';
 import { calculateBDI } from './lib/calculations';
 import { compressImage } from './lib/imageUtils';
@@ -2488,11 +2488,6 @@ export default function App() {
             const { error: upsertError } = await supabase.from('equipments').upsert(mapped);
             if (upsertError) {
               console.error('[Sync] Equipments upsert failed:', upsertError);
-              // Fallback to controller_equipments if equipments table doesn't exist yet
-              if (upsertError.code === '42P01') {
-                console.info('[Sync] Table "equipments" not found, trying "controller_equipments"...');
-                await supabase.from('controller_equipments').upsert(mapped);
-              }
             }
           }
         } catch (err) { console.error('[Sync] Equipments persist exception:', err); }
