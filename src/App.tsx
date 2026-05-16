@@ -598,7 +598,7 @@ export default function App() {
           'pluviometry_records': { key: 'sigo_pluviometry_records', setter: setPluviometryRecords },
           'technical_schedules': { key: 'sigo_technical_schedules', setter: setTechnicalSchedules },
           'controller_teams': { key: 'sigo_controller_teams', setter: setControllerTeams },
-          'controller_equipments': { key: 'sigo_controller_equipments', setter: setControllerEquipments },
+          'equipments': { key: 'sigo_controller_equipments', setter: setControllerEquipments },
           'equipment_maintenance': { key: 'sigo_equipment_maintenance', setter: setEquipmentMaintenance },
           'equipment_monthly_data': { key: 'sigo_equipment_monthly', setter: setEquipmentMonthlyData },
           'controller_manpower': { key: 'sigo_controller_manpower', setter: setManpowerRecords },

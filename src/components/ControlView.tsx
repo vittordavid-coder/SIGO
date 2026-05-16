@@ -578,17 +578,32 @@ export default function ControlView({
   };
 
   const generateDailyMeasurementData = (start: string, end: string) => {
-    if (!start || !end) return;
-    const startDate = new Date(start);
-    const endDate = new Date(end);
+    if (!start || !end || !selectedEquipment) return;
+    const startDate = new Date(start + 'T12:00:00');
+    const endDate = new Date(end + 'T12:00:00');
     const dailyData: DailyEquipmentMeasurement[] = [];
     
+    // Try to find the last final reading from previous measurements
+    let lastKnownReading = 0;
+    const sortedMeasurements = [...(selectedEquipment.measurements || [])].sort((a, b) => {
+      const dateA = a.period.split(' a ')[1] || '';
+      const dateB = b.period.split(' a ')[1] || '';
+      return new Date(dateB).getTime() - new Date(dateA).getTime();
+    });
+
+    if (sortedMeasurements.length > 0) {
+      const lastM = sortedMeasurements[0];
+      if (lastM.details && lastM.details.length > 0) {
+        lastKnownReading = lastM.details[lastM.details.length - 1].finalReading;
+      }
+    }
+
     let current = new Date(startDate);
     while (current <= endDate) {
       dailyData.push({
         date: current.toISOString().split('T')[0],
-        initialReading: 0,
-        finalReading: 0,
+        initialReading: dailyData.length === 0 ? lastKnownReading : 0,
+        finalReading: dailyData.length === 0 ? lastKnownReading : 0,
         discount: false,
         status: 'Trabalhando'
       });
@@ -637,6 +652,11 @@ export default function ControlView({
       e.id === selectedEquipment.id ? { ...e, measurements: updatedMeasurements } : e
     );
     onUpdateEquipments(updatedEquipments);
+
+    // Also update equipmentToEdit if it's the same equipment being edited in the main modal
+    if (equipmentToEdit && equipmentToEdit.id === selectedEquipment.id) {
+      setEquipmentToEdit(prev => prev ? { ...prev, measurements: updatedMeasurements } : null);
+    }
     
     setIsNewMeasurementModalOpen(false);
     setIsPeriodSelectionOpen(false);
@@ -650,6 +670,10 @@ export default function ControlView({
         e.id === selectedEquipment.id ? { ...e, measurements: updatedMeasurements } : e
       );
       onUpdateEquipments(updatedEquipments);
+      
+      if (equipmentToEdit && equipmentToEdit.id === selectedEquipment.id) {
+        setEquipmentToEdit(prev => prev ? { ...prev, measurements: updatedMeasurements } : null);
+      }
     }
   };
 
@@ -3186,25 +3210,27 @@ export default function ControlView({
         title={`Lançamento de Medição - ${measurementMonth}`}
         description={`Período: ${measurementPeriod.start ? new Date(measurementPeriod.start + 'T12:00:00').toLocaleDateString('pt-BR') : ''} a ${measurementPeriod.end ? new Date(measurementPeriod.end + 'T12:00:00').toLocaleDateString('pt-BR') : ''}`}
         maxWidth="5xl"
-        className="max-h-[90vh] overflow-hidden"
+        className="h-[95vh]"
       >
-        <div className="flex flex-col h-full bg-white overflow-hidden">
-          <div className="flex-1 overflow-auto p-0 space-y-4 custom-scrollbar">
+        <div className="flex flex-col h-full bg-white overflow-hidden pb-40">
+          <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4 custom-scrollbar">
             <Table className="w-full min-w-max border-collapse">
-              <TableHeader className="bg-slate-50 sticky top-0 z-10">
-                <TableRow>
-                  <TableHead className="w-24 text-[10px] font-black uppercase">Data</TableHead>
-                  <TableHead className="w-32 text-[10px] font-black uppercase">Inicial</TableHead>
-                  <TableHead className="w-32 text-[10px] font-black uppercase">Final</TableHead>
-                  <TableHead className="w-48 text-[10px] font-black uppercase text-center">Desconto</TableHead>
-                  <TableHead className="w-24 text-[10px] font-black uppercase text-center">Total</TableHead>
-                  <TableHead className="w-48 text-[10px] font-black uppercase">Status</TableHead>
+              <TableHeader className="bg-white sticky top-0 z-20">
+                <TableRow className="border-b-2 border-slate-100">
+                  <TableHead className="w-24 text-[10px] font-black uppercase text-slate-500">Data</TableHead>
+                  <TableHead className="w-32 text-[10px] font-black uppercase text-slate-500">Inicial</TableHead>
+                  <TableHead className="w-32 text-[10px] font-black uppercase text-slate-500">Final</TableHead>
+                  <TableHead className="w-24 text-[10px] font-black uppercase text-slate-500 text-center">Desc.</TableHead>
+                  <TableHead className="w-24 text-[10px] font-black uppercase text-slate-500 text-center">Total</TableHead>
+                  <TableHead className="w-48 text-[10px] font-black uppercase text-slate-500">Status</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {tempDailyData.map((day, idx) => (
-                  <TableRow key={day.date}>
-                    <TableCell className="text-xs font-bold">{new Date(day.date + 'T12:00:00').toLocaleDateString('pt-BR')}</TableCell>
+                  <TableRow key={day.date} className="hover:bg-slate-50 transition-colors h-14">
+                    <TableCell className="text-[11px] font-bold text-slate-600">
+                      {new Date(day.date + 'T12:00:00').toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: '2-digit' })}
+                    </TableCell>
                     <TableCell>
                       <NumericInput 
                         value={day.initialReading} 
@@ -3213,7 +3239,7 @@ export default function ControlView({
                           newDays[idx].initialReading = val;
                           setTempDailyData(newDays);
                         }}
-                        className="h-9 rounded-lg"
+                        className="h-9 rounded-lg text-xs font-bold border-slate-200"
                       />
                     </TableCell>
                     <TableCell>
@@ -3222,16 +3248,20 @@ export default function ControlView({
                         onChange={val => {
                           const newDays = [...tempDailyData];
                           newDays[idx].finalReading = val;
+                          // AUTO PROPAGATE
+                          if (idx + 1 < newDays.length) {
+                             newDays[idx+1].initialReading = val;
+                          }
                           setTempDailyData(newDays);
                         }}
-                        className="h-9 rounded-lg"
+                        className="h-9 rounded-lg text-xs font-bold border-slate-200"
                       />
                     </TableCell>
                     <TableCell>
                       <div className="flex justify-center items-center">
                         <input 
                           type="checkbox" 
-                          className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                          className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
                           checked={day.discount}
                           onChange={e => {
                             const newDays = [...tempDailyData];
@@ -3241,16 +3271,13 @@ export default function ControlView({
                         />
                       </div>
                     </TableCell>
-                    <TableCell className="text-center">
-                      <span className={cn("text-xs font-black", day.discount ? "line-through text-slate-300" : "text-blue-600")}>
-                        {day.finalReading - day.initialReading}
-                      </span>
+                    <TableCell className="text-center font-black text-blue-600 text-[11px]">
+                      {(day.finalReading - day.initialReading).toLocaleString('pt-BR')}
                     </TableCell>
                     <TableCell>
                       <Select value={day.status} onValueChange={(val: any) => {
                         const newDays = [...tempDailyData];
                         newDays[idx].status = val;
-                        // Auto-mark discount if not "Trabalhando", but allow user to unmark later
                         if (val !== 'Trabalhando') {
                           newDays[idx].discount = true;
                         } else {
@@ -3258,13 +3285,15 @@ export default function ControlView({
                         }
                         setTempDailyData(newDays);
                       }}>
-                        <SelectTrigger className="h-9 rounded-lg px-2"><SelectValue /></SelectTrigger>
+                        <SelectTrigger className="h-9 rounded-lg text-xs font-medium border-slate-200 px-2">
+                          <SelectValue />
+                        </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="Trabalhando">Trabalhando</SelectItem>
-                          <SelectItem value="Chuva">Chuva</SelectItem>
-                          <SelectItem value="Manutenção">Manutenção</SelectItem>
-                          <SelectItem value="Aguardando Frente">Aguardando Frente</SelectItem>
-                          <SelectItem value="à Disposição">à Disposição</SelectItem>
+                          <SelectItem value="Trabalhando" className="text-xs">Trabalhando</SelectItem>
+                          <SelectItem value="Chuva" className="text-xs">Chuva</SelectItem>
+                          <SelectItem value="Manutenção" className="text-xs">Manutenção</SelectItem>
+                          <SelectItem value="Aguardando Frente" className="text-xs">Aguardando Frente</SelectItem>
+                          <SelectItem value="à Disposição" className="text-xs">à Disposição</SelectItem>
                         </SelectContent>
                       </Select>
                     </TableCell>
@@ -3273,45 +3302,40 @@ export default function ControlView({
               </TableBody>
             </Table>
           </div>
-          <div className="p-6 border-t border-slate-100 flex justify-between items-center bg-slate-50 overflow-x-auto">
-            <div className="flex gap-8">
-              <div>
-                <p className="text-[10px] uppercase font-black text-slate-400">Total Bruto</p>
-                <p className="text-xl font-black text-slate-500">
-                  {tempDailyData.reduce((acc, curr) => acc + (curr.finalReading - curr.initialReading), 0)}
-                  <span className="text-xs ml-1 uppercase">{selectedEquipment?.measurementUnit === 'Horímetro' ? 'h' : selectedEquipment?.measurementUnit === 'Quilometragem' ? 'km' : ''}</span>
-                </p>
+          
+          <div className="absolute bottom-0 left-0 right-0 p-6 bg-white border-t flex flex-col gap-4 z-30 rounded-b-2xl shadow-[0_-8px_30px_rgb(0,0,0,0.04)]">
+            <div className="flex items-center justify-between overflow-x-auto pb-2">
+              <div className="flex gap-10">
+                <div className="flex flex-col">
+                  <span className="text-[9px] uppercase font-black text-slate-400 tracking-wider">Total Líquido</span>
+                  <span className="text-2xl font-black text-blue-600 leading-none">
+                    {tempDailyData.reduce((acc, curr) => acc + (curr.discount ? 0 : (curr.finalReading - curr.initialReading)), 0).toLocaleString('pt-BR')}
+                    <span className="text-[10px] ml-1 uppercase">{selectedEquipment?.measurementUnit === 'Horímetro' ? 'h' : 'km'}</span>
+                  </span>
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-[9px] uppercase font-black text-slate-400 tracking-wider">Valor Total</span>
+                  <span className="text-2xl font-black text-emerald-600 leading-none">
+                    {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(
+                      tempDailyData.reduce((acc, curr) => acc + (curr.discount ? 0 : (curr.finalReading - curr.initialReading)), 0) * (selectedEquipment?.contractedPrice || 0)
+                    )}
+                  </span>
+                </div>
+                <div className="hidden lg:flex flex-col">
+                  <span className="text-[9px] uppercase font-black text-slate-400 tracking-wider">Média Diária</span>
+                  <span className="text-2xl font-black text-slate-600 leading-none">
+                    {(tempDailyData.reduce((acc, curr) => acc + (curr.discount ? 0 : (curr.finalReading - curr.initialReading)), 0) / (tempDailyData.length || 1)).toFixed(1).toLocaleString()}
+                    <span className="text-[10px] ml-1 uppercase font-bold text-slate-400">/dia</span>
+                  </span>
+                </div>
               </div>
-              <div>
-                <p className="text-[10px] uppercase font-black text-slate-400 font-bold text-blue-600">Total Líquido</p>
-                <p className="text-xl font-black text-blue-600">
-                  {tempDailyData.reduce((acc, curr) => acc + (curr.discount ? 0 : (curr.finalReading - curr.initialReading)), 0)}
-                  <span className="text-xs ml-1 uppercase">{selectedEquipment?.measurementUnit === 'Horímetro' ? 'h' : selectedEquipment?.measurementUnit === 'Quilometragem' ? 'km' : ''}</span>
-                </p>
+              
+              <div className="flex items-center gap-3">
+                <Button variant="ghost" onClick={() => setIsNewMeasurementModalOpen(false)} className="rounded-xl font-bold text-xs uppercase tracking-widest px-6 h-12">Descartar</Button>
+                <Button onClick={handleSaveMeasurement} className="rounded-2xl bg-blue-600 px-10 font-black text-[11px] uppercase tracking-widest shadow-xl shadow-blue-100 h-12 transition-all active:scale-95 group">
+                  <Check className="w-5 h-5 mr-2 group-hover:scale-110 transition-transform" /> Confirmar e Salvar Medição
+                </Button>
               </div>
-              <div>
-                <p className="text-[10px] uppercase font-black text-slate-400">Preço Unitário</p>
-                <p className="text-xl font-black text-slate-600">
-                  {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(selectedEquipment?.contractedPrice || 0)}
-                </p>
-              </div>
-              <div>
-                <p className="text-[10px] uppercase font-black text-slate-400">Total de Descontos</p>
-                <p className="text-xl font-black text-amber-600">
-                  {tempDailyData.reduce((acc, curr) => acc + (curr.discount ? (curr.finalReading - curr.initialReading) : 0), 0)}
-                  <span className="text-xs ml-1 uppercase">{selectedEquipment?.measurementUnit === 'Horímetro' ? 'h' : selectedEquipment?.measurementUnit === 'Quilometragem' ? 'km' : ''}</span>
-                </p>
-              </div>
-              <div>
-                <p className="text-[10px] uppercase font-black text-slate-400">Valor Total</p>
-                <p className="text-xl font-black text-emerald-600">
-                  {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(tempDailyData.reduce((acc, curr) => acc + (curr.discount ? 0 : (curr.finalReading - curr.initialReading)), 0) * (selectedEquipment?.contractedPrice || 0))}
-                </p>
-              </div>
-            </div>
-            <div className="flex gap-3">
-              <Button variant="outline" onClick={() => setIsNewMeasurementModalOpen(false)}>Cancelar</Button>
-              <Button className="bg-blue-600 font-bold px-8" onClick={handleSaveMeasurement}>Salvar Medição</Button>
             </div>
           </div>
         </div>
