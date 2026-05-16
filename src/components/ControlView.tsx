@@ -37,8 +37,11 @@ import {
   Activity,
   Layers,
   DollarSign,
-  Camera
+  Camera,
+  FileText
 } from 'lucide-react';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 import { 
   ControllerEquipment, 
   EquipmentMonthlyData, 
@@ -612,11 +615,145 @@ export default function ControlView({
     setTempDailyData(dailyData);
   };
 
+  const generateMeasurementPDF = (measurement: EquipmentMeasurement, equipment: ControllerEquipment) => {
+    const doc = new jsPDF();
+    const pageWidth = doc.internal.pageSize.getWidth();
+    
+    // Header
+    doc.setFontSize(20);
+    doc.setFont("helvetica", "bold");
+    doc.text("RELATÓRIO DE MEDIÇÃO", pageWidth / 2, 20, { align: 'center' });
+    
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "normal");
+    doc.text(`Empresa: ${currentUser?.companyName || 'SIGO System'}`, 20, 30);
+    doc.text(`Equipamento: ${equipment.code} - ${equipment.name}`, 20, 35);
+    doc.text(`Série/Placa: ${equipment.plate || 'N/A'}`, 20, 40);
+    const pStartDay = measurement.period.split(' a ')[0];
+    const pEndDay = measurement.period.split(' a ')[1];
+    doc.text(`Período: ${new Date(pStartDay + 'T12:00:00').toLocaleDateString('pt-BR')} a ${new Date(pEndDay + 'T12:00:00').toLocaleDateString('pt-BR')}`, 20, 45);
+    doc.text(`Unidade: ${equipment.measurementUnit}`, pageWidth - 20, 30, { align: 'right' });
+    doc.text(`Mês Referência: ${measurement.month}`, pageWidth - 20, 35, { align: 'right' });
+    
+    // Measurement Details Table
+    doc.setFontSize(14);
+    doc.setFont("helvetica", "bold");
+    doc.text("Detalhamento da Medição", 20, 60);
+    
+    const tableData = (measurement.details || []).map(day => [
+      new Date(day.date + 'T12:00:00').toLocaleDateString('pt-BR'),
+      day.initialReading.toLocaleString('pt-BR'),
+      day.finalReading.toLocaleString('pt-BR'),
+      day.discount ? "Sim" : "Não",
+      (day.discount ? 0 : (day.finalReading - day.initialReading)).toLocaleString('pt-BR'),
+      day.status
+    ]);
+    
+    autoTable(doc, {
+      startY: 65,
+      head: [['Data', 'Inicial', 'Final', 'Desc.', 'Total Líquido', 'Status']],
+      body: tableData,
+      theme: 'striped',
+      headStyles: { fillColor: [30, 41, 59] },
+      styles: { fontSize: 8 }
+    });
+    
+    let lastY = (doc as any).lastAutoTable.finalY || 65;
+    let currentY = lastY + 15;
+    
+    // Summary
+    if (currentY > 260) { doc.addPage(); currentY = 20; }
+    doc.setFontSize(12);
+    doc.setFont("helvetica", "bold");
+    doc.text("Resumo de Produção", 20, currentY);
+    currentY += 8;
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "normal");
+    const totalBruto = measurement.details?.reduce((acc, d) => acc + (d.finalReading - d.initialReading), 0) || 0;
+    doc.text(`Total Lançado (Bruto): ${totalBruto.toLocaleString('pt-BR')} ${equipment.measurementUnit === 'Horímetro' ? 'h' : 'km'}`, 20, currentY);
+    doc.text(`Total Líquido: ${measurement.totalUnits.toLocaleString('pt-BR')} ${equipment.measurementUnit === 'Horímetro' ? 'h' : 'km'}`, 20, currentY + 5);
+    doc.text(`Valor Unitário: ${new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(equipment.contractedPrice || 0)}`, pageWidth - 20, currentY, { align: 'right' });
+    doc.text(`Valor Total Medido: ${new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(measurement.totalValue || 0)}`, pageWidth - 20, currentY + 5, { align: 'right' });
+    
+    currentY += 20;
+
+    // Filter Fuel Logs
+    const startRange = new Date(pStartDay + 'T00:00:00');
+    const endRange = new Date(pEndDay + 'T23:59:59');
+    
+    const relatedFuel = fuelLogs.filter(f => 
+      f.equipmentId === equipment.id && 
+      new Date(f.date) >= startRange && 
+      new Date(f.date) <= endRange
+    );
+
+    if (relatedFuel.length > 0) {
+      if (currentY > 230) { doc.addPage(); currentY = 20; }
+      doc.setFontSize(14);
+      doc.setFont("helvetica", "bold");
+      doc.text("Histórico de Abastecimentos (No Período)", 20, currentY);
+      
+      const fuelData = relatedFuel.map(f => [
+        new Date(f.date).toLocaleDateString('pt-BR'),
+        f.quantity.toLocaleString('pt-BR') + ' L',
+        f.unitPrice ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(f.unitPrice) : '-',
+        f.cost ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(f.cost) : '-',
+        f.notes || ''
+      ]);
+
+      autoTable(doc, {
+        startY: currentY + 5,
+        head: [['Data', 'Quantidade', 'Preço Un.', 'Custo Total', 'Observações']],
+        body: fuelData,
+        theme: 'grid',
+        headStyles: { fillColor: [245, 158, 11] },
+        styles: { fontSize: 8 }
+      });
+      lastY = (doc as any).lastAutoTable.finalY || currentY;
+      currentY = lastY + 15;
+    }
+
+    // Filter Maintenance
+    const relatedMaint = equipmentMaintenance.filter(m => 
+      m.equipmentId === equipment.id && 
+      new Date(m.entryDate) >= startRange && 
+      new Date(m.entryDate) <= endRange
+    );
+
+    if (relatedMaint.length > 0) {
+      if (currentY > 230) { doc.addPage(); currentY = 20; }
+      doc.setFontSize(14);
+      doc.setFont("helvetica", "bold");
+      doc.text("Histórico de Manutenções (Iniciadas no Período)", 20, currentY);
+      
+      const maintData = relatedMaint.map(m => [
+        new Date(m.entryDate).toLocaleDateString('pt-BR'),
+        m.exitDate ? new Date(m.exitDate).toLocaleDateString('pt-BR') : 'Em aberto',
+        m.type === 'preventive' ? 'Preventiva' : 'Corretiva',
+        m.requestedItems || '',
+        m.totalCost ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(m.totalCost) : '-'
+      ]);
+
+      autoTable(doc, {
+        startY: currentY + 5,
+        head: [['Entrada', 'Saída', 'Tipo', 'Descrição/Itens', 'Custo']],
+        body: maintData,
+        theme: 'grid',
+        headStyles: { fillColor: [220, 38, 38] },
+        styles: { fontSize: 8 }
+      });
+    }
+
+    doc.save(`Medicao_${equipment.code}_${measurement.month}.pdf`);
+  };
+
   const handleSaveMeasurement = () => {
     if (!selectedEquipment) return;
     
     const tempMeasurements = selectedEquipment.measurements || [];
-    const totalUnits = tempDailyData.reduce((acc, curr) => acc + (curr.discount ? 0 : (curr.finalReading - curr.initialReading)), 0);
+    // DESCONSIDERA DIAS NÃO PREENCHIDOS (FINAL READING <= 0)
+    const filledDays = tempDailyData.filter(d => d.finalReading > 0);
+    const totalUnits = filledDays.reduce((acc, curr) => acc + (curr.discount ? 0 : (curr.finalReading - curr.initialReading)), 0);
     const unitPrice = selectedEquipment.contractedPrice || 0;
     const totalValue = totalUnits * unitPrice;
 
@@ -3005,35 +3142,48 @@ export default function ControlView({
                             {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(m.totalValue || 0)}
                           </TableCell>
                           <TableCell className="text-right">
-                            <Button 
-                              variant="ghost" 
-                              size="icon" 
-                              className="h-8 w-8 text-blue-600 hover:bg-blue-50"
-                              onClick={() => {
-                                const parts = m.period.split(' a ');
-                                if (parts.length === 2) {
-                                  setMeasurementPeriod({ start: parts[0], end: parts[1] });
-                                }
-                                setMeasurementMonth(m.month);
-                                setTempDailyData(m.details.map(d => ({
-                                  ...d,
-                                  discount: d.discount ?? false
-                                })));
-                                setEditingMeasurementId(m.id);
-                                setSelectedEquipment(equipmentToEdit);
-                                setIsNewMeasurementModalOpen(true);
-                              }}
-                            >
-                              <Edit className="w-4 h-4" />
-                            </Button>
-                            <Button 
-                              variant="ghost" 
-                              size="icon" 
-                              className="h-8 w-8 text-red-600 hover:bg-red-50"
-                              onClick={() => handleDeleteMeasurement(m.id)}
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
+                            <div className="flex items-center justify-end gap-1">
+                              <Button 
+                                variant="ghost" 
+                                size="icon" 
+                                className="h-8 w-8 text-blue-600 hover:bg-blue-50"
+                                onClick={() => {
+                                  const parts = m.period.split(' a ');
+                                  if (parts.length === 2) {
+                                    setMeasurementPeriod({ start: parts[0], end: parts[1] });
+                                  }
+                                  setMeasurementMonth(m.month);
+                                  setTempDailyData(m.details.map(d => ({
+                                    ...d,
+                                    discount: d.discount ?? false
+                                  })));
+                                  setEditingMeasurementId(m.id);
+                                  setSelectedEquipment(equipmentToEdit);
+                                  setIsNewMeasurementModalOpen(true);
+                                }}
+                                title="Editar Medição"
+                              >
+                                <Edit className="w-4 h-4" />
+                              </Button>
+                              <Button 
+                                variant="ghost" 
+                                size="icon" 
+                                className="h-8 w-8 text-emerald-600 hover:bg-emerald-50"
+                                onClick={() => equipmentToEdit && generateMeasurementPDF(m, equipmentToEdit)}
+                                title="Gerar PDF"
+                              >
+                                <FileText className="w-4 h-4" />
+                              </Button>
+                              <Button 
+                                variant="ghost" 
+                                size="icon" 
+                                className="h-8 w-8 text-red-600 hover:bg-red-50"
+                                onClick={() => handleDeleteMeasurement(m.id)}
+                                title="Excluir Medição"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
+                            </div>
                           </TableCell>
                         </TableRow>
                       ))}
@@ -3212,7 +3362,7 @@ export default function ControlView({
         maxWidth="5xl"
         className="h-[95vh]"
       >
-        <div className="flex flex-col h-full bg-white overflow-hidden pb-40">
+        <div className="flex flex-col h-full bg-white overflow-hidden">
           <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4 custom-scrollbar">
             <Table className="w-full min-w-max border-collapse">
               <TableHeader className="bg-white sticky top-0 z-20">
@@ -3303,13 +3453,13 @@ export default function ControlView({
             </Table>
           </div>
           
-          <div className="absolute bottom-0 left-0 right-0 p-6 bg-white border-t flex flex-col gap-4 z-30 rounded-b-2xl shadow-[0_-8px_30px_rgb(0,0,0,0.04)]">
+          <div className="p-6 bg-white border-t flex flex-col gap-4 z-30 rounded-b-2xl shadow-[0_-8px_30px_rgb(0,0,0,0.04)]">
             <div className="flex items-center justify-between overflow-x-auto pb-2">
               <div className="flex gap-10">
                 <div className="flex flex-col">
                   <span className="text-[9px] uppercase font-black text-slate-400 tracking-wider">Total Líquido</span>
                   <span className="text-2xl font-black text-blue-600 leading-none">
-                    {tempDailyData.reduce((acc, curr) => acc + (curr.discount ? 0 : (curr.finalReading - curr.initialReading)), 0).toLocaleString('pt-BR')}
+                    {tempDailyData.filter(d => d.finalReading > 0).reduce((acc, curr) => acc + (curr.discount ? 0 : (curr.finalReading - curr.initialReading)), 0).toLocaleString('pt-BR')}
                     <span className="text-[10px] ml-1 uppercase">{selectedEquipment?.measurementUnit === 'Horímetro' ? 'h' : 'km'}</span>
                   </span>
                 </div>
@@ -3317,14 +3467,14 @@ export default function ControlView({
                   <span className="text-[9px] uppercase font-black text-slate-400 tracking-wider">Valor Total</span>
                   <span className="text-2xl font-black text-emerald-600 leading-none">
                     {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(
-                      tempDailyData.reduce((acc, curr) => acc + (curr.discount ? 0 : (curr.finalReading - curr.initialReading)), 0) * (selectedEquipment?.contractedPrice || 0)
+                      tempDailyData.filter(d => d.finalReading > 0).reduce((acc, curr) => acc + (curr.discount ? 0 : (curr.finalReading - curr.initialReading)), 0) * (selectedEquipment?.contractedPrice || 0)
                     )}
                   </span>
                 </div>
                 <div className="hidden lg:flex flex-col">
                   <span className="text-[9px] uppercase font-black text-slate-400 tracking-wider">Média Diária</span>
                   <span className="text-2xl font-black text-slate-600 leading-none">
-                    {(tempDailyData.reduce((acc, curr) => acc + (curr.discount ? 0 : (curr.finalReading - curr.initialReading)), 0) / (tempDailyData.length || 1)).toFixed(1).toLocaleString()}
+                    {(tempDailyData.filter(d => d.finalReading > 0).reduce((acc, curr) => acc + (curr.discount ? 0 : (curr.finalReading - curr.initialReading)), 0) / (tempDailyData.filter(d => d.finalReading > 0).length || 1)).toFixed(1).toLocaleString()}
                     <span className="text-[10px] ml-1 uppercase font-bold text-slate-400">/dia</span>
                   </span>
                 </div>
