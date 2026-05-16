@@ -618,66 +618,49 @@ export default function ControlView({
   const generateMeasurementPDF = (measurement: EquipmentMeasurement, equipment: ControllerEquipment) => {
     const doc = new jsPDF();
     const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
     
-    // Header
-    doc.setFontSize(20);
-    doc.setFont("helvetica", "bold");
-    doc.text("RELATÓRIO DE MEDIÇÃO", pageWidth / 2, 20, { align: 'center' });
+    const addHeaderFooter = (pageNum: number) => {
+      // Header
+      doc.setFillColor(30, 41, 59);
+      doc.rect(0, 0, pageWidth, 40, 'F');
+      
+      doc.setFontSize(22);
+      doc.setTextColor(255, 255, 255);
+      doc.setFont("helvetica", "bold");
+      doc.text("RELATÓRIO DE MEDIÇÃO", 20, 20);
+      
+      doc.setFontSize(8);
+      doc.setTextColor(200, 200, 200);
+      doc.text(`SISTEMA DE GESTÃO - SIGO`, 20, 30);
+      
+      // Footer
+      doc.setFillColor(30, 41, 59);
+      doc.rect(0, pageHeight - 20, pageWidth, 20, 'F');
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(8);
+      doc.text(`Página ${pageNum}`, pageWidth / 2, pageHeight - 10, { align: 'center' });
+      doc.text(`Gerado em ${new Date().toLocaleString('pt-BR')}`, 20, pageHeight - 10);
+      doc.text(`SIGO System - Automação e Controle`, pageWidth - 20, pageHeight - 10, { align: 'right' });
+    };
+
+    addHeaderFooter(1);
     
+    doc.setTextColor(0, 0, 0);
     doc.setFontSize(10);
+    doc.setFont("helvetica", "bold");
+    doc.text("DADOS DO EQUIPAMENTO", 20, 50);
+    
     doc.setFont("helvetica", "normal");
-    doc.text(`Empresa: ${currentUser?.companyName || 'SIGO System'}`, 20, 30);
-    doc.text(`Equipamento: ${equipment.code} - ${equipment.name}`, 20, 35);
-    doc.text(`Série/Placa: ${equipment.plate || 'N/A'}`, 20, 40);
+    doc.text(`Equipamento: ${equipment.code} - ${equipment.name}`, 20, 58);
+    doc.text(`Série/Placa: ${equipment.plate || 'N/A'}`, 20, 64);
     const pStartDay = measurement.period.split(' a ')[0];
     const pEndDay = measurement.period.split(' a ')[1];
-    doc.text(`Período: ${new Date(pStartDay + 'T12:00:00').toLocaleDateString('pt-BR')} a ${new Date(pEndDay + 'T12:00:00').toLocaleDateString('pt-BR')}`, 20, 45);
-    doc.text(`Unidade: ${equipment.measurementUnit}`, pageWidth - 20, 30, { align: 'right' });
-    doc.text(`Mês Referência: ${measurement.month}`, pageWidth - 20, 35, { align: 'right' });
-    
-    // Measurement Details Table
-    doc.setFontSize(14);
-    doc.setFont("helvetica", "bold");
-    doc.text("Detalhamento da Medição", 20, 60);
-    
-    const tableData = (measurement.details || []).map(day => [
-      new Date(day.date + 'T12:00:00').toLocaleDateString('pt-BR'),
-      day.initialReading.toLocaleString('pt-BR'),
-      day.finalReading.toLocaleString('pt-BR'),
-      day.discount ? "Sim" : "Não",
-      (day.discount ? 0 : (day.finalReading - day.initialReading)).toLocaleString('pt-BR'),
-      day.status
-    ]);
-    
-    autoTable(doc, {
-      startY: 65,
-      head: [['Data', 'Inicial', 'Final', 'Desc.', 'Total Líquido', 'Status']],
-      body: tableData,
-      theme: 'striped',
-      headStyles: { fillColor: [30, 41, 59] },
-      styles: { fontSize: 8 }
-    });
-    
-    let lastY = (doc as any).lastAutoTable.finalY || 65;
-    let currentY = lastY + 15;
-    
-    // Summary
-    if (currentY > 260) { doc.addPage(); currentY = 20; }
-    doc.setFontSize(12);
-    doc.setFont("helvetica", "bold");
-    doc.text("Resumo de Produção", 20, currentY);
-    currentY += 8;
-    doc.setFontSize(10);
-    doc.setFont("helvetica", "normal");
-    const totalBruto = measurement.details?.reduce((acc, d) => acc + (d.finalReading - d.initialReading), 0) || 0;
-    doc.text(`Total Lançado (Bruto): ${totalBruto.toLocaleString('pt-BR')} ${equipment.measurementUnit === 'Horímetro' ? 'h' : 'km'}`, 20, currentY);
-    doc.text(`Total Líquido: ${measurement.totalUnits.toLocaleString('pt-BR')} ${equipment.measurementUnit === 'Horímetro' ? 'h' : 'km'}`, 20, currentY + 5);
-    doc.text(`Valor Unitário: ${new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(equipment.contractedPrice || 0)}`, pageWidth - 20, currentY, { align: 'right' });
-    doc.text(`Valor Total Medido: ${new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(measurement.totalValue || 0)}`, pageWidth - 20, currentY + 5, { align: 'right' });
-    
-    currentY += 20;
+    doc.text(`Período: ${new Date(pStartDay + 'T12:00:00').toLocaleDateString('pt-BR')} a ${new Date(pEndDay + 'T12:00:00').toLocaleDateString('pt-BR')}`, 20, 70);
+    doc.text(`Unidade: ${equipment.measurementUnit}`, 20, 76);
+    doc.text(`Mês Referência: ${measurement.month}`, 20, 82);
 
-    // Filter Fuel Logs
+    // Filter data for the period
     const startRange = new Date(pStartDay + 'T00:00:00');
     const endRange = new Date(pEndDay + 'T23:59:59');
     
@@ -687,64 +670,111 @@ export default function ControlView({
       new Date(f.date) <= endRange
     );
 
-    if (relatedFuel.length > 0) {
-      if (currentY > 230) { doc.addPage(); currentY = 20; }
-      doc.setFontSize(14);
-      doc.setFont("helvetica", "bold");
-      doc.text("Histórico de Abastecimentos (No Período)", 20, currentY);
-      
-      const fuelData = relatedFuel.map(f => [
-        new Date(f.date).toLocaleDateString('pt-BR'),
-        f.quantity.toLocaleString('pt-BR') + ' L',
-        f.unitPrice ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(f.unitPrice) : '-',
-        f.cost ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(f.cost) : '-',
-        f.notes || ''
-      ]);
-
-      autoTable(doc, {
-        startY: currentY + 5,
-        head: [['Data', 'Quantidade', 'Preço Un.', 'Custo Total', 'Observações']],
-        body: fuelData,
-        theme: 'grid',
-        headStyles: { fillColor: [245, 158, 11] },
-        styles: { fontSize: 8 }
-      });
-      lastY = (doc as any).lastAutoTable.finalY || currentY;
-      currentY = lastY + 15;
-    }
-
-    // Filter Maintenance
     const relatedMaint = equipmentMaintenance.filter(m => 
       m.equipmentId === equipment.id && 
       new Date(m.entryDate) >= startRange && 
       new Date(m.entryDate) <= endRange
     );
 
-    if (relatedMaint.length > 0) {
-      if (currentY > 230) { doc.addPage(); currentY = 20; }
-      doc.setFontSize(14);
+    // Measurement Table (Left Side)
+    const measurementTableData = (measurement.details || []).map(day => [
+      new Date(day.date + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }),
+      day.initialReading.toLocaleString('pt-BR'),
+      day.finalReading > 0 ? day.finalReading.toLocaleString('pt-BR') : '-',
+      (day.finalReading > 0 && !day.discount) ? (day.finalReading - day.initialReading).toLocaleString('pt-BR') : '-',
+      day.status.substring(0, 3)
+    ]);
+
+    autoTable(doc, {
+      startY: 90,
+      margin: { right: pageWidth / 2 + 5, left: 20 },
+      head: [['Data', 'Ini', 'Fim', 'Liq', 'St']],
+      body: measurementTableData,
+      theme: 'grid',
+      headStyles: { fillColor: [30, 41, 59], fontSize: 7 },
+      styles: { fontSize: 7, cellPadding: 1 },
+      columnStyles: {
+        0: { cellWidth: 15 },
+        1: { cellWidth: 15 },
+        2: { cellWidth: 15 },
+        3: { cellWidth: 15 },
+        4: { cellWidth: 15 }
+      }
+    });
+
+    const measurementFinalY = (doc as any).lastAutoTable.finalY || 90;
+
+    // Fuel Table (Right Side)
+    if (relatedFuel.length > 0) {
+      doc.setFontSize(10);
       doc.setFont("helvetica", "bold");
-      doc.text("Histórico de Manutenções (Iniciadas no Período)", 20, currentY);
+      doc.text("ABASTECIMENTOS", pageWidth / 2 + 5, 50);
+      
+      const fuelData = relatedFuel.map(f => [
+        new Date(f.date).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }),
+        f.quantity.toLocaleString('pt-BR') + ' L',
+        f.cost ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(f.cost) : '-',
+      ]);
+
+      autoTable(doc, {
+        startY: 55,
+        margin: { left: pageWidth / 2 + 5, right: 20 },
+        head: [['Data', 'Qtd', 'Custo']],
+        body: fuelData,
+        theme: 'grid',
+        headStyles: { fillColor: [16, 185, 129], fontSize: 7 },
+        styles: { fontSize: 7, cellPadding: 1 }
+      });
+    } else {
+       doc.setFontSize(10);
+       doc.setFont("helvetica", "italic");
+       doc.text("Nenhum abastecimento no período", pageWidth / 2 + 5, 50);
+    }
+
+    const fuelFinalY = (doc as any).lastAutoTable.finalY || 90;
+    let nextY = Math.max(measurementFinalY, fuelFinalY) + 15;
+
+    // Maintenance Table (Below)
+    if (relatedMaint.length > 0) {
+      if (nextY > pageHeight - 60) { doc.addPage(); addHeaderFooter(2); nextY = 50; }
+      doc.setFontSize(10);
+      doc.setFont("helvetica", "bold");
+      doc.text("HISTÓRICO DE MANUTENÇÃO NO PERÍODO", 20, nextY);
       
       const maintData = relatedMaint.map(m => [
         new Date(m.entryDate).toLocaleDateString('pt-BR'),
-        m.exitDate ? new Date(m.exitDate).toLocaleDateString('pt-BR') : 'Em aberto',
-        m.type === 'preventive' ? 'Preventiva' : 'Corretiva',
+        m.exitDate ? new Date(m.exitDate).toLocaleDateString('pt-BR') : 'Aberto',
+        m.type === 'preventive' ? 'Prev.' : 'Corr.',
         m.requestedItems || '',
         m.totalCost ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(m.totalCost) : '-'
       ]);
 
       autoTable(doc, {
-        startY: currentY + 5,
-        head: [['Entrada', 'Saída', 'Tipo', 'Descrição/Itens', 'Custo']],
+        startY: nextY + 5,
+        margin: { left: 20, right: 20 },
+        head: [['Entrada', 'Saída', 'Tipo', 'Descrição', 'Custo']],
         body: maintData,
         theme: 'grid',
-        headStyles: { fillColor: [220, 38, 38] },
+        headStyles: { fillColor: [239, 68, 68], fontSize: 8 },
         styles: { fontSize: 8 }
       });
+      nextY = (doc as any).lastAutoTable.finalY + 15;
     }
 
-    doc.save(`Medicao_${equipment.code}_${measurement.month}.pdf`);
+    // Totals bar
+    if (nextY > pageHeight - 40) { doc.addPage(); addHeaderFooter(doc.getNumberOfPages()); nextY = 50; }
+    doc.setFillColor(248, 250, 252);
+    doc.rect(20, nextY, pageWidth - 40, 20, 'F');
+    doc.setDrawColor(226, 232, 240);
+    doc.rect(20, nextY, pageWidth - 40, 20, 'S');
+
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(30, 41, 59);
+    doc.text(`TOTAL PRODUÇÃO: ${measurement.totalUnits.toLocaleString('pt-BR')} ${equipment.measurementUnit === 'Horímetro' ? 'h' : 'km'}`, 30, nextY + 12);
+    doc.text(`VALOR TOTAL: ${new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(measurement.totalValue || 0)}`, pageWidth - 30, nextY + 12, { align: 'right' });
+
+    doc.save(`Medicao_${equipment.code}_${measurement.month.replace('/','-')}.pdf`);
   };
 
   const handleSaveMeasurement = () => {
@@ -1385,7 +1415,7 @@ export default function ControlView({
             </div>
 
             {maintenanceItems.length > 0 && (
-              <div className="space-y-2 mt-2 max-h-40 overflow-y-auto custom-scrollbar">
+              <div className="space-y-2 mt-2 max-h-40 overflow-y-auto scrollbar-thin-visible">
                 {maintenanceItems.map((item, idx) => (
                   <div key={idx} className="flex items-center justify-between bg-white p-3 rounded-xl border border-emerald-50 shadow-sm animate-in slide-in-from-left duration-200">
                     <span className="text-xs font-black text-emerald-900">{item.quantity}x {item.description}</span>
@@ -1666,7 +1696,7 @@ export default function ControlView({
                         <TabsTrigger value="obs" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:text-blue-600 border-b-2 border-transparent data-[state=active]:border-blue-600 rounded-none h-full px-0 font-black text-[11px] uppercase tracking-widest">Observações</TabsTrigger>
                       </TabsList>
 
-                      <div className="p-6 flex-1 overflow-y-auto custom-scrollbar bg-white">
+                      <div className="p-6 flex-1 overflow-y-auto scrollbar-thin-visible bg-white">
                         <TabsContent value="basic" className="mt-0 space-y-8 animate-in fade-in duration-300">
                           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                             <div className="space-y-2">
@@ -1960,7 +1990,7 @@ export default function ControlView({
                 </Modal>
               </div>
             </CardHeader>
-            <CardContent className="p-0 overflow-x-auto custom-scrollbar">
+            <CardContent className="p-0 overflow-x-auto scrollbar-thin-visible">
               <Table className="min-w-[1200px]">
                 <TableHeader className="bg-gray-50/50">
                   <TableRow>
@@ -2875,7 +2905,7 @@ export default function ControlView({
               <TabsTrigger value="obs" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:text-blue-600 border-b-2 border-transparent data-[state=active]:border-blue-600 rounded-none h-full px-0 font-black text-[11px] uppercase tracking-widest">Observações</TabsTrigger>
             </TabsList>
 
-            <div className="p-6 flex-1 overflow-y-auto custom-scrollbar bg-white">
+            <div className="p-6 flex-1 overflow-y-auto scrollbar-thin-visible bg-white">
               <TabsContent value="basic" className="mt-0 space-y-8">
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                   <div className="space-y-2">
@@ -3363,7 +3393,7 @@ export default function ControlView({
         className="h-[95vh]"
       >
         <div className="flex flex-col h-full bg-white overflow-hidden">
-          <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4 custom-scrollbar">
+          <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4 scrollbar-thin-visible bg-white">
             <Table className="w-full min-w-max border-collapse">
               <TableHeader className="bg-white sticky top-0 z-20">
                 <TableRow className="border-b-2 border-slate-100">
@@ -3422,7 +3452,7 @@ export default function ControlView({
                       </div>
                     </TableCell>
                     <TableCell className="text-center font-black text-blue-600 text-[11px]">
-                      {(day.finalReading - day.initialReading).toLocaleString('pt-BR')}
+                      {day.finalReading > 0 ? (day.finalReading - day.initialReading).toLocaleString('pt-BR') : '-'}
                     </TableCell>
                     <TableCell>
                       <Select value={day.status} onValueChange={(val: any) => {
@@ -3453,7 +3483,7 @@ export default function ControlView({
             </Table>
           </div>
           
-          <div className="p-6 bg-white border-t flex flex-col gap-4 z-30 rounded-b-2xl shadow-[0_-8px_30px_rgb(0,0,0,0.04)]">
+          <div className="p-6 bg-slate-50 border-t flex flex-col gap-4 z-30 shadow-[0_-8px_30px_rgb(0,0,0,0.06)] relative">
             <div className="flex items-center justify-between overflow-x-auto pb-2">
               <div className="flex gap-10">
                 <div className="flex flex-col">
@@ -4062,7 +4092,7 @@ export default function ControlView({
               </Button>
             </div>
 
-            <div className="space-y-3 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
+            <div className="space-y-3 max-h-[300px] overflow-y-auto pr-2 scrollbar-thin-visible">
               {(currentRequest.items || []).map((item, idx) => (
                 <div key={item.id} className="grid grid-cols-12 gap-3 p-4 bg-gray-50 rounded-2xl border border-gray-100 group transition-all hover:bg-white hover:shadow-md hover:border-blue-100 relative">
                   <div className="col-span-12 sm:col-span-7 space-y-1">
