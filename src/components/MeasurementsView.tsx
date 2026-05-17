@@ -2724,6 +2724,7 @@ function MeasurementsSpreadsheet({
 
                         // Medição Atual
                         const medAtual = selectedMeasurement?.items.find(i => i.serviceId === qs.serviceId)?.quantity || 0;
+                        console.log(`[Debug] Service ${qs.serviceId} medAtual:`, medAtual, 'items:', selectedMeasurement?.items);
                         const vlrMedAtual = medAtual * unitCost;
                         groupTotalMedAtual += vlrMedAtual;
 
