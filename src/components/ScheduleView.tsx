@@ -37,7 +37,8 @@ const ScheduleServiceRow = React.memo(({
   unitCost, 
   rowDistribution, 
   handleValueChange, 
-  readonly 
+  readonly,
+  zoomClasses
 }: {
   item: { serviceId: string; quantity: number };
   service: ServiceComposition | undefined;
@@ -48,6 +49,7 @@ const ScheduleServiceRow = React.memo(({
   rowDistribution: Record<number, number>;
   handleValueChange: (serviceId: string, periodIndex: number, value: number) => void;
   readonly: boolean | undefined;
+  zoomClasses: string;
 }) => {
   if (!service) return null;
   
@@ -91,7 +93,7 @@ const ScheduleServiceRow = React.memo(({
         const periodFinancial = isPercentage ? (periodQty / 100 * item.quantity * unitCost) : (periodQty * unitCost);
 
         return (
-          <TableCell key={p} className={cn("p-0.5 border-l transition-colors h-9", isOverLimit && "bg-red-50")}>
+          <TableCell key={p} className={cn("p-0.5 border-l transition-colors h-9", zoomClasses, isOverLimit && "bg-red-50")}>
             <div className="flex flex-col gap-0">
               {(viewMode === 'qty' || viewMode === 'all') && (
                 <Input 
@@ -165,6 +167,7 @@ export function ScheduleView({ services, resources, quotations, schedules, setSc
   const [selectedQuotationId, setSelectedQuotationId] = useState<string>(isCurrentPopulated ? 'current' : (quotations[0]?.id || ''));
   const [viewMode, setViewMode] = useState<'qty' | 'val' | 'perc' | 'all'>('qty');
   const [hasChanges, setHasChanges] = useState(false);
+  const [zoomLevel, setZoomLevel] = useState<number>(1); // Zoom level factor for cell width
 
   // Drafts in LocalStorage to keep work in progress
   const [draftSchedule, setDraftSchedule] = useLocalStorage<Schedule | null>(`sigo_schedule_draft_${selectedQuotationId}`, null);
@@ -244,6 +247,12 @@ export function ScheduleView({ services, resources, quotations, schedules, setSc
   const activeItems = React.useMemo(() => groupsToRender.flatMap(g => g.services), [groupsToRender]);
 
   const currentSchedule = localSchedule;
+
+  const zoomClasses = {
+    0.5: 'min-w-[40px]',
+    1: 'min-w-[80px]',
+    2: 'min-w-[160px]'
+  }[zoomLevel] || 'min-w-[80px]';
 
   // Optimized lookups and calculations
   const serviceUnitCosts = React.useMemo(() => {
@@ -667,6 +676,22 @@ export function ScheduleView({ services, resources, quotations, schedules, setSc
                 </SelectContent>
               </Select>
             </div>
+            <div className="space-y-1">
+              <Label className="text-[10px] uppercase font-bold text-gray-400">Zoom</Label>
+              <Select 
+                value={zoomLevel.toString()} 
+                onValueChange={(v) => setZoomLevel(parseFloat(v))}
+              >
+                <SelectTrigger className="h-8 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="0.5" className="text-xs">0.5x</SelectItem>
+                  <SelectItem value="1" className="text-xs">1x</SelectItem>
+                  <SelectItem value="2" className="text-xs">2x</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
             <div className="flex items-end">
               {!readonly && (
                 <Button variant="outline" size="sm" className="w-full h-8 text-[10px] uppercase font-bold border-red-100 text-red-600 hover:bg-red-50" onClick={() => {
@@ -700,7 +725,7 @@ export function ScheduleView({ services, resources, quotations, schedules, setSc
                 <TableHead className="w-[130px] min-w-[130px] max-w-[130px] sticky left-0 bg-gray-50/95 backdrop-blur-md z-50 shadow-[1px_0_0_0_rgba(0,0,0,0.1)] border-b py-1 font-bold text-gray-700 text-[10px]">Serviço</TableHead>
                 <TableHead className="min-w-[80px] text-right border-b sticky top-0 bg-gray-50 z-30 font-bold text-gray-600 px-2 text-[10px]">Total Planilha</TableHead>
                 {periods.map(p => (
-                  <TableHead key={p} className="min-w-[80px] text-center border-l bg-gray-50/50 border-b sticky top-0 z-30 font-bold text-gray-600 px-1">
+                  <TableHead key={p} className={cn("text-center border-l bg-gray-50/50 border-b sticky top-0 z-30 font-bold text-gray-600 px-1", zoomClasses)}>
                     <div className="flex flex-col gap-0.5">
                       {getPeriodLabel(p)}
                       <div className="flex justify-center gap-1 text-[6px] uppercase text-blue-400 font-mono tracking-tighter">
@@ -746,6 +771,7 @@ export function ScheduleView({ services, resources, quotations, schedules, setSc
                         rowDistribution={scheduleDataLookup[item.serviceId] || {}}
                         handleValueChange={handleValueChange}
                         readonly={readonly}
+                        zoomClasses={zoomClasses}
                       />
                     ))}
 
