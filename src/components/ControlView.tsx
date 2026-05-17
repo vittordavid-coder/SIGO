@@ -194,6 +194,7 @@ export default function ControlView({
   const [tempDailyData, setTempDailyData] = useState<DailyEquipmentMeasurement[]>([]);
   const [measurementMonth, setMeasurementMonth] = useState('');
   const [editingMeasurementId, setEditingMeasurementId] = useState<string | null>(null);
+  const [exportData, setExportData] = useState<{ measurement: EquipmentMeasurement, equipment: ControllerEquipment } | null>(null);
   
   const [isApplyStockOpen, setIsApplyStockOpen] = useState(false);
   const [selectedStockItem, setSelectedStockItem] = useState<{requestId: string, itemIdx: number, item: any} | null>(null);
@@ -831,6 +832,59 @@ export default function ControlView({
     doc.text(`VALOR TOTAL: ${new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(measurement.totalValue || 0)}`, pageWidth - margin, totalY + 6, { align: 'right' });
 
     doc.save(`Medicao_${equipment.code || 'EQ'}_${measurement.month.replace('/','-')}.pdf`);
+  };
+
+  const generateMeasurementExcel = (measurement: EquipmentMeasurement, equipment: ControllerEquipment) => {
+    const wb = XLSX.utils.book_new();
+
+    const pStartDay = measurement.period.split(' a ')[0];
+    const pEndDay = measurement.period.split(' a ')[1];
+    const startRange = new Date(pStartDay + 'T00:00:00');
+    const endRange = new Date(pEndDay + 'T23:59:59');
+    
+    // 1. Production Data
+    const prodData = (measurement.details || []).map(day => ({
+        Data: new Date(day.date + 'T12:00:00').toLocaleDateString('pt-BR'),
+        Inicial: day.initialReading,
+        Final: day.finalReading,
+        Produção: day.discount ? 0 : (day.finalReading - day.initialReading),
+        Status: day.status
+    }));
+    const wsProd = XLSX.utils.json_to_sheet(prodData);
+    XLSX.utils.book_append_sheet(wb, wsProd, "Produção");
+
+    // 2. Fuel Logs
+    const relatedFuel = fuelLogs.filter(f => 
+      f.equipmentId === equipment.id && 
+      new Date(f.date) >= startRange && 
+      new Date(f.date) <= endRange
+    ).map(f => ({
+        Data: new Date(f.date).toLocaleDateString('pt-BR'),
+        Quantidade_L: f.quantity,
+        Custo: f.cost || 0
+    }));
+    const wsFuel = XLSX.utils.json_to_sheet(relatedFuel);
+    XLSX.utils.book_append_sheet(wb, wsFuel, "Abastecimentos");
+
+    // 3. Maintenance History
+    const relatedMaint = (equipmentMaintenance || []).filter(m => 
+      m.equipmentId === equipment.id && 
+      new Date(m.entryDate) >= startRange && 
+      new Date(m.entryDate) <= endRange
+    ).map(m => ({
+        Entrada: new Date(m.entryDate).toLocaleDateString('pt-BR'),
+        Saída: m.exitDate ? new Date(m.exitDate).toLocaleDateString('pt-BR') : 'Aberto',
+        Tipo: m.type === 'preventive' ? 'PREV' : 'CORR',
+        Descrição: m.requestedItems || ''
+    }));
+    const wsMaint = XLSX.utils.json_to_sheet(relatedMaint);
+    XLSX.utils.book_append_sheet(wb, wsMaint, "Manutenção");
+
+    XLSX.writeFile(wb, `Medicao_${equipment.name}_${measurement.month.replace('/','-')}.xlsx`);
+  };
+
+  const handleOpenExportModal = (m: EquipmentMeasurement, e: ControllerEquipment) => {
+    setExportData({ measurement: m, equipment: e });
   };
 
   const handleSaveMeasurement = () => {
@@ -3374,10 +3428,10 @@ export default function ControlView({
                                 variant="ghost" 
                                 size="icon" 
                                 className="h-8 w-8 text-emerald-600 hover:bg-emerald-50"
-                                onClick={() => equipmentToEdit && generateMeasurementPDF(m, equipmentToEdit)}
-                                title="Gerar PDF"
+                                onClick={() => equipmentToEdit && handleOpenExportModal(m, equipmentToEdit)}
+                                title="Exportar Medição"
                               >
-                                <FileText className="w-4 h-4" />
+                                <FileDown className="w-4 h-4" />
                               </Button>
                               <Button 
                                 variant="ghost" 
@@ -4447,6 +4501,37 @@ export default function ControlView({
           </Button>
         </DialogFooter>
       </Modal>
+      <Modal
+        isOpen={!!exportData}
+        onClose={() => setExportData(null)}
+        title="Exportar Relatório"
+        description="Escolha o formato para exportar a medição"
+        maxWidth="sm"
+      >
+        <div className="grid grid-cols-2 gap-4 py-4">
+          <Button 
+            className="flex flex-col items-center justify-center p-6 bg-white border border-red-200 text-red-600 rounded-2xl hover:bg-red-50 hover:border-red-300 transition-colors"
+            onClick={() => {
+              if (exportData) generateMeasurementPDF(exportData.measurement, exportData.equipment);
+              setExportData(null);
+            }}
+          >
+            <FileText className="w-8 h-8 mb-2" />
+            <span className="font-bold text-xs uppercase">PDF</span>
+          </Button>
+          <Button 
+            className="flex flex-col items-center justify-center p-6 bg-white border border-emerald-200 text-emerald-600 rounded-2xl hover:bg-emerald-50 hover:border-emerald-300 transition-colors"
+            onClick={() => {
+              if (exportData) generateMeasurementExcel(exportData.measurement, exportData.equipment);
+              setExportData(null);
+            }}
+          >
+            <FileDown className="w-8 h-8 mb-2" />
+            <span className="font-bold text-xs uppercase">Excel</span>
+          </Button>
+        </div>
+      </Modal>
+
       <Dialog open={isApplyStockOpen} onOpenChange={setIsApplyStockOpen}>
         <DialogContent className="max-w-md rounded-3xl p-8">
           <DialogHeader>
