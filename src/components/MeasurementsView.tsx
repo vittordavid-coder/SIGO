@@ -1013,11 +1013,14 @@ export function MeasurementsView({
           measurements={measurements}
           quotations={quotations}
           onUpdateMemory={(m) => {
+            console.log('[MeasureView] onUpdateMemory called with:', m);
             onUpdateMemory(m);
             // Calculate total and update measurement item in the target measurement
             const targetMeasurement = contractMeasurements.find(med => med.id === m.measurementId);
+            console.log('[MeasureView] targetMeasurement found:', !!targetMeasurement, 'targetMeasurementId:', targetMeasurement?.id);
             if (targetMeasurement && targetMeasurement.status !== 'closed') {
               const serviceUnit = services.find(s => s.id === m.serviceId)?.unit;
+              console.log('[MeasureView] serviceUnit:', serviceUnit);
               const template = templates.find(t => t.unit === serviceUnit);
               const medCol = template?.columns.find(c => c.isResult) || template?.columns.find(c => {
                  const normalized = c.label.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
@@ -1030,6 +1033,7 @@ export function MeasurementsView({
                 }
                 return acc;
               }, 0);
+              console.log('[MeasureView] Calculated total:', total);
               
               const newItems = [...targetMeasurement.items];
               const idx = newItems.findIndex(i => i.serviceId === m.serviceId);
@@ -3016,10 +3020,12 @@ function CalculationMemoryModal({
   };
 
   const handleSaveAndClose = () => {
+    console.log('[MemoryModal] Saving drafts:', drafts);
     if (!isReadonly) {
       Object.keys(drafts).forEach(measId => {
         const mem = memories.find(m => m.contractId === contractId && m.measurementId === measId && m.serviceId === serviceId);
         const memId = mem ? mem.id : uuidv4();
+        console.log('[MemoryModal] Updating memory for measId:', measId, 'serviceId:', serviceId);
         onUpdateMemory({
           id: memId,
           contractId: contractId!,
