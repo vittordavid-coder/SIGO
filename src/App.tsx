@@ -2463,9 +2463,32 @@ export default function App() {
         try {
           const mapped = equips.map(e => {
             const m = { ...mapToSnake(e), company_id: compId };
+            
+            // Fix date issues (empty string to null)
             if (m.entry_date === "") m.entry_date = null;
             if (m.exit_date === "") m.exit_date = null;
             if (m.maintenance_entry_date === "") m.maintenance_entry_date = null;
+
+            // Defensive check for numeric fields
+            const toNum = (val: any) => {
+              if (val === "" || val === null || val === undefined) return 0;
+              const n = Number(val);
+              return isNaN(n) ? 0 : n;
+            };
+
+            m.contracted_price = toNum(m.contracted_price);
+            m.monthly_price = toNum(m.monthly_price);
+            m.current_reading = toNum(m.current_reading);
+            m.charges_percentage = toNum(m.charges_percentage);
+            m.overtime_percentage = toNum(m.overtime_percentage);
+            m.year = toNum(m.year);
+
+            // Ensure JSON fields are not null/undefined
+            if (!m.measurements) m.measurements = [];
+            if (!m.photos) m.photos = [];
+            if (!m.history) m.history = [];
+            if (!m.custom_fields) m.custom_fields = {};
+
             return m;
           });
           

@@ -876,6 +876,11 @@ export default function ControlView({
     const updatedEquipments = equipments.map(e => 
       e.id === selectedEquipment.id ? { ...e, measurements: updatedMeasurements } : e
     );
+    
+    // Also update local selectedEquipment to reflect changes in UI
+    setSelectedEquipment(prev => prev ? { ...prev, measurements: updatedMeasurements } : null);
+    setEquipmentToEdit(prev => prev ? { ...prev, measurements: updatedMeasurements } : null);
+
     onUpdateEquipments(updatedEquipments);
 
     // Also update equipmentToEdit if it's the same equipment being edited in the main modal
