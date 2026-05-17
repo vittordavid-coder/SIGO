@@ -2468,12 +2468,12 @@ export default function App() {
             if (m.entry_date === "") m.entry_date = null;
             if (m.exit_date === "") m.exit_date = null;
             if (m.maintenance_entry_date === "") m.maintenance_entry_date = null;
+            if (m.maintenance_exit_date === "") m.maintenance_exit_date = null;
 
             // Defensive check for numeric fields
             const toNum = (val: any) => {
-              if (val === "" || val === null || val === undefined) return 0;
-              const n = Number(val);
-              return isNaN(n) ? 0 : n;
+              if (val === "" || val === null || val === undefined || isNaN(Number(val))) return 0;
+              return Number(val);
             };
 
             m.contracted_price = toNum(m.contracted_price);
@@ -2483,36 +2483,48 @@ export default function App() {
             m.overtime_percentage = toNum(m.overtime_percentage);
             m.year = toNum(m.year);
 
-            // Ensure JSON fields are not null/undefined
-            if (!m.measurements) m.measurements = [];
-            if (!m.photos) m.photos = [];
-            if (!m.history) m.history = [];
-            if (!m.custom_fields) m.custom_fields = {};
+            // Ensure JSON fields are not null/undefined and are objects
+            if (!m.measurements || !Array.isArray(m.measurements)) m.measurements = [];
+            if (!m.photos || !Array.isArray(m.photos)) m.photos = [];
+            if (!m.history || !Array.isArray(m.history)) m.history = [];
+            if (!m.custom_fields || typeof m.custom_fields !== 'object') m.custom_fields = {};
 
             return m;
           });
           
-          // Update blob for fallback FIRST! That way if table sync fails (e.g. missing column), local state is still persisted.
+          const persistToTable = async (tableName: string) => {
+            // First handles Deletions Sync
+            const { data: dbItems } = await supabase.from(tableName).select('id').eq('company_id', compId);
+            const dbIds = dbItems?.map(d => d.id) || [];
+            const currentIds = equips.map(e => e.id);
+            const toDelete = dbIds.filter(id => !currentIds.includes(id));
+            if (toDelete.length > 0) {
+              await supabase.from(tableName).delete().in('id', toDelete);
+            }
+
+            if (mapped.length > 0) {
+              const { error: upsertError } = await supabase.from(tableName).upsert(mapped);
+              if (upsertError) {
+                // If table doesn't exist, try fallback
+                if (upsertError.code === '42P01' && tableName === 'equipments') {
+                  console.info('[Sync] Table "equipments" not found during update, retrying with "controller_equipments"...');
+                  return await persistToTable('controller_equipments');
+                }
+                console.error(`[Sync] ${tableName} upsert failed:`, upsertError);
+                return false;
+              }
+            }
+            return true;
+          };
+
+          // Update blob for fallback FIRST!
           await supabase.from('app_state').upsert({
             id: `${compId}_sigo_controller_equipments`,
             content: equips
           });
 
-          // Handle Deletions Sync
-          const { data: dbItems } = await supabase.from('equipments').select('id').eq('company_id', compId);
-          const dbIds = dbItems?.map(d => d.id) || [];
-          const currentIds = equips.map(e => e.id);
-          const toDelete = dbIds.filter(id => !currentIds.includes(id));
-          if (toDelete.length > 0) {
-            await supabase.from('equipments').delete().in('id', toDelete);
-          }
-
-          if (mapped.length > 0) {
-            const { error: upsertError } = await supabase.from('equipments').upsert(mapped);
-            if (upsertError) {
-              console.error('[Sync] Equipments upsert failed:', upsertError);
-            }
-          }
+          await persistToTable('equipments');
+          
         } catch (err) { console.error('[Sync] Equipments persist exception:', err); }
       }
     }
