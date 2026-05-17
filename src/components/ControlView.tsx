@@ -560,7 +560,7 @@ export default function ControlView({
   }, [isAddOpen, selectedContractId]);
 
   const handleCreateEquip = () => {
-    if (!newEquip.name || !newEquip.plate) return;
+    if (!newEquip.name) return;
     const finalContractId = selectedContractId || newEquip.contractId;
     
     onUpdateEquipments([...equipments, {
@@ -568,7 +568,10 @@ export default function ControlView({
       id: crypto.randomUUID(),
       companyId: currentUser?.companyId,
       contractId: finalContractId || undefined,
-      currentReading: Number(newEquip.currentReading) || 0
+      currentReading: Number(newEquip.currentReading) || 0,
+      contractedPrice: Number(newEquip.contractedPrice) || 0,
+      monthlyPrice: Number(newEquip.monthlyPrice) || 0,
+      year: Number(newEquip.year) || new Date().getFullYear()
     }]);
     setIsAddOpen(false);
     setNewEquip({
@@ -588,6 +591,8 @@ export default function ControlView({
       entryDate: new Date().toISOString().split('T')[0],
       contractId: selectedContractId || '',
       currentReading: 0,
+      contractedPrice: 0,
+      monthlyPrice: 0,
       observations: '',
       customFields: {},
       photos: [],
@@ -1080,10 +1085,12 @@ export default function ControlView({
   };
 
   const handleUpdateEquip = () => {
-    if (!equipmentToEdit || !equipmentToEdit.name || !equipmentToEdit.plate) return;
+    if (!equipmentToEdit || !equipmentToEdit.name) return;
     onUpdateEquipments(equipments.map(e => e.id === equipmentToEdit.id ? {
       ...equipmentToEdit,
       currentReading: Number(equipmentToEdit.currentReading) || 0,
+      contractedPrice: Number(equipmentToEdit.contractedPrice) || 0,
+      monthlyPrice: Number(equipmentToEdit.monthlyPrice) || 0,
       year: Number(equipmentToEdit.year) || new Date().getFullYear()
     } : e));
     setIsEditOpen(false);
