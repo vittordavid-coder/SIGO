@@ -842,7 +842,7 @@ export interface DailyEquipmentMeasurement {
   initialReading: number;
   finalReading: number;
   discount: boolean;
-  status: 'Trabalhando' | 'Chuva' | 'Manutenção' | 'Aguardando Frente' | 'à Disposição';
+  status?: 'Trabalhando' | 'Chuva' | 'Manutenção' | 'Aguardando Frente' | 'à Disposição';
 }
 
 export interface EquipmentMeasurement {

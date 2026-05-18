@@ -86,6 +86,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Command, CommandInput, CommandEmpty, CommandGroup, CommandItem, CommandList } from "@/components/ui/command";
 import { cn } from '../lib/utils';
 import { NumericInput } from '@/components/ui/numeric-input';
+import { Checkbox } from '@/components/ui/checkbox';
 
 interface ControlViewProps {
   currentUser: User | null;
@@ -213,6 +214,7 @@ export default function ControlView({
   const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7));
   const [searchTerm, setSearchTerm] = useState('');
   const [priceDisplayMode, setPriceDisplayMode] = useState<'monthly' | 'measurement'>('monthly');
+  const [showApplied, setShowApplied] = useState(false);
   const [sortField, setSortField] = useState<'name' | 'category' | 'origin' | 'cost'>('name');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
   const [filterOnlyActive, setFilterOnlyActive] = useState(false);
@@ -636,8 +638,8 @@ export default function ControlView({
     return fullDetails;
   };
 
-  const generateDailyMeasurementData = (start: string, end: string) => {
-    if (!start || !end || !selectedEquipment) return;
+  const getDailyMeasurementData = (start: string, end: string, existingDetails: DailyEquipmentMeasurement[] = []): DailyEquipmentMeasurement[] => {
+    if (!start || !end || !selectedEquipment) return [];
     const startDate = new Date(start + 'T12:00:00');
     const endDate = new Date(end + 'T12:00:00');
     const dailyData: DailyEquipmentMeasurement[] = [];
@@ -659,16 +661,26 @@ export default function ControlView({
 
     let current = new Date(startDate);
     while (current <= endDate) {
-      dailyData.push({
-        date: current.toISOString().split('T')[0],
-        initialReading: lastKnownReading,
-        finalReading: lastKnownReading,
-        discount: false,
-        status: 'Trabalhando'
-      });
+      const dateStr = current.toISOString().split('T')[0];
+      const existing = existingDetails.find(d => d.date === dateStr);
+      if (existing) {
+        dailyData.push(existing);
+      } else {
+        dailyData.push({
+          date: dateStr,
+          initialReading: lastKnownReading,
+          finalReading: lastKnownReading,
+          discount: false,
+          status: undefined
+        });
+      }
       current.setDate(current.getDate() + 1);
     }
-    setTempDailyData(dailyData);
+    return dailyData;
+  };
+
+  const generateDailyMeasurementData = (start: string, end: string) => {
+    setTempDailyData(getDailyMeasurementData(start, end));
   };
 
   const generateMeasurementPDF = (measurement: EquipmentMeasurement, equipment: ControllerEquipment) => {
@@ -923,8 +935,7 @@ export default function ControlView({
     const tempMeasurements = selectedEquipment.measurements || [];
     
     // FILTRAR DIAS COM HORIMETRO FINAL > 0 E TODOS OS CAMPOS PREENCHIDOS E FINAL > INICIAL
-    const filledDays = tempDailyData.filter(d => d.initialReading > 0 && d.finalReading > 0 && d.finalReading > d.initialReading);
-    const savedDetails = tempDailyData.filter(d => d.finalReading > 0 && d.initialReading > 0 && d.finalReading > d.initialReading);
+    const filledDays = tempDailyData.filter(d => d.initialReading > 0 && d.finalReading > 0 && d.finalReading > d.initialReading && !!d.status);
     
     const totalUnits = filledDays.reduce((acc, curr) => acc + (curr.discount ? 0 : (curr.finalReading - curr.initialReading)), 0);
     const unitPrice = selectedEquipment.contractedPrice || 0;
@@ -939,7 +950,7 @@ export default function ControlView({
         period: `${measurementPeriod.start} a ${measurementPeriod.end}`,
         totalUnits,
         totalValue,
-        details: savedDetails
+        details: tempDailyData.filter(d => !!d.status)
       } : m);
       setEditingMeasurementId(null);
     } else {
@@ -952,7 +963,7 @@ export default function ControlView({
         period: `${measurementPeriod.start} a ${measurementPeriod.end}`,
         totalUnits,
         totalValue,
-        details: savedDetails
+        details: tempDailyData.filter(d => !!d.status)
       };
       updatedMeasurements = [...tempMeasurements, newMeasurement];
     }
@@ -1776,7 +1787,7 @@ export default function ControlView({
                       priceDisplayMode === 'monthly' ? "bg-white text-blue-600 shadow-sm" : "text-slate-400 hover:text-slate-600"
                     )}
                   >
-                    Preço Mensal
+                    Valor Mensal
                   </button>
                   <button 
                     onClick={() => setPriceDisplayMode('measurement')}
@@ -1785,7 +1796,7 @@ export default function ControlView({
                       priceDisplayMode === 'measurement' ? "bg-white text-blue-600 shadow-sm" : "text-slate-400 hover:text-slate-600"
                     )}
                   >
-                    Preço Medição
+                    Valor Medição
                   </button>
                 </div>
                 <Button variant="outline" size="sm" onClick={downloadTemplate} className="rounded-xl gap-2 font-bold text-xs"><FileDown className="w-4 h-4" /> Modelo</Button>
@@ -1976,12 +1987,12 @@ export default function ControlView({
                             </div>
                             <div className="space-y-2">
                               <Label className="text-[11px] uppercase font-black text-slate-500 tracking-tight">
-                                {newEquip.measurementUnit === 'Horímetro' ? 'Preço Hora' : newEquip.measurementUnit === 'Quilometragem' ? 'Preço KM' : 'Preço Medição'}
+                                {newEquip.measurementUnit === 'Horímetro' ? 'Valor Hora' : newEquip.measurementUnit === 'Quilometragem' ? 'Valor KM' : 'Valor Medição'}
                               </Label>
                               <NumericInput className="rounded-xl border-slate-200 bg-slate-50/50 h-12 text-sm font-bold" value={newEquip.contractedPrice} onChange={val => setNewEquip({...newEquip, contractedPrice: val})} prefix="R$" />
                             </div>
                             <div className="space-y-2">
-                              <Label className="text-[11px] uppercase font-black text-slate-500 tracking-tight">Preço Mensal</Label>
+                              <Label className="text-[11px] uppercase font-black text-slate-500 tracking-tight">Valor Mensal</Label>
                               <NumericInput className="rounded-xl border-slate-200 bg-slate-50/50 h-12 text-sm font-bold" value={newEquip.monthlyPrice} onChange={val => setNewEquip({...newEquip, monthlyPrice: val})} prefix="R$" />
                             </div>
                             
@@ -2235,7 +2246,7 @@ export default function ControlView({
                       onClick={() => handleSort('cost')}
                     >
                       <div className="flex items-center justify-end gap-2">
-                        {priceDisplayMode === 'monthly' ? 'Custo Mensal' : 'Preço Medição'}
+                        {priceDisplayMode === 'monthly' ? 'Custo Mensal' : 'Valor Medição'}
                         {sortField === 'cost' && (sortOrder === 'asc' ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />)}
                       </div>
                     </TableHead>
@@ -2284,9 +2295,20 @@ export default function ControlView({
                       <TableCell className="py-0.5 text-center font-black uppercase text-[9px] tracking-widest"><Badge variant="outline" className={cn("rounded-lg h-5 px-2", e.origin === 'Próprio' ? "bg-blue-50 text-blue-700 border-blue-100" : "bg-amber-50 text-amber-700 border-amber-100")}>{e.origin}</Badge></TableCell>
                       <TableCell className="py-0.5 text-right font-mono text-[10px] font-black text-slate-700">
                         {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(
-                          priceDisplayMode === 'monthly' 
-                            ? (e.monthlyPrice || equipmentMonthly.find(d => d.equipmentId === e.id && d.month === selectedMonth)?.cost || 0)
-                            : (e.contractedPrice || 0)
+                          (() => {
+                            if (priceDisplayMode === 'monthly') {
+                              return (e.monthlyPrice || equipmentMonthly.find(d => d.equipmentId === e.id && d.month === selectedMonth)?.cost || 0);
+                            } else {
+                              // selectedMonth is YYYY-MM
+                              const [selY, selM] = selectedMonth.split('-');
+                              const found = e.measurements?.find(me => {
+                                  const [mMonth, mYear] = me.month.split('/');
+                                  return mMonth === selM && mYear === selY;
+                              });
+                              console.log('DEBUG [Equip]:', e.name, 'SelectedMonth:', selM, '/', selY, 'Found:', found);
+                              return (found?.totalValue || 0);
+                            }
+                          })()
                         )}
                       </TableCell>
                       <TableCell className="py-0.5">
@@ -2922,12 +2944,16 @@ export default function ControlView({
         <TabsContent value="stock">
           <Card className="border-none shadow-xl rounded-3xl overflow-hidden">
             <CardHeader className="border-b border-gray-50 flex flex-row items-center justify-between">
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-4">
                 <div className="p-2 bg-blue-50 rounded-xl"><Archive className="w-5 h-5 text-blue-600" /></div>
                 <div>
                   <CardTitle className="text-lg font-black">Estoque de Materiais</CardTitle>
                   <CardDescription className="text-[10px] uppercase font-bold text-gray-400">Itens recebidos aguardando aplicação em equipamentos</CardDescription>
                 </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <Checkbox id="showApplied" checked={showApplied} onCheckedChange={(checked) => setShowApplied(!!checked)} />
+                <Label htmlFor="showApplied" className="text-[10px] font-bold uppercase text-gray-600">Mostrar todos</Label>
               </div>
             </CardHeader>
             <CardContent className="p-0">
@@ -2946,7 +2972,7 @@ export default function ControlView({
                   {purchaseRequests
                     .filter(r => r.sector === 'CONTROLADOR' && r.status === 'Recebido' && (!selectedContractId || r.contractId === selectedContractId))
                     .flatMap(r => r.items.map((item, idx) => ({ ...item, requestId: r.id, requestDescription: r.description, itemIdx: idx })))
-                    .filter(item => (item.quantity - (item.appliedQuantity || 0)) > 0)
+                    .filter(item => showApplied || (item.quantity - (item.appliedQuantity || 0)) > 0)
                     .map((item, idx) => (
                       <TableRow key={`${item.requestId}-${item.itemIdx}`} className="hover:bg-gray-50 transition-colors">
                         <TableCell>
@@ -2965,7 +2991,8 @@ export default function ControlView({
                         </TableCell>
                         <TableCell className="text-right">
                           <Button 
-                            className="bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-[10px] uppercase h-8"
+                            className="bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-[10px] uppercase h-8 disabled:opacity-50 disabled:cursor-not-allowed"
+                            disabled={item.quantity - (item.appliedQuantity || 0) <= 0}
                             onClick={() => {
                               setSelectedStockItem({ requestId: item.requestId, itemIdx: item.itemIdx, item });
                               setIsApplyStockOpen(true);
@@ -3249,12 +3276,12 @@ export default function ControlView({
                   </div>
                   <div className="space-y-3">
                     <Label className="text-[12px] uppercase font-black text-slate-500 tracking-tight">
-                      {equipmentToEdit?.measurementUnit === 'Horímetro' ? 'Preço Hora' : equipmentToEdit?.measurementUnit === 'Quilometragem' ? 'Preço KM' : 'Preço Medição'}
+                      {equipmentToEdit?.measurementUnit === 'Horímetro' ? 'Valor Hora' : equipmentToEdit?.measurementUnit === 'Quilometragem' ? 'Valor KM' : 'Valor Medição'}
                     </Label>
                     <NumericInput className="rounded-xl border-slate-200 bg-slate-50/50 h-16 text-base font-bold" value={equipmentToEdit?.contractedPrice || 0} onChange={val => setEquipmentToEdit(prev => prev ? {...prev, contractedPrice: val} : null)} prefix="R$" />
                   </div>
                   <div className="space-y-3">
-                    <Label className="text-[12px] uppercase font-black text-slate-500 tracking-tight">Preço Mensal</Label>
+                    <Label className="text-[12px] uppercase font-black text-slate-500 tracking-tight">Valor Mensal</Label>
                     <NumericInput className="rounded-xl border-slate-200 bg-slate-50/50 h-16 text-base font-bold" value={equipmentToEdit?.monthlyPrice || 0} onChange={val => setEquipmentToEdit(prev => prev ? {...prev, monthlyPrice: val} : null)} prefix="R$" />
                   </div>
 
@@ -3443,10 +3470,10 @@ export default function ControlView({
                                     setMeasurementPeriod({ start: parts[0], end: parts[1] });
                                   }
                                   setMeasurementMonth(m.month);
-                                  setTempDailyData(m.details.map(d => ({
+                                  setTempDailyData(getDailyMeasurementData(parts[0], parts[1], m.details.map(d => ({
                                     ...d,
                                     discount: d.discount ?? false
-                                  })));
+                                  }))));
                                   setEditingMeasurementId(m.id);
                                   setSelectedEquipment(equipmentToEdit);
                                   setIsNewMeasurementModalOpen(true);
@@ -3738,7 +3765,7 @@ export default function ControlView({
                         setTempDailyData(newDays);
                       }}>
                         <SelectTrigger className="h-9 rounded-lg text-xs font-medium border-slate-200 px-2">
-                          <SelectValue />
+                          <SelectValue placeholder="Selecione..." />
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="Trabalhando" className="text-xs">Trabalhando</SelectItem>
@@ -3784,6 +3811,9 @@ export default function ControlView({
               
               <div className="flex items-center gap-3">
                 <Button variant="ghost" onClick={() => setIsNewMeasurementModalOpen(false)} className="rounded-xl font-bold text-xs uppercase tracking-widest px-6 h-12">Descartar</Button>
+                <Button onClick={() => { handleSaveMeasurement(); setIsNewMeasurementModalOpen(false); }} className="rounded-2xl bg-red-600 hover:bg-red-700 px-10 font-black text-[11px] uppercase tracking-widest shadow-xl shadow-red-100 h-12 transition-all active:scale-95 group">
+                   <X className="w-5 h-5 mr-2" /> Encerrar Medição
+                </Button>
                 <Button onClick={handleSaveMeasurement} className="rounded-2xl bg-blue-600 px-10 font-black text-[11px] uppercase tracking-widest shadow-xl shadow-blue-100 h-12 transition-all active:scale-95 group">
                   <Check className="w-5 h-5 mr-2 group-hover:scale-110 transition-transform" /> Confirmar e Salvar Medição
                 </Button>
