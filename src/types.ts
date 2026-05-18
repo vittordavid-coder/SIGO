@@ -545,7 +545,7 @@ export interface PurchaseRequest {
   costCenter?: string;
   sector: string;
   priority?: 'Normal' | 'Alta' | 'Urgente';
-  status: 'Cancelado' | 'Pendente' | 'Em orçamento' | 'Compra Aprovado' | 'Comprado' | 'Recebido';
+  status: 'Cancelado' | 'Pendente' | 'Em orçamento' | 'Compra Aprovado' | 'Comprado' | 'Recebido' | 'Aplicado';
   deliveryDeadline?: string;
   items: {
     id: string;
@@ -777,6 +777,12 @@ export interface EquipmentMaintenance {
   requestedItems: string;
   daysInMaintenance?: number; 
   totalCost?: number;
+  items?: {
+    description: string;
+    quantity: number;
+    value: number;
+    discount: boolean;
+  }[];
 }
 
 export interface EquipmentMonthlyData {

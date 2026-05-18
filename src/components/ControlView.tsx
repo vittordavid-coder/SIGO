@@ -197,6 +197,7 @@ export default function ControlView({
   const [editingMeasurementId, setEditingMeasurementId] = useState<string | null>(null);
   const [exportData, setExportData] = useState<{ measurement: EquipmentMeasurement, equipment: ControllerEquipment } | null>(null);
   const [isMaintenanceDiscountModalOpen, setIsMaintenanceDiscountModalOpen] = useState(false);
+  const [showAllMaintenance, setShowAllMaintenance] = useState(false);
   const [selectedMeasurementForDiscount, setSelectedMeasurementForDiscount] = useState<{ m: EquipmentMeasurement, e: ControllerEquipment } | null>(null);
   const [selectedMaintenanceToDiscount, setSelectedMaintenanceToDiscount] = useState<string[]>([]);
   
@@ -228,8 +229,8 @@ export default function ControlView({
   const [maintenanceEntryDate, setMaintenanceEntryDate] = useState(new Date().toISOString().split('T')[0]);
   const [maintenanceType, setMaintenanceType] = useState<'preventive' | 'corrective'>('preventive');
   const [maintenanceRequestedItems, setMaintenanceRequestedItems] = useState('');
-  const [maintenanceItems, setMaintenanceItems] = useState<{description: string, quantity: number}[]>([]);
-  const [newMaintenanceItem, setNewMaintenanceItem] = useState({description: '', quantity: 1});
+  const [maintenanceItems, setMaintenanceItems] = useState<{description: string, quantity: number, value: number, discount: boolean}[]>([]);
+  const [newMaintenanceItem, setNewMaintenanceItem] = useState({description: '', quantity: 1, value: 0, discount: false});
   const [importContractId, setImportContractId] = useState<string>('');
 
   const availableContracts = useMemo(() => {
@@ -443,6 +444,11 @@ export default function ControlView({
     targetRequest.items = [...targetRequest.items];
     targetRequest.items[itemIdx] = targetItem;
     updatedRequests[reqIndex] = targetRequest;
+
+    const allItemsApplied = targetRequest.items.every(i => (i.appliedQuantity || 0) >= i.quantity);
+    if (allItemsApplied) {
+        updatedRequests[reqIndex].status = 'Aplicado';
+    }
     
     onUpdatePurchaseRequests(updatedRequests);
     
@@ -638,15 +644,15 @@ export default function ControlView({
     return fullDetails;
   };
 
-  const getDailyMeasurementData = (start: string, end: string, existingDetails: DailyEquipmentMeasurement[] = []): DailyEquipmentMeasurement[] => {
-    if (!start || !end || !selectedEquipment) return [];
+  const getDailyMeasurementData = (start: string, end: string, equipment: ControllerEquipment | null, existingDetails: DailyEquipmentMeasurement[] = []): DailyEquipmentMeasurement[] => {
+    if (!start || !end || !equipment) return [];
     const startDate = new Date(start + 'T12:00:00');
     const endDate = new Date(end + 'T12:00:00');
     const dailyData: DailyEquipmentMeasurement[] = [];
     
     // Try to find the last final reading from previous measurements
     let lastKnownReading = 0;
-    const sortedMeasurements = [...(selectedEquipment.measurements || [])].sort((a, b) => {
+    const sortedMeasurements = [...(equipment.measurements || [])].sort((a, b) => {
       const dateA = a.period.split(' a ')[1] || '';
       const dateB = b.period.split(' a ')[1] || '';
       return new Date(dateB).getTime() - new Date(dateA).getTime();
@@ -680,7 +686,7 @@ export default function ControlView({
   };
 
   const generateDailyMeasurementData = (start: string, end: string) => {
-    setTempDailyData(getDailyMeasurementData(start, end));
+    setTempDailyData(getDailyMeasurementData(start, end, selectedEquipment));
   };
 
   const generateMeasurementPDF = (measurement: EquipmentMeasurement, equipment: ControllerEquipment) => {
@@ -996,6 +1002,8 @@ export default function ControlView({
         e.id === selectedEquipment.id ? { ...e, measurements: updatedMeasurements } : e
       );
       onUpdateEquipments(updatedEquipments);
+      
+      setSelectedEquipment(prev => prev ? { ...prev, measurements: updatedMeasurements } : null);
       
       if (equipmentToEdit && equipmentToEdit.id === selectedEquipment.id) {
         setEquipmentToEdit(prev => prev ? { ...prev, measurements: updatedMeasurements } : null);
@@ -1335,7 +1343,8 @@ export default function ControlView({
       companyId: currentUser.companyId || '',
       entryDate: maintenanceEntryDate,
       type: maintenanceType,
-      requestedItems: itemsSummary
+      requestedItems: itemsSummary,
+      items: maintenanceItems.length > 0 ? maintenanceItems : undefined
     };
     onUpdateMaintenance([...equipmentMaintenance, newMaintenance]);
 
@@ -1560,6 +1569,17 @@ export default function ControlView({
                 value={newMaintenanceItem.quantity}
                 onChange={e => setNewMaintenanceItem({...newMaintenanceItem, quantity: parseInt(e.target.value) || 1})}
               />
+              <Input 
+                type="number"
+                placeholder="Valor (R$)"
+                className="w-24 rounded-xl border-emerald-100 bg-white h-11 text-xs font-bold"
+                value={newMaintenanceItem.value}
+                onChange={e => setNewMaintenanceItem({...newMaintenanceItem, value: parseFloat(e.target.value) || 0})}
+              />
+              <div className="flex items-center gap-1">
+                <input type="checkbox" checked={newMaintenanceItem.discount} onChange={e => setNewMaintenanceItem({...newMaintenanceItem, discount: e.target.checked})} />
+                <Label className="text-[9px]">Desc.</Label>
+              </div>
               <Button 
                 size="icon" 
                 variant="outline"
@@ -1567,7 +1587,7 @@ export default function ControlView({
                 onClick={() => {
                   if (newMaintenanceItem.description) {
                     setMaintenanceItems([...maintenanceItems, newMaintenanceItem]);
-                    setNewMaintenanceItem({description: '', quantity: 1});
+                    setNewMaintenanceItem({description: '', quantity: 1, value: 0, discount: false});
                   }
                 }}
               >
@@ -2418,13 +2438,17 @@ export default function ControlView({
 
         <TabsContent value="maintenance">
           <Card className="border-none shadow-xl rounded-3xl overflow-hidden">
-            <CardHeader className="border-b border-gray-50">
+            <CardHeader className="border-b border-gray-50 flex flex-row items-center justify-between">
               <div className="flex items-center gap-2">
                 <div className="p-2 bg-emerald-50 rounded-xl"><Wrench className="w-5 h-5 text-emerald-600" /></div>
                 <div>
-                  <CardTitle className="text-lg font-black">Equipamentos em Manutenção</CardTitle>
-                  <CardDescription className="text-[10px] uppercase font-bold text-gray-400">Frota atualmente indisponível para operação</CardDescription>
+                  <CardTitle className="text-lg font-black">{showAllMaintenance ? "Histórico de Manutenções" : "Equipamentos em Manutenção"}</CardTitle>
+                  <CardDescription className="text-[10px] uppercase font-bold text-gray-400">{showAllMaintenance ? "Registro completo de manutenções" : "Frota atualmente indisponível para operação"}</CardDescription>
                 </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <Checkbox id="showAllMain" checked={showAllMaintenance} onCheckedChange={(c) => setShowAllMaintenance(!!c)} />
+                <Label htmlFor="showAllMain" className="text-[10px] font-bold uppercase text-gray-600">Mostrar Histórico</Label>
               </div>
             </CardHeader>
             <CardContent className="p-0">
@@ -2433,16 +2457,43 @@ export default function ControlView({
                   <TableRow>
                     <TableHead className="font-bold text-[10px] uppercase tracking-widest text-gray-400 py-5">Equipamento</TableHead>
                     <TableHead className="font-bold text-[10px] uppercase tracking-widest text-gray-400">Início Manut.</TableHead>
-                    <TableHead className="font-bold text-[10px] uppercase tracking-widest text-gray-400">Dias</TableHead>
+                    {!showAllMaintenance && <TableHead className="font-bold text-[10px] uppercase tracking-widest text-gray-400">Dias</TableHead>}
+                    {showAllMaintenance && <TableHead className="font-bold text-[10px] uppercase tracking-widest text-gray-400">Saída</TableHead>}
                     <TableHead className="font-bold text-[10px] uppercase tracking-widest text-gray-400">Tipo</TableHead>
-                    <TableHead className="font-bold text-[10px] uppercase tracking-widest text-gray-400">Obra Atual</TableHead>
-                    <TableHead className="font-bold text-[10px] uppercase tracking-widest text-gray-400">Porte / Cat.</TableHead>
-                    <TableHead className="font-bold text-[10px] uppercase tracking-widest text-gray-400">Origem</TableHead>
+                    {!showAllMaintenance && <TableHead className="font-bold text-[10px] uppercase tracking-widest text-gray-400">Obra Atual</TableHead>}
+                    {!showAllMaintenance && <TableHead className="font-bold text-[10px] uppercase tracking-widest text-gray-400">Porte / Cat.</TableHead>}
+                    {!showAllMaintenance && <TableHead className="font-bold text-[10px] uppercase tracking-widest text-gray-400">Origem</TableHead>}
+                    {showAllMaintenance && <TableHead className="font-bold text-[10px] uppercase tracking-widest text-gray-400">Custo</TableHead>}
+                    {showAllMaintenance && <TableHead className="font-bold text-[10px] uppercase tracking-widest text-gray-400">Itens</TableHead>}
                     <TableHead className="w-[120px]"></TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredEquipments.filter(e => e.inMaintenance).map(e => (
+                  {showAllMaintenance
+                    ? equipmentMaintenance
+                        .sort((a, b) => new Date(b.entryDate).getTime() - new Date(a.entryDate).getTime())
+                        .map(m => {
+                          const equip = equipments.find(e => e.id === m.equipmentId);
+                          return (
+                            <TableRow key={m.id} className="hover:bg-gray-50 transition-colors">
+                              <TableCell>
+                                <p className="font-bold text-gray-900">{equip?.name || 'Equipamento Excluído'}</p>
+                                <p className="text-[10px] text-gray-500 uppercase">{equip?.plate || '-'}</p>
+                              </TableCell>
+                              <TableCell className="text-xs font-mono text-gray-600">{new Date(m.entryDate + 'T12:00:00').toLocaleDateString('pt-BR')}</TableCell>
+                              <TableCell className="text-xs font-mono text-gray-600">{m.exitDate ? new Date(m.exitDate + 'T12:00:00').toLocaleDateString('pt-BR') : <Badge className="bg-blue-50 text-blue-600 border-none">Em aberto</Badge>}</TableCell>
+                              <TableCell>
+                                <Badge variant="outline" className={cn("text-[9px] uppercase font-black rounded-lg", m.type === 'preventive' ? "bg-emerald-50 text-emerald-600" : "bg-red-50 text-red-600")}>
+                                  {m.type === 'preventive' ? 'Preventiva' : 'Corretiva'}
+                                </Badge>
+                              </TableCell>
+                              <TableCell className="text-xs font-black text-gray-900 text-right">{m.totalCost ? `R$ ${m.totalCost.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : '-'}</TableCell>
+                              <TableCell className="max-w-[150px] truncate" title={m.requestedItems}>{m.requestedItems || '-'}</TableCell>
+                              <TableCell></TableCell>
+                            </TableRow>
+                          );
+                        })
+                    : filteredEquipments.filter(e => e.inMaintenance).map(e => (
                     <TableRow 
                       key={e.id} 
                       className="hover:bg-gray-50 transition-colors cursor-pointer"
@@ -2908,7 +2959,8 @@ export default function ControlView({
                           request.status === 'Em orçamento' ? 'bg-blue-100 text-blue-700' :
                           request.status === 'Compra Aprovado' ? 'bg-indigo-100 text-indigo-700' :
                           request.status === 'Comprado' ? 'bg-emerald-100 text-emerald-700' :
-                          request.status === 'Recebido' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-gray-100 text-gray-700'
+                          request.status === 'Recebido' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' :
+                          request.status === 'Aplicado' ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-700'
                         )}>
                           {request.status}
                         </span>
@@ -3469,8 +3521,9 @@ export default function ControlView({
                                   if (parts.length === 2) {
                                     setMeasurementPeriod({ start: parts[0], end: parts[1] });
                                   }
+                                  console.log('DEBUG [Edit]:', m);
                                   setMeasurementMonth(m.month);
-                                  setTempDailyData(getDailyMeasurementData(parts[0], parts[1], m.details.map(d => ({
+                                  setTempDailyData(getDailyMeasurementData(parts[0], parts[1], equipmentToEdit, (m.details || []).map(d => ({
                                     ...d,
                                     discount: d.discount ?? false
                                   }))));
@@ -3683,10 +3736,19 @@ export default function ControlView({
       <Modal 
         isOpen={isNewMeasurementModalOpen} 
         onClose={() => setIsNewMeasurementModalOpen(false)}
-        title={`Lançamento de Medição - ${measurementMonth}`}
+        title={
+          <div className="flex items-center justify-between w-full">
+            <span>{`Lançamento de Medição - ${measurementMonth}`}</span>
+            <button onClick={() => setIsNewMeasurementModalOpen(false)} className="p-2 rounded-full hover:bg-gray-100 flex items-center justify-center">
+               <X className="w-5 h-5 text-gray-500" />
+            </button>
+          </div>
+        }
         description={`Período: ${measurementPeriod.start ? new Date(measurementPeriod.start + 'T12:00:00').toLocaleDateString('pt-BR') : ''} a ${measurementPeriod.end ? new Date(measurementPeriod.end + 'T12:00:00').toLocaleDateString('pt-BR') : ''}`}
-        maxWidth="5xl"
-        className="h-[95vh]"
+        maxWidth="7xl"
+        className="h-[95vh] !p-0"
+        headerClassName="sticky top-0 z-50 bg-white p-4 border-b"
+        showCloseButton={false}
       >
         <div className="flex flex-col h-full bg-white overflow-hidden">
           <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4 scrollbar-thin-visible bg-white">
@@ -3715,6 +3777,7 @@ export default function ControlView({
                           newDays[idx].initialReading = val;
                           setTempDailyData(newDays);
                         }}
+                        onFocus={(e) => requestAnimationFrame(() => e.target.select())}
                         className="h-9 rounded-lg text-xs font-bold border-slate-200"
                       />
                     </TableCell>
@@ -3733,6 +3796,7 @@ export default function ControlView({
                           }
                           setTempDailyData(newDays);
                         }}
+                        onFocus={(e) => requestAnimationFrame(() => e.target.select())}
                         className="h-9 rounded-lg text-xs font-bold border-slate-200"
                       />
                     </TableCell>
@@ -3740,6 +3804,7 @@ export default function ControlView({
                       <div className="flex justify-center items-center">
                         <input 
                           type="checkbox" 
+                          tabIndex={-1}
                           className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
                           checked={day.discount}
                           onChange={e => {
@@ -3764,7 +3829,7 @@ export default function ControlView({
                         }
                         setTempDailyData(newDays);
                       }}>
-                        <SelectTrigger className="h-9 rounded-lg text-xs font-medium border-slate-200 px-2">
+                        <SelectTrigger className="h-9 rounded-lg text-xs font-medium border-slate-200 px-2" tabIndex={-1}>
                           <SelectValue placeholder="Selecione..." />
                         </SelectTrigger>
                         <SelectContent>
