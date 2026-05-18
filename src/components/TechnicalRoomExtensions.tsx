@@ -2060,7 +2060,7 @@ export function TechnicalScheduleView({
                       {/* Group Financial Total Row (Planned) */}
                       <TableRow className="bg-slate-50 font-black border-t-2 border-slate-200">
                         <TableCell className="sticky left-0 bg-slate-50 z-20 py-2.5 px-4 shadow-[1px_0_0_0_rgba(0,0,0,0.1)] text-[10px] uppercase text-slate-500 font-extrabold tracking-tighter">
-                          TOTAL PLANEJADO (R$): {group.name}
+                          TOTAL PLANEJADO R$
                         </TableCell>
                         <TableCell className="sticky left-[180px] bg-slate-50 z-20 shadow-[1px_0_0_0_rgba(0,0,0,0.1)] text-[8px] font-black text-slate-400 uppercase px-3">VALOR</TableCell>
                         <TableCell className="text-right text-[11px] font-mono px-4 text-slate-800">
@@ -2082,7 +2082,7 @@ export function TechnicalScheduleView({
                       {/* Group Financial Total Row (Executed) */}
                       <TableRow className="bg-blue-50 font-black border-b-2 border-blue-200">
                         <TableCell className="sticky left-0 bg-blue-50 z-20 py-2 top-auto shadow-[1px_0_0_0_rgba(0,0,0,0.1)] text-[10px] uppercase text-blue-600 font-extrabold tracking-tighter">
-                          TOTAL EXECUTADO (R$): {group.name}
+                          TOTAL PREVISTO R$
                         </TableCell>
                         <TableCell className="sticky left-[180px] bg-blue-50 z-20 shadow-[1px_0_0_0_rgba(0,0,0,0.1)] text-[8px] font-black text-blue-400 uppercase px-3">VALOR</TableCell>
                         <TableCell className="text-right text-[11px] font-mono px-4 text-blue-400 italic">--</TableCell>
