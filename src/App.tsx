@@ -280,6 +280,15 @@ export default function App() {
     }
   };
 
+  useEffect(() => {
+    let link = document.querySelector("link[rel~='icon']") as HTMLLinkElement;
+    if (!link) {
+      link = document.createElement('link');
+      link.rel = 'icon';
+      document.getElementsByTagName('head')[0].appendChild(link);
+    }
+    link.href = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%232563eb'/%3E%3Ctext x='50%25' y='55%25' dominant-baseline='middle' text-anchor='middle' font-family='sans-serif' font-weight='bold' font-size='20' fill='white'%3ES%3C/text%3E%3C/svg%3E";
+  }, []);
 
   // Sync logic when user changes
   useEffect(() => {
@@ -3512,7 +3521,7 @@ export default function App() {
                   onAdd={addResource} 
                   onDelete={deleteResource} 
                   onUpdate={updateResource}
-                  readonly={currentUser?.role === 'reader' || currentUser?.role === 'editor'}
+                  readonly={currentUser?.role === 'reader'}
                 />
               )}
 
@@ -3526,7 +3535,7 @@ export default function App() {
                   onUpdate={updateService}
                   companyLogo={companyLogo}
                   bdi={calculateBDI(bdiConfig)}
-                  readonly={currentUser?.role === 'reader' || currentUser?.role === 'editor'}
+                  readonly={currentUser?.role === 'reader'}
                 />
               )}
 
