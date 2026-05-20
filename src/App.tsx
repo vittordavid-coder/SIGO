@@ -280,22 +280,6 @@ export default function App() {
     }
   };
 
-  useEffect(() => {
-    if (companyLogo) {
-      let link = document.querySelector("link[rel~='icon']") as HTMLLinkElement;
-      if (!link) {
-        link = document.createElement('link');
-        link.rel = 'icon';
-        document.getElementsByTagName('head')[0].appendChild(link);
-      }
-      link.href = companyLogo;
-    } else {
-      let link = document.querySelector("link[rel~='icon']") as HTMLLinkElement;
-      if (link) {
-        link.href = '/vite.svg'; // Default icon or simply remove it. Wait, the default could be anything, but we can just leave it if there's no custom icon, or set to a default.
-      }
-    }
-  }, [companyLogo]);
 
   // Sync logic when user changes
   useEffect(() => {
