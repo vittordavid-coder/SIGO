@@ -1315,7 +1315,7 @@ function MeasurementTemplatesTab({ templates, onSave, onDelete }: { templates: M
                             </div>
                             <div>
                               <Select value={col.type} onValueChange={v => updateColumn(col.id, { type: v as any })}>
-                                <SelectTrigger className="h-9 text-xs border-0 bg-transparent px-1 min-w-0" hideArrow>
+                                <SelectTrigger className="h-9 text-xs border-0 bg-transparent px-1 min-w-0">
                                   <SelectValue>
                                     {col.type === 'number' ? 'Num' : col.type === 'text' ? 'Txt' : 'Fórm'}
                                   </SelectValue>

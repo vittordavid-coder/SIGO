@@ -1276,7 +1276,7 @@ export default function ControlView({
       setMaintenanceType('preventive');
       setMaintenanceRequestedItems('');
       setMaintenanceItems([]);
-      setNewMaintenanceItem({description: '', quantity: 1});
+      setNewMaintenanceItem({description: '', quantity: 1, value: 0, discount: false});
       setIsMaintenanceModalOpen(true);
     } else {
       // Closing maintenance - show confirmation modal

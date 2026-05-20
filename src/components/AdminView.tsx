@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { motion } from 'motion/react';
 import { isPast, format } from 'date-fns';
-import { Users, History, Plus, Trash2, Eye, ShieldCheck, UserPlus, Search, Database, Download, FileCode, Link, Server, Settings, Globe, AlertCircle, Building2, ChevronDown, ChevronRight, Key, Activity, CheckCircle2, XCircle, Loader2, Landmark, Percent, Clock } from 'lucide-react';
+import { Users, History, Plus, Trash2, Eye, ShieldCheck, UserPlus, Search, Database, Download, FileCode, Printer, Link, Server, Settings, Globe, AlertCircle, Building2, ChevronDown, ChevronRight, Key, Activity, CheckCircle2, XCircle, Loader2, Landmark, Percent, Clock } from 'lucide-react';
 import { 
   User, Quotation, AuditLog, UserRole, Resource, ServiceComposition, Contract, Measurement, 
   HighwayLocation, StationGroup, CubationData, TransportData, CalculationMemory, 
@@ -37,7 +37,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
-import { generateFullSQLScript, DB_TABLES, generateStructureSQL, generateDataSQL, generateDataPartsSQL, getSupabaseMigrationParts } from '../lib/sqlFormat';
+import { generateFullSQLScript, DB_TABLES, SUPABASE_TABLE_DEFS, generateStructureSQL, generateDataSQL, generateDataPartsSQL, getSupabaseMigrationParts } from '../lib/sqlFormat';
 import JSZip from 'jszip';
 import { getSupabaseConfig, saveSupabaseConfig, SupabaseConfig, createSupabaseClient } from '../lib/supabaseClient';
 import { 
@@ -268,14 +268,142 @@ export function AdminView({
     return all.filter(([id]) => id === currentUser.companyId);
   }, [users, currentUser]);
 
+  const [supabaseConfig, setSupabaseConfig] = useState<SupabaseConfig>(getSupabaseConfig());
+
   const [expandedCompanies, setExpandedCompanies] = useState<string[]>([]);
+
+  const [dbSchema, setDbSchema] = useState<any>(null);
+  const [isFetchingSchema, setIsFetchingSchema] = useState(false);
+  const [selectedCompanyIdToDelete, setSelectedCompanyIdToDelete] = useState('');
+  const [selectedTableToDelete, setSelectedTableToDelete] = useState('');
+  const [isDeletingCompanyData, setIsDeletingCompanyData] = useState(false);
+  const [recordsCount, setRecordsCount] = useState<number | null>(null);
+  const [isCounting, setIsCounting] = useState(false);
+
+  React.useEffect(() => {
+    const fetchCount = async () => {
+      if (!selectedCompanyIdToDelete || !selectedTableToDelete || !supabaseConfig.url || !supabaseConfig.key) {
+        setRecordsCount(null);
+        return;
+      }
+      setIsCounting(true);
+      try {
+        const supabase = createSupabaseClient(supabaseConfig.url, supabaseConfig.key);
+        if (supabase) {
+          const { count, error } = await supabase.from(selectedTableToDelete)
+            .select('*', { count: 'exact', head: true })
+            .eq('company_id', selectedCompanyIdToDelete);
+          if (!error && count !== null) {
+            setRecordsCount(count);
+          } else {
+            setRecordsCount(null);
+          }
+        }
+      } catch (e) {
+        setRecordsCount(null);
+      } finally {
+        setIsCounting(false);
+      }
+    };
+    fetchCount();
+  }, [selectedCompanyIdToDelete, selectedTableToDelete, supabaseConfig]);
+
+  const handlePrintSchema = () => {
+    const originalContent = document.body.innerHTML;
+    const printContent = document.getElementById('schema-printable-area');
+    if (printContent) {
+      window.print();
+    }
+  };
+
+  const handleExportSchema = () => {
+    if (!dbSchema || dbSchema._error) return;
+    import('exceljs').then(ExcelJS => {
+      const workbook = new ExcelJS.Workbook();
+      Object.keys(dbSchema).forEach(tableName => {
+        const tableDef = dbSchema[tableName];
+        if (!tableDef.properties) return;
+        const sheet = workbook.addWorksheet(tableName.substring(0, 31));
+        sheet.addRow(['Coluna', 'Tipo', 'Descrição']);
+        Object.keys(tableDef.properties).forEach(colName => {
+          const colDef = tableDef.properties[colName];
+          sheet.addRow([colName, colDef.type || '', colDef.description || '']);
+        });
+      });
+      workbook.xlsx.writeBuffer().then(buffer => {
+        const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'esquema_banco.xlsx';
+        a.click();
+      });
+    });
+  };
+
+  const fetchDatabaseSchema = async () => {
+    setIsFetchingSchema(true);
+    try {
+      // Simulate network delay for UI feedback
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      const schema: any = {};
+      Object.keys(SUPABASE_TABLE_DEFS).forEach(tableName => {
+        const columnsStr = SUPABASE_TABLE_DEFS[tableName];
+        // naive split by comma outside of parens/quotes, or just split by comma
+        // Simple approach: split by comma, then take first word as colName, second as type
+        const columns = columnsStr.split(',').map(c => c.trim()).filter(c => c);
+        const properties: any = {};
+        columns.forEach(col => {
+          const parts = col.split(' ').filter(p => p);
+          if (parts.length >= 2) {
+            properties[parts[0]] = { type: parts[1], description: parts.slice(2).join(' ') };
+          }
+        });
+        schema[tableName] = { properties };
+      });
+      setDbSchema(schema);
+    } catch (e: any) {
+      console.error(e);
+      setDbSchema({ _error: 'Erro: ' + e.message });
+    } finally {
+      setIsFetchingSchema(false);
+    }
+  };
+
+  const handleDeleteCompanyData = async () => {
+    if (!selectedCompanyIdToDelete || !selectedTableToDelete) {
+      alert('Selecione uma empresa e uma tabela.');
+      return;
+    }
+    if (!window.confirm(`Tem certeza que deseja EXCLUIR TODOS OS DADOS da empresa selecionada na tabela ${selectedTableToDelete}? Esta ação é irreversível.`)) return;
+    
+    setIsDeletingCompanyData(true);
+    const supabase = createSupabaseClient(supabaseConfig.url, supabaseConfig.key);
+    if (!supabase) return;
+
+    try {
+       const { error } = await supabase.from(selectedTableToDelete).delete().eq('company_id', selectedCompanyIdToDelete);
+       if (error) {
+         alert('Erro ao excluir dados: ' + error.message);
+       } else {
+         alert(`Dados da empresa excluídos com sucesso na tabela ${selectedTableToDelete}`);
+         setSelectedTableToDelete('');
+       }
+    } catch (e: any) {
+      alert('Erro ao excluir dados: ' + e.message);
+    } finally {
+      setIsDeletingCompanyData(false);
+      setSelectedCompanyIdToDelete('');
+      setSelectedTableToDelete('');
+    }
+  };
 
   const toggleCompany = (id: string) => {
     setExpandedCompanies(prev => 
       prev.includes(id) ? prev.filter(c => c !== id) : [...prev, id]
     );
   };
-  const [supabaseConfig, setSupabaseConfig] = useState<SupabaseConfig>(getSupabaseConfig());
   const [testResults, setTestResults] = useState<Record<string, 'success' | 'error' | 'pending' | 'idle'>>({});
   const [isTesting, setIsTesting] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
@@ -482,6 +610,39 @@ export function AdminView({
       console.error('Error generating ZIP:', error);
       alert('Erro ao gerar o arquivo ZIP. Verifique o console para mais detalhes.');
     }
+  };
+
+  const handleExportUsers = () => {
+    import('exceljs').then(ExcelJS => {
+      const workbook = new ExcelJS.Workbook();
+      const sheet = workbook.addWorksheet('Usuários');
+      sheet.addRow(['Nome', 'Usuário', 'Função', 'Nível de Acesso', 'Empresa', 'Status', 'Expiração de Chaves', 'Chaves', 'Plano Desejado']);
+      users.forEach(u => {
+        sheet.addRow([
+          u.name,
+          u.username,
+          u.jobFunction || '',
+          u.role,
+          u.companyName || u.companyId,
+          u.isActive !== false ? 'Ativo' : 'Inativo',
+          u.keysExpiresAt ? format(new Date(u.keysExpiresAt), 'dd/MM/yyyy') : '',
+          u.keys || 0,
+          u.desiredPlan || ''
+        ]);
+      });
+      workbook.xlsx.writeBuffer().then(buffer => {
+        const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'usuarios.xlsx';
+        a.click();
+      });
+    });
+  };
+
+  const handlePrintUsers = () => {
+    window.print();
   };
 
   const handleCreateUser = async () => {
@@ -744,12 +905,25 @@ export function AdminView({
             </Card>
 
             <Card className="border-none shadow-sm lg:col-span-2 overflow-hidden">
-              <CardHeader>
-                <CardTitle>Gerenciar Acessos</CardTitle>
-                <CardDescription>Acesse e controle as permissões de cada usuário.</CardDescription>
+              <CardHeader className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
+                <div>
+                  <CardTitle>Gerenciar Acessos</CardTitle>
+                  <CardDescription>Acesse e controle as permissões de cada usuário.</CardDescription>
+                </div>
+                <div className="flex gap-2">
+                  <Button variant="outline" size="sm" onClick={handleExportUsers}>
+                    <Download className="w-4 h-4 mr-2" />
+                    Exportar Excel
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={handlePrintUsers}>
+                    <Printer className="w-4 h-4 mr-2" />
+                    Imprimir
+                  </Button>
+                </div>
               </CardHeader>
               <CardContent className="p-0">
-                <div className="space-y-1">
+                <ScrollArea className="h-[calc(100vh-280px)] border-none">
+                <div className="space-y-1" id="printable-content">
                   {users.length === 0 ? (
                     <div className="text-center py-20 text-gray-400">
                       Nenhum usuário disponível para visualização.
@@ -978,6 +1152,7 @@ export function AdminView({
                     })
                   )}
                 </div>
+                </ScrollArea>
               </CardContent>
             </Card>
           </div>
@@ -1004,7 +1179,7 @@ export function AdminView({
                 </div>
             </CardHeader>
             <CardContent className="p-0">
-              <ScrollArea className="h-[600px] w-full">
+              <ScrollArea className="h-[calc(100vh-280px)] w-full">
                 <Table>
                   <TableHeader className="bg-gray-50/50 sticky top-0 z-10">
                     <TableRow>
@@ -1083,7 +1258,7 @@ export function AdminView({
                 </div>
               </CardHeader>
               <CardContent className="p-0">
-                <ScrollArea className="h-[400px]">
+                <ScrollArea className="h-[calc(100vh-280px)]">
                   <Table>
                     <TableHeader>
                       <TableRow>
@@ -1143,6 +1318,129 @@ export function AdminView({
                    <div className="text-xs text-gray-500 font-medium">
                       O "Verificar Supabase" consulta as tabelas diretamente na nuvem
                    </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Schema and Cleanup Section */}
+            <Card className="border-none shadow-sm lg:col-span-2">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Database className="w-5 h-5 text-red-600" />
+                  Manutenção Avançada do Banco de Dados
+                </CardTitle>
+                <CardDescription>Visualize o esquema das tabelas e gerencie dados por empresa na nuvem.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                {/* Delete Data per Company */}
+                <div className="p-4 border border-red-100 bg-red-50/30 rounded-xl space-y-4">
+                  <div className="flex items-center gap-2 text-red-600">
+                    <AlertCircle className="w-5 h-5" />
+                    <h3 className="font-bold">Excluir Dados por Empresa (Nuvem)</h3>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <Label className="text-xs font-bold text-gray-700">Selecione a Empresa</Label>
+                      <Select value={selectedCompanyIdToDelete} onValueChange={setSelectedCompanyIdToDelete}>
+                        <SelectTrigger className="bg-white">
+                          <SelectValue placeholder="Selecione..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {companies.map(([id, name]) => (
+                            <SelectItem key={id} value={id}>{name || id}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label className="text-xs font-bold text-gray-700">Selecione a Tabela</Label>
+                      <Select value={selectedTableToDelete} onValueChange={setSelectedTableToDelete}>
+                        <SelectTrigger className="bg-white">
+                          <SelectValue placeholder="Selecione..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {DB_TABLES.map(t => (
+                            <SelectItem key={t} value={t}>{t}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  
+                  {selectedCompanyIdToDelete && selectedTableToDelete && (
+                    <div className="bg-white p-3 rounded-md border flex items-center justify-between">
+                      <span className="text-sm font-medium text-gray-700">Registros encontrados:</span>
+                      {isCounting ? (
+                        <span className="flex items-center text-sm text-blue-600 font-bold"><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Contando...</span>
+                      ) : (
+                        <span className="text-sm font-bold text-emerald-600">{recordsCount !== null ? recordsCount : '0'}</span>
+                      )}
+                    </div>
+                  )}
+
+                  <Button 
+                    variant="destructive" 
+                    className="w-full" 
+                    onClick={handleDeleteCompanyData}
+                    disabled={isDeletingCompanyData || !selectedCompanyIdToDelete || !selectedTableToDelete}
+                  >
+                    {isDeletingCompanyData ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <AlertCircle className="w-4 h-4 mr-2" />}
+                    Excluir Todos os Dados da Empresa na Tabela Selecionada
+                  </Button>
+                </div>
+
+                {/* Schema Viewer */}
+                <div>
+                  <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-4">
+                    <h3 className="font-bold text-gray-800">Esquema das Tabelas (OpenAPI / PostgREST)</h3>
+                    <div className="flex gap-2">
+                      <Button variant="outline" size="sm" onClick={handleExportSchema} disabled={!dbSchema || !!dbSchema._error}>
+                        <Download className="w-3.5 h-3.5 mr-2" />
+                        Exportar Excel
+                      </Button>
+                      <Button variant="outline" size="sm" onClick={handlePrintSchema} disabled={!dbSchema || !!dbSchema._error}>
+                        <Printer className="w-3.5 h-3.5 mr-2" />
+                        Imprimir
+                      </Button>
+                      <Button variant="outline" size="sm" onClick={fetchDatabaseSchema} disabled={isFetchingSchema}>
+                        {isFetchingSchema ? <Loader2 className="w-3.5 h-3.5 mr-2 animate-spin" /> : <Activity className="w-3.5 h-3.5 mr-2" />}
+                        Buscar Esquema
+                      </Button>
+                    </div>
+                  </div>
+
+                  {dbSchema && !dbSchema._error && (
+                    <ScrollArea className="h-[calc(100vh-280px)] border rounded-xl bg-slate-50 p-4" id="schema-printable-area">
+                      <div className="space-y-6">
+                        {Object.keys(dbSchema).map(tableName => {
+                          const tableDef = dbSchema[tableName];
+                          if (!tableDef.properties) return null;
+                          
+                          return (
+                            <div key={tableName} className="bg-white p-4 rounded-lg border shadow-sm">
+                              <h4 className="font-bold text-blue-800 mb-2">{tableName}</h4>
+                              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
+                                {Object.keys(tableDef.properties).map(colName => {
+                                  const colDef = tableDef.properties[colName];
+                                  return (
+                                    <div key={colName} className="text-xs p-1.5 bg-slate-50 border rounded flex flex-col">
+                                      <span className="font-bold text-slate-700">{colName}</span>
+                                      <span className="text-[10px] text-slate-500">{colDef.type || colDef.format || 'unknown'} {colDef.description && `(${colDef.description})`}</span>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </ScrollArea>
+                  )}
+                  {dbSchema && dbSchema._error && (
+                    <div className="p-4 bg-red-50 text-red-600 rounded-xl border border-red-100 text-sm">
+                      {dbSchema._error}
+                    </div>
+                  )}
                 </div>
               </CardContent>
             </Card>

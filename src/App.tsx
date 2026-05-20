@@ -280,6 +280,23 @@ export default function App() {
     }
   };
 
+  useEffect(() => {
+    if (companyLogo) {
+      let link = document.querySelector("link[rel~='icon']") as HTMLLinkElement;
+      if (!link) {
+        link = document.createElement('link');
+        link.rel = 'icon';
+        document.getElementsByTagName('head')[0].appendChild(link);
+      }
+      link.href = companyLogo;
+    } else {
+      let link = document.querySelector("link[rel~='icon']") as HTMLLinkElement;
+      if (link) {
+        link.href = '/vite.svg'; // Default icon or simply remove it. Wait, the default could be anything, but we can just leave it if there's no custom icon, or set to a default.
+      }
+    }
+  }, [companyLogo]);
+
   // Sync logic when user changes
   useEffect(() => {
     if (currentUser?.id) {
@@ -3045,11 +3062,11 @@ export default function App() {
       <header className="h-14 bg-white border-b border-gray-200 flex items-center px-6 z-40 shrink-0">
         <div className="flex items-center gap-4 mr-8 shrink-0">
           <Sheet>
-            <SheetTrigger render={
+            <SheetTrigger asChild>
               <button className="xl:hidden p-2 hover:bg-gray-50 rounded-xl transition-colors">
                 <Menu className="w-5 h-5 text-gray-500" />
               </button>
-            } />
+            </SheetTrigger>
             <SheetContent side="left" className="w-72 p-0 border-none shadow-2xl bg-white">
               <div className="bg-blue-600 p-8 text-white">
                 <div className="flex items-center gap-3 mb-2">
@@ -3109,7 +3126,7 @@ export default function App() {
         <div className="ml-auto flex items-center gap-3 shrink-0">
           {finalContracts.length > 0 && (
             <Sheet open={isContractSheetOpen} onOpenChange={setIsContractSheetOpen}>
-              <SheetTrigger render={
+              <SheetTrigger asChild>
                 <Button 
                   variant="outline" 
                   size="sm" 
@@ -3129,7 +3146,7 @@ export default function App() {
                     <Filter className="w-3 h-3 opacity-40 group-hover:opacity-100 transition-opacity" />
                   </div>
                 </Button>
-              } />
+              </SheetTrigger>
               <SheetContent side="top" className="h-[500px] p-0 border-none shadow-2xl bg-[#F8FAFC]">
                 <div className="max-w-4xl mx-auto w-full">
                   <div className="bg-blue-600 p-8 text-white relative overflow-hidden rounded-b-[40px]">
@@ -3229,7 +3246,7 @@ export default function App() {
           <div className="h-8 w-[1px] bg-gray-100 mx-1" />
 
           <DropdownMenu>
-            <DropdownMenuTrigger render={
+            <DropdownMenuTrigger asChild>
               <button 
                 className={cn(
                   "flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-bold transition-all group border border-transparent",
@@ -3249,7 +3266,7 @@ export default function App() {
                   <p className="leading-none text-[11px]">{currentUser?.name?.split(' ')[0]}</p>
                 </div>
               </button>
-            } />
+            </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-56 p-2 rounded-2xl shadow-2xl border-gray-100">
               <div className="flex flex-col p-3 border-b border-gray-50 mb-1">
                 <p className="text-sm font-black text-gray-900">{currentUser?.name}</p>

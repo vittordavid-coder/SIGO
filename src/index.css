@@ -148,3 +148,19 @@
     background: #64748b;
   }
 }
+
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  #printable-content, #printable-content *,
+  #schema-printable-area, #schema-printable-area * {
+    visibility: visible;
+  }
+  #printable-content, #schema-printable-area {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+  }
+}
