@@ -1476,22 +1476,22 @@ export default function ControlView({
 
       <Modal
         isOpen={isImportModalOpen}
-        onClose={() => setIsImportModalOpen(false)}
+        onClose={() => setIsImportModalOpen(false)} maxWidth="custom" className="sm:max-w-[800px] h-[600px] flex flex-col overflow-hidden"
         title="Importar Equipamentos"
-        maxWidth="md"
+        
         footer={
           <Button onClick={() => fileInputRef.current?.click()} className="gap-2 w-full sm:w-auto"><Upload className="w-4 h-4" /> Selecionar Arquivo</Button>
         }
       >
-        <div className="space-y-4">
+        <div className="space-y-4 flex-1 overflow-y-auto p-4 scrollbar-thin-visible">
           <div className="space-y-2">
             <Label className="text-[10px] uppercase font-bold text-gray-400">Obra de Destino</Label>
-            <Select value={importContractId} onValueChange={setImportContractId}>
+            <Select value={importContractId || "_none_"} onValueChange={(val) => setImportContractId(val === "_none_" ? "" : val)}>
               <SelectTrigger className="h-12 rounded-xl focus:ring-blue-500 transition-all">
                 <SelectValue placeholder="Usar obra da planilha" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="" className="font-bold">Usar obra da planilha</SelectItem>
+                <SelectItem value="_none_" className="font-bold">Usar obra da planilha</SelectItem>
                 {availableContracts.map(c => <SelectItem key={c.id} value={c.id} className="font-bold">{c.workName || c.contractNumber || 'Sem nome'}</SelectItem>)}
               </SelectContent>
             </Select>
@@ -1502,8 +1502,8 @@ export default function ControlView({
 
       <Modal
         isOpen={isMaintenanceModalOpen}
-        onClose={() => setIsMaintenanceModalOpen(false)}
-        maxWidth="xl"
+        onClose={() => setIsMaintenanceModalOpen(false)} maxWidth="custom" className="sm:max-w-[800px] h-[600px] flex flex-col overflow-hidden"
+        
         className="p-0 border-none"
         headerClassName="hidden"
       >
@@ -1638,8 +1638,8 @@ export default function ControlView({
 
       <Modal
         isOpen={isExitMaintenanceModalOpen}
-        onClose={() => setIsExitMaintenanceModalOpen(false)}
-        maxWidth="md"
+        onClose={() => setIsExitMaintenanceModalOpen(false)} maxWidth="custom" className="sm:max-w-[800px] h-[600px] flex flex-col overflow-hidden"
+        
         className="p-0 border-none"
         headerClassName="hidden"
       >
@@ -1851,8 +1851,9 @@ export default function ControlView({
                 <Modal
                   isOpen={isAddOpen}
                   onClose={() => setIsAddOpen(false)}
-                  maxWidth="5xl"
-                  className="p-0 border-none"
+                  hideCancel={true}
+                  maxWidth="custom"
+                  className="p-0 border-none sm:max-w-[800px] h-[600px] flex flex-col overflow-hidden"
                   headerClassName="hidden"
                 >
                   <div className="bg-gradient-to-r from-blue-600 to-indigo-700 p-8 flex justify-between items-center shrink-0 relative overflow-hidden">
@@ -2018,14 +2019,14 @@ export default function ControlView({
                             
                             <div className="md:col-span-2 lg:col-span-3 space-y-2">
                               <Label className="text-[11px] uppercase font-black text-slate-500 tracking-tight">Obra Vinculada (Centro de Custo)</Label>
-                              <Select value={newEquip.contractId || ''} onValueChange={val => setNewEquip({...newEquip, contractId: val})} disabled={!!selectedContractId}>
+                              <Select value={newEquip.contractId || '_none_'} onValueChange={val => setNewEquip({...newEquip, contractId: val === "_none_" ? "" : val})} disabled={!!selectedContractId}>
                                 <SelectTrigger className="rounded-xl border-slate-200 bg-slate-50/50 h-12 text-sm font-bold transition-all focus:ring-2 focus:ring-blue-500/20">
                                   <SelectValue placeholder="Selecione a obra...">
-                                    {newEquip.contractId ? getContractName(newEquip.contractId) : "Sem Obra (Disponível)"}
+                                    {newEquip.contractId && newEquip.contractId !== "_none_" ? getContractName(newEquip.contractId) : "Sem Obra (Disponível)"}
                                   </SelectValue>
                                 </SelectTrigger>
                                 <SelectContent>
-                                  <SelectItem value="" className="font-bold py-3 uppercase text-[10px] tracking-tight">Sem Obra (Disponível)</SelectItem>
+                                  <SelectItem value="_none_" className="font-bold py-3 uppercase text-[10px] tracking-tight">Sem Obra (Disponível)</SelectItem>
                                   {contracts.filter(c => currentUser?.role === 'master' || c.companyId === currentUser?.companyId || c.id === newEquip.contractId).map(c => (
                                     <SelectItem key={c.id} value={c.id} className="font-bold py-3 uppercase text-[10px] tracking-tight">
                                       {c.workName || c.contractNumber}
@@ -3160,8 +3161,9 @@ export default function ControlView({
       <Modal
         isOpen={isEditOpen}
         onClose={() => setIsEditOpen(false)}
-        maxWidth="5xl"
-        className="p-0 border-none"
+        hideCancel={true}
+        maxWidth="custom"
+        className="p-0 border-none sm:max-w-[800px] h-[600px] flex flex-col overflow-hidden"
         headerClassName="hidden"
       >
         <div className="bg-gradient-to-r from-blue-700 to-indigo-800 p-8 flex justify-between items-center shrink-0 relative overflow-hidden">
@@ -3339,14 +3341,14 @@ export default function ControlView({
 
                   <div className="md:col-span-2 lg:col-span-3 space-y-3">
                     <Label className="text-[12px] uppercase font-black text-slate-500 tracking-tight">Obra Vinculada (Centro de Custo)</Label>
-                    <Select value={equipmentToEdit?.contractId || ''} onValueChange={val => setEquipmentToEdit(prev => prev ? {...prev, contractId: val} : null)}>
+                    <Select value={equipmentToEdit?.contractId || '_none_'} onValueChange={val => setEquipmentToEdit(prev => prev ? {...prev, contractId: val === "_none_" ? "" : val} : null)}>
                       <SelectTrigger className="rounded-xl border-slate-200 bg-slate-50/50 h-16 text-base font-bold transition-all focus:ring-2 focus:ring-blue-500/20">
                         <SelectValue placeholder="Selecione a obra...">
-                          {equipmentToEdit?.contractId ? getContractName(equipmentToEdit.contractId) : "Sem Obra (Disponível)"}
+                          {equipmentToEdit?.contractId && equipmentToEdit?.contractId !== "_none_" ? getContractName(equipmentToEdit.contractId) : "Sem Obra (Disponível)"}
                         </SelectValue>
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="" className="font-bold py-4 uppercase text-[11px] tracking-tight">Sem Obra (Disponível)</SelectItem>
+                        <SelectItem value="_none_" className="font-bold py-4 uppercase text-[11px] tracking-tight">Sem Obra (Disponível)</SelectItem>
                         {contracts.filter(c => currentUser?.role === 'master' || c.companyId === currentUser?.companyId || c.id === equipmentToEdit?.contractId).map(c => (
                           <SelectItem key={c.id} value={c.id} className="font-bold py-4 uppercase text-[11px] tracking-tight">{c.workName || c.contractNumber}</SelectItem>
                         ))}
@@ -3699,11 +3701,11 @@ export default function ControlView({
 
       <Modal 
         isOpen={isPeriodSelectionOpen} 
-        onClose={() => setIsPeriodSelectionOpen(false)}
+        onClose={() => setIsPeriodSelectionOpen(false)} maxWidth="custom" className="sm:max-w-[800px] h-[600px] flex flex-col overflow-hidden"
         title="Novo Período de Medição"
         description="Selecione o período para iniciar a medição"
       >
-        <div className="space-y-6 pt-4">
+        <div className="space-y-6 p-6 flex-1 overflow-y-auto scrollbar-thin-visible">
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2 col-span-2">
               <Label>Mês Referência</Label>
@@ -3735,7 +3737,7 @@ export default function ControlView({
 
       <Modal 
         isOpen={isNewMeasurementModalOpen} 
-        onClose={() => setIsNewMeasurementModalOpen(false)}
+        onClose={() => setIsNewMeasurementModalOpen(false)} maxWidth="custom" className="sm:max-w-[800px] h-[600px] flex flex-col overflow-hidden"
         title={
           <div className="flex items-center justify-between w-full">
             <span>{`Lançamento de Medição - ${measurementMonth}`}</span>
@@ -3890,8 +3892,8 @@ export default function ControlView({
 
       <Modal
         isOpen={isTransferOpen}
-        onClose={() => setIsTransferOpen(false)}
-        maxWidth="md"
+        onClose={() => setIsTransferOpen(false)} maxWidth="custom" className="sm:max-w-[800px] h-[600px] flex flex-col overflow-hidden"
+        
         className="p-0 border-none"
         headerClassName="hidden"
       >
@@ -3973,8 +3975,8 @@ export default function ControlView({
 
       <Modal
         isOpen={isDeleteOpen}
-        onClose={() => setIsDeleteOpen(false)}
-        maxWidth="md"
+        onClose={() => setIsDeleteOpen(false)} maxWidth="custom" className="sm:max-w-[800px] h-[600px] flex flex-col overflow-hidden"
+        
         className="p-0 border-none"
         headerClassName="hidden"
       >
@@ -4024,8 +4026,8 @@ export default function ControlView({
 
       <Modal
         isOpen={isTankModalOpen}
-        onClose={() => setIsTankModalOpen(false)}
-        maxWidth="md"
+        onClose={() => setIsTankModalOpen(false)} maxWidth="custom" className="sm:max-w-[800px] h-[600px] flex flex-col overflow-hidden"
+        
         className="p-0 border-none"
         headerClassName="hidden"
       >
@@ -4122,8 +4124,8 @@ export default function ControlView({
 
       <Modal
         isOpen={isFuelLogModalOpen}
-        onClose={() => setIsFuelLogModalOpen(false)}
-        maxWidth="md"
+        onClose={() => setIsFuelLogModalOpen(false)} maxWidth="custom" className="sm:max-w-[800px] h-[600px] flex flex-col overflow-hidden"
+        
         className="p-0 border-none"
         headerClassName="hidden"
       >
@@ -4306,8 +4308,8 @@ export default function ControlView({
 
       <Modal
         isOpen={isMaterialRequestModalOpen}
-        onClose={() => setIsMaterialRequestModalOpen(false)}
-        maxWidth="2xl"
+        onClose={() => setIsMaterialRequestModalOpen(false)} maxWidth="custom" className="sm:max-w-[800px] h-[600px] flex flex-col overflow-hidden"
+        
         className="p-0 border-none"
         headerClassName="hidden"
       >
@@ -4538,8 +4540,8 @@ export default function ControlView({
 
       <Modal
         isOpen={isDetailOpen}
-        onClose={() => setIsDetailOpen(false)}
-        maxWidth="2xl"
+        onClose={() => setIsDetailOpen(false)} maxWidth="custom" className="sm:max-w-[800px] h-[600px] flex flex-col overflow-hidden"
+        
         className="p-0"
         headerClassName="hidden"
       >
@@ -4638,10 +4640,10 @@ export default function ControlView({
       </Modal>
       <Modal
         isOpen={!!exportData}
-        onClose={() => setExportData(null)}
+        onClose={() => setExportData(null)} maxWidth="custom" className="sm:max-w-[800px] h-[600px] flex flex-col overflow-hidden"
         title="Exportar Relatório"
         description="Escolha o formato para exportar a medição"
-        maxWidth="sm"
+        
       >
         <div className="grid grid-cols-2 gap-4 py-4">
           <Button 
@@ -4672,7 +4674,7 @@ export default function ControlView({
         onClose={() => {
            setIsMaintenanceDiscountModalOpen(false);
            setSelectedMaintenanceToDiscount([]);
-        }}
+        }} maxWidth="custom" className="sm:max-w-[800px] h-[600px] flex flex-col overflow-hidden"
         title="Descontos de Manutenção"
         description="Selecione as manutenções para descontar desta medição"
         maxWidth="lg"

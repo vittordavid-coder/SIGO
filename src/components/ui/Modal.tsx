@@ -36,17 +36,22 @@ export function Modal({
 }) {
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className={cn(className, maxWidth === "md" ? "max-w-md" : maxWidth === "lg" ? "max-w-lg" : maxWidth === "xl" ? "max-w-xl" : maxWidth === "2xl" ? "max-w-2xl" : maxWidth === "3xl" ? "max-w-3xl" : maxWidth === "4xl" ? "max-w-4xl" : maxWidth === "5xl" ? "max-w-5xl" : maxWidth === "7xl" ? "max-w-7xl" : "max-w-lg")}>
+      <DialogContent className={cn(className, maxWidth === "custom" ? "" : maxWidth === "sm" ? "max-w-sm" : maxWidth === "md" ? "max-w-md" : maxWidth === "lg" ? "max-w-lg" : maxWidth === "xl" ? "max-w-xl" : maxWidth === "2xl" ? "max-w-2xl" : maxWidth === "3xl" ? "max-w-3xl" : maxWidth === "4xl" ? "max-w-4xl" : maxWidth === "5xl" ? "max-w-5xl" : maxWidth === "7xl" ? "max-w-7xl" : "max-w-lg")}>
+        {!title && <DialogTitle className="sr-only">Modal</DialogTitle>}
         {title && <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
           {description && <DialogDescription className="whitespace-pre-wrap">{description}</DialogDescription>}
         </DialogHeader>}
         {children}
-        {(onConfirm || !hideCancel) && (
-          <DialogFooter>
-            {!hideCancel && <Button variant="outline" onClick={onClose}>{cancelText}</Button>}
-            {onConfirm && <Button variant={confirmVariant} onClick={onConfirm}>{confirmText}</Button>}
-          </DialogFooter>
+        {footer ? (
+          footer
+        ) : (
+          (onConfirm || !hideCancel) && (
+            <DialogFooter>
+              {!hideCancel && <Button variant="outline" onClick={onClose}>{cancelText}</Button>}
+              {onConfirm && <Button variant={confirmVariant} onClick={onConfirm}>{confirmText}</Button>}
+            </DialogFooter>
+          )
         )}
       </DialogContent>
     </Dialog>

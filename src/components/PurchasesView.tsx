@@ -630,8 +630,9 @@ function RequestsTab({
         <Modal
           isOpen={isRequestDialogOpen}
           onClose={() => setIsRequestDialogOpen(false)}
-          maxWidth="2xl"
-          className="p-0"
+          hideCancel={true}
+          maxWidth="custom"
+          className="p-0 border-none sm:max-w-[800px] h-[600px] flex flex-col overflow-hidden"
           headerClassName="hidden"
         >
           <div className="bg-blue-600 p-8 text-white relative overflow-hidden rounded-t-2xl">
@@ -642,7 +643,7 @@ function RequestsTab({
             </div>
           </div>
 
-          <div className="p-8 space-y-8">
+          <div className="flex-1 overflow-y-auto p-8 space-y-8 scrollbar-thin-visible">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-2">
                 <Label className="text-[10px] uppercase font-bold text-gray-400">Data da Solicitação</Label>
@@ -837,8 +838,8 @@ function RequestsTab({
         <Modal
           isOpen={isQuotationDialogOpen}
           onClose={() => setIsQuotationDialogOpen(false)}
-          maxWidth="2xl"
-          className="p-0 border-none"
+          maxWidth="custom"
+          className="p-0 border-none sm:max-w-[800px] h-[600px] flex flex-col overflow-hidden"
           headerClassName="hidden"
         >
           <div className="bg-emerald-600 p-8 text-white relative overflow-hidden rounded-t-2xl">
@@ -848,7 +849,7 @@ function RequestsTab({
               <p className="text-emerald-100 font-bold uppercase text-[10px] tracking-widest mt-1">Selecione os fornecedores para envio de itens</p>
             </div>
           </div>
-            <div className="p-6 space-y-6">
+            <div className="flex-1 overflow-y-auto p-6 space-y-6 scrollbar-thin-visible">
               <div className="bg-emerald-50 p-4 rounded-xl border border-emerald-100 mb-6">
                 <h4 className="text-emerald-800 font-bold flex items-center gap-2 mb-2">
                   <FileText className="w-4 h-4" /> Resumo do Orçamento
@@ -872,8 +873,8 @@ function RequestsTab({
               </div>
 
               <div className="space-y-4">
-                <Label className="text-lg font-bold text-gray-900">Selecione os Fornecedores (Máx. 3)</Label>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-[250px] overflow-y-auto pr-2">
+                <Label className="text-sm font-bold text-gray-900 uppercase">Selecione os Fornecedores (Máx. 3)</Label>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 max-h-[400px] overflow-y-auto pr-2">
                   {suppliers.map(supplier => (
                     <div 
                       key={supplier.id}
@@ -885,18 +886,18 @@ function RequestsTab({
                         }
                       }}
                       className={cn(
-                        "p-4 border-2 rounded-xl cursor-pointer transition-all flex items-center justify-between",
+                        "p-3 border rounded-xl cursor-pointer transition-all flex items-center justify-between",
                         selectedSuppliers.includes(supplier.id) 
                           ? "border-emerald-600 bg-emerald-50" 
-                          : "border-gray-100 bg-gray-50 hover:border-emerald-200"
+                          : "border-gray-200 bg-gray-50 hover:border-emerald-200 hover:bg-white"
                       )}
                     >
                       <div>
-                        <div className="font-bold text-gray-900">{supplier.name}</div>
-                        <div className="text-xs text-gray-500">{supplier.activity}</div>
+                        <div className="font-bold text-gray-900 text-sm">{supplier.name}</div>
+                        <div className="text-[10px] font-bold text-gray-500 uppercase mt-0.5">{supplier.activity}</div>
                       </div>
                       {selectedSuppliers.includes(supplier.id) && (
-                        <CheckCircle className="w-5 h-5 text-emerald-600" />
+                        <CheckCircle className="w-5 h-5 text-emerald-600 shrink-0" />
                       )}
                     </div>
                   ))}
@@ -904,7 +905,7 @@ function RequestsTab({
               </div>
 
               <div className="pt-6 border-t border-gray-100 flex justify-between items-center">
-                <div className="text-sm text-gray-500 font-medium">
+                <div className="text-xs text-gray-500 font-bold uppercase">
                   {selectedSuppliers.length} de 3 selecionados
                 </div>
                 <div className="flex gap-3">
@@ -912,9 +913,9 @@ function RequestsTab({
                   <Button 
                     disabled={selectedSuppliers.length === 0}
                     onClick={handleSendQuotation}
-                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-black uppercase text-[10px] rounded-xl h-11 px-8 shadow-lg shadow-emerald-100 transition-all active:scale-95"
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-black uppercase text-[10px] rounded-xl h-10 px-6 shadow-sm transition-all"
                   >
-                    <Send className="w-4 h-4 mr-2" /> Enviar Cotação Agora
+                    <Send className="w-4 h-4 mr-2" /> Enviar Cotação
                   </Button>
                 </div>
               </div>
@@ -1082,8 +1083,8 @@ function SuppliersTab({ suppliers, setSuppliers, compId, contracts }: { supplier
       <Modal
         isOpen={isDialogOpen}
         onClose={() => setIsDialogOpen(false)}
-        maxWidth="3xl"
-        className="p-0 border-none"
+        maxWidth="custom"
+        className="p-0 border-none sm:max-w-[800px] h-[600px] flex flex-col overflow-hidden"
         headerClassName="hidden"
       >
         <div className="bg-blue-600 p-8 text-white relative overflow-hidden rounded-t-2xl">
@@ -1096,7 +1097,7 @@ function SuppliersTab({ suppliers, setSuppliers, compId, contracts }: { supplier
           </div>
         </div>
 
-            <div className="p-6">
+            <div className="flex-1 overflow-y-auto p-6 scrollbar-thin-visible">
               <div className="grid grid-cols-2 gap-x-6 gap-y-4">
                 <div className="space-y-2">
                   <Label className="text-sm font-semibold text-gray-700">Cadastro n° / Código</Label>
@@ -1650,8 +1651,8 @@ function OrdersTab({
         <Modal
           isOpen={isPrintDialogOpen}
           onClose={() => setIsPrintDialogOpen(false)}
-          maxWidth="4xl"
-          className="p-0 border-none"
+          maxWidth="custom"
+          className="p-0 border-none sm:max-w-[800px] h-[600px] flex flex-col overflow-hidden"
           headerClassName="hidden"
           footer={
             <div className="flex justify-end gap-3 w-full p-4 bg-gray-50 border-t">
@@ -1662,7 +1663,7 @@ function OrdersTab({
             </div>
           }
         >
-          <div className="flex-1 overflow-y-auto w-full max-h-[70vh]">
+          <div className="flex-1 overflow-y-auto w-full scrollbar-thin-visible">
             <div className="p-4 bg-white min-h-[11in]" id="print-area">
                 <div className="flex justify-between items-start border-b-2 border-blue-600 pb-2 mb-3">
                  <div className="flex items-center gap-3">
@@ -1817,8 +1818,8 @@ function OrdersTab({
         <Modal
           isOpen={isDialogOpen}
           onClose={() => setIsDialogOpen(false)}
-          maxWidth="5xl"
-          className="p-0 border-none"
+          maxWidth="custom"
+          className="p-0 border-none sm:max-w-[800px] h-[600px] flex flex-col overflow-hidden"
           headerClassName="hidden"
         >
           <div className="bg-emerald-600 p-8 text-white relative overflow-hidden rounded-t-2xl sticky top-0 z-10 shadow-md">
@@ -1829,7 +1830,7 @@ function OrdersTab({
             </div>
           </div>
 
-            <div className="p-6 space-y-6 bg-gray-50/30">
+            <div className="flex-1 overflow-y-auto p-6 space-y-6 bg-gray-50/30 scrollbar-thin-visible">
               
               {/* Header Info */}
               <div className="bg-white p-5 rounded-xl border border-gray-100 shadow-sm grid grid-cols-2 gap-x-6 gap-y-4">
@@ -2489,31 +2490,31 @@ function QuotationsTab({
         <Modal
           isOpen={isDetailsOpen}
           onClose={() => setIsDetailsOpen(false)}
-          maxWidth="5xl"
-          className="p-0 border-none"
+          maxWidth="custom"
+          className="p-0 border-none sm:max-w-[800px] h-[600px] flex flex-col overflow-hidden"
           headerClassName="hidden"
         >
-          <div className="bg-emerald-600 p-8 text-white relative overflow-hidden rounded-t-2xl">
+          <div className="bg-emerald-600 p-6 text-white relative overflow-hidden rounded-t-2xl">
             <Plus className="absolute -right-8 -bottom-8 w-40 h-40 opacity-10 rotate-12" />
             <div className="relative z-10 text-left">
-              <h2 className="text-3xl font-black tracking-tight">Mapa de Cotação</h2>
+              <h2 className="text-2xl font-black tracking-tight">Mapa de Cotação</h2>
               <p className="text-emerald-100 font-bold uppercase text-[10px] tracking-widest mt-1">Comparativo de fornecedores e fechamento de pedido</p>
             </div>
           </div>
 
-          <div className="p-8">
+          <div className="flex-1 overflow-y-auto p-6 scrollbar-thin-visible">
             {selectedQuotation && (
-              <div className="overflow-x-auto rounded-3xl border border-gray-100 shadow-sm">
+              <div className="overflow-x-auto rounded-xl border border-gray-100 shadow-sm">
                 <Table>
                   <TableHeader className="bg-gray-50/80 backdrop-blur-md sticky top-0 z-10">
                     <TableRow>
-                      <TableHead className="font-black text-gray-900 uppercase text-[10px] tracking-widest pb-4">Item / Descrição</TableHead>
-                      <TableHead className="text-center font-black text-gray-900 uppercase text-[10px] tracking-widest pb-4">Qtd</TableHead>
+                      <TableHead className="font-black text-gray-900 uppercase text-[10px] tracking-widest pb-3">Item / Descrição</TableHead>
+                      <TableHead className="text-center font-black text-gray-900 uppercase text-[10px] tracking-widest pb-3">Qtd</TableHead>
                       {selectedQuotation.suppliers.map(qs => {
                         const sup = suppliers.find(s => s.id === qs.supplierId);
                         return (
-                          <TableHead key={qs.supplierId} className="text-center min-w-[200px] border-l border-gray-100 pb-4">
-                            <div className="font-black text-blue-600 text-sm uppercase leading-tight truncate">{sup?.name}</div>
+                          <TableHead key={qs.supplierId} className="text-center min-w-[180px] border-l border-gray-100 pb-3">
+                            <div className="font-black text-blue-600 text-[11px] uppercase leading-tight truncate">{sup?.name}</div>
                             <div className="text-[9px] text-gray-400 font-bold uppercase truncate mt-0.5">{sup?.activity}</div>
                           </TableHead>
                         );
@@ -2523,22 +2524,22 @@ function QuotationsTab({
                   <TableBody>
                     {selectedQuotation.items.map((item) => (
                       <TableRow key={item.itemId} className="hover:bg-gray-50/50 transition-colors">
-                        <TableCell className="py-4">
-                          <div className="font-bold text-gray-900 text-sm">{item.description}</div>
+                        <TableCell className="py-2">
+                          <div className="font-bold text-gray-900 text-xs">{item.description}</div>
                           <div className="text-[10px] text-gray-400 font-bold uppercase">{item.unit}</div>
                         </TableCell>
-                        <TableCell className="text-center font-black text-gray-900">
+                        <TableCell className="text-center font-black text-gray-900 text-xs">
                           {item.quantity}
                         </TableCell>
                         {selectedQuotation.suppliers.map(qs => {
                           const response = qs.responses.find(r => r.itemId === item.itemId);
                           return (
-                            <TableCell key={qs.supplierId} className="p-3 border-l border-gray-100">
+                            <TableCell key={qs.supplierId} className="p-2 border-l border-gray-100">
                               <div className="relative group">
-                                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-xs text-emerald-400 font-black">R$</span>
+                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-emerald-400 font-bold">R$</span>
                                 <Input 
                                   type="number"
-                                  className="pl-10 h-11 bg-white border-gray-100 rounded-xl focus:ring-emerald-500 font-black text-emerald-700 text-lg shadow-sm"
+                                  className="pl-8 h-9 bg-white border-gray-200 rounded-lg focus:ring-emerald-500 font-bold text-emerald-700 text-sm shadow-sm"
                                   value={response?.price || ''}
                                   onChange={(e) => handleUpdatePrice(qs.supplierId, item.itemId, parseFloat(e.target.value) || 0)}
                                 />
@@ -2550,7 +2551,7 @@ function QuotationsTab({
                     ))}
                     {/* Subtotals Row */}
                     <TableRow className="bg-emerald-50/30 font-bold">
-                      <TableCell colSpan={2} className="text-right uppercase tracking-[0.2em] font-black text-gray-400 text-[10px] py-6">Total do Fornecedor</TableCell>
+                      <TableCell colSpan={2} className="text-right uppercase tracking-[0.2em] font-black text-gray-400 text-[9px] py-4">Total do Fornecedor</TableCell>
                       {selectedQuotation.suppliers.map(qs => {
                         const total = selectedQuotation.items.reduce((acc, item) => {
                           const res = qs.responses.find(r => r.itemId === item.itemId);
@@ -2562,12 +2563,12 @@ function QuotationsTab({
                             "text-center transition-all border-l border-emerald-100",
                             isAdminSelected ? "bg-emerald-100/50 text-emerald-800" : "text-blue-600"
                           )}>
-                            <div className="text-xl font-black italic tracking-tighter">
+                            <div className="text-sm font-black italic tracking-tighter">
                               R$ {(total ?? 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                             </div>
                             {isAdminSelected && (
-                              <div className="text-[9px] text-emerald-600 uppercase font-black mt-2 flex items-center justify-center gap-1 bg-white py-1 px-2 rounded-lg shadow-sm mx-auto w-fit">
-                                <Star className="w-3 h-3 fill-current" /> Sugestão de Compra
+                              <div className="text-[8px] text-emerald-600 uppercase font-black mt-1 flex items-center justify-center gap-1 bg-white py-0.5 px-2 rounded-md shadow-sm mx-auto w-fit">
+                                <Star className="w-2.5 h-2.5 fill-current" /> Sugestão de Compra
                               </div>
                             )}
                           </TableCell>
@@ -2576,12 +2577,12 @@ function QuotationsTab({
                     </TableRow>
                     {/* Payment Condition Row */}
                     <TableRow className="bg-white">
-                      <TableCell colSpan={2} className="text-right uppercase tracking-widest font-black text-gray-400 text-[10px]">Forma de Pagamento</TableCell>
+                      <TableCell colSpan={2} className="text-right uppercase tracking-widest font-black text-gray-400 text-[9px] py-2">Forma de Pagamento</TableCell>
                       {selectedQuotation.suppliers.map(qs => (
-                        <TableCell key={qs.supplierId} className="p-3 border-l border-gray-100">
+                        <TableCell key={qs.supplierId} className="p-2 border-l border-gray-100">
                           <Input 
                             placeholder="Ex: 30 dias, 2x s/ juros"
-                            className="h-10 text-xs bg-gray-50 border-transparent rounded-xl focus:bg-white focus:ring-blue-500 font-medium"
+                            className="h-8 text-xs bg-gray-50 border-gray-200 rounded-lg focus:bg-white focus:ring-blue-500 font-medium"
                             value={qs.paymentCondition || ''}
                             onChange={(e) => handleUpdatePaymentCondition(qs.supplierId, e.target.value)}
                           />
@@ -2597,18 +2598,18 @@ function QuotationsTab({
                           return acc + (item.quantity * (res?.price || 0));
                         }, 0);
                         return (
-                          <TableCell key={qs.supplierId} className="text-center p-6 border-l border-gray-100">
+                          <TableCell key={qs.supplierId} className="text-center p-4 border-l border-gray-100">
                             {selectedQuotation.status === 'approved' ? (
                               <Button 
                                 disabled={total === 0}
                                 onClick={() => handleCreateOrder(qs.supplierId)}
-                                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-black uppercase text-[10px] rounded-2xl h-14 shadow-xl shadow-emerald-100 transition-all hover:scale-105 active:scale-95"
+                                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-black uppercase text-[9px] rounded-xl h-10 shadow-sm transition-all hover:scale-105 active:scale-95"
                               >
                                 Gerar Ordem de Compra
                               </Button>
                             ) : selectedQuotation.status === 'completed' ? (
-                              <div className="text-[10px] text-emerald-600 font-black uppercase bg-emerald-50 py-3 rounded-2xl flex items-center justify-center gap-2 border border-emerald-100">
-                                <CheckCircle className="w-4 h-4" /> Ordem Gerada
+                              <div className="text-[9px] text-emerald-600 font-black uppercase bg-emerald-50 py-2.5 rounded-xl flex items-center justify-center gap-1 border border-emerald-100">
+                                <CheckCircle className="w-3.5 h-3.5" /> Ordem Gerada
                               </div>
                             ) : (
                               <div className="text-[9px] text-gray-400 font-bold uppercase tracking-widest text-center px-4 leading-relaxed">
@@ -2624,24 +2625,24 @@ function QuotationsTab({
               </div>
             )}
           </div>
-          <div className="p-8 bg-gray-50 border-t">
+          <div className="p-6 bg-gray-50 border-t">
             <div className="flex justify-between items-center">
               <Button 
                 onClick={handleSubmitForApproval}
                 disabled={!selectedQuotation || selectedQuotation.status === 'awaiting_approval' || selectedQuotation.status === 'approved' || selectedQuotation.status === 'completed'}
                 className={cn(
-                  "flex-1 max-w-sm rounded-2xl h-14 font-black uppercase text-[10px] shadow-xl transition-all active:scale-95",
-                  selectedQuotation?.status === 'awaiting_approval' ? "bg-amber-100 text-amber-700" :
-                  selectedQuotation?.status === 'approved' ? "bg-emerald-100 text-emerald-700" :
-                  selectedQuotation?.status === 'completed' ? "bg-blue-100 text-blue-700" :
-                  "bg-blue-600 hover:bg-blue-700 text-white shadow-blue-100"
+                  "flex-1 max-w-sm rounded-xl h-11 font-black uppercase text-[10px] shadow-sm transition-all active:scale-95",
+                  selectedQuotation?.status === 'awaiting_approval' ? "bg-amber-100 text-amber-700 hover:bg-amber-100" :
+                  selectedQuotation?.status === 'approved' ? "bg-emerald-100 text-emerald-700 hover:bg-emerald-100" :
+                  selectedQuotation?.status === 'completed' ? "bg-blue-100 text-blue-700 hover:bg-blue-100" :
+                  "bg-blue-600 hover:bg-blue-700 text-white"
                 )}
               >
                 {selectedQuotation?.status === 'awaiting_approval' ? 'Enviado para Aprovação' : 
                  selectedQuotation?.status === 'approved' ? 'Aprovado para Compra' : 
                  selectedQuotation?.status === 'completed' ? 'Orçamento Concluído' : 'Enviar para Aprovação'}
               </Button>
-              <Button variant="ghost" onClick={() => setIsDetailsOpen(false)} className="rounded-2xl px-10 h-14 font-bold uppercase text-[10px]">Fechar Mapa</Button>
+              <Button variant="ghost" onClick={() => setIsDetailsOpen(false)} className="rounded-xl px-8 h-11 font-bold uppercase text-[10px]">Fechar Mapa</Button>
             </div>
           </div>
         </Modal>
