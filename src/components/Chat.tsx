@@ -572,9 +572,9 @@ export function Chat({ currentUser, users, contracts }: ChatProps) {
               <Bell className="w-5 h-5" />
             </div>
             <div className="flex-1 min-w-0">
-              <p className="font-bold text-sm text-gray-900 truncate">{showToast.sender_name || 'Colega'}</p>
-              <p className="text-xs text-gray-600 line-clamp-2 mt-0.5">{showToast.content}</p>
-              <p className="text-[10px] text-gray-400 mt-1 uppercase font-medium">Clique para responder</p>
+              <p className="font-bold text-base text-gray-900 truncate">{showToast.sender_name || 'Colega'}</p>
+              <p className="text-sm text-gray-600 line-clamp-2 mt-0.5">{showToast.content}</p>
+              <p className="text-sm text-gray-400 mt-1 uppercase font-medium">Clique para responder</p>
             </div>
             <button 
               onClick={(e) => { e.stopPropagation(); setShowToast(null); }}
@@ -624,11 +624,11 @@ export function Chat({ currentUser, users, contracts }: ChatProps) {
                       }
                     }}
                   >
-                    <span className="font-bold text-sm tracking-tight uppercase truncate">
+                    <span className="font-bold text-base tracking-tight uppercase truncate">
                       {activeChat ? activeChat.name : 'Mensagens'}
                     </span>
                     {activeChat && (
-                      <span className="text-[9px] text-blue-100 font-medium truncate">
+                      <span className="text-xs text-blue-100 font-medium truncate">
                         {onlineUsers[activeChat.id] ? "ONLINE AGORA" : "OFFLINE"}
                       </span>
                     )}
@@ -672,7 +672,7 @@ export function Chat({ currentUser, users, contracts }: ChatProps) {
                       </div>
                       <div className="text-center">
                         <h3 className="text-lg font-bold text-gray-900">{userToView.name}</h3>
-                        <p className="text-sm text-gray-500 font-medium uppercase tracking-wider">{userToView.jobFunction || userToView.role}</p>
+                        <p className="text-base text-gray-500 font-medium uppercase tracking-wider">{userToView.jobFunction || userToView.role}</p>
                       </div>
                     </div>
 
@@ -684,8 +684,8 @@ export function Chat({ currentUser, users, contracts }: ChatProps) {
                           <Mail className="w-4 h-4" />
                         </div>
                         <div>
-                          <p className="text-[10px] text-gray-400 uppercase font-bold">E-mail</p>
-                          <p className="text-sm text-gray-700">{userToView.email || 'Não informado'}</p>
+                          <p className="text-sm text-gray-400 uppercase font-bold">E-mail</p>
+                          <p className="text-base text-gray-700">{userToView.email || 'Não informado'}</p>
                         </div>
                       </div>
 
@@ -694,8 +694,8 @@ export function Chat({ currentUser, users, contracts }: ChatProps) {
                           <Phone className="w-4 h-4" />
                         </div>
                         <div>
-                          <p className="text-[10px] text-gray-400 uppercase font-bold">Telefone</p>
-                          <p className="text-sm text-gray-700">{userToView.phone || 'Não informado'}</p>
+                          <p className="text-sm text-gray-400 uppercase font-bold">Telefone</p>
+                          <p className="text-base text-gray-700">{userToView.phone || 'Não informado'}</p>
                         </div>
                       </div>
 
@@ -704,20 +704,20 @@ export function Chat({ currentUser, users, contracts }: ChatProps) {
                           <MapPin className="w-4 h-4" />
                         </div>
                         <div>
-                          <p className="text-[10px] text-gray-400 uppercase font-bold">Localização</p>
-                          <p className="text-sm text-gray-700">{userToView.address || 'Não informado'}</p>
+                          <p className="text-sm text-gray-400 uppercase font-bold">Localização</p>
+                          <p className="text-base text-gray-700">{userToView.address || 'Não informado'}</p>
                         </div>
                       </div>
                     </div>
 
                     <div className="bg-gray-50 p-4 rounded-xl flex items-center justify-between border border-gray-100">
-                      <span className="text-xs font-medium text-gray-500">Status no Chat</span>
+                      <span className="text-sm font-medium text-gray-500">Status no Chat</span>
                       <div className="flex items-center gap-2">
                         <div className={cn(
                           "w-2.5 h-2.5 rounded-full",
                           onlineUsers[userToView.id] ? "bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.4)]" : "bg-gray-300"
                         )} />
-                        <span className="text-xs font-bold text-gray-700">
+                        <span className="text-sm font-bold text-gray-700">
                           {onlineUsers[userToView.id] ? "Disponível" : "Indisponível"}
                         </span>
                       </div>
@@ -748,7 +748,7 @@ export function Chat({ currentUser, users, contracts }: ChatProps) {
                         <input 
                           type="text"
                           placeholder="Buscar colegas..."
-                          className="w-full pl-9 pr-4 py-2 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                          className="w-full pl-9 pr-4 py-2 bg-white border border-gray-200 rounded-xl text-base focus:outline-none focus:ring-2 focus:ring-blue-500/20"
                           value={searchTerm}
                           onChange={(e) => setSearchTerm(e.target.value)}
                         />
@@ -800,7 +800,7 @@ export function Chat({ currentUser, users, contracts }: ChatProps) {
                             <div key={gid} className="mb-4">
                               <div className="px-3 mb-1 flex items-center gap-2">
                                 <div className="h-[1px] flex-1 bg-gray-100" />
-                                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest whitespace-nowrap">
+                                <span className="text-sm font-bold text-gray-400 uppercase tracking-widest whitespace-nowrap">
                                   {group.label}
                                 </span>
                                 <div className="h-[1px] flex-1 bg-gray-100" />
@@ -820,7 +820,7 @@ export function Chat({ currentUser, users, contracts }: ChatProps) {
                                   </div>
                                   <div className="flex-1 min-w-0">
                                     <div className="flex items-center gap-1.5">
-                                      <p className="font-bold text-sm text-gray-900 truncate">{user.name}</p>
+                                      <p className="font-bold text-base text-gray-900 truncate">{user.name}</p>
                                       <button 
                                         onClick={(e) => {
                                           e.stopPropagation();
@@ -832,11 +832,11 @@ export function Chat({ currentUser, users, contracts }: ChatProps) {
                                         <UserIcon className="w-3.5 h-3.5" />
                                       </button>
                                     </div>
-                                    <p className="text-xs text-gray-500 truncate uppercase tracking-widest">{user.jobFunction || user.role}</p>
+                                    <p className="text-sm text-gray-500 truncate uppercase tracking-widest">{user.jobFunction || user.role}</p>
                                   </div>
                                   <div className="flex flex-col items-end gap-1">
                                     {unreadBySender[user.id] > 0 && (
-                                      <span className="bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center">
+                                      <span className="bg-red-500 text-white text-sm font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center">
                                         {unreadBySender[user.id]}
                                       </span>
                                     )}
@@ -868,7 +868,7 @@ export function Chat({ currentUser, users, contracts }: ChatProps) {
                             )}
                           >
                             <div className={cn(
-                              "p-3 rounded-2xl text-sm shadow-sm break-words whitespace-pre-wrap",
+                              "p-3 rounded-2xl text-base shadow-sm break-words whitespace-pre-wrap",
                               isMe ? "bg-blue-600 text-white rounded-tr-none font-medium" : "bg-white text-gray-800 border border-gray-100 rounded-tl-none"
                             )}>
                               {msg.attachment_url && (
@@ -909,8 +909,8 @@ export function Chat({ currentUser, users, contracts }: ChatProps) {
                                         <FileIcon className="w-5 h-5" />
                                       </div>
                                       <div className="flex-1 min-w-0">
-                                        <p className="text-xs font-bold truncate">{msg.attachment_name || 'Arquivo'}</p>
-                                        <p className="text-[10px] opacity-60 uppercase font-bold">Clique para baixar</p>
+                                        <p className="text-sm font-bold truncate">{msg.attachment_name || 'Arquivo'}</p>
+                                        <p className="text-sm opacity-60 uppercase font-bold">Clique para baixar</p>
                                       </div>
                                       <Download className="w-4 h-4 opacity-40 group-hover/attach:opacity-100" />
                                     </a>
@@ -920,7 +920,7 @@ export function Chat({ currentUser, users, contracts }: ChatProps) {
                               {msg.content}
                             </div>
                             <div className="flex items-center gap-1 mt-1 px-1">
-                              <span className="text-[10px] text-gray-400">
+                              <span className="text-sm text-gray-400">
                                 {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                               </span>
                               {isMe && (
@@ -953,8 +953,8 @@ export function Chat({ currentUser, users, contracts }: ChatProps) {
                             {pendingFile.type.startsWith('image/') ? <ImageIcon className="w-5 h-5" /> : <FileIcon className="w-5 h-5" />}
                           </div>
                           <div className="flex-1 min-w-0">
-                            <p className="text-xs font-medium text-blue-900 truncate">{pendingFile.name}</p>
-                            <p className="text-[10px] text-blue-500 uppercase font-bold">Arquivo pronto para enviar</p>
+                            <p className="text-sm font-medium text-blue-900 truncate">{pendingFile.name}</p>
+                            <p className="text-sm text-blue-500 uppercase font-bold">Arquivo pronto para enviar</p>
                           </div>
                           <button 
                             onClick={() => setPendingFile(null)}
@@ -981,7 +981,7 @@ export function Chat({ currentUser, users, contracts }: ChatProps) {
                         </button>
                         <textarea
                           placeholder="Digite sua mensagem..."
-                          className="flex-1 bg-transparent border-none focus:ring-0 text-sm resize-none py-2 max-h-32 text-gray-900"
+                          className="flex-1 bg-transparent border-none focus:ring-0 text-base resize-none py-2 max-h-32 text-gray-900"
                           rows={1}
                           value={newMessage}
                           onChange={(e) => setNewMessage(e.target.value)}
@@ -1036,7 +1036,7 @@ export function Chat({ currentUser, users, contracts }: ChatProps) {
           <div className="relative z-10 flex items-center justify-center">
             <MessageCircle className="w-8 h-8 text-white" />
             {unreadCount > 0 && (
-              <span className="absolute -top-1 -right-1 w-6 h-6 bg-red-500 text-white text-[10px] font-black rounded-full border-2 border-white flex items-center justify-center animate-bounce">
+              <span className="absolute -top-1 -right-1 w-6 h-6 bg-red-500 text-white text-sm font-black rounded-full border-2 border-white flex items-center justify-center animate-bounce">
                 {unreadCount > 9 ? '+9' : unreadCount}
               </span>
             )}

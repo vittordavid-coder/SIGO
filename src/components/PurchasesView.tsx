@@ -134,13 +134,13 @@ export default function PurchasesView({
 
       <Tabs value={activeTab} onValueChange={(v: any) => setActiveTab(v)} className="w-full">
         <TabsList className="grid w-full grid-cols-7 max-w-[1200px] bg-gray-100 p-1 rounded-xl">
-          <TabsTrigger value="requests" className="rounded-lg font-bold text-xs sm:text-sm">Solicitações</TabsTrigger>
-          <TabsTrigger value="suppliers" className="rounded-lg font-bold text-xs sm:text-sm">Fornecedores</TabsTrigger>
-          <TabsTrigger value="quotations" className="rounded-lg font-bold text-xs sm:text-sm">Orçamentos</TabsTrigger>
-          <TabsTrigger value="orders" className="rounded-lg font-bold text-xs sm:text-sm">Ordens de Compra</TabsTrigger>
-          <TabsTrigger value="tracking" className="rounded-lg font-bold text-xs sm:text-sm">Acompanhamento</TabsTrigger>
-          <TabsTrigger value="estoque" className="rounded-lg font-bold text-xs sm:text-sm">Estoque</TabsTrigger>
-          <TabsTrigger value="evaluation" className="rounded-lg font-bold text-xs sm:text-sm">Avaliação</TabsTrigger>
+          <TabsTrigger value="requests" className="rounded-lg font-bold text-base sm:text-base">Solicitações</TabsTrigger>
+          <TabsTrigger value="suppliers" className="rounded-lg font-bold text-base sm:text-base">Fornecedores</TabsTrigger>
+          <TabsTrigger value="quotations" className="rounded-lg font-bold text-base sm:text-base">Orçamentos</TabsTrigger>
+          <TabsTrigger value="orders" className="rounded-lg font-bold text-base sm:text-base">Ordens de Compra</TabsTrigger>
+          <TabsTrigger value="tracking" className="rounded-lg font-bold text-base sm:text-base">Acompanhamento</TabsTrigger>
+          <TabsTrigger value="estoque" className="rounded-lg font-bold text-base sm:text-base">Estoque</TabsTrigger>
+          <TabsTrigger value="evaluation" className="rounded-lg font-bold text-base sm:text-base">Avaliação</TabsTrigger>
         </TabsList>
 
         <div className="mt-8">
@@ -520,7 +520,7 @@ function RequestsTab({
                       onCheckedChange={() => handleToggleSelectItem(item.id)}
                     />
                   </TableCell>
-                  <TableCell className="text-gray-600 text-xs">
+                  <TableCell className="text-gray-600 text-base">
                     {new Date(item.requestDate).toLocaleDateString('pt-BR')}
                   </TableCell>
                   <TableCell>
@@ -533,20 +533,20 @@ function RequestsTab({
                       )}
                       <div className="font-bold text-gray-900 leading-tight">{item.description}</div>
                     </div>
-                    <div className="text-[10px] text-gray-400 mt-0.5">{item.requestDescription}</div>
+                    <div className="text-base text-gray-400 mt-0.5">{item.requestDescription}</div>
                   </TableCell>
-                  <TableCell className="text-sm font-medium">
+                  <TableCell className="text-base font-medium">
                     {item.quantity} {item.unit}
                   </TableCell>
-                  <TableCell className="text-sm font-medium text-blue-600">
-                    <span className="px-2 py-0.5 bg-blue-50 text-blue-700 text-[9px] uppercase border border-blue-200 rounded font-bold">
+                  <TableCell className="text-base font-medium text-blue-600">
+                    <span className="px-2 py-0.5 bg-blue-50 text-blue-700 text-sm uppercase border border-blue-200 rounded font-bold">
                       {item.requestCategory}
                     </span>
                   </TableCell>
-                  <TableCell className="text-gray-600 text-xs">{item.requestSector}</TableCell>
+                  <TableCell className="text-gray-600 text-base">{item.requestSector}</TableCell>
                   <TableCell className="text-center">
                     <span className={cn(
-                      "px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ring-1 ring-inset",
+                      "px-2.5 py-0.5 rounded-full text-base font-black uppercase tracking-wider ring-1 ring-inset",
                       item.displayStatus === 'Cancelado' ? "bg-red-50 text-red-700 ring-red-600/20" :
                       item.displayStatus === 'Pendente' ? "bg-amber-50 text-amber-700 ring-amber-600/20" :
                       item.displayStatus === 'Em orçamento' ? "bg-blue-50 text-blue-700 ring-blue-600/20" :
@@ -639,14 +639,14 @@ function RequestsTab({
             <ShoppingCart className="absolute -right-8 -bottom-8 w-40 h-40 opacity-10 rotate-12" />
             <div className="relative z-10 text-left">
               <h2 className="text-3xl font-black tracking-tight">Solicitação de Compra</h2>
-              <p className="text-blue-100 font-bold uppercase text-[10px] tracking-widest mt-1">Gerencie os detalhes e itens da solicitação</p>
+              <p className="text-blue-100 font-bold uppercase text-base tracking-widest mt-1">Gerencie os detalhes e itens da solicitação</p>
             </div>
           </div>
 
           <div className="flex-1 overflow-y-auto p-8 space-y-8 scrollbar-thin-visible">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-2">
-                <Label className="text-[10px] uppercase font-bold text-gray-400">Data da Solicitação</Label>
+                <Label className="text-base uppercase font-bold text-gray-400">Data da Solicitação</Label>
                 <Input 
                   type="date" 
                   className="h-12 border-gray-200 rounded-xl focus:ring-blue-500 font-medium"
@@ -655,7 +655,7 @@ function RequestsTab({
                 />
               </div>
               <div className="space-y-2">
-                <Label className="text-[10px] uppercase font-bold text-gray-400">Setor Solicitante</Label>
+                <Label className="text-base uppercase font-bold text-gray-400">Setor Solicitante</Label>
                 <Input 
                   placeholder="Ex: Engenharia/Obra" 
                   className="h-12 border-gray-200 rounded-xl focus:ring-blue-500 font-medium"
@@ -666,7 +666,7 @@ function RequestsTab({
             </div>
 
             <div className="space-y-2">
-              <Label className="text-[10px] uppercase font-bold text-gray-400">Descrição Geral / Motivo</Label>
+              <Label className="text-base uppercase font-bold text-gray-400">Descrição Geral / Motivo</Label>
               <Input 
                 placeholder="Ex: Materiais para fundação" 
                 className="h-12 border-gray-200 rounded-xl focus:ring-blue-500 font-medium"
@@ -676,7 +676,7 @@ function RequestsTab({
             </div>
 
             <div className="space-y-2">
-              <Label className="text-[10px] uppercase font-bold text-gray-400">Obra / Contrato Vinculado</Label>
+              <Label className="text-base uppercase font-bold text-gray-400">Obra / Contrato Vinculado</Label>
               <Select 
                 value={currentRequest.contractId || (selectedContractId !== 'all' ? selectedContractId : 'none')} 
                 onValueChange={v => setCurrentRequest({...currentRequest, contractId: v})}
@@ -708,7 +708,7 @@ function RequestsTab({
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-2">
-                <Label className="text-[10px] uppercase font-bold text-gray-400">Prioridade</Label>
+                <Label className="text-base uppercase font-bold text-gray-400">Prioridade</Label>
                 <Select 
                   value={currentRequest.priority || 'Normal'}
                   onValueChange={(v: any) => setCurrentRequest({ ...currentRequest, priority: v })}
@@ -735,7 +735,7 @@ function RequestsTab({
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label className="text-[10px] uppercase font-bold text-gray-400">Categoria</Label>
+                <Label className="text-base uppercase font-bold text-gray-400">Categoria</Label>
                 <Select 
                   value={currentRequest.category || ''}
                   onValueChange={(v) => setCurrentRequest({ ...currentRequest, category: v })}
@@ -755,12 +755,12 @@ function RequestsTab({
 
             <div className="space-y-4 pt-4 border-t border-gray-100">
               <div className="flex justify-between items-center mb-2">
-                <Label className="text-[10px] uppercase font-black text-gray-400 tracking-widest">Itens da Solicitação</Label>
+                <Label className="text-base uppercase font-black text-gray-400 tracking-widest">Itens da Solicitação</Label>
                 <Button 
                   type="button" 
                   size="sm" 
                   onClick={addItemInput}
-                  className="bg-blue-50 text-blue-600 hover:bg-blue-100 border-none h-8 font-bold text-[10px] rounded-lg"
+                  className="bg-blue-50 text-blue-600 hover:bg-blue-100 border-none h-8 font-bold text-base rounded-lg"
                 >
                   <Plus className="w-3 h-3 mr-1" /> Adicionar Item
                 </Button>
@@ -770,7 +770,7 @@ function RequestsTab({
                 {(currentRequest.items || []).map((item, idx) => (
                   <div key={item.id} className="grid grid-cols-12 gap-3 p-4 bg-gray-50 rounded-2xl border border-gray-100 group transition-all hover:bg-white hover:shadow-md hover:border-blue-100 relative">
                     <div className="col-span-12 sm:col-span-7 space-y-1">
-                      <Label className="text-[9px] font-black text-gray-400 uppercase tracking-tighter">Descrição do Material</Label>
+                      <Label className="text-sm font-black text-gray-400 uppercase tracking-tighter">Descrição do Material</Label>
                       <Input 
                         placeholder="Ex: Cimento CP II"
                         value={item.description}
@@ -779,7 +779,7 @@ function RequestsTab({
                       />
                     </div>
                     <div className="col-span-6 sm:col-span-2 space-y-1">
-                      <Label className="text-[9px] font-black text-gray-400 uppercase tracking-tighter">Qtd</Label>
+                      <Label className="text-sm font-black text-gray-400 uppercase tracking-tighter">Qtd</Label>
                       <Input 
                         type="number"
                         value={item.quantity}
@@ -788,7 +788,7 @@ function RequestsTab({
                       />
                     </div>
                     <div className="col-span-6 sm:col-span-2 space-y-1">
-                      <Label className="text-[9px] font-black text-gray-400 uppercase tracking-tighter">Unid</Label>
+                      <Label className="text-sm font-black text-gray-400 uppercase tracking-tighter">Unid</Label>
                       <Input 
                         placeholder="un"
                         value={item.unit}
@@ -811,7 +811,7 @@ function RequestsTab({
                 
                 {(currentRequest.items || []).length === 0 && (
                   <div className="py-8 text-center bg-gray-50 rounded-2xl border border-dashed border-gray-200">
-                    <p className="text-gray-400 text-xs font-medium">Nenhum item adicionado ainda.</p>
+                    <p className="text-gray-400 text-base font-medium">Nenhum item adicionado ainda.</p>
                     <Button 
                       variant="outline" 
                       size="sm" 
@@ -827,8 +827,8 @@ function RequestsTab({
           </div>
 
           <DialogFooter className="p-8 bg-gray-50 border-t flex flex-col sm:flex-row gap-3">
-            <Button variant="ghost" onClick={() => setIsRequestDialogOpen(false)} className="rounded-xl font-bold uppercase text-[10px] h-12 flex-1">Cancelar</Button>
-            <Button onClick={handleSaveRequest} className="rounded-xl bg-blue-600 hover:bg-blue-700 font-bold uppercase text-[10px] h-12 flex-[2] shadow-lg shadow-blue-100">
+            <Button variant="ghost" onClick={() => setIsRequestDialogOpen(false)} className="rounded-xl font-bold uppercase text-base h-12 flex-1">Cancelar</Button>
+            <Button onClick={handleSaveRequest} className="rounded-xl bg-blue-600 hover:bg-blue-700 font-bold uppercase text-base h-12 flex-[2] shadow-lg shadow-blue-100">
               <CheckCircle className="w-4 h-4 mr-2" /> Salvar Solicitação
             </Button>
           </DialogFooter>
@@ -846,7 +846,7 @@ function RequestsTab({
             <Send className="absolute -right-8 -bottom-8 w-40 h-40 opacity-10 rotate-12" />
             <div className="relative z-10 text-left">
               <h2 className="text-3xl font-black tracking-tight">Solicitação de Orçamento</h2>
-              <p className="text-emerald-100 font-bold uppercase text-[10px] tracking-widest mt-1">Selecione os fornecedores para envio de itens</p>
+              <p className="text-emerald-100 font-bold uppercase text-base tracking-widest mt-1">Selecione os fornecedores para envio de itens</p>
             </div>
           </div>
             <div className="flex-1 overflow-y-auto p-6 space-y-6 scrollbar-thin-visible">
@@ -854,16 +854,16 @@ function RequestsTab({
                 <h4 className="text-emerald-800 font-bold flex items-center gap-2 mb-2">
                   <FileText className="w-4 h-4" /> Resumo do Orçamento
                 </h4>
-                <div className="text-sm text-emerald-700">
+                <div className="text-base text-emerald-700">
                   {selectedItemIds.length} item(ns) selecionado(s) para cotação.
                 </div>
                 {selectedItemIds.length > 0 && (
                   <div className="mt-3 p-3 bg-white rounded-lg border border-emerald-200">
-                    <div className="text-xs font-bold text-gray-500 uppercase mb-2">Itens para cotação:</div>
-                    <ul className="text-xs space-y-1 max-h-[150px] overflow-y-auto pr-2">
+                    <div className="text-base font-bold text-gray-500 uppercase mb-2">Itens para cotação:</div>
+                    <ul className="text-base space-y-1 max-h-[150px] overflow-y-auto pr-2">
                       {allItems.filter(i => selectedItemIds.includes(i.id)).map((item, idx) => (
                         <li key={idx} className="flex justify-between border-b border-gray-50 pb-1">
-                          <span>{item.description} <span className="text-[10px] text-gray-400">({item.requestDescription})</span></span>
+                          <span>{item.description} <span className="text-base text-gray-400">({item.requestDescription})</span></span>
                           <span className="font-bold whitespace-nowrap">{item.quantity} {item.unit}</span>
                         </li>
                       ))}
@@ -873,7 +873,7 @@ function RequestsTab({
               </div>
 
               <div className="space-y-4">
-                <Label className="text-sm font-bold text-gray-900 uppercase">Selecione os Fornecedores (Máx. 3)</Label>
+                <Label className="text-base font-bold text-gray-900 uppercase">Selecione os Fornecedores (Máx. 3)</Label>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 max-h-[400px] overflow-y-auto pr-2">
                   {suppliers.map(supplier => (
                     <div 
@@ -893,8 +893,8 @@ function RequestsTab({
                       )}
                     >
                       <div>
-                        <div className="font-bold text-gray-900 text-sm">{supplier.name}</div>
-                        <div className="text-[10px] font-bold text-gray-500 uppercase mt-0.5">{supplier.activity}</div>
+                        <div className="font-bold text-gray-900 text-base">{supplier.name}</div>
+                        <div className="text-base font-bold text-gray-500 uppercase mt-0.5">{supplier.activity}</div>
                       </div>
                       {selectedSuppliers.includes(supplier.id) && (
                         <CheckCircle className="w-5 h-5 text-emerald-600 shrink-0" />
@@ -905,15 +905,15 @@ function RequestsTab({
               </div>
 
               <div className="pt-6 border-t border-gray-100 flex justify-between items-center">
-                <div className="text-xs text-gray-500 font-bold uppercase">
+                <div className="text-base text-gray-500 font-bold uppercase">
                   {selectedSuppliers.length} de 3 selecionados
                 </div>
                 <div className="flex gap-3">
-                  <Button variant="ghost" onClick={() => setIsQuotationDialogOpen(false)} className="rounded-xl font-bold uppercase text-[10px]">Cancelar</Button>
+                  <Button variant="ghost" onClick={() => setIsQuotationDialogOpen(false)} className="rounded-xl font-bold uppercase text-base">Cancelar</Button>
                   <Button 
                     disabled={selectedSuppliers.length === 0}
                     onClick={handleSendQuotation}
-                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-black uppercase text-[10px] rounded-xl h-10 px-6 shadow-sm transition-all"
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-black uppercase text-base rounded-xl h-10 px-6 shadow-sm transition-all"
                   >
                     <Send className="w-4 h-4 mr-2" /> Enviar Cotação
                   </Button>
@@ -1030,7 +1030,7 @@ function SuppliersTab({ suppliers, setSuppliers, compId, contracts }: { supplier
                       </div>
                       Obra: {contract.workName || contract.contractNumber || contract.client || 'Obra sem nome'}
                     </CardTitle>
-                    <span className="text-xs font-bold text-blue-600 bg-blue-100 px-3 py-1 rounded-full">
+                    <span className="text-base font-bold text-blue-600 bg-blue-100 px-3 py-1 rounded-full">
                       {contractSuppliers.length} Fornecedores
                     </span>
                   </div>
@@ -1057,7 +1057,7 @@ function SuppliersTab({ suppliers, setSuppliers, compId, contracts }: { supplier
                     </div>
                     Fornecedores Gerais (Sem Obra)
                   </CardTitle>
-                  <span className="text-xs font-bold text-gray-500 bg-gray-200 px-3 py-1 rounded-full">
+                  <span className="text-base font-bold text-gray-500 bg-gray-200 px-3 py-1 rounded-full">
                     {suppliers.filter(s => !s.assignedContractIds || s.assignedContractIds.length === 0).length} Fornecedores
                   </span>
                 </div>
@@ -1091,7 +1091,7 @@ function SuppliersTab({ suppliers, setSuppliers, compId, contracts }: { supplier
           <Building2 className="absolute -right-8 -bottom-8 w-40 h-40 opacity-10 rotate-12" />
           <div className="relative z-10 text-left">
             <h2 className="text-3xl font-black tracking-tight">{currentSupplier.id ? 'Editar Fornecedor' : 'Novo Fornecedor'}</h2>
-            <p className="text-blue-100 font-bold uppercase text-[10px] tracking-widest mt-1">
+            <p className="text-blue-100 font-bold uppercase text-base tracking-widest mt-1">
               {currentSupplier.id ? 'Atualize os dados cadastrais da empresa' : 'Preencha os dados do novo fornecedor para o sistema'}
             </p>
           </div>
@@ -1100,7 +1100,7 @@ function SuppliersTab({ suppliers, setSuppliers, compId, contracts }: { supplier
             <div className="flex-1 overflow-y-auto p-6 scrollbar-thin-visible">
               <div className="grid grid-cols-2 gap-x-6 gap-y-4">
                 <div className="space-y-2">
-                  <Label className="text-sm font-semibold text-gray-700">Cadastro n° / Código</Label>
+                  <Label className="text-base font-semibold text-gray-700">Cadastro n° / Código</Label>
                   <div className="flex gap-2">
                     <Input 
                       className="w-24 bg-gray-50 border-gray-200 focus:border-blue-500 rounded-lg" 
@@ -1118,7 +1118,7 @@ function SuppliersTab({ suppliers, setSuppliers, compId, contracts }: { supplier
                 </div>
 
                 <div className="space-y-2">
-                  <Label className="text-sm font-semibold text-gray-700">Empresa ou Pessoa</Label>
+                  <Label className="text-base font-semibold text-gray-700">Empresa ou Pessoa</Label>
                   <Input 
                     className="bg-gray-50 border-gray-200 focus:border-blue-500 rounded-lg" 
                     placeholder="Razão Social / Nome"
@@ -1128,7 +1128,7 @@ function SuppliersTab({ suppliers, setSuppliers, compId, contracts }: { supplier
                 </div>
 
                 <div className="space-y-2 col-span-2">
-                  <Label className="text-sm font-semibold text-gray-700">Atividade</Label>
+                  <Label className="text-base font-semibold text-gray-700">Atividade</Label>
                   <Input 
                     className="bg-gray-50 border-gray-200 focus:border-blue-500 rounded-lg" 
                     placeholder="Ramo de atividade"
@@ -1138,7 +1138,7 @@ function SuppliersTab({ suppliers, setSuppliers, compId, contracts }: { supplier
                 </div>
 
                 <div className="space-y-2">
-                  <Label className="text-sm font-semibold text-gray-700">Contato / Representante</Label>
+                  <Label className="text-base font-semibold text-gray-700">Contato / Representante</Label>
                   <Input 
                     className="bg-gray-50 border-gray-200 focus:border-blue-500 rounded-lg" 
                     placeholder="Nome do contato"
@@ -1148,7 +1148,7 @@ function SuppliersTab({ suppliers, setSuppliers, compId, contracts }: { supplier
                 </div>
 
                 <div className="space-y-2">
-                  <Label className="text-sm font-semibold text-gray-700">Telefones</Label>
+                  <Label className="text-base font-semibold text-gray-700">Telefones</Label>
                   <div className="flex gap-2">
                     <Input 
                       className="flex-1 bg-gray-50 border-gray-200 focus:border-blue-500 rounded-lg" 
@@ -1166,7 +1166,7 @@ function SuppliersTab({ suppliers, setSuppliers, compId, contracts }: { supplier
                 </div>
 
                 <div className="space-y-2 col-span-2">
-                  <Label className="text-sm font-semibold text-gray-700">Vincular às Obras (Pode ser compartilhado)</Label>
+                  <Label className="text-base font-semibold text-gray-700">Vincular às Obras (Pode ser compartilhado)</Label>
                   <div className="grid grid-cols-2 gap-2 bg-gray-50 p-4 rounded-xl border border-gray-100 max-h-[150px] overflow-y-auto">
                     {contracts.map(contract => (
                       <div key={contract.id} className="flex items-center space-x-2">
@@ -1182,17 +1182,17 @@ function SuppliersTab({ suppliers, setSuppliers, compId, contracts }: { supplier
                             }
                           }}
                         />
-                        <label htmlFor={`contract-${contract.id}`} className="text-xs font-medium text-gray-600 cursor-pointer truncate">
+                        <label htmlFor={`contract-${contract.id}`} className="text-base font-medium text-gray-600 cursor-pointer truncate">
                           {contract.workName || contract.contractNumber || contract.client || 'Obra sem nome'}
                         </label>
                       </div>
                     ))}
                   </div>
-                  <p className="text-[10px] text-gray-400 italic">* Fornecedores sem obras vinculadas aparecerão na lista "Gerais".</p>
+                  <p className="text-base text-gray-400 italic">* Fornecedores sem obras vinculadas aparecerão na lista "Gerais".</p>
                 </div>
 
                 <div className="space-y-2 col-span-2">
-                  <Label className="text-sm font-semibold text-gray-700">Email / Site</Label>
+                  <Label className="text-base font-semibold text-gray-700">Email / Site</Label>
                   <Input 
                     className="bg-gray-50 border-gray-200 focus:border-blue-500 rounded-lg" 
                     placeholder="email@empresa.com.br"
@@ -1202,13 +1202,13 @@ function SuppliersTab({ suppliers, setSuppliers, compId, contracts }: { supplier
                 </div>
 
                 <div className="col-span-2 mt-2 pt-4 border-t border-gray-100">
-                  <h4 className="text-sm font-bold text-gray-900 mb-4 flex items-center gap-2">
+                  <h4 className="text-base font-bold text-gray-900 mb-4 flex items-center gap-2">
                     <MapPin className="w-4 h-4 text-gray-400" />
                     Endereço
                   </h4>
                   <div className="grid grid-cols-6 gap-x-4 gap-y-4">
                     <div className="space-y-2 col-span-4">
-                      <Label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Logradouro</Label>
+                      <Label className="text-base font-semibold text-gray-500 uppercase tracking-wider">Logradouro</Label>
                       <Input 
                         className="bg-gray-50 border-gray-200 focus:border-blue-500 rounded-lg" 
                         placeholder="Rua, Av, etc"
@@ -1217,7 +1217,7 @@ function SuppliersTab({ suppliers, setSuppliers, compId, contracts }: { supplier
                       />
                     </div>
                     <div className="space-y-2 col-span-2">
-                      <Label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Bairro / Cidade</Label>
+                      <Label className="text-base font-semibold text-gray-500 uppercase tracking-wider">Bairro / Cidade</Label>
                       <Input 
                         className="bg-gray-50 border-gray-200 focus:border-blue-500 rounded-lg" 
                         placeholder="Bairro - Cidade"
@@ -1226,7 +1226,7 @@ function SuppliersTab({ suppliers, setSuppliers, compId, contracts }: { supplier
                       />
                     </div>
                     <div className="space-y-2 col-span-2">
-                      <Label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">CEP</Label>
+                      <Label className="text-base font-semibold text-gray-500 uppercase tracking-wider">CEP</Label>
                       <Input 
                         className="bg-gray-50 border-gray-200 focus:border-blue-500 rounded-lg" 
                         placeholder="00000-000"
@@ -1235,7 +1235,7 @@ function SuppliersTab({ suppliers, setSuppliers, compId, contracts }: { supplier
                       />
                     </div>
                     <div className="space-y-2 col-span-4">
-                      <Label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Estado</Label>
+                      <Label className="text-base font-semibold text-gray-500 uppercase tracking-wider">Estado</Label>
                       <Input 
                         className="bg-gray-50 border-gray-200 focus:border-blue-500 rounded-lg" 
                         placeholder="UF"
@@ -1247,9 +1247,9 @@ function SuppliersTab({ suppliers, setSuppliers, compId, contracts }: { supplier
                 </div>
 
                 <div className="space-y-2 col-span-2 mt-2 pt-4 border-t border-gray-100">
-                  <Label className="text-sm font-semibold text-gray-700">Observações adicionais</Label>
+                  <Label className="text-base font-semibold text-gray-700">Observações adicionais</Label>
                   <textarea 
-                    className="w-full h-24 p-3 bg-gray-50 border border-gray-200 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 rounded-lg outline-none resize-none text-sm text-gray-700"
+                    className="w-full h-24 p-3 bg-gray-50 border border-gray-200 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 rounded-lg outline-none resize-none text-base text-gray-700"
                     placeholder="Adicione notas, histórico de relacionamento ou condições especiais..."
                     value={currentSupplier.observations || ''}
                     onChange={e => setCurrentSupplier({...currentSupplier, observations: e.target.value})}
@@ -1261,13 +1261,13 @@ function SuppliersTab({ suppliers, setSuppliers, compId, contracts }: { supplier
                 <Button 
                   variant="ghost"
                   onClick={() => setIsDialogOpen(false)}
-                  className="rounded-xl px-6 font-bold uppercase text-[10px]"
+                  className="rounded-xl px-6 font-bold uppercase text-base"
                 >
                   Cancelar
                 </Button>
                 <Button 
                   onClick={handleSave} 
-                  className="rounded-xl px-10 bg-blue-600 hover:bg-blue-700 text-white font-black uppercase text-[10px] shadow-lg shadow-blue-100 h-11 transition-all active:scale-95"
+                  className="rounded-xl px-10 bg-blue-600 hover:bg-blue-700 text-white font-black uppercase text-base shadow-lg shadow-blue-100 h-11 transition-all active:scale-95"
                 >
                   Salvar Cadastro
                 </Button>
@@ -1603,7 +1603,7 @@ function OrdersTab({
                   </TableCell>
                   <TableCell className="text-center">
                      <span className={cn(
-                       "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ring-inset",
+                       "inline-flex items-center rounded-full px-2.5 py-0.5 text-base font-medium ring-1 ring-inset",
                        order.status === 'finalizada' ? "bg-gray-100 text-gray-700 ring-gray-600/20" :
                       order.status === 'draft' ? "bg-gray-50 text-gray-700 ring-gray-600/20" :
                        order.status === 'approved' ? "bg-blue-50 text-blue-700 ring-blue-600/20" :
@@ -1681,13 +1681,13 @@ function OrdersTab({
                      <h1 className="text-lg font-black text-slate-900 tracking-tighter leading-tight break-words max-w-[300px] print-compact-header">
                        {defaultOrganization || "CONSTRUTORA MASTER"}
                      </h1>
-                     <p className="text-[8px] text-gray-400 font-bold uppercase tracking-[0.2em] mt-0.5">Documento de Engenharia e Suprimentos</p>
+                     <p className="text-sm text-gray-400 font-bold uppercase tracking-[0.2em] mt-0.5">Documento de Engenharia e Suprimentos</p>
                    </div>
                  </div>
                  <div className="flex items-start gap-3">
-                   <div className="text-right text-[8px] text-slate-600 leading-tight">
+                   <div className="text-right text-sm text-slate-600 leading-tight">
                      <h2 className="text-lg font-black text-blue-600 mb-0.5 uppercase tracking-tight print-compact-header">Ordem de Compra</h2>
-                     <div className="font-black text-slate-900 text-[9px] mb-0.5">{defaultOrganization || "CONSTRUTORA MASTER"}</div>
+                     <div className="font-black text-slate-900 text-sm mb-0.5">{defaultOrganization || "CONSTRUTORA MASTER"}</div>
                      <div>Logística Integrada e Suprimentos</div>
                      <div>Documento Gerado pelo Sistema SIGO</div>
                    </div>
@@ -1700,11 +1700,11 @@ function OrdersTab({
               </div>
 
               <div className="bg-slate-900 text-white px-3 py-1 mb-2 rounded flex justify-between items-center print:bg-slate-900 print:text-white">
-                <span className="text-[10px] font-black uppercase tracking-widest">Documento Oficial de Pedido</span>
-                <span className="text-[10px] font-black">OC #{currentOrder.orderNumber}</span>
+                <span className="text-base font-black uppercase tracking-widest">Documento Oficial de Pedido</span>
+                <span className="text-base font-black">OC #{currentOrder.orderNumber}</span>
               </div>
               
-              <div className="grid grid-cols-2 text-[10px] mb-3 pb-1 border-b border-gray-200 font-medium">
+              <div className="grid grid-cols-2 text-base mb-3 pb-1 border-b border-gray-200 font-medium">
                 <div>
                   <div className="flex"><span className="w-24 text-right pr-2 uppercase font-bold text-gray-400">Pedido:</span> <span className="font-semibold">{currentOrder.orderNumber}</span></div>
                   <div className="flex"><span className="w-24 text-right pr-2 uppercase font-bold text-gray-400">Fornecedor:</span> <span className="font-semibold">{currentOrder.supplierName}</span></div>
@@ -1720,9 +1720,9 @@ function OrdersTab({
               </div>
 
               <div className="border-b border-black mb-0.5 text-left">
-                <span className="text-[10px] font-bold">ENDEREÇO DE ENTREGA</span>
+                <span className="text-base font-bold">ENDEREÇO DE ENTREGA</span>
               </div>
-              <div className="grid grid-cols-3 text-[10px] mb-3 pb-1 border-b border-gray-100 gap-y-0.5 text-left">
+              <div className="grid grid-cols-3 text-base mb-3 pb-1 border-b border-gray-100 gap-y-0.5 text-left">
                 <div className="flex"><span className="w-14 text-right pr-2 uppercase font-bold text-gray-400">Rua:</span> <span>{currentOrder.deliveryAddress?.street}</span></div>
                 <div className="flex"><span className="w-14 text-right pr-2 uppercase font-bold text-gray-400">Num:</span> <span>{currentOrder.deliveryAddress?.number}</span></div>
                 <div className="flex"><span className="w-18 text-right pr-2 uppercase font-bold text-gray-400">Comp:</span> <span>{currentOrder.deliveryAddress?.complement}</span></div>
@@ -1733,9 +1733,9 @@ function OrdersTab({
               </div>
 
               <div className="bg-blue-600 text-white px-2 py-0.5 mb-0.5 rounded-sm print:bg-blue-600 print:text-white text-left">
-                <span className="text-[10px] font-bold uppercase tracking-wider">Itens do Pedido</span>
+                <span className="text-base font-bold uppercase tracking-wider">Itens do Pedido</span>
               </div>
-              <table className="w-full text-[10px] border-collapse border border-blue-600 mb-1 leading-tight print-table-spacing">
+              <table className="w-full text-base border-collapse border border-blue-600 mb-1 leading-tight print-table-spacing">
                 <thead>
                   <tr className="bg-blue-50 text-blue-900 text-center font-bold print:bg-blue-50">
                     <th className="border border-blue-600 p-1 w-8">#</th>
@@ -1750,28 +1750,28 @@ function OrdersTab({
                 <tbody>
                   {currentOrder.items?.map((item, i) => (
                     <tr key={item.id} className="even:bg-blue-50/20 leading-snug">
-                      <td className="border border-blue-200 p-1.5 text-center text-[9px]">{i + 1}</td>
-                      <td className="border border-blue-200 p-1.5 text-center text-[9px] font-mono">{item.code || '-'}</td>
-                      <td className="border border-blue-200 p-1.5 text-[11px] font-medium text-left">{item.description}</td>
-                      <td className="border border-blue-200 p-1.5 text-center text-[9px]">{item.unit}</td>
-                      <td className="border border-blue-200 p-1.5 text-center font-bold text-[10px]">{item.quantity}</td>
-                      <td className="border border-blue-200 p-1.5 text-right text-[10px]">R$ {(item.price ?? 0).toLocaleString('pt-BR', {minimumFractionDigits: 2})}</td>
-                      <td className="border border-blue-200 p-1.5 text-right font-bold text-blue-700 text-[10px]">R$ {((item.quantity ?? 0) * (item.price ?? 0)).toLocaleString('pt-BR', {minimumFractionDigits: 2})}</td>
+                      <td className="border border-blue-200 p-1.5 text-center text-sm">{i + 1}</td>
+                      <td className="border border-blue-200 p-1.5 text-center text-sm font-mono">{item.code || '-'}</td>
+                      <td className="border border-blue-200 p-1.5 text-base font-medium text-left">{item.description}</td>
+                      <td className="border border-blue-200 p-1.5 text-center text-sm">{item.unit}</td>
+                      <td className="border border-blue-200 p-1.5 text-center font-bold text-base">{item.quantity}</td>
+                      <td className="border border-blue-200 p-1.5 text-right text-base">R$ {(item.price ?? 0).toLocaleString('pt-BR', {minimumFractionDigits: 2})}</td>
+                      <td className="border border-blue-200 p-1.5 text-right font-bold text-blue-700 text-base">R$ {((item.quantity ?? 0) * (item.price ?? 0)).toLocaleString('pt-BR', {minimumFractionDigits: 2})}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
-              <div className="flex flex-col items-end text-[10px] mb-2 pb-1">
-                <div className="flex justify-between w-64 border-b border-gray-100 text-right"><span className="text-gray-500 uppercase font-bold text-[9px]">Subtotal:</span> <span>R$ {(currentOrder.subtotal ?? 0).toLocaleString('pt-BR', {minimumFractionDigits: 2})}</span></div>
-                <div className="flex justify-between w-64 border-b border-gray-100 text-right"><span className="text-gray-500 uppercase font-bold text-[9px]">Desconto:</span> <span>R$ {(currentOrder.discount ?? 0).toLocaleString('pt-BR', {minimumFractionDigits: 2})}</span></div>
-                <div className="flex justify-between w-64 border-b border-gray-100 text-right"><span className="text-gray-500 uppercase font-bold text-[9px]">Acréscimos:</span> <span>{(currentOrder.additions ?? 0).toLocaleString('pt-BR', {minimumFractionDigits: 2})}</span></div>
-                <div className="flex justify-between w-64 mt-0.5 text-blue-800 text-right"><span className="font-bold uppercase font-bold text-[9px]">TOTAL:</span> <span className="font-black text-sm text-right">R$ {(currentOrder.total ?? 0).toLocaleString('pt-BR', {minimumFractionDigits: 2})}</span></div>
+              <div className="flex flex-col items-end text-base mb-2 pb-1">
+                <div className="flex justify-between w-64 border-b border-gray-100 text-right"><span className="text-gray-500 uppercase font-bold text-sm">Subtotal:</span> <span>R$ {(currentOrder.subtotal ?? 0).toLocaleString('pt-BR', {minimumFractionDigits: 2})}</span></div>
+                <div className="flex justify-between w-64 border-b border-gray-100 text-right"><span className="text-gray-500 uppercase font-bold text-sm">Desconto:</span> <span>R$ {(currentOrder.discount ?? 0).toLocaleString('pt-BR', {minimumFractionDigits: 2})}</span></div>
+                <div className="flex justify-between w-64 border-b border-gray-100 text-right"><span className="text-gray-500 uppercase font-bold text-sm">Acréscimos:</span> <span>{(currentOrder.additions ?? 0).toLocaleString('pt-BR', {minimumFractionDigits: 2})}</span></div>
+                <div className="flex justify-between w-64 mt-0.5 text-blue-800 text-right"><span className="font-bold uppercase font-bold text-sm">TOTAL:</span> <span className="font-black text-base text-right">R$ {(currentOrder.total ?? 0).toLocaleString('pt-BR', {minimumFractionDigits: 2})}</span></div>
               </div>
 
               <div className="bg-blue-600 text-white px-2 py-0.5 rounded-sm mt-3 print:bg-blue-600 print:text-white text-left">
-                <span className="text-[10px] font-bold uppercase tracking-wider">Condições de Pagamento</span>
+                <span className="text-base font-bold uppercase tracking-wider">Condições de Pagamento</span>
               </div>
-              <table className="w-full text-[9px] border-collapse border border-blue-600 mb-2 font-medium">
+              <table className="w-full text-sm border-collapse border border-blue-600 mb-2 font-medium">
                 <thead>
                   <tr className="bg-blue-50 text-blue-900 text-center font-bold print:bg-blue-50">
                     <th className="border border-blue-600 p-0.5 text-left">Condições</th>
@@ -1785,8 +1785,8 @@ function OrdersTab({
                     <tr key={i} className="even:bg-blue-50/20 leading-tight">
                       <td className="border border-blue-200 p-0.5 text-left">{pay.condition}</td>
                       <td className="border border-blue-200 p-0.5 text-center">{pay.dueDate ? new Date(pay.dueDate).toLocaleDateString('pt-BR') : '-'}</td>
-                      <td className="border border-blue-200 p-0.5 text-right font-bold text-blue-700 text-[10px]">R$ {(pay.value ?? 0).toLocaleString('pt-BR', {minimumFractionDigits: 2})}</td>
-                      <td className="border border-blue-200 p-0.5 text-[8px] italic text-left">{pay.observation || '-'}</td>
+                      <td className="border border-blue-200 p-0.5 text-right font-bold text-blue-700 text-base">R$ {(pay.value ?? 0).toLocaleString('pt-BR', {minimumFractionDigits: 2})}</td>
+                      <td className="border border-blue-200 p-0.5 text-sm italic text-left">{pay.observation || '-'}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -1795,19 +1795,19 @@ function OrdersTab({
               <div className="grid grid-cols-2 gap-8 mt-6 mb-4 px-10">
                 <div className="text-center">
                   <div className="border-t border-slate-900 pt-1.5">
-                    <div className="font-black text-slate-900 text-[8px] uppercase tracking-widest">Responsável Compras</div>
+                    <div className="font-black text-slate-900 text-sm uppercase tracking-widest">Responsável Compras</div>
                   </div>
                 </div>
                 <div className="text-center">
                   <div className="border-t border-slate-900 pt-1.5">
-                    <div className="font-black text-slate-900 text-[8px] uppercase tracking-widest">Aprovação Diretor</div>
+                    <div className="font-black text-slate-900 text-sm uppercase tracking-widest">Aprovação Diretor</div>
                   </div>
                 </div>
               </div>
 
                <div className="mt-4 p-2 border border-dashed border-blue-200 rounded-lg bg-blue-50/30 text-left">
-                 <div className="font-black text-blue-900 text-[9px] uppercase tracking-[0.1em] mb-1">Observações</div>
-                 <div className="text-[9px] text-slate-700 leading-tight min-h-[40px] whitespace-pre-wrap">
+                 <div className="font-black text-blue-900 text-sm uppercase tracking-[0.1em] mb-1">Observações</div>
+                 <div className="text-sm text-slate-700 leading-tight min-h-[40px] whitespace-pre-wrap">
                    {currentOrder.observations || "Não existem observações adicionais para este pedido."}
                  </div>
                </div>
@@ -1826,7 +1826,7 @@ function OrdersTab({
             <Package className="absolute -right-8 -bottom-8 w-40 h-40 opacity-10 rotate-12" />
             <div className="relative z-10 text-left">
               <h2 className="text-3xl font-black tracking-tight">Ordem de Compra</h2>
-              <p className="text-emerald-100 font-bold uppercase text-[10px] tracking-widest mt-1">Pedido nº {currentOrder.orderNumber}</p>
+              <p className="text-emerald-100 font-bold uppercase text-base tracking-widest mt-1">Pedido nº {currentOrder.orderNumber}</p>
             </div>
           </div>
 
@@ -1835,13 +1835,13 @@ function OrdersTab({
               {/* Header Info */}
               <div className="bg-white p-5 rounded-xl border border-gray-100 shadow-sm grid grid-cols-2 gap-x-6 gap-y-4">
                 <div className="space-y-2">
-                  <Label className="text-xs font-semibold text-gray-500 uppercase">Contrato / Obra</Label>
+                  <Label className="text-base font-semibold text-gray-500 uppercase">Contrato / Obra</Label>
                   <Select 
                     disabled={isReadOnly}
                     value={currentOrder.contractId || ''}
                     onValueChange={(v) => setCurrentOrder({ ...currentOrder, contractId: v })}
                   >
-                    <SelectTrigger className="w-full bg-white border-blue-100 focus:ring-blue-500 rounded-xl text-sm h-10 font-medium text-blue-900 ring-offset-blue-50">
+                    <SelectTrigger className="w-full bg-white border-blue-100 focus:ring-blue-500 rounded-xl text-base h-10 font-medium text-blue-900 ring-offset-blue-50">
                       <SelectValue placeholder="Selecione o contrato...">
                         {(() => {
                            const val = currentOrder.contractId;
@@ -1860,7 +1860,7 @@ function OrdersTab({
                           <SelectItem key={c.id} value={c.id} textValue={label}>
                             <div className="flex flex-col py-1">
                               <span className="font-bold text-blue-900">{c.workName || 'Obra sem nome'}</span>
-                              <span className="text-[10px] text-gray-500">{c.client || 'Cliente não definido'} • {c.contractNumber || 'S/N'}</span>
+                              <span className="text-base text-gray-500">{c.client || 'Cliente não definido'} • {c.contractNumber || 'S/N'}</span>
                             </div>
                           </SelectItem>
                         );
@@ -1870,10 +1870,10 @@ function OrdersTab({
                 </div>
 
                 <div className="space-y-2">
-                  <Label className="text-xs font-semibold text-gray-500 uppercase">Fornecedor</Label>
+                  <Label className="text-base font-semibold text-gray-500 uppercase">Fornecedor</Label>
                   <select 
                     disabled={isReadOnly}
-                    className="w-full h-10 px-3 bg-gray-50 border border-gray-200 focus:border-emerald-500 rounded-lg outline-none text-sm disabled:opacity-70 disabled:cursor-not-allowed"
+                    className="w-full h-10 px-3 bg-gray-50 border border-gray-200 focus:border-emerald-500 rounded-lg outline-none text-base disabled:opacity-70 disabled:cursor-not-allowed"
                     value={currentOrder.supplierId || ''}
                     onChange={(e) => {
                       const id = e.target.value;
@@ -1889,20 +1889,20 @@ function OrdersTab({
                 </div>
 
                 <div className="space-y-2">
-                  <Label className="text-xs font-semibold text-gray-500 uppercase">Categoria</Label>
+                  <Label className="text-base font-semibold text-gray-500 uppercase">Categoria</Label>
                   <Select 
                     disabled={isReadOnly}
                     value={currentOrder.category || ''}
                     onValueChange={(v) => setCurrentOrder({ ...currentOrder, category: v })}
                   >
-                    <SelectTrigger className="w-full bg-gray-50 border-gray-200 rounded-lg text-sm h-10">
+                    <SelectTrigger className="w-full bg-gray-50 border-gray-200 rounded-lg text-base h-10">
                       <SelectValue placeholder="Selecione ou digite..." />
                     </SelectTrigger>
                     <SelectContent>
                       <div className="p-2 border-b">
                         <Input 
                           placeholder="Nova categoria..." 
-                          className="h-8 text-xs" 
+                          className="h-8 text-base" 
                           onKeyDown={(e) => {
                             if (e.key === 'Enter') {
                               const val = (e.currentTarget as HTMLInputElement).value;
@@ -1927,20 +1927,20 @@ function OrdersTab({
                 </div>
 
                 <div className="space-y-2">
-                  <Label className="text-xs font-semibold text-gray-500 uppercase">Centro de Custo</Label>
+                  <Label className="text-base font-semibold text-gray-500 uppercase">Centro de Custo</Label>
                   <Select 
                     disabled={isReadOnly}
                     value={currentOrder.costCenter || ''}
                     onValueChange={(v) => setCurrentOrder({ ...currentOrder, costCenter: v })}
                   >
-                    <SelectTrigger className="w-full bg-gray-50 border-gray-200 rounded-lg text-sm h-10">
+                    <SelectTrigger className="w-full bg-gray-50 border-gray-200 rounded-lg text-base h-10">
                       <SelectValue placeholder="Selecione ou digite..." />
                     </SelectTrigger>
                     <SelectContent>
                       <div className="p-2 border-b">
                         <Input 
                           placeholder="Novo centro de custo..." 
-                          className="h-8 text-xs" 
+                          className="h-8 text-base" 
                           onKeyDown={(e) => {
                             if (e.key === 'Enter') {
                               const val = (e.currentTarget as HTMLInputElement).value;
@@ -1965,21 +1965,21 @@ function OrdersTab({
                 
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label className="text-xs font-semibold text-gray-500 uppercase">Data do Pedido</Label>
+                    <Label className="text-base font-semibold text-gray-500 uppercase">Data do Pedido</Label>
                     <Input 
                       disabled={isReadOnly}
                       type="date"
-                      className="bg-gray-50 border-gray-200 focus:border-emerald-500 rounded-lg text-sm" 
+                      className="bg-gray-50 border-gray-200 focus:border-emerald-500 rounded-lg text-base" 
                       value={currentOrder.orderDate || ''} 
                       onChange={e => setCurrentOrder({...currentOrder, orderDate: e.target.value})}
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label className="text-xs font-semibold text-gray-500 uppercase">Data de Entrega</Label>
+                    <Label className="text-base font-semibold text-gray-500 uppercase">Data de Entrega</Label>
                     <Input 
                       disabled={isReadOnly}
                       type="date"
-                      className="bg-gray-50 border-gray-200 focus:border-emerald-500 rounded-lg text-sm" 
+                      className="bg-gray-50 border-gray-200 focus:border-emerald-500 rounded-lg text-base" 
                       value={currentOrder.deliveryDate || ''} 
                       onChange={e => setCurrentOrder({...currentOrder, deliveryDate: e.target.value})}
                     />
@@ -1987,20 +1987,20 @@ function OrdersTab({
                 </div>
 
                 <div className="space-y-2">
-                  <Label className="text-xs font-semibold text-gray-500 uppercase">Telefone</Label>
+                  <Label className="text-base font-semibold text-gray-500 uppercase">Telefone</Label>
                   <Input 
                     disabled={isReadOnly}
-                    className="bg-gray-50 border-gray-200 focus:border-emerald-500 rounded-lg text-sm"
+                    className="bg-gray-50 border-gray-200 focus:border-emerald-500 rounded-lg text-base"
                     value={currentOrder.phone || ''}
                     onChange={e => setCurrentOrder({...currentOrder, phone: e.target.value})}
                   />
                 </div>
 
                 <div className="space-y-2">
-                  <Label className="text-xs font-semibold text-gray-500 uppercase">Email</Label>
+                  <Label className="text-base font-semibold text-gray-500 uppercase">Email</Label>
                   <Input 
                     disabled={isReadOnly}
-                    className="bg-gray-50 border-gray-200 focus:border-emerald-500 rounded-lg text-sm"
+                    className="bg-gray-50 border-gray-200 focus:border-emerald-500 rounded-lg text-base"
                     value={currentOrder.email || ''}
                     onChange={e => setCurrentOrder({...currentOrder, email: e.target.value})}
                   />
@@ -2009,38 +2009,38 @@ function OrdersTab({
 
               {/* Delivery Address */}
               <div className="bg-white p-5 rounded-xl border border-gray-100 shadow-sm">
-                 <h4 className="text-sm font-bold text-gray-900 mb-4 flex items-center gap-2">
+                 <h4 className="text-base font-bold text-gray-900 mb-4 flex items-center gap-2">
                     <MapPin className="w-4 h-4 text-emerald-600" />
                     Endereço de Entrega
                   </h4>
                   <div className="grid grid-cols-6 gap-x-4 gap-y-4">
                     <div className="col-span-3 space-y-2">
-                      <Label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Endereço</Label>
-                      <Input disabled={isReadOnly} className="bg-gray-50 border-gray-200 h-9 text-sm rounded-lg" value={currentOrder.deliveryAddress?.street || ''} onChange={e => setCurrentOrder({...currentOrder, deliveryAddress: {...currentOrder.deliveryAddress!, street: e.target.value}})} />
+                      <Label className="text-base font-semibold text-gray-500 uppercase tracking-wider">Endereço</Label>
+                      <Input disabled={isReadOnly} className="bg-gray-50 border-gray-200 h-9 text-base rounded-lg" value={currentOrder.deliveryAddress?.street || ''} onChange={e => setCurrentOrder({...currentOrder, deliveryAddress: {...currentOrder.deliveryAddress!, street: e.target.value}})} />
                     </div>
                     <div className="col-span-1 space-y-2">
-                      <Label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Número</Label>
-                      <Input disabled={isReadOnly} className="bg-gray-50 border-gray-200 h-9 text-sm rounded-lg" value={currentOrder.deliveryAddress?.number || ''} onChange={e => setCurrentOrder({...currentOrder, deliveryAddress: {...currentOrder.deliveryAddress!, number: e.target.value}})} />
+                      <Label className="text-base font-semibold text-gray-500 uppercase tracking-wider">Número</Label>
+                      <Input disabled={isReadOnly} className="bg-gray-50 border-gray-200 h-9 text-base rounded-lg" value={currentOrder.deliveryAddress?.number || ''} onChange={e => setCurrentOrder({...currentOrder, deliveryAddress: {...currentOrder.deliveryAddress!, number: e.target.value}})} />
                     </div>
                     <div className="col-span-2 space-y-2">
-                      <Label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Complemento</Label>
-                      <Input disabled={isReadOnly} className="bg-gray-50 border-gray-200 h-9 text-sm rounded-lg" value={currentOrder.deliveryAddress?.complement || ''} onChange={e => setCurrentOrder({...currentOrder, deliveryAddress: {...currentOrder.deliveryAddress!, complement: e.target.value}})} />
+                      <Label className="text-base font-semibold text-gray-500 uppercase tracking-wider">Complemento</Label>
+                      <Input disabled={isReadOnly} className="bg-gray-50 border-gray-200 h-9 text-base rounded-lg" value={currentOrder.deliveryAddress?.complement || ''} onChange={e => setCurrentOrder({...currentOrder, deliveryAddress: {...currentOrder.deliveryAddress!, complement: e.target.value}})} />
                     </div>
                     <div className="col-span-2 space-y-2">
-                      <Label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Bairro</Label>
-                      <Input disabled={isReadOnly} className="bg-gray-50 border-gray-200 h-9 text-sm rounded-lg" value={currentOrder.deliveryAddress?.neighborhood || ''} onChange={e => setCurrentOrder({...currentOrder, deliveryAddress: {...currentOrder.deliveryAddress!, neighborhood: e.target.value}})} />
+                      <Label className="text-base font-semibold text-gray-500 uppercase tracking-wider">Bairro</Label>
+                      <Input disabled={isReadOnly} className="bg-gray-50 border-gray-200 h-9 text-base rounded-lg" value={currentOrder.deliveryAddress?.neighborhood || ''} onChange={e => setCurrentOrder({...currentOrder, deliveryAddress: {...currentOrder.deliveryAddress!, neighborhood: e.target.value}})} />
                     </div>
                     <div className="col-span-2 space-y-2">
-                      <Label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">CEP</Label>
-                      <Input disabled={isReadOnly} className="bg-gray-50 border-gray-200 h-9 text-sm rounded-lg" value={currentOrder.deliveryAddress?.zipCode || ''} onChange={e => setCurrentOrder({...currentOrder, deliveryAddress: {...currentOrder.deliveryAddress!, zipCode: applyCEPMask(e.target.value)}})} />
+                      <Label className="text-base font-semibold text-gray-500 uppercase tracking-wider">CEP</Label>
+                      <Input disabled={isReadOnly} className="bg-gray-50 border-gray-200 h-9 text-base rounded-lg" value={currentOrder.deliveryAddress?.zipCode || ''} onChange={e => setCurrentOrder({...currentOrder, deliveryAddress: {...currentOrder.deliveryAddress!, zipCode: applyCEPMask(e.target.value)}})} />
                     </div>
                     <div className="col-span-1 space-y-2">
-                      <Label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Cidade</Label>
-                      <Input disabled={isReadOnly} className="bg-gray-50 border-gray-200 h-9 text-sm rounded-lg" value={currentOrder.deliveryAddress?.city || ''} onChange={e => setCurrentOrder({...currentOrder, deliveryAddress: {...currentOrder.deliveryAddress!, city: e.target.value}})} />
+                      <Label className="text-base font-semibold text-gray-500 uppercase tracking-wider">Cidade</Label>
+                      <Input disabled={isReadOnly} className="bg-gray-50 border-gray-200 h-9 text-base rounded-lg" value={currentOrder.deliveryAddress?.city || ''} onChange={e => setCurrentOrder({...currentOrder, deliveryAddress: {...currentOrder.deliveryAddress!, city: e.target.value}})} />
                     </div>
                     <div className="col-span-1 space-y-2">
-                      <Label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">UF</Label>
-                      <Input disabled={isReadOnly} className="bg-gray-50 border-gray-200 h-9 text-sm rounded-lg" value={currentOrder.deliveryAddress?.state || ''} onChange={e => setCurrentOrder({...currentOrder, deliveryAddress: {...currentOrder.deliveryAddress!, state: e.target.value}})} />
+                      <Label className="text-base font-semibold text-gray-500 uppercase tracking-wider">UF</Label>
+                      <Input disabled={isReadOnly} className="bg-gray-50 border-gray-200 h-9 text-base rounded-lg" value={currentOrder.deliveryAddress?.state || ''} onChange={e => setCurrentOrder({...currentOrder, deliveryAddress: {...currentOrder.deliveryAddress!, state: e.target.value}})} />
                     </div>
                   </div>
               </div>
@@ -2048,11 +2048,11 @@ function OrdersTab({
               {/* Items */}
               <div className="bg-white p-5 rounded-xl border border-gray-100 shadow-sm overflow-hidden">
                 <div className="flex justify-between items-center mb-4">
-                  <h4 className="text-sm font-bold text-gray-900 flex items-center gap-2">
+                  <h4 className="text-base font-bold text-gray-900 flex items-center gap-2">
                     <ShoppingCart className="w-4 h-4 text-emerald-600" />
                     Itens do Pedido
                   </h4>
-                  <Button variant="outline" size="sm" onClick={addItem} disabled={isReadOnly} className="h-8 text-xs font-bold text-emerald-600 border-emerald-200 bg-emerald-50 hover:bg-emerald-100 disabled:opacity-50">
+                  <Button variant="outline" size="sm" onClick={addItem} disabled={isReadOnly} className="h-8 text-base font-bold text-emerald-600 border-emerald-200 bg-emerald-50 hover:bg-emerald-100 disabled:opacity-50">
                     <Plus className="w-3 h-3 mr-1" /> Adicionar Item
                   </Button>
                 </div>
@@ -2061,13 +2061,13 @@ function OrdersTab({
                   <Table>
                     <TableHeader className="bg-gray-100/80">
                       <TableRow>
-                        <TableHead className="w-[50px] font-bold text-xs text-gray-600 uppercase">Item</TableHead>
-                        <TableHead className="w-[100px] font-bold text-xs text-gray-600 uppercase">Cod</TableHead>
-                        <TableHead className="font-bold text-xs text-gray-600 uppercase">Descrição dos Produtos</TableHead>
-                        <TableHead className="w-[80px] font-bold text-xs text-gray-600 uppercase text-center">Un</TableHead>
-                        <TableHead className="w-[100px] font-bold text-xs text-gray-600 uppercase text-center">Qtde</TableHead>
-                        <TableHead className="w-[120px] font-bold text-xs text-gray-600 uppercase text-right">Preço (R$)</TableHead>
-                        <TableHead className="w-[120px] font-bold text-xs text-gray-600 uppercase text-right">Total</TableHead>
+                        <TableHead className="w-[50px] font-bold text-base text-gray-600 uppercase">Item</TableHead>
+                        <TableHead className="w-[100px] font-bold text-base text-gray-600 uppercase">Cod</TableHead>
+                        <TableHead className="font-bold text-base text-gray-600 uppercase">Descrição dos Produtos</TableHead>
+                        <TableHead className="w-[80px] font-bold text-base text-gray-600 uppercase text-center">Un</TableHead>
+                        <TableHead className="w-[100px] font-bold text-base text-gray-600 uppercase text-center">Qtde</TableHead>
+                        <TableHead className="w-[120px] font-bold text-base text-gray-600 uppercase text-right">Preço (R$)</TableHead>
+                        <TableHead className="w-[120px] font-bold text-base text-gray-600 uppercase text-right">Total</TableHead>
                         <TableHead className="w-[50px]"></TableHead>
                       </TableRow>
                     </TableHeader>
@@ -2081,23 +2081,23 @@ function OrdersTab({
                       )}
                       {currentOrder.items?.map((item, index) => (
                         <TableRow key={item.id} className="bg-white">
-                          <TableCell className="text-center text-sm font-medium text-gray-500">{index + 1}</TableCell>
+                          <TableCell className="text-center text-base font-medium text-gray-500">{index + 1}</TableCell>
                           <TableCell className="p-1">
-                            <Input disabled={isReadOnly} className="h-8 text-sm bg-transparent border-transparent hover:border-gray-200 focus:border-emerald-500 focus:bg-white" value={item.code} onChange={e => updateItem(index, 'code', e.target.value)} />
+                            <Input disabled={isReadOnly} className="h-8 text-base bg-transparent border-transparent hover:border-gray-200 focus:border-emerald-500 focus:bg-white" value={item.code} onChange={e => updateItem(index, 'code', e.target.value)} />
                           </TableCell>
                           <TableCell className="p-1">
-                            <Input disabled={isReadOnly} className="h-8 text-sm bg-transparent border-transparent hover:border-gray-200 focus:border-emerald-500 focus:bg-white" value={item.description} onChange={e => updateItem(index, 'description', e.target.value)} />
+                            <Input disabled={isReadOnly} className="h-8 text-base bg-transparent border-transparent hover:border-gray-200 focus:border-emerald-500 focus:bg-white" value={item.description} onChange={e => updateItem(index, 'description', e.target.value)} />
                           </TableCell>
                           <TableCell className="p-1">
-                            <Input disabled={isReadOnly} className="h-8 text-sm text-center bg-transparent border-transparent hover:border-gray-200 focus:border-emerald-500 focus:bg-white" value={item.unit} onChange={e => updateItem(index, 'unit', e.target.value)} />
+                            <Input disabled={isReadOnly} className="h-8 text-base text-center bg-transparent border-transparent hover:border-gray-200 focus:border-emerald-500 focus:bg-white" value={item.unit} onChange={e => updateItem(index, 'unit', e.target.value)} />
                           </TableCell>
                           <TableCell className="p-1">
-                            <Input disabled={isReadOnly} type="number" className="h-8 text-sm text-center bg-transparent border-transparent hover:border-gray-200 focus:border-emerald-500 focus:bg-white" value={item.quantity || ''} onChange={e => updateItem(index, 'quantity', parseFloat(e.target.value) || 0)} />
+                            <Input disabled={isReadOnly} type="number" className="h-8 text-base text-center bg-transparent border-transparent hover:border-gray-200 focus:border-emerald-500 focus:bg-white" value={item.quantity || ''} onChange={e => updateItem(index, 'quantity', parseFloat(e.target.value) || 0)} />
                           </TableCell>
                           <TableCell className="p-1">
-                            <Input disabled={isReadOnly} type="number" className="h-8 text-sm text-right bg-transparent border-transparent hover:border-gray-200 focus:border-emerald-500 focus:bg-white" value={item.price || ''} onChange={e => updateItem(index, 'price', parseFloat(e.target.value) || 0)} />
+                            <Input disabled={isReadOnly} type="number" className="h-8 text-base text-right bg-transparent border-transparent hover:border-gray-200 focus:border-emerald-500 focus:bg-white" value={item.price || ''} onChange={e => updateItem(index, 'price', parseFloat(e.target.value) || 0)} />
                           </TableCell>
-                          <TableCell className="p-1 text-right text-sm font-medium pr-4">
+                          <TableCell className="p-1 text-right text-base font-medium pr-4">
                             R$ {((item.quantity ?? 0) * (item.price ?? 0)).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                           </TableCell>
                           <TableCell className="p-1 text-center">
@@ -2112,7 +2112,7 @@ function OrdersTab({
                 </div>
                 
                 {/* Totals Section */}
-                <div className="flex justify-end mt-4 text-sm">
+                <div className="flex justify-end mt-4 text-base">
                   <div className="w-64 space-y-2">
                      <div className="flex justify-between items-center px-2">
                        <span className="text-gray-500 font-medium">Subtotal:</span>
@@ -2122,7 +2122,7 @@ function OrdersTab({
                        <span className="text-gray-500 font-medium">Desconto:</span>
                        <Input 
                          type="number" 
-                         className="h-7 w-28 text-right text-sm border-gray-200" 
+                         className="h-7 w-28 text-right text-base border-gray-200" 
                          value={currentOrder.discount || ''} 
                          onChange={e => updateTotals(currentOrder.items || [], parseFloat(e.target.value) || 0, currentOrder.additions || 0)}
                        />
@@ -2131,7 +2131,7 @@ function OrdersTab({
                        <span className="text-gray-500 font-medium">Acréscimos:</span>
                        <Input 
                          type="number" 
-                         className="h-7 w-28 text-right text-sm border-gray-200" 
+                         className="h-7 w-28 text-right text-base border-gray-200" 
                          value={currentOrder.additions || ''} 
                          onChange={e => updateTotals(currentOrder.items || [], currentOrder.discount || 0, parseFloat(e.target.value) || 0)}
                        />
@@ -2147,10 +2147,10 @@ function OrdersTab({
               {/* Payments */}
               <div className="bg-white p-5 rounded-xl border border-gray-100 shadow-sm overflow-hidden">
                 <div className="flex justify-between items-center mb-4">
-                  <h4 className="text-sm font-bold text-gray-900 uppercase">
+                  <h4 className="text-base font-bold text-gray-900 uppercase">
                     Forma / Condições de Pagamento
                   </h4>
-                  <Button variant="outline" size="sm" onClick={addPayment} disabled={isReadOnly} className="h-8 text-xs font-bold text-emerald-600 border-emerald-200 bg-emerald-50 hover:bg-emerald-100 disabled:opacity-50">
+                  <Button variant="outline" size="sm" onClick={addPayment} disabled={isReadOnly} className="h-8 text-base font-bold text-emerald-600 border-emerald-200 bg-emerald-50 hover:bg-emerald-100 disabled:opacity-50">
                     <Plus className="w-3 h-3 mr-1" /> Adicionar Parcela
                   </Button>
                 </div>
@@ -2159,17 +2159,17 @@ function OrdersTab({
                   <Table>
                     <TableHeader className="bg-gray-100/80">
                       <TableRow>
-                        <TableHead className="font-bold text-xs text-gray-600 uppercase">Condições de Pagamento</TableHead>
-                        <TableHead className="w-[150px] font-bold text-xs text-gray-600 uppercase">Vencimento</TableHead>
-                        <TableHead className="w-[150px] font-bold text-xs text-gray-600 uppercase text-right">Valor</TableHead>
-                        <TableHead className="font-bold text-xs text-gray-600 uppercase">Observação</TableHead>
+                        <TableHead className="font-bold text-base text-gray-600 uppercase">Condições de Pagamento</TableHead>
+                        <TableHead className="w-[150px] font-bold text-base text-gray-600 uppercase">Vencimento</TableHead>
+                        <TableHead className="w-[150px] font-bold text-base text-gray-600 uppercase text-right">Valor</TableHead>
+                        <TableHead className="font-bold text-base text-gray-600 uppercase">Observação</TableHead>
                         <TableHead className="w-[50px]"></TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {currentOrder.paymentConditions?.length === 0 && (
                         <TableRow>
-                          <TableCell colSpan={5} className="text-center text-gray-400 py-4 text-sm">
+                          <TableCell colSpan={5} className="text-center text-gray-400 py-4 text-base">
                             Nenhuma condição informada
                           </TableCell>
                         </TableRow>
@@ -2177,16 +2177,16 @@ function OrdersTab({
                       {currentOrder.paymentConditions?.map((pay, index) => (
                         <TableRow key={index} className="bg-white">
                           <TableCell className="p-1">
-                            <Input disabled={isReadOnly} className="h-8 text-sm bg-transparent border-transparent hover:border-gray-200 focus:border-emerald-500 focus:bg-white" value={pay.condition} onChange={e => updatePayment(index, 'condition', e.target.value)} placeholder="Ex: DINHEIRO (À VISTA) [1 / 1]" />
+                            <Input disabled={isReadOnly} className="h-8 text-base bg-transparent border-transparent hover:border-gray-200 focus:border-emerald-500 focus:bg-white" value={pay.condition} onChange={e => updatePayment(index, 'condition', e.target.value)} placeholder="Ex: DINHEIRO (À VISTA) [1 / 1]" />
                           </TableCell>
                           <TableCell className="p-1">
-                            <Input disabled={isReadOnly} type="date" className="h-8 text-sm bg-transparent border-transparent hover:border-gray-200 focus:border-emerald-500 focus:bg-white" value={pay.dueDate} onChange={e => updatePayment(index, 'dueDate', e.target.value)} />
+                            <Input disabled={isReadOnly} type="date" className="h-8 text-base bg-transparent border-transparent hover:border-gray-200 focus:border-emerald-500 focus:bg-white" value={pay.dueDate} onChange={e => updatePayment(index, 'dueDate', e.target.value)} />
                           </TableCell>
                           <TableCell className="p-1">
-                            <Input disabled={isReadOnly} type="number" className="h-8 text-sm text-right bg-transparent border-transparent hover:border-gray-200 focus:border-emerald-500 focus:bg-white" value={pay.value || ''} onChange={e => updatePayment(index, 'value', parseFloat(e.target.value) || 0)} />
+                            <Input disabled={isReadOnly} type="number" className="h-8 text-base text-right bg-transparent border-transparent hover:border-gray-200 focus:border-emerald-500 focus:bg-white" value={pay.value || ''} onChange={e => updatePayment(index, 'value', parseFloat(e.target.value) || 0)} />
                           </TableCell>
                           <TableCell className="p-1">
-                            <Input disabled={isReadOnly} className="h-8 text-sm bg-transparent border-transparent hover:border-gray-200 focus:border-emerald-500 focus:bg-white" value={pay.observation} onChange={e => updatePayment(index, 'observation', e.target.value)} />
+                            <Input disabled={isReadOnly} className="h-8 text-base bg-transparent border-transparent hover:border-gray-200 focus:border-emerald-500 focus:bg-white" value={pay.observation} onChange={e => updatePayment(index, 'observation', e.target.value)} />
                           </TableCell>
                            <TableCell className="p-1 text-center">
                             <Button disabled={isReadOnly} variant="ghost" size="icon" className="h-6 w-6 text-red-400 hover:text-red-600 hover:bg-red-50 disabled:opacity-30" onClick={() => removePayment(index)}>
@@ -2201,9 +2201,9 @@ function OrdersTab({
               </div>
 
                <div className="bg-white p-5 rounded-xl border border-gray-100 shadow-sm">
-                 <Label className="text-sm font-bold text-gray-900 uppercase">Observações Gerais</Label>
+                 <Label className="text-base font-bold text-gray-900 uppercase">Observações Gerais</Label>
                  <textarea 
-                   className="w-full h-20 p-3 mt-2 bg-gray-50 border border-gray-200 focus:border-emerald-500 rounded-lg outline-none resize-none text-sm text-gray-700" 
+                   className="w-full h-20 p-3 mt-2 bg-gray-50 border border-gray-200 focus:border-emerald-500 rounded-lg outline-none resize-none text-base text-gray-700" 
                    value={currentOrder.observations || ''}
                    onChange={e => setCurrentOrder({...currentOrder, observations: e.target.value})}
                  />
@@ -2429,10 +2429,10 @@ function QuotationsTab({
                     {new Date(q.date).toLocaleDateString('pt-BR')}
                   </TableCell>
                   <TableCell className="max-w-[250px]">
-                    <div className="text-sm font-medium text-gray-900 truncate">
+                    <div className="text-base font-medium text-gray-900 truncate">
                       {q.items.map(i => i.description).join(', ')}
                     </div>
-                    <div className="text-[10px] text-gray-400">{q.items.length} item(ns)</div>
+                    <div className="text-base text-gray-400">{q.items.length} item(ns)</div>
                   </TableCell>
                   <TableCell>
                     <div className="flex flex-wrap gap-1">
@@ -2440,7 +2440,7 @@ function QuotationsTab({
                         const sup = suppliers.find(s => s.id === qs.supplierId);
                         return (
                           <span key={qs.supplierId} className={cn(
-                            "px-2 py-0.5 rounded text-[10px] font-bold",
+                            "px-2 py-0.5 rounded text-base font-bold",
                             qs.status === 'responded' ? "bg-emerald-50 text-emerald-700" : "bg-gray-100 text-gray-600"
                           )}>
                             {sup?.name || 'Vendedor'}
@@ -2451,7 +2451,7 @@ function QuotationsTab({
                   </TableCell>
                   <TableCell className="text-center">
                     <span className={cn(
-                      "px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ring-1 ring-inset",
+                      "px-2.5 py-0.5 rounded-full text-base font-black uppercase tracking-wider ring-1 ring-inset",
                       q.status === 'sent' ? "bg-blue-50 text-blue-700 ring-blue-600/20" :
                       q.status === 'responded' ? "bg-amber-50 text-amber-700 ring-amber-600/20" :
                       q.status === 'awaiting_approval' ? "bg-purple-50 text-purple-700 ring-purple-600/20" :
@@ -2498,7 +2498,7 @@ function QuotationsTab({
             <Plus className="absolute -right-8 -bottom-8 w-40 h-40 opacity-10 rotate-12" />
             <div className="relative z-10 text-left">
               <h2 className="text-2xl font-black tracking-tight">Mapa de Cotação</h2>
-              <p className="text-emerald-100 font-bold uppercase text-[10px] tracking-widest mt-1">Comparativo de fornecedores e fechamento de pedido</p>
+              <p className="text-emerald-100 font-bold uppercase text-base tracking-widest mt-1">Comparativo de fornecedores e fechamento de pedido</p>
             </div>
           </div>
 
@@ -2508,14 +2508,14 @@ function QuotationsTab({
                 <Table>
                   <TableHeader className="bg-gray-50/80 backdrop-blur-md sticky top-0 z-10">
                     <TableRow>
-                      <TableHead className="font-black text-gray-900 uppercase text-[10px] tracking-widest pb-3">Item / Descrição</TableHead>
-                      <TableHead className="text-center font-black text-gray-900 uppercase text-[10px] tracking-widest pb-3">Qtd</TableHead>
+                      <TableHead className="font-black text-gray-900 uppercase text-base tracking-widest pb-3">Item / Descrição</TableHead>
+                      <TableHead className="text-center font-black text-gray-900 uppercase text-base tracking-widest pb-3">Qtd</TableHead>
                       {selectedQuotation.suppliers.map(qs => {
                         const sup = suppliers.find(s => s.id === qs.supplierId);
                         return (
                           <TableHead key={qs.supplierId} className="text-center min-w-[180px] border-l border-gray-100 pb-3">
-                            <div className="font-black text-blue-600 text-[11px] uppercase leading-tight truncate">{sup?.name}</div>
-                            <div className="text-[9px] text-gray-400 font-bold uppercase truncate mt-0.5">{sup?.activity}</div>
+                            <div className="font-black text-blue-600 text-base uppercase leading-tight truncate">{sup?.name}</div>
+                            <div className="text-sm text-gray-400 font-bold uppercase truncate mt-0.5">{sup?.activity}</div>
                           </TableHead>
                         );
                       })}
@@ -2525,10 +2525,10 @@ function QuotationsTab({
                     {selectedQuotation.items.map((item) => (
                       <TableRow key={item.itemId} className="hover:bg-gray-50/50 transition-colors">
                         <TableCell className="py-2">
-                          <div className="font-bold text-gray-900 text-xs">{item.description}</div>
-                          <div className="text-[10px] text-gray-400 font-bold uppercase">{item.unit}</div>
+                          <div className="font-bold text-gray-900 text-base">{item.description}</div>
+                          <div className="text-base text-gray-400 font-bold uppercase">{item.unit}</div>
                         </TableCell>
-                        <TableCell className="text-center font-black text-gray-900 text-xs">
+                        <TableCell className="text-center font-black text-gray-900 text-base">
                           {item.quantity}
                         </TableCell>
                         {selectedQuotation.suppliers.map(qs => {
@@ -2536,10 +2536,10 @@ function QuotationsTab({
                           return (
                             <TableCell key={qs.supplierId} className="p-2 border-l border-gray-100">
                               <div className="relative group">
-                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-emerald-400 font-bold">R$</span>
+                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-base text-emerald-400 font-bold">R$</span>
                                 <Input 
                                   type="number"
-                                  className="pl-8 h-9 bg-white border-gray-200 rounded-lg focus:ring-emerald-500 font-bold text-emerald-700 text-sm shadow-sm"
+                                  className="pl-8 h-9 bg-white border-gray-200 rounded-lg focus:ring-emerald-500 font-bold text-emerald-700 text-base shadow-sm"
                                   value={response?.price || ''}
                                   onChange={(e) => handleUpdatePrice(qs.supplierId, item.itemId, parseFloat(e.target.value) || 0)}
                                 />
@@ -2551,7 +2551,7 @@ function QuotationsTab({
                     ))}
                     {/* Subtotals Row */}
                     <TableRow className="bg-emerald-50/30 font-bold">
-                      <TableCell colSpan={2} className="text-right uppercase tracking-[0.2em] font-black text-gray-400 text-[9px] py-4">Total do Fornecedor</TableCell>
+                      <TableCell colSpan={2} className="text-right uppercase tracking-[0.2em] font-black text-gray-400 text-sm py-4">Total do Fornecedor</TableCell>
                       {selectedQuotation.suppliers.map(qs => {
                         const total = selectedQuotation.items.reduce((acc, item) => {
                           const res = qs.responses.find(r => r.itemId === item.itemId);
@@ -2563,11 +2563,11 @@ function QuotationsTab({
                             "text-center transition-all border-l border-emerald-100",
                             isAdminSelected ? "bg-emerald-100/50 text-emerald-800" : "text-blue-600"
                           )}>
-                            <div className="text-sm font-black italic tracking-tighter">
+                            <div className="text-base font-black italic tracking-tighter">
                               R$ {(total ?? 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                             </div>
                             {isAdminSelected && (
-                              <div className="text-[8px] text-emerald-600 uppercase font-black mt-1 flex items-center justify-center gap-1 bg-white py-0.5 px-2 rounded-md shadow-sm mx-auto w-fit">
+                              <div className="text-sm text-emerald-600 uppercase font-black mt-1 flex items-center justify-center gap-1 bg-white py-0.5 px-2 rounded-md shadow-sm mx-auto w-fit">
                                 <Star className="w-2.5 h-2.5 fill-current" /> Sugestão de Compra
                               </div>
                             )}
@@ -2577,12 +2577,12 @@ function QuotationsTab({
                     </TableRow>
                     {/* Payment Condition Row */}
                     <TableRow className="bg-white">
-                      <TableCell colSpan={2} className="text-right uppercase tracking-widest font-black text-gray-400 text-[9px] py-2">Forma de Pagamento</TableCell>
+                      <TableCell colSpan={2} className="text-right uppercase tracking-widest font-black text-gray-400 text-sm py-2">Forma de Pagamento</TableCell>
                       {selectedQuotation.suppliers.map(qs => (
                         <TableCell key={qs.supplierId} className="p-2 border-l border-gray-100">
                           <Input 
                             placeholder="Ex: 30 dias, 2x s/ juros"
-                            className="h-8 text-xs bg-gray-50 border-gray-200 rounded-lg focus:bg-white focus:ring-blue-500 font-medium"
+                            className="h-8 text-base bg-gray-50 border-gray-200 rounded-lg focus:bg-white focus:ring-blue-500 font-medium"
                             value={qs.paymentCondition || ''}
                             onChange={(e) => handleUpdatePaymentCondition(qs.supplierId, e.target.value)}
                           />
@@ -2603,16 +2603,16 @@ function QuotationsTab({
                               <Button 
                                 disabled={total === 0}
                                 onClick={() => handleCreateOrder(qs.supplierId)}
-                                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-black uppercase text-[9px] rounded-xl h-10 shadow-sm transition-all hover:scale-105 active:scale-95"
+                                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-black uppercase text-sm rounded-xl h-10 shadow-sm transition-all hover:scale-105 active:scale-95"
                               >
                                 Gerar Ordem de Compra
                               </Button>
                             ) : selectedQuotation.status === 'completed' ? (
-                              <div className="text-[9px] text-emerald-600 font-black uppercase bg-emerald-50 py-2.5 rounded-xl flex items-center justify-center gap-1 border border-emerald-100">
+                              <div className="text-sm text-emerald-600 font-black uppercase bg-emerald-50 py-2.5 rounded-xl flex items-center justify-center gap-1 border border-emerald-100">
                                 <CheckCircle className="w-3.5 h-3.5" /> Ordem Gerada
                               </div>
                             ) : (
-                              <div className="text-[9px] text-gray-400 font-bold uppercase tracking-widest text-center px-4 leading-relaxed">
+                              <div className="text-sm text-gray-400 font-bold uppercase tracking-widest text-center px-4 leading-relaxed">
                                 Aguardando aprovação para gerar OC
                               </div>
                             )}
@@ -2631,7 +2631,7 @@ function QuotationsTab({
                 onClick={handleSubmitForApproval}
                 disabled={!selectedQuotation || selectedQuotation.status === 'awaiting_approval' || selectedQuotation.status === 'approved' || selectedQuotation.status === 'completed'}
                 className={cn(
-                  "flex-1 max-w-sm rounded-xl h-11 font-black uppercase text-[10px] shadow-sm transition-all active:scale-95",
+                  "flex-1 max-w-sm rounded-xl h-11 font-black uppercase text-base shadow-sm transition-all active:scale-95",
                   selectedQuotation?.status === 'awaiting_approval' ? "bg-amber-100 text-amber-700 hover:bg-amber-100" :
                   selectedQuotation?.status === 'approved' ? "bg-emerald-100 text-emerald-700 hover:bg-emerald-100" :
                   selectedQuotation?.status === 'completed' ? "bg-blue-100 text-blue-700 hover:bg-blue-100" :
@@ -2642,7 +2642,7 @@ function QuotationsTab({
                  selectedQuotation?.status === 'approved' ? 'Aprovado para Compra' : 
                  selectedQuotation?.status === 'completed' ? 'Orçamento Concluído' : 'Enviar para Aprovação'}
               </Button>
-              <Button variant="ghost" onClick={() => setIsDetailsOpen(false)} className="rounded-xl px-8 h-11 font-bold uppercase text-[10px]">Fechar Mapa</Button>
+              <Button variant="ghost" onClick={() => setIsDetailsOpen(false)} className="rounded-xl px-8 h-11 font-bold uppercase text-base">Fechar Mapa</Button>
             </div>
           </div>
         </Modal>
@@ -2772,7 +2772,7 @@ function TrackingTab({ orders, setOrders, equipmentMaintenance, onUpdateMaintena
 
   const RatingStars = ({ value, onChange, label }: { value: number, onChange: (v: number) => void, label: string }) => (
     <div className="flex flex-col gap-1">
-      <Label className="text-xs font-bold text-gray-600 uppercase tracking-wider">{label}</Label>
+      <Label className="text-base font-bold text-gray-600 uppercase tracking-wider">{label}</Label>
       <div className="flex gap-1">
         {[1, 2, 3, 4, 5].map((star) => (
           <button
@@ -2836,7 +2836,7 @@ function TrackingTab({ orders, setOrders, equipmentMaintenance, onUpdateMaintena
                     <TableCell>
                       {daysLeft !== null ? (
                         <span className={cn(
-                          "px-2 py-0.5 rounded text-[10px] font-bold uppercase",
+                          "px-2 py-0.5 rounded text-base font-bold uppercase",
                           daysLeft < 0 ? "bg-red-50 text-red-600" : 
                           daysLeft <= 2 ? "bg-amber-50 text-amber-600" : "bg-emerald-50 text-emerald-600"
                         )}>
@@ -2861,7 +2861,7 @@ function TrackingTab({ orders, setOrders, equipmentMaintenance, onUpdateMaintena
                     </TableCell>
                     <TableCell>
                       <span className={cn(
-                        "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ring-inset",
+                        "inline-flex items-center rounded-full px-2.5 py-0.5 text-base font-medium ring-1 ring-inset",
                         order.status === 'delivered' ? "bg-green-50 text-green-700 ring-green-600/20" :
                         order.status === 'sent' ? "bg-blue-50 text-blue-700 ring-blue-600/20" :
                         order.status === 'waiting_delivery' ? "bg-amber-50 text-amber-700 ring-amber-600/20" :
@@ -2876,7 +2876,7 @@ function TrackingTab({ orders, setOrders, equipmentMaintenance, onUpdateMaintena
                     <TableCell className="text-right">
                       <Button 
                         onClick={() => handleFinishDelivery(order)}
-                        className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold h-9 text-xs gap-1.5 px-4 shadow-sm shadow-emerald-100"
+                        className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold h-9 text-base gap-1.5 px-4 shadow-sm shadow-emerald-100"
                       >
                         <CheckCircle className="w-3.5 h-3.5" /> Entrega Recebida
                       </Button>
@@ -2910,9 +2910,9 @@ function TrackingTab({ orders, setOrders, equipmentMaintenance, onUpdateMaintena
               </div>
 
               <div className="space-y-2">
-                <Label className="text-xs font-bold text-gray-600 uppercase">Observações do Recebimento</Label>
+                <Label className="text-base font-bold text-gray-600 uppercase">Observações do Recebimento</Label>
                 <textarea 
-                  className="w-full h-24 p-4 bg-white border border-gray-200 rounded-2xl focus:ring-2 focus:ring-emerald-500 outline-none text-sm resize-none shadow-inner"
+                  className="w-full h-24 p-4 bg-white border border-gray-200 rounded-2xl focus:ring-2 focus:ring-emerald-500 outline-none text-base resize-none shadow-inner"
                   placeholder="Descreva detalhes sobre a entrega, divergências ou elogios..."
                   value={comments}
                   onChange={e => setComments(e.target.value)}
@@ -2970,20 +2970,20 @@ function SupplierTable({
             <TableCell className="font-medium text-gray-500">{supplier.registrationNumber}</TableCell>
             <TableCell>
               <div className="font-bold text-gray-900">{supplier.name}</div>
-              <div className="text-xs text-gray-500 flex items-center gap-1 mt-1">
+              <div className="text-base text-gray-500 flex items-center gap-1 mt-1">
                 <Mail className="w-3 h-3" /> {supplier.emailWebsite || 'N/I'}
               </div>
             </TableCell>
-            <TableCell className="text-sm text-gray-600">{supplier.activity}</TableCell>
+            <TableCell className="text-base text-gray-600">{supplier.activity}</TableCell>
             <TableCell>
-              <div className="text-sm">{supplier.contact || 'N/I'}</div>
-              <div className="text-xs text-gray-500 flex items-center gap-1 mt-1">
+              <div className="text-base">{supplier.contact || 'N/I'}</div>
+              <div className="text-base text-gray-500 flex items-center gap-1 mt-1">
                 <Phone className="w-3 h-3" /> {supplier.phone || supplier.mobile}
               </div>
             </TableCell>
             <TableCell>
-              <div className="text-sm">{supplier.neighborhoodCity}</div>
-              <div className="text-xs text-gray-500">{supplier.state}</div>
+              <div className="text-base">{supplier.neighborhoodCity}</div>
+              <div className="text-base text-gray-500">{supplier.state}</div>
             </TableCell>
             <TableCell className="text-right">
               <div className="flex justify-end gap-2">
@@ -3114,20 +3114,20 @@ function EstoqueTab({
                 <TableRow key={`${item.requestId}-${item.id}`} className="hover:bg-blue-50/30">
                   <TableCell>
                     <div className="font-bold text-gray-900">{item.description}</div>
-                    <div className="text-[10px] text-gray-400 uppercase font-black">{item.unit}</div>
+                    <div className="text-base text-gray-400 uppercase font-black">{item.unit}</div>
                   </TableCell>
                   <TableCell>
-                    <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-100 font-black text-[10px] uppercase">
+                    <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-100 font-black text-base uppercase">
                       {item.sector}
                     </Badge>
                   </TableCell>
                   <TableCell className="max-w-[200px] truncate">
-                    <div className="text-xs text-gray-600">{item.requestDesc}</div>
+                    <div className="text-base text-gray-600">{item.requestDesc}</div>
                   </TableCell>
                   <TableCell className="text-center font-bold">{item.quantity}</TableCell>
                   <TableCell className="text-center font-bold text-blue-600">{item.appliedQuantity || 0}</TableCell>
                   <TableCell className="text-center">
-                    <span className="bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full font-black text-xs">
+                    <span className="bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full font-black text-base">
                       {item.quantity - (item.appliedQuantity || 0)}
                     </span>
                   </TableCell>
@@ -3138,7 +3138,7 @@ function EstoqueTab({
                         setSelectedItem(item);
                         setApplyQty(item.quantity - (item.appliedQuantity || 0));
                       }}
-                      className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold h-8 text-[10px]"
+                      className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold h-8 text-base"
                     >
                       Aplicar
                     </Button>
@@ -3157,7 +3157,7 @@ function EstoqueTab({
             </div>
             <div className="p-6 space-y-6">
               <div className="space-y-2">
-                <Label className="text-xs font-black uppercase text-gray-500">Selecionar Equipamento</Label>
+                <Label className="text-base font-black uppercase text-gray-500">Selecionar Equipamento</Label>
                 <Select value={selectedEquipId} onValueChange={setSelectedEquipId}>
                   <SelectTrigger className="rounded-xl h-12 border-gray-200">
                     <SelectValue placeholder="Escolha um equipamento..." />
@@ -3171,7 +3171,7 @@ function EstoqueTab({
               </div>
 
               <div className="space-y-2">
-                <Label className="text-xs font-black uppercase text-gray-500">Quantidade a Aplicar (Saldo: {selectedItem ? selectedItem.quantity - (selectedItem.appliedQuantity || 0) : 0})</Label>
+                <Label className="text-base font-black uppercase text-gray-500">Quantidade a Aplicar (Saldo: {selectedItem ? selectedItem.quantity - (selectedItem.appliedQuantity || 0) : 0})</Label>
                 <Input 
                   type="number" 
                   value={applyQty} 
@@ -3268,7 +3268,7 @@ function EvaluationTab({ suppliers, orders }: { suppliers: Supplier[], orders: P
               if (!stats) return (
                 <TableRow key={s.id} className="opacity-40">
                   <TableCell className="font-bold text-gray-500">{s.name}</TableCell>
-                  <TableCell colSpan={7} className="text-center italic text-xs py-4 text-gray-400">
+                  <TableCell colSpan={7} className="text-center italic text-base py-4 text-gray-400">
                     Sem avaliações registradas para este fornecedor.
                   </TableCell>
                 </TableRow>
@@ -3285,7 +3285,7 @@ function EvaluationTab({ suppliers, orders }: { suppliers: Supplier[], orders: P
                   <TableCell className="text-right font-medium text-gray-500">{stats.count}</TableCell>
                   <TableCell className="text-right">
                     <span className={cn(
-                      "px-2 py-1 rounded font-black text-xs min-w-[32px] inline-block text-center shadow-sm",
+                      "px-2 py-1 rounded font-black text-base min-w-[32px] inline-block text-center shadow-sm",
                       stats.average >= 4.5 ? "bg-emerald-100 text-emerald-700" :
                       stats.average >= 3.5 ? "bg-amber-100 text-amber-700" : "bg-red-100 text-red-700"
                     )}>

@@ -318,7 +318,7 @@ export function UserProfile({ user, onUpdate }: UserProfileProps) {
               </div>
             </div>
             {newPassword && newPassword.length < 6 && (
-              <p className="text-[10px] text-rose-500 font-medium">A senha deve ter pelo menos 6 caracteres.</p>
+              <p className="text-sm text-rose-500 font-medium">A senha deve ter pelo menos 6 caracteres.</p>
             )}
           </CardContent>
         </Card>

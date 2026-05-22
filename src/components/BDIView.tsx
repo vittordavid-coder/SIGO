@@ -50,12 +50,12 @@ export function BDIView({ bdiConfig, setBdiConfig }: BDIViewProps) {
           <CardContent className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-4">
-                <h3 className="font-semibold text-sm text-gray-700 uppercase tracking-wider">Custos Indiretos e Riscos</h3>
+                <h3 className="font-semibold text-base text-gray-700 uppercase tracking-wider">Custos Indiretos e Riscos</h3>
                 
                 <div className="space-y-2">
                   <div className="flex justify-between">
                     <Label htmlFor="ac">Administração Central (AC)</Label>
-                    <span className="text-xs text-gray-400 font-mono">{bdiConfig.ac}%</span>
+                    <span className="text-sm text-gray-400 font-mono">{bdiConfig.ac}%</span>
                   </div>
                   <div className="relative">
                     <Input 
@@ -73,7 +73,7 @@ export function BDIView({ bdiConfig, setBdiConfig }: BDIViewProps) {
                 <div className="space-y-2">
                   <div className="flex justify-between">
                     <Label htmlFor="s">Seguros (S)</Label>
-                    <span className="text-xs text-gray-400 font-mono">{bdiConfig.s}%</span>
+                    <span className="text-sm text-gray-400 font-mono">{bdiConfig.s}%</span>
                   </div>
                   <div className="relative">
                     <Input 
@@ -91,7 +91,7 @@ export function BDIView({ bdiConfig, setBdiConfig }: BDIViewProps) {
                 <div className="space-y-2">
                   <div className="flex justify-between">
                     <Label htmlFor="r">Riscos (R)</Label>
-                    <span className="text-xs text-gray-400 font-mono">{bdiConfig.r}%</span>
+                    <span className="text-sm text-gray-400 font-mono">{bdiConfig.r}%</span>
                   </div>
                   <div className="relative">
                     <Input 
@@ -109,7 +109,7 @@ export function BDIView({ bdiConfig, setBdiConfig }: BDIViewProps) {
                 <div className="space-y-2">
                   <div className="flex justify-between">
                     <Label htmlFor="g">Garantias (G)</Label>
-                    <span className="text-xs text-gray-400 font-mono">{bdiConfig.g}%</span>
+                    <span className="text-sm text-gray-400 font-mono">{bdiConfig.g}%</span>
                   </div>
                   <div className="relative">
                     <Input 
@@ -126,12 +126,12 @@ export function BDIView({ bdiConfig, setBdiConfig }: BDIViewProps) {
               </div>
 
               <div className="space-y-4">
-                <h3 className="font-semibold text-sm text-gray-700 uppercase tracking-wider">Financeiro, Lucro e Impostos</h3>
+                <h3 className="font-semibold text-base text-gray-700 uppercase tracking-wider">Financeiro, Lucro e Impostos</h3>
 
                 <div className="space-y-2">
                   <div className="flex justify-between">
                     <Label htmlFor="df">Despesas Financeiras (DF)</Label>
-                    <span className="text-xs text-gray-400 font-mono">{bdiConfig.df}%</span>
+                    <span className="text-sm text-gray-400 font-mono">{bdiConfig.df}%</span>
                   </div>
                   <div className="relative">
                     <Input 
@@ -149,7 +149,7 @@ export function BDIView({ bdiConfig, setBdiConfig }: BDIViewProps) {
                 <div className="space-y-2">
                   <div className="flex justify-between">
                     <Label htmlFor="l">Lucro (L)</Label>
-                    <span className="text-xs text-gray-400 font-mono">{bdiConfig.l}%</span>
+                    <span className="text-sm text-gray-400 font-mono">{bdiConfig.l}%</span>
                   </div>
                   <div className="relative">
                     <Input 
@@ -167,7 +167,7 @@ export function BDIView({ bdiConfig, setBdiConfig }: BDIViewProps) {
                 <div className="space-y-2">
                   <div className="flex justify-between">
                     <Label htmlFor="i">Impostos (I)</Label>
-                    <span className="text-xs text-gray-400 font-mono">{bdiConfig.i}%</span>
+                    <span className="text-sm text-gray-400 font-mono">{bdiConfig.i}%</span>
                   </div>
                   <div className="relative">
                     <Input 
@@ -180,7 +180,7 @@ export function BDIView({ bdiConfig, setBdiConfig }: BDIViewProps) {
                     />
                     <Percent className="w-4 h-4 text-gray-400 absolute right-3 top-1/2 -translate-y-1/2" />
                   </div>
-                  <p className="text-[10px] text-gray-400 italic">Soma de PIS, COFINS, ISS, etc.</p>
+                  <p className="text-sm text-gray-400 italic">Soma de PIS, COFINS, ISS, etc.</p>
                 </div>
               </div>
             </div>
@@ -189,12 +189,12 @@ export function BDIView({ bdiConfig, setBdiConfig }: BDIViewProps) {
 
             <div className="bg-blue-50 p-4 rounded-lg flex items-start gap-3">
               <Info className="w-5 h-5 text-blue-500 mt-0.5" />
-              <div className="text-sm text-blue-700">
+              <div className="text-base text-blue-700">
                 <p className="font-bold mb-1">Fórmula Utilizada:</p>
-                <code className="bg-blue-100 px-2 py-1 rounded text-xs">
+                <code className="bg-blue-100 px-2 py-1 rounded text-sm">
                   BDI = (((1 + AC + S + R + G) * (1 + DF) * (1 + L)) / (1 - I)) - 1
                 </code>
-                <p className="mt-2 text-xs">
+                <p className="mt-2 text-sm">
                   Esta fórmula é a recomendada pelo TCU (Tribunal de Contas da União) para obras públicas.
                 </p>
               </div>
@@ -208,13 +208,13 @@ export function BDIView({ bdiConfig, setBdiConfig }: BDIViewProps) {
               <Percent className="w-24 h-24" />
             </div>
             <CardHeader>
-              <CardTitle className="text-blue-100 text-sm uppercase tracking-widest">BDI Calculado</CardTitle>
+              <CardTitle className="text-blue-100 text-base uppercase tracking-widest">BDI Calculado</CardTitle>
             </CardHeader>
             <CardContent className="pb-8">
               <div className="text-5xl font-black mb-2">
                 {formatNumber(bdiValue, 2)}%
               </div>
-              <p className="text-blue-100 text-sm">
+              <p className="text-blue-100 text-base">
                 Este percentual será aplicado sobre o custo direto de todas as composições.
               </p>
             </CardContent>
@@ -222,14 +222,14 @@ export function BDIView({ bdiConfig, setBdiConfig }: BDIViewProps) {
 
           <Card className="border-none shadow-sm">
             <CardHeader>
-              <CardTitle className="text-sm">Exemplo de Aplicação</CardTitle>
+              <CardTitle className="text-base">Exemplo de Aplicação</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="flex justify-between text-sm">
+              <div className="flex justify-between text-base">
                 <span className="text-gray-500">Custo Direto:</span>
                 <span className="font-mono">R$ 100,00</span>
               </div>
-              <div className="flex justify-between text-sm">
+              <div className="flex justify-between text-base">
                 <span className="text-gray-500">BDI ({formatNumber(bdiValue, 2)}%):</span>
                 <span className="font-mono text-blue-600">+ R$ {formatNumber(bdiValue, 2)}</span>
               </div>

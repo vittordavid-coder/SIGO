@@ -2769,8 +2769,8 @@ export default function App() {
            <div className="text-center space-y-3">
               <h3 className="text-2xl font-bold text-gray-900">Sincronização Ativa</h3>
               <div className="space-y-1">
-                <p className="text-sm text-gray-500 max-w-[280px]">Prioridade: **Servidor Central**</p>
-                <p className="text-xs text-gray-400 max-w-[280px] leading-relaxed">Conectando ao banco de dados para garantir que você tenha as informações mais recentes e seguras.</p>
+                <p className="text-base text-gray-500 max-w-[280px]">Prioridade: **Servidor Central**</p>
+                <p className="text-sm text-gray-400 max-w-[280px] leading-relaxed">Conectando ao banco de dados para garantir que você tenha as informações mais recentes e seguras.</p>
               </div>
            </div>
            <div className="w-48 h-1 bg-gray-100 rounded-full overflow-hidden">
@@ -2807,7 +2807,7 @@ export default function App() {
               {!getSupabaseConfig().enabled && (
                 <div className="bg-amber-50 border border-amber-200 p-3 rounded-lg flex items-center gap-3 animate-in fade-in duration-500">
                   <AlertCircle className="w-5 h-5 text-amber-600 shrink-0" />
-                  <div className="text-[10px] text-amber-700 leading-tight">
+                  <div className="text-sm text-amber-700 leading-tight">
                     <strong>Modo Offline:</strong> Nenhuma configuração de nuvem encontrada. Os dados ficam salvos apenas neste navegador.
                   </div>
                 </div>
@@ -2815,7 +2815,7 @@ export default function App() {
               {supabaseSyncError && (
                 <div className="bg-red-50 border border-red-200 p-3 rounded-lg flex items-center gap-3">
                   <XCircle className="w-5 h-5 text-red-600 shrink-0" />
-                  <div className="text-[10px] text-red-700 leading-tight">
+                  <div className="text-sm text-red-700 leading-tight">
                     <strong>Erro de Conexão:</strong> Não foi possível sincronizar com a nuvem. O login via Supabase está indisponível no momento.
                   </div>
                 </div>
@@ -2852,7 +2852,7 @@ export default function App() {
                   <button 
                     type="button" 
                     onClick={() => setIsResettingPassword(true)}
-                    className="text-xs text-blue-600 hover:underline font-medium"
+                    className="text-sm text-blue-600 hover:underline font-medium"
                   >
                     Esqueceu a senha?
                   </button>
@@ -2868,7 +2868,7 @@ export default function App() {
                   'Entrar'
                 )}
               </Button>
-              <p className="text-center text-sm text-gray-500">
+              <p className="text-center text-base text-gray-500">
                 Não tem uma conta? <button type="button" onClick={() => setIsRegistering(true)} className="text-blue-600 font-semibold hover:underline">Cadastre-se</button>
               </p>
             </form>
@@ -2876,7 +2876,7 @@ export default function App() {
             <form onSubmit={handleForgotPassword} className="space-y-6">
               <div className="text-center mb-6">
                 <h2 className="text-xl font-bold text-gray-900 border-b-2 border-blue-600 inline-block pb-1">Recuperar Senha</h2>
-                <p className="text-xs text-gray-500 mt-2 italic">Insira seu e-mail cadastrado para solicitar uma senha temporária ao administrador.</p>
+                <p className="text-sm text-gray-500 mt-2 italic">Insira seu e-mail cadastrado para solicitar uma senha temporária ao administrador.</p>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="reset-email">E-mail Cadastrado</Label>
@@ -2896,7 +2896,7 @@ export default function App() {
                 <button 
                   type="button" 
                   onClick={() => { setIsResettingPassword(false); setIsRegistering(false); }}
-                  className="text-sm text-gray-500 hover:text-blue-600 hover:underline"
+                  className="text-base text-gray-500 hover:text-blue-600 hover:underline"
                 >
                   Voltar para o Login
                 </button>
@@ -2923,7 +2923,7 @@ export default function App() {
 
               <div className="flex items-center space-x-2 py-2">
                 <Switch id="has-company" checked={regHasCompany} onCheckedChange={setRegHasCompany} />
-                <Label htmlFor="has-company" className="text-sm cursor-pointer">Faço parte de uma empresa</Label>
+                <Label htmlFor="has-company" className="text-base cursor-pointer">Faço parte de uma empresa</Label>
               </div>
 
               {regHasCompany && (
@@ -2958,7 +2958,7 @@ export default function App() {
               </div>
 
               <div className="space-y-3">
-                <Label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Módulos Desejados</Label>
+                <Label className="text-sm font-bold text-gray-400 uppercase tracking-wider">Módulos Desejados</Label>
                 <div className="grid grid-cols-2 gap-2">
                   {marketingConfig.modulePrices.map(mp => (
                     <div key={mp.moduleId} className="flex items-center space-x-2 border p-2 rounded-lg hover:bg-gray-50 transition-colors">
@@ -2970,7 +2970,7 @@ export default function App() {
                           else setRegDesiredModules(regDesiredModules.filter(m => m !== mp.moduleId));
                         }}
                       />
-                      <label htmlFor={`reg-mod-${mp.moduleId}`} className="text-[10px] font-medium cursor-pointer leading-none">
+                      <label htmlFor={`reg-mod-${mp.moduleId}`} className="text-sm font-medium cursor-pointer leading-none">
                         {mp.label}
                       </label>
                     </div>
@@ -3006,7 +3006,7 @@ export default function App() {
                <Lock className="w-8 h-8" />
             </div>
             <h2 className="text-2xl font-bold text-gray-900">Troca Obrigatória de Senha</h2>
-            <p className="text-sm text-gray-500 mt-2">Você acessou com uma senha temporária. Para sua segurança, defina uma nova senha agora.</p>
+            <p className="text-base text-gray-500 mt-2">Você acessou com uma senha temporária. Para sua segurança, defina uma nova senha agora.</p>
           </div>
 
           <form onSubmit={handleChangePassword} className="space-y-4">
@@ -3068,7 +3068,7 @@ export default function App() {
                   </div>
                   <span className="font-bold text-xl tracking-tight">SIGO</span>
                 </div>
-                <p className="text-blue-100 text-[10px] font-bold uppercase tracking-widest opacity-80">
+                <p className="text-blue-100 text-sm font-bold uppercase tracking-widest opacity-80">
                   Navegação Principal
                 </p>
               </div>
@@ -3087,7 +3087,7 @@ export default function App() {
                     )}
                   >
                     {item.icon}
-                    <span className="text-sm">{item.label}</span>
+                    <span className="text-base">{item.label}</span>
                   </button>
                 ))}
               </div>
@@ -3124,7 +3124,7 @@ export default function App() {
                   variant="outline" 
                   size="sm" 
                   className={cn(
-                    "h-10 rounded-2xl bg-white border border-gray-100 shadow-sm px-4 gap-2 transition-all hover:border-blue-200 group font-black text-xs",
+                    "h-10 rounded-2xl bg-white border border-gray-100 shadow-sm px-4 gap-2 transition-all hover:border-blue-200 group font-black text-sm",
                     selectedContractId ? "text-blue-600 border-blue-100 bg-blue-50/20" : "text-gray-600"
                   )}
                 >
@@ -3147,12 +3147,12 @@ export default function App() {
                     <div className="relative z-10 flex justify-between items-end">
                       <div>
                         <h3 className="text-3xl font-black text-white leading-tight">Gestão de Contratos</h3>
-                        <p className="text-blue-100 text-xs font-bold uppercase tracking-widest mt-1 opacity-80">
+                        <p className="text-blue-100 text-sm font-bold uppercase tracking-widest mt-1 opacity-80">
                           Selecione o contrato para filtrar toda a aplicação
                         </p>
                       </div>
                       <div className="hidden sm:block text-right">
-                        <p className="text-[10px] font-black text-blue-200 uppercase">Empresa</p>
+                        <p className="text-sm font-black text-blue-200 uppercase">Empresa</p>
                         <p className="text-lg font-bold">{currentUser?.companyName || 'Controller'}</p>
                       </div>
                     </div>
@@ -3187,8 +3187,8 @@ export default function App() {
                               <LayoutDashboard className="w-5 h-5" />
                             </div>
                             <div>
-                               <p className={cn("font-black text-sm", selectedContractId === null ? "text-white" : "text-gray-900")}>Geral (Todas as Obras)</p>
-                               <p className={cn("text-[10px] font-bold uppercase opacity-70", selectedContractId === null ? "text-blue-100" : "text-gray-400")}>Visão consolidada</p>
+                               <p className={cn("font-black text-base", selectedContractId === null ? "text-white" : "text-gray-900")}>Geral (Todas as Obras)</p>
+                               <p className={cn("text-sm font-bold uppercase opacity-70", selectedContractId === null ? "text-blue-100" : "text-gray-400")}>Visão consolidada</p>
                             </div>
                           </button>
 
@@ -3208,13 +3208,13 @@ export default function App() {
                             >
                               <div className="flex justify-between items-start mb-2">
                                 <span className={cn(
-                                  "font-black text-[13px] leading-tight transition-colors",
+                                  "font-black text-base leading-tight transition-colors",
                                   selectedContractId === c.id ? "text-blue-700" : "text-gray-900 group-hover:text-blue-600"
                                 )}>
                                   {c.workName || c.client || 'Sem Nome'}
                                 </span>
                                 <span className={cn(
-                                  "text-[9px] font-black px-2 py-0.5 rounded-lg uppercase tracking-tighter",
+                                  "text-xs font-black px-2 py-0.5 rounded-lg uppercase tracking-tighter",
                                   selectedContractId === c.id ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-500"
                                 )}>
                                   {c.contractNumber || 'S/N'}
@@ -3222,7 +3222,7 @@ export default function App() {
                               </div>
                               <div className="flex items-center gap-2 mt-auto">
                                 <Users2 className="w-3.5 h-3.5 text-gray-400" />
-                                <span className="text-[10px] text-gray-400 font-bold truncate">
+                                <span className="text-sm text-gray-400 font-bold truncate">
                                   {c.client || 'Sem Cliente'}
                                 </span>
                               </div>
@@ -3242,7 +3242,7 @@ export default function App() {
             <DropdownMenuTrigger asChild>
               <button 
                 className={cn(
-                  "flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-bold transition-all group border border-transparent",
+                  "flex items-center gap-2 px-3 py-1.5 rounded-xl text-sm font-bold transition-all group border border-transparent",
                   mainTab === 'profile' 
                     ? "bg-blue-50 text-blue-700 border-blue-100" 
                     : "bg-gray-50 text-gray-500 hover:bg-gray-100 hover:text-gray-900"
@@ -3256,27 +3256,27 @@ export default function App() {
                   )}
                 </div>
                 <div className="text-left hidden lg:block mr-1">
-                  <p className="leading-none text-[11px]">{currentUser?.name?.split(' ')[0]}</p>
+                  <p className="leading-none text-sm">{currentUser?.name?.split(' ')[0]}</p>
                 </div>
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-56 p-2 rounded-2xl shadow-2xl border-gray-100">
               <div className="flex flex-col p-3 border-b border-gray-50 mb-1">
-                <p className="text-sm font-black text-gray-900">{currentUser?.name}</p>
-                <p className="text-[10px] text-gray-400 font-bold uppercase truncate">{currentUser?.email}</p>
+                <p className="text-base font-black text-gray-900">{currentUser?.name}</p>
+                <p className="text-sm text-gray-400 font-bold uppercase truncate">{currentUser?.email}</p>
               </div>
               <DropdownMenuItem onClick={() => setMainTab('profile')} className="flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer hover:bg-gray-50 text-gray-600">
                 <UserIcon className="w-4 h-4" />
-                <span className="text-sm font-medium">Perfil</span>
+                <span className="text-base font-medium">Perfil</span>
               </DropdownMenuItem>
               <DropdownMenuItem className="flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer hover:bg-gray-50 text-gray-600">
                 <HelpCircle className="w-4 h-4" />
-                <span className="text-sm font-medium">Ajuda</span>
+                <span className="text-base font-medium">Ajuda</span>
               </DropdownMenuItem>
               <DropdownMenuSeparator className="bg-gray-50 my-1" />
               <DropdownMenuItem onClick={handleLogout} className="flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer hover:bg-red-50 text-red-600">
                 <LogOut className="w-4 h-4" />
-                <span className="text-sm font-bold">Sair</span>
+                <span className="text-base font-bold">Sair</span>
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -3393,15 +3393,15 @@ export default function App() {
 
             {mainTab === 'measurements' && isSidebarOpen && selectedContractId && (
               <div className="p-4 bg-blue-50/50 border-t border-blue-100 flex flex-col gap-1 mx-2 mb-2 rounded-xl">
-                <span className="text-[10px] font-bold text-blue-400 uppercase tracking-wider">Contrato Ativo</span>
-                <span className="text-xs font-bold text-blue-900 truncate" title={contracts.find(c => c.id === selectedContractId)?.contractNumber}>
+                <span className="text-sm font-bold text-blue-400 uppercase tracking-wider">Contrato Ativo</span>
+                <span className="text-sm font-bold text-blue-900 truncate" title={contracts.find(c => c.id === selectedContractId)?.contractNumber}>
                   {(() => {
                     const c = contracts.find(x => x.id === selectedContractId);
                     if (!c) return "Contrato não encontrado";
                     return c.contractNumber || 'S/N';
                   })()}
                 </span>
-                <span className="text-[10px] text-blue-700/70 truncate">
+                <span className="text-sm text-blue-700/70 truncate">
                   {(() => {
                     const c = contracts.find(x => x.id === selectedContractId);
                     if (!c) return "";
@@ -3411,9 +3411,9 @@ export default function App() {
 
                 {measurements.filter(m => m.contractId === selectedContractId).length > 0 && (
                   <div className="mt-2 pt-2 border-t border-blue-100/50">
-                    <span className="text-[10px] font-bold text-blue-400 uppercase tracking-wider">Medição Atual</span>
+                    <span className="text-sm font-bold text-blue-400 uppercase tracking-wider">Medição Atual</span>
                     <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold text-blue-900">
+                      <span className="text-sm font-bold text-blue-900">
                         Nº {(() => {
                           const contractMeasures = measurements.filter(m => m.contractId === selectedContractId).sort((a, b) => a.number - b.number);
                           const currentM = selectedMeasurementId ? contractMeasures.find(m => m.id === selectedMeasurementId) : contractMeasures[contractMeasures.length - 1];
@@ -3421,7 +3421,7 @@ export default function App() {
                         })()}
                       </span>
                       <span className={cn(
-                        "text-[9px] font-bold px-1.5 py-0.5 rounded",
+                        "text-xs font-bold px-1.5 py-0.5 rounded",
                         (() => {
                           const contractMeasures = measurements.filter(m => m.contractId === selectedContractId).sort((a, b) => a.number - b.number);
                           const currentM = selectedMeasurementId ? contractMeasures.find(m => m.id === selectedMeasurementId) : contractMeasures[contractMeasures.length - 1];
@@ -3453,7 +3453,7 @@ export default function App() {
           {/* Internal Header for Breadcrumbs or Search */}
           {(mainTab === 'quotations' || mainTab === 'measurements') && (
             <div className="h-12 bg-gray-50/50 border-b border-gray-200 flex items-center justify-between px-8 z-10 shrink-0">
-               <h2 className="text-sm font-semibold uppercase tracking-wider text-gray-500">
+               <h2 className="text-base font-semibold uppercase tracking-wider text-gray-500">
                 {mainTab === 'quotations' ? 'Cotações' : 'Sala Técnica'} / {
                   mainTab === 'quotations' ? (
                     activeTab === 'budget' ? 'Planilha' : 
@@ -3932,7 +3932,7 @@ function TopNavItem({ icon, label, active, onClick }: { icon: React.ReactNode, l
       )}
     >
       {icon}
-      <span className="text-sm">{label}</span>
+      <span className="text-base">{label}</span>
       {active && (
         <motion.div 
           layoutId="top-nav-indicator" 
@@ -3957,7 +3957,7 @@ function SidebarItem({ icon, label, active, onClick, collapsed, showHandle }: { 
       <div className={cn("w-5 h-5 shrink-0", active ? "text-blue-600" : "text-gray-400 group-hover:text-gray-600")}>
         {icon}
       </div>
-      {!collapsed && <span className="font-medium text-sm truncate">{label}</span>}
+      {!collapsed && <span className="font-medium text-base truncate">{label}</span>}
       {active && !collapsed && <motion.div layoutId="sidebar-active" className="ml-auto w-1.5 h-1.5 rounded-full bg-blue-600" />}
       {showHandle && !collapsed && (
         <div className="ml-auto opacity-0 group-hover:opacity-100 transition-opacity cursor-grab active:cursor-grabbing">

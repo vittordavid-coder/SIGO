@@ -43,7 +43,7 @@ export function ManagePermissionsDialog({
         title={title}
         description={description}
         footer={
-          <Button onClick={handleSave} className="bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold uppercase text-[10px] h-11 px-8 shadow-lg shadow-blue-100">
+          <Button onClick={handleSave} className="bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold uppercase text-sm h-11 px-8 shadow-lg shadow-blue-100">
             Salvar Alterações
           </Button>
         }
@@ -59,8 +59,8 @@ export function ManagePermissionsDialog({
                   }
                 }}>
                   <div className="flex flex-col pr-4 overflow-hidden">
-                    <span className="font-black text-xs text-gray-900 group-hover:text-blue-600 transition-colors">{item.title}</span>
-                    {item.subtitle && <span className="text-[10px] text-gray-400 font-bold uppercase tracking-tighter truncate mt-0.5">{item.subtitle}</span>}
+                    <span className="font-black text-sm text-gray-900 group-hover:text-blue-600 transition-colors">{item.title}</span>
+                    {item.subtitle && <span className="text-sm text-gray-400 font-bold uppercase tracking-tighter truncate mt-0.5">{item.subtitle}</span>}
                   </div>
                   <Checkbox 
                     checked={localSelected.includes(item.id)}
@@ -80,7 +80,7 @@ export function ManagePermissionsDialog({
                  <div className="p-4 bg-gray-50 rounded-3xl">
                    <Checkbox disabled className="h-8 w-8 rounded-xl opacity-20" />
                  </div>
-                 <p className="text-xs font-bold uppercase tracking-widest">{emptyMessage || "Nenhum item disponível."}</p>
+                 <p className="text-sm font-bold uppercase tracking-widest">{emptyMessage || "Nenhum item disponível."}</p>
                </div>
              )}
           </div>

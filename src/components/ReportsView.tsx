@@ -243,7 +243,7 @@ export function ReportsView({ quotations, services, resources, schedules, budget
         </CardHeader>
         <CardContent className="space-y-6">
           {validationError && (
-            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md text-sm flex items-start gap-2">
+            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md text-base flex items-start gap-2">
               <div className="mt-0.5">⚠️</div>
               <div>{validationError}</div>
             </div>
@@ -295,7 +295,7 @@ export function ReportsView({ quotations, services, resources, schedules, budget
                 />
                 <Label htmlFor="cronograma" className="cursor-pointer">
                   Cronograma Físico-Financeiro
-                  {!selectedSchedule && <span className="text-xs text-red-500 ml-2">(Não configurado)</span>}
+                  {!selectedSchedule && <span className="text-sm text-red-500 ml-2">(Não configurado)</span>}
                 </Label>
               </div>
 
@@ -308,7 +308,7 @@ export function ReportsView({ quotations, services, resources, schedules, budget
                 />
                 <Label htmlFor="cronograma_insumos" className="cursor-pointer">
                   Insumos por Mês (Curva ABC)
-                  {!selectedSchedule && <span className="text-xs text-red-500 ml-2">(Não configurado)</span>}
+                  {!selectedSchedule && <span className="text-sm text-red-500 ml-2">(Não configurado)</span>}
                 </Label>
               </div>
 
@@ -321,7 +321,7 @@ export function ReportsView({ quotations, services, resources, schedules, budget
                 />
                 <Label htmlFor="resumo_financeiro" className="cursor-pointer">
                   Resumo Produção vs Custo
-                  {!selectedSchedule && <span className="text-xs text-red-500 ml-2">(Não configurado)</span>}
+                  {!selectedSchedule && <span className="text-sm text-red-500 ml-2">(Não configurado)</span>}
                 </Label>
               </div>
 

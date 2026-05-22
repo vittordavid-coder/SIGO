@@ -772,7 +772,7 @@ export default function RHView({
       <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Recursos Humanos</h1>
-          <p className="text-gray-500 text-sm">Gerencie colaboradores, pontos e documentos.</p>
+          <p className="text-gray-500 text-base">Gerencie colaboradores, pontos e documentos.</p>
         </div>
       </header>
 
@@ -856,14 +856,14 @@ export default function RHView({
                             <DialogTitle className="text-xl font-bold text-white">
                               {editingEmployeeId ? `Editando Colaborador: ${newEmployee.name}` : 'Ficha de Admissão Digital'}
                             </DialogTitle>
-                            <DialogDescription className="text-blue-100 text-sm">
+                            <DialogDescription className="text-blue-100 text-base">
                               {editingEmployeeId ? 'Atualização de registro oficial de colaborador' : 'Registro oficial de colaborador - Ambiente Seguro e Criptografado'}
                             </DialogDescription>
                           </div>
                         </div>
                         <div className="flex items-center gap-2 bg-blue-700/50 px-3 py-1.5 rounded-full border border-blue-400/30">
                           <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />
-                          <span className="text-[10px] font-bold uppercase tracking-widest">Proteção LGPD Ativa</span>
+                          <span className="text-sm font-bold uppercase tracking-widest">Proteção LGPD Ativa</span>
                         </div>
                       </div>
                     </div>
@@ -872,7 +872,7 @@ export default function RHView({
                       <div className="px-8 pt-6 pb-2">
                         <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 flex items-center gap-3 mb-4">
                           <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
-                          <p className="text-[11px] text-amber-800">
+                          <p className="text-sm text-amber-800">
                             <strong>Aviso de Privacidade:</strong> Os dados inseridos nesta ficha são confidenciais e protegidos por leis de proteção de dados. Apenas pessoal autorizado do RH tem acesso a estas informações.
                           </p>
                         </div>
@@ -880,19 +880,19 @@ export default function RHView({
 
                       <Tabs defaultValue="personal" className="flex-1 flex flex-col min-h-0 px-8 pb-8">
                         <TabsList className="flex w-full overflow-x-auto h-14 p-1 mb-8 gap-1 bg-gray-200/50 rounded-xl no-scrollbar shrink-0">
-                          <TabsTrigger value="personal" className="flex-1 gap-2 font-bold text-xs whitespace-nowrap data-[state=active]:bg-white data-[state=active]:text-blue-600 data-[state=active]:shadow-sm px-4">
+                          <TabsTrigger value="personal" className="flex-1 gap-2 font-bold text-sm whitespace-nowrap data-[state=active]:bg-white data-[state=active]:text-blue-600 data-[state=active]:shadow-sm px-4">
                             <UserIcon className="w-4 h-4" /> Dados Pessoais
                           </TabsTrigger>
-                          <TabsTrigger value="documents" className="flex-1 gap-2 font-bold text-xs whitespace-nowrap data-[state=active]:bg-white data-[state=active]:text-blue-600 data-[state=active]:shadow-sm px-4">
+                          <TabsTrigger value="documents" className="flex-1 gap-2 font-bold text-sm whitespace-nowrap data-[state=active]:bg-white data-[state=active]:text-blue-600 data-[state=active]:shadow-sm px-4">
                             <CreditCard className="w-4 h-4" /> Documentação
                           </TabsTrigger>
-                          <TabsTrigger value="contact" className="flex-1 gap-2 font-bold text-xs whitespace-nowrap data-[state=active]:bg-white data-[state=active]:text-blue-600 data-[state=active]:shadow-sm px-4">
+                          <TabsTrigger value="contact" className="flex-1 gap-2 font-bold text-sm whitespace-nowrap data-[state=active]:bg-white data-[state=active]:text-blue-600 data-[state=active]:shadow-sm px-4">
                             <Smartphone className="w-4 h-4" /> Endereço & Contato
                           </TabsTrigger>
-                          <TabsTrigger value="family" className="flex-1 gap-2 font-bold text-xs whitespace-nowrap data-[state=active]:bg-white data-[state=active]:text-blue-600 data-[state=active]:shadow-sm px-4">
+                          <TabsTrigger value="family" className="flex-1 gap-2 font-bold text-sm whitespace-nowrap data-[state=active]:bg-white data-[state=active]:text-blue-600 data-[state=active]:shadow-sm px-4">
                             <Heart className="w-4 h-4" /> Grupo Familiar
                           </TabsTrigger>
-                          <TabsTrigger value="professional" className="flex-1 gap-2 font-bold text-xs whitespace-nowrap data-[state=active]:bg-white data-[state=active]:text-blue-600 data-[state=active]:shadow-sm px-4">
+                          <TabsTrigger value="professional" className="flex-1 gap-2 font-bold text-sm whitespace-nowrap data-[state=active]:bg-white data-[state=active]:text-blue-600 data-[state=active]:shadow-sm px-4">
                             <Briefcase className="w-4 h-4" /> Contrato & Benefícios
                           </TabsTrigger>
                         </TabsList>
@@ -908,7 +908,7 @@ export default function RHView({
                               <div className="bg-gray-50/50 p-6 rounded-2xl border border-gray-100 space-y-6">
                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                                   <div className="space-y-2 lg:col-span-2">
-                                    <Label className="text-xs font-bold text-gray-500 uppercase">Nome Completo</Label>
+                                    <Label className="text-sm font-bold text-gray-500 uppercase">Nome Completo</Label>
                                     <Input 
                                       value={newEmployee.name || ''} 
                                       onChange={e => setNewEmployee({...newEmployee, name: e.target.value})} 
@@ -917,7 +917,7 @@ export default function RHView({
                                     />
                                   </div>
                                   <div className="space-y-2">
-                                    <Label className="text-xs font-bold text-gray-500 uppercase">CPF (Apenas Números)</Label>
+                                    <Label className="text-sm font-bold text-gray-500 uppercase">CPF (Apenas Números)</Label>
                                     <Input 
                                       value={newEmployee.cpf || ''} 
                                       onChange={e => setNewEmployee({...newEmployee, cpf: applyCPFMask(e.target.value)})} 
@@ -929,12 +929,12 @@ export default function RHView({
                               </div>
 
                               <div className="bg-blue-50/30 p-6 rounded-2xl border border-blue-100/50 space-y-6">
-                                <h4 className="text-xs font-bold text-blue-900 uppercase tracking-widest flex items-center gap-2">
+                                <h4 className="text-sm font-bold text-blue-900 uppercase tracking-widest flex items-center gap-2">
                                   <Calendar className="w-3 h-3" /> Nascimento & Origem
                                 </h4>
                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                                   <div className="space-y-2">
-                                    <Label className="text-xs font-bold text-gray-500 uppercase">Data de Nascimento</Label>
+                                    <Label className="text-sm font-bold text-gray-500 uppercase">Data de Nascimento</Label>
                                     <Input 
                                       type="date" 
                                       value={newEmployee.birthDate || ''} 
@@ -943,7 +943,7 @@ export default function RHView({
                                     />
                                   </div>
                                   <div className="space-y-2">
-                                    <Label className="text-xs font-bold text-gray-500 uppercase">Naturalidade (Cidade)</Label>
+                                    <Label className="text-sm font-bold text-gray-500 uppercase">Naturalidade (Cidade)</Label>
                                     <Input 
                                       value={newEmployee.birthPlace || ''} 
                                       onChange={e => setNewEmployee({...newEmployee, birthPlace: e.target.value})} 
@@ -952,7 +952,7 @@ export default function RHView({
                                     />
                                   </div>
                                   <div className="space-y-2">
-                                    <Label className="text-xs font-bold text-gray-500 uppercase">UF</Label>
+                                    <Label className="text-sm font-bold text-gray-500 uppercase">UF</Label>
                                     <Input 
                                       value={newEmployee.birthState || ''} 
                                       onChange={e => setNewEmployee({...newEmployee, birthState: e.target.value})} 
@@ -974,20 +974,20 @@ export default function RHView({
                               <div className="bg-gray-50/50 p-6 rounded-2xl border border-gray-100 space-y-6">
                                 <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                                   <div className="space-y-2 md:col-span-2">
-                                    <Label className="text-xs font-bold text-gray-500 uppercase">RG Nº</Label>
+                                    <Label className="text-sm font-bold text-gray-500 uppercase">RG Nº</Label>
                                     <Input value={newEmployee.rgNumber || ''} onChange={e => setNewEmployee({...newEmployee, rgNumber: e.target.value})} className="h-11 shadow-sm" />
                                   </div>
                                   <div className="grid grid-cols-3 gap-3 md:col-span-2">
                                     <div className="space-y-2">
-                                      <Label className="text-xs font-bold text-gray-500 uppercase">Data de Emissão</Label>
+                                      <Label className="text-sm font-bold text-gray-500 uppercase">Data de Emissão</Label>
                                       <Input type="date" value={newEmployee.rgAgency || ''} onChange={e => setNewEmployee({...newEmployee, rgAgency: e.target.value})} className="h-11 shadow-sm" />
                                     </div>
                                     <div className="space-y-2">
-                                      <Label className="text-xs font-bold text-gray-500 uppercase">Orgão Emissor</Label>
+                                      <Label className="text-sm font-bold text-gray-500 uppercase">Orgão Emissor</Label>
                                       <Input value={newEmployee.rgIssuer || ''} onChange={e => setNewEmployee({...newEmployee, rgIssuer: e.target.value})} placeholder="Ex: SSP/SP" className="h-11 shadow-sm" />
                                     </div>
                                     <div className="space-y-2">
-                                      <Label className="text-xs font-bold text-gray-500 uppercase">UF</Label>
+                                      <Label className="text-sm font-bold text-gray-500 uppercase">UF</Label>
                                       <Input value={newEmployee.rgState || ''} onChange={e => setNewEmployee({...newEmployee, rgState: e.target.value})} maxLength={2} className="h-11 uppercase shadow-sm" />
                                     </div>
                                   </div>
@@ -995,40 +995,40 @@ export default function RHView({
                               </div>
 
                               <div className="bg-blue-50/30 p-6 rounded-2xl border border-blue-100/50 space-y-6">
-                                <h4 className="text-xs font-bold text-blue-900 uppercase tracking-widest flex items-center gap-2">
+                                <h4 className="text-sm font-bold text-blue-900 uppercase tracking-widest flex items-center gap-2">
                                   <FileText className="w-3 h-3" /> Dados do Trabalho (CTPS/PIS)
                                 </h4>
                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                                   <div className="space-y-2">
-                                    <Label className="text-xs font-bold text-gray-500 uppercase">Carteira de Trabalho (CTPS)</Label>
+                                    <Label className="text-sm font-bold text-gray-500 uppercase">Carteira de Trabalho (CTPS)</Label>
                                     <Input value={newEmployee.workBookletNumber || ''} onChange={e => setNewEmployee({...newEmployee, workBookletNumber: e.target.value})} className="h-11 shadow-sm" />
                                   </div>
                                   <div className="space-y-2">
-                                    <Label className="text-xs font-bold text-gray-500 uppercase">Série</Label>
+                                    <Label className="text-sm font-bold text-gray-500 uppercase">Série</Label>
                                     <Input value={newEmployee.workBookletSeries || ''} onChange={e => setNewEmployee({...newEmployee, workBookletSeries: e.target.value})} className="h-11 shadow-sm" />
                                   </div>
                                   <div className="space-y-2">
-                                    <Label className="text-xs font-bold text-gray-500 uppercase">PIS</Label>
+                                    <Label className="text-sm font-bold text-gray-500 uppercase">PIS</Label>
                                     <Input value={newEmployee.pis || ''} onChange={e => setNewEmployee({...newEmployee, pis: e.target.value})} className="h-11 shadow-sm" />
                                   </div>
                                 </div>
                               </div>
 
                               <div className="bg-purple-50/30 p-6 rounded-2xl border border-purple-100/50 space-y-6">
-                                <h4 className="text-xs font-bold text-purple-900 uppercase tracking-widest flex items-center gap-2">
+                                <h4 className="text-sm font-bold text-purple-900 uppercase tracking-widest flex items-center gap-2">
                                   <Users className="w-3 h-3" /> Título de Eleitor & Exercício Civil
                                 </h4>
                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                                   <div className="space-y-2">
-                                    <Label className="text-xs font-bold text-gray-500 uppercase">Título de Eleitor</Label>
+                                    <Label className="text-sm font-bold text-gray-500 uppercase">Título de Eleitor</Label>
                                     <Input value={newEmployee.voterIdNumber || ''} onChange={e => setNewEmployee({...newEmployee, voterIdNumber: e.target.value})} className="h-11 font-mono shadow-sm" />
                                   </div>
                                   <div className="space-y-2">
-                                    <Label className="text-xs font-bold text-gray-500 uppercase">Zona</Label>
+                                    <Label className="text-sm font-bold text-gray-500 uppercase">Zona</Label>
                                     <Input value={newEmployee.voterZone || ''} onChange={e => setNewEmployee({...newEmployee, voterZone: e.target.value})} className="h-11 shadow-sm" />
                                   </div>
                                   <div className="space-y-2">
-                                    <Label className="text-xs font-bold text-gray-500 uppercase">Seção</Label>
+                                    <Label className="text-sm font-bold text-gray-500 uppercase">Seção</Label>
                                     <Input value={newEmployee.voterSection || ''} onChange={e => setNewEmployee({...newEmployee, voterSection: e.target.value})} className="h-11 shadow-sm" />
                                   </div>
                                 </div>
@@ -1042,59 +1042,59 @@ export default function RHView({
                               </div>
 
                               <div className="bg-gray-50/50 p-6 rounded-2xl border border-gray-100 space-y-6">
-                                <h4 className="text-xs font-bold text-gray-900 uppercase tracking-widest flex items-center gap-2">
+                                <h4 className="text-sm font-bold text-gray-900 uppercase tracking-widest flex items-center gap-2">
                                   <Mail className="w-3 h-3" /> Contato Direto
                                 </h4>
                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                                   <div className="space-y-2">
-                                    <Label className="text-xs font-bold text-gray-500 uppercase">Telefone Residencial</Label>
+                                    <Label className="text-sm font-bold text-gray-500 uppercase">Telefone Residencial</Label>
                                     <Input value={newEmployee.phone || ''} onChange={e => setNewEmployee({...newEmployee, phone: applyPhoneMask(e.target.value)})} placeholder="(00) 0000-0000" className="h-11 shadow-sm" />
                                   </div>
                                   <div className="space-y-2">
-                                    <Label className="text-xs font-bold text-gray-500 uppercase">Celular / WhatsApp</Label>
+                                    <Label className="text-sm font-bold text-gray-500 uppercase">Celular / WhatsApp</Label>
                                     <Input value={newEmployee.mobile || ''} onChange={e => setNewEmployee({...newEmployee, mobile: applyPhoneMask(e.target.value)})} placeholder="(00) 90000-0000" className="h-11 shadow-sm" />
                                   </div>
                                   <div className="space-y-2">
-                                    <Label className="text-xs font-bold text-gray-500 uppercase">E-mail Pessoal</Label>
+                                    <Label className="text-sm font-bold text-gray-500 uppercase">E-mail Pessoal</Label>
                                     <Input value={newEmployee.email || ''} onChange={e => setNewEmployee({...newEmployee, email: e.target.value})} placeholder="exemplo@gmail.com" className="h-11 shadow-sm" />
                                   </div>
                                 </div>
                               </div>
 
                               <div className="bg-blue-50/30 p-6 rounded-2xl border border-blue-100/50 space-y-6">
-                                <h4 className="text-xs font-bold text-blue-900 uppercase tracking-widest flex items-center gap-2">
+                                <h4 className="text-sm font-bold text-blue-900 uppercase tracking-widest flex items-center gap-2">
                                   <MapPin className="w-3 h-3" /> Localização Residencial
                                 </h4>
                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                                   <div className="space-y-2 md:col-span-2">
-                                    <Label className="text-xs font-bold text-gray-500 uppercase">Rua / Logradouro</Label>
+                                    <Label className="text-sm font-bold text-gray-500 uppercase">Rua / Logradouro</Label>
                                     <Input value={newEmployee.addressLogradouro || ''} onChange={e => setNewEmployee({...newEmployee, addressLogradouro: e.target.value})} placeholder="Rua, Avenida, Logradouro..." className="h-11 shadow-sm" />
                                   </div>
                                   <div className="grid grid-cols-2 gap-3">
                                     <div className="space-y-2">
-                                      <Label className="text-xs font-bold text-gray-500 uppercase">Número</Label>
+                                      <Label className="text-sm font-bold text-gray-500 uppercase">Número</Label>
                                       <Input value={newEmployee.addressNumber || ''} onChange={e => setNewEmployee({...newEmployee, addressNumber: e.target.value})} className="h-11 shadow-sm" />
                                     </div>
                                     <div className="space-y-2">
-                                      <Label className="text-xs font-bold text-gray-500 uppercase">CEP</Label>
+                                      <Label className="text-sm font-bold text-gray-500 uppercase">CEP</Label>
                                       <Input value={newEmployee.addressZipCode || ''} onChange={e => setNewEmployee({...newEmployee, addressZipCode: applyCEPMask(e.target.value)})} placeholder="00000-000" className="h-11 shadow-sm font-mono" />
                                     </div>
                                   </div>
                                   <div className="space-y-2">
-                                    <Label className="text-xs font-bold text-gray-500 uppercase">Complemento</Label>
+                                    <Label className="text-sm font-bold text-gray-500 uppercase">Complemento</Label>
                                     <Input value={newEmployee.addressComplement || ''} onChange={e => setNewEmployee({...newEmployee, addressComplement: e.target.value})} className="h-11 shadow-sm" />
                                   </div>
                                   <div className="space-y-2">
-                                    <Label className="text-xs font-bold text-gray-500 uppercase">Bairro</Label>
+                                    <Label className="text-sm font-bold text-gray-500 uppercase">Bairro</Label>
                                     <Input value={newEmployee.addressNeighborhood || ''} onChange={e => setNewEmployee({...newEmployee, addressNeighborhood: e.target.value})} className="h-11 shadow-sm" />
                                   </div>
                                   <div className="grid grid-cols-3 gap-3">
                                     <div className="space-y-2 col-span-2">
-                                      <Label className="text-xs font-bold text-gray-500 uppercase">Cidade</Label>
+                                      <Label className="text-sm font-bold text-gray-500 uppercase">Cidade</Label>
                                       <Input value={newEmployee.addressCity || ''} onChange={e => setNewEmployee({...newEmployee, addressCity: e.target.value})} className="h-11 shadow-sm" />
                                     </div>
                                     <div className="space-y-2">
-                                      <Label className="text-xs font-bold text-gray-500 uppercase">UF</Label>
+                                      <Label className="text-sm font-bold text-gray-500 uppercase">UF</Label>
                                       <Input value={newEmployee.addressState || ''} onChange={e => setNewEmployee({...newEmployee, addressState: e.target.value})} maxLength={2} className="h-11 uppercase shadow-sm" />
                                     </div>
                                   </div>
@@ -1109,20 +1109,20 @@ export default function RHView({
                               </div>
 
                               <div className="bg-gray-50/50 p-6 rounded-2xl border border-gray-100 space-y-6">
-                                <h4 className="text-xs font-bold text-gray-900 uppercase tracking-widest flex items-center gap-2">
+                                <h4 className="text-sm font-bold text-gray-900 uppercase tracking-widest flex items-center gap-2">
                                   <Users className="w-3 h-3" /> Genitores & Cônjuge
                                 </h4>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                   <div className="space-y-2">
-                                    <Label className="text-xs font-bold text-gray-500 uppercase">Nome do Pai</Label>
+                                    <Label className="text-sm font-bold text-gray-500 uppercase">Nome do Pai</Label>
                                     <Input value={newEmployee.fatherName || ''} onChange={e => setNewEmployee({...newEmployee, fatherName: e.target.value})} className="h-11 shadow-sm" />
                                   </div>
                                   <div className="space-y-2">
-                                    <Label className="text-xs font-bold text-gray-500 uppercase">Nome da Mãe</Label>
+                                    <Label className="text-sm font-bold text-gray-500 uppercase">Nome da Mãe</Label>
                                     <Input value={newEmployee.motherName || ''} onChange={e => setNewEmployee({...newEmployee, motherName: e.target.value})} className="h-11 shadow-sm" />
                                   </div>
                                   <div className="space-y-2 md:col-span-2">
-                                    <Label className="text-xs font-bold text-gray-500 uppercase">Nome do Cônjuge (Se casado/união estável)</Label>
+                                    <Label className="text-sm font-bold text-gray-500 uppercase">Nome do Cônjuge (Se casado/união estável)</Label>
                                     <Input value={newEmployee.spouseName || ''} onChange={e => setNewEmployee({...newEmployee, spouseName: e.target.value})} className="h-11 shadow-sm" />
                                   </div>
                                 </div>
@@ -1132,9 +1132,9 @@ export default function RHView({
                                 <div className="flex items-center justify-between mb-2">
                                   <div className="flex items-center gap-2">
                                     <Baby className="w-5 h-5 text-blue-500" />
-                                    <h4 className="text-sm font-bold text-gray-700 uppercase tracking-wide">Dependentes e Filhos</h4>
+                                    <h4 className="text-base font-bold text-gray-700 uppercase tracking-wide">Dependentes e Filhos</h4>
                                   </div>
-                                  <Button variant="outline" size="sm" onClick={addDependent} className="h-9 px-4 text-xs gap-2 border-blue-200 text-blue-600 hover:bg-blue-50 bg-white">
+                                  <Button variant="outline" size="sm" onClick={addDependent} className="h-9 px-4 text-sm gap-2 border-blue-200 text-blue-600 hover:bg-blue-50 bg-white">
                                     <Plus className="w-4 h-4" /> Compor Novo Dependente
                                   </Button>
                                 </div>
@@ -1143,29 +1143,29 @@ export default function RHView({
                                   {(newEmployee.dependents || []).map((dep, idx) => (
                                     <div key={idx} className="flex gap-3 items-end border border-gray-200 p-4 rounded-xl bg-white shadow-sm animate-in zoom-in-95 duration-200">
                                       <div className="flex-1 space-y-2">
-                                        <Label className="text-[10px] uppercase font-bold text-gray-400">Nome Completo do Filho(a)</Label>
+                                        <Label className="text-sm uppercase font-bold text-gray-400">Nome Completo do Filho(a)</Label>
                                         <Input 
                                           value={dep.name || ''} 
                                           onChange={e => updateDependent(idx, 'name', e.target.value)} 
-                                          className="h-10 text-sm"
+                                          className="h-10 text-base"
                                         />
                                       </div>
                                       <div className="w-32 space-y-2">
-                                        <Label className="text-[10px] uppercase font-bold text-gray-400">CPF</Label>
+                                        <Label className="text-sm uppercase font-bold text-gray-400">CPF</Label>
                                         <Input 
                                           value={dep.cpf || ''} 
                                           onChange={e => updateDependent(idx, 'cpf', e.target.value)} 
                                           placeholder="000.000.000-00"
-                                          className="h-10 text-sm"
+                                          className="h-10 text-base"
                                         />
                                       </div>
                                       <div className="w-40 space-y-2">
-                                        <Label className="text-[10px] uppercase font-bold text-gray-400">Data Nasc.</Label>
+                                        <Label className="text-sm uppercase font-bold text-gray-400">Data Nasc.</Label>
                                         <Input 
                                           type="date"
                                           value={dep.birthDate || ''} 
                                           onChange={e => updateDependent(idx, 'birthDate', e.target.value)} 
-                                          className="h-10 text-sm"
+                                          className="h-10 text-base"
                                         />
                                       </div>
                                       <Button variant="ghost" size="icon" onClick={() => removeDependent(idx)} className="h-10 w-10 text-gray-400 hover:text-red-500 hover:bg-red-50">
@@ -1176,7 +1176,7 @@ export default function RHView({
                                   {(newEmployee.dependents || []).length === 0 && (
                                     <div className="md:col-span-2 py-10 flex flex-col items-center justify-center border-2 border-dashed border-gray-100 rounded-2xl bg-gray-50/20">
                                       <Baby className="w-8 h-8 text-gray-200 mb-2" />
-                                      <p className="text-sm text-gray-400 font-medium">Nenhum filho ou dependente cadastrado.</p>
+                                      <p className="text-base text-gray-400 font-medium">Nenhum filho ou dependente cadastrado.</p>
                                     </div>
                                   )}
                                 </div>
@@ -1192,28 +1192,28 @@ export default function RHView({
                               <div className="bg-gray-50/50 p-6 rounded-2xl border border-gray-100 space-y-6">
                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                                   <div className="space-y-2 lg:col-span-2">
-                                    <Label className="text-xs font-bold text-gray-500 uppercase tracking-wide">Função / Cargo Pretendido</Label>
+                                    <Label className="text-sm font-bold text-gray-500 uppercase tracking-wide">Função / Cargo Pretendido</Label>
                                     <Input value={newEmployee.role || ''} onChange={e => setNewEmployee({...newEmployee, role: e.target.value})} placeholder="Ex: Operador de Máquinas" className="h-11 shadow-sm" />
                                   </div>
                                   <div className="space-y-2">
-                                    <Label className="text-xs font-bold text-gray-500 uppercase tracking-wide">Data de Admissão</Label>
+                                    <Label className="text-sm font-bold text-gray-500 uppercase tracking-wide">Data de Admissão</Label>
                                     <Input type="date" value={newEmployee.admissionDate || ''} onChange={e => setNewEmployee({...newEmployee, admissionDate: e.target.value})} className="h-11 shadow-sm" />
                                   </div>
                                   <div className="space-y-2">
                                     <div className="flex items-center justify-between">
-                                      <Label className="text-xs font-bold text-gray-500 uppercase tracking-tighter">Remuneração Base (R$)</Label>
+                                      <Label className="text-sm font-bold text-gray-500 uppercase tracking-tighter">Remuneração Base (R$)</Label>
                                       <Button 
                                         variant="ghost" 
                                         size="sm" 
                                         onClick={() => setShowSalary(!showSalary)}
-                                        className="h-5 text-[9px] text-blue-600 gap-1 hover:bg-blue-50 px-1"
+                                        className="h-5 text-xs text-blue-600 gap-1 hover:bg-blue-50 px-1"
                                       >
                                         {showSalary ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
                                         {showSalary ? "Ocultar" : "Exibir"}
                                       </Button>
                                     </div>
                                     <div className="relative">
-                                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 font-bold text-xs">R$</span>
+                                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 font-bold text-sm">R$</span>
                                       <Input 
                                         type={showSalary ? "number" : "password"} 
                                         value={newEmployee.salary || 0} 
@@ -1229,7 +1229,7 @@ export default function RHView({
                               <div className="bg-slate-50 p-6 rounded-2xl border border-slate-200/50">
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                   <div className="space-y-2">
-                                    <Label className="text-xs font-bold text-gray-500 uppercase tracking-wide">Modalidade de Contratação</Label>
+                                    <Label className="text-sm font-bold text-gray-500 uppercase tracking-wide">Modalidade de Contratação</Label>
                                     <Select value={newEmployee.paymentType} onValueChange={(v: any) => setNewEmployee({...newEmployee, paymentType: v})}>
                                       <SelectTrigger className="h-11 bg-white shadow-sm border-slate-200">
                                         <SelectValue placeholder="Selecione a modalidade" />
@@ -1242,7 +1242,7 @@ export default function RHView({
                                     </Select>
                                   </div>
                                   <div className="space-y-2">
-                                    <Label className="text-xs font-bold text-gray-500 uppercase tracking-wide">Contrato Vinculado</Label>
+                                    <Label className="text-sm font-bold text-gray-500 uppercase tracking-wide">Contrato Vinculado</Label>
                                     <Select value={newEmployee.contractId || ''} onValueChange={(v: any) => setNewEmployee({...newEmployee, contractId: v})}>
                                       <SelectTrigger className="w-full h-11 bg-white shadow-sm border-blue-100 focus:ring-blue-500 rounded-xl font-medium text-blue-900 ring-offset-blue-50">
                                         <SelectValue placeholder="Selecione o contrato">
@@ -1266,7 +1266,7 @@ export default function RHView({
                                             >
                                               <div className="flex flex-col py-1">
                                                 <span className="font-bold text-blue-900">{c.workName || 'Obra sem nome'}</span>
-                                                <span className="text-[10px] text-gray-500">{c.client || 'Cliente não definido'} • {c.contractNumber || 'S/N'}</span>
+                                                <span className="text-sm text-gray-500">{c.client || 'Cliente não definido'} • {c.contractNumber || 'S/N'}</span>
                                               </div>
                                             </SelectItem>
                                           );
@@ -1284,8 +1284,8 @@ export default function RHView({
                                       <MapPin className="w-4 h-4" />
                                     </div>
                                     <div>
-                                      <h4 className="text-sm font-bold text-blue-900 uppercase">Vale-Transporte & Mobilidade</h4>
-                                      <p className="text-[10px] text-blue-700 font-medium">Desconto legal de 6% ou custeio integral da empresa</p>
+                                      <h4 className="text-base font-bold text-blue-900 uppercase">Vale-Transporte & Mobilidade</h4>
+                                      <p className="text-sm text-blue-700 font-medium">Desconto legal de 6% ou custeio integral da empresa</p>
                                     </div>
                                   </div>
                                   <Switch 
@@ -1298,38 +1298,38 @@ export default function RHView({
                                 {newEmployee.commuterBenefits && (
                                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-in slide-in-from-top-2 duration-300">
                                     <div className="space-y-3 bg-white p-5 rounded-xl border border-blue-100 shadow-sm transition-all hover:shadow-md">
-                                      <Label className="text-[10px] font-bold uppercase text-gray-400 tracking-widest">Trajeto 01 (Principal)</Label>
+                                      <Label className="text-sm font-bold uppercase text-gray-400 tracking-widest">Trajeto 01 (Principal)</Label>
                                       <Input 
                                         placeholder="Cidade de Origem" 
-                                        className="h-10 text-sm border-gray-100 focus:border-blue-400"
+                                        className="h-10 text-base border-gray-100 focus:border-blue-400"
                                         value={newEmployee.commuterCity1 || ''}
                                         onChange={e => setNewEmployee({ ...newEmployee, commuterCity1: e.target.value })}
                                       />
                                       <div className="relative">
-                                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs font-bold">R$</span>
+                                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm font-bold">R$</span>
                                         <Input 
                                           type="number" 
                                           placeholder="Tarifa Unitária R$" 
-                                          className="h-10 text-sm pl-9 border-gray-100 focus:border-blue-400"
+                                          className="h-10 text-base pl-9 border-gray-100 focus:border-blue-400"
                                           value={newEmployee.commuterValue1}
                                           onChange={e => setNewEmployee({ ...newEmployee, commuterValue1: parseFloat(e.target.value) || 0 })}
                                         />
                                       </div>
                                     </div>
                                     <div className="space-y-3 bg-white p-5 rounded-xl border border-blue-100 shadow-sm transition-all hover:shadow-md">
-                                      <Label className="text-[10px] font-bold uppercase text-gray-400 tracking-widest">Trajeto 02 (Integração/Extra)</Label>
+                                      <Label className="text-sm font-bold uppercase text-gray-400 tracking-widest">Trajeto 02 (Integração/Extra)</Label>
                                       <Input 
                                         placeholder="Cidade de Conexão ou 2º Trecho" 
-                                        className="h-10 text-sm border-gray-100 focus:border-blue-400"
+                                        className="h-10 text-base border-gray-100 focus:border-blue-400"
                                         value={newEmployee.commuterCity2 || ''}
                                         onChange={e => setNewEmployee({ ...newEmployee, commuterCity2: e.target.value })}
                                       />
                                       <div className="relative">
-                                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs font-bold">R$</span>
+                                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm font-bold">R$</span>
                                         <Input 
                                           type="number" 
                                           placeholder="Tarifa Unitária R$" 
-                                          className="h-10 text-sm pl-9 border-gray-100 focus:border-blue-400"
+                                          className="h-10 text-base pl-9 border-gray-100 focus:border-blue-400"
                                           value={newEmployee.commuterValue2}
                                           onChange={e => setNewEmployee({ ...newEmployee, commuterValue2: parseFloat(e.target.value) || 0 })}
                                         />
@@ -1354,7 +1354,7 @@ export default function RHView({
                             onCheckedChange={(c) => setPrivacyAccepted(!!c)}
                           />
                           <div className="space-y-1">
-                            <Label htmlFor="privacy-accept" className="text-[11px] leading-tight text-gray-600 cursor-pointer font-medium italic">
+                            <Label htmlFor="privacy-accept" className="text-sm leading-tight text-gray-600 cursor-pointer font-medium italic">
                               Eu declaro que as informações acima são verdadeiras e que estou ciente das responsabilidades legais sobre o manuseio de dados pessoais (LGPD). Confirmo que este registro é necessário para fins contratuais e administrativos.
                             </Label>
                           </div>
@@ -1363,7 +1363,7 @@ export default function RHView({
                         <div className="flex flex-col gap-3">
                           <div className="flex items-center justify-end gap-3 text-gray-400 mb-1">
                             <Lock className="w-4 h-4 text-green-500" />
-                            <span className="text-[10px] font-bold uppercase tracking-widest flex items-center gap-2">
+                            <span className="text-sm font-bold uppercase tracking-widest flex items-center gap-2">
                               Criptografia AES-256 Ativa
                               <Separator orientation="vertical" className="h-3 mx-2" />
                               Operador: {currentUser.name}
@@ -1371,12 +1371,12 @@ export default function RHView({
                           </div>
                           <div className="flex gap-3">
                             <DialogTrigger asChild>
-                              <Button variant="outline" className="flex-1 h-12 font-bold uppercase tracking-wider text-xs border-gray-200 hover:bg-gray-50">Cancelar</Button>
+                              <Button variant="outline" className="flex-1 h-12 font-bold uppercase tracking-wider text-sm border-gray-200 hover:bg-gray-50">Cancelar</Button>
                             </DialogTrigger>
                             <Button 
                               onClick={handleAddEmployee} 
                               disabled={!privacyAccepted}
-                              className={`flex-[2] h-12 font-bold uppercase tracking-wider text-xs shadow-lg transition-all ${
+                              className={`flex-[2] h-12 font-bold uppercase tracking-wider text-sm shadow-lg transition-all ${
                                 privacyAccepted 
                                   ? "bg-blue-600 hover:bg-blue-700 shadow-blue-200" 
                                   : "bg-gray-200 text-gray-500 cursor-not-allowed opacity-70"
@@ -1468,14 +1468,14 @@ export default function RHView({
                                 e.status === 'dismissed' ? "text-gray-500 line-through" : "text-gray-900"
                               )}>{e.name}</p>
                               {e.status === 'dismissed' && (
-                                <Badge variant="secondary" className="bg-gray-100 text-gray-500 text-[9px] uppercase h-4 px-1">Desativado</Badge>
+                                <Badge variant="secondary" className="bg-gray-100 text-gray-500 text-xs uppercase h-4 px-1">Desativado</Badge>
                               )}
                             </div>
-                            <p className="text-[10px] text-gray-500 uppercase tracking-wider">{e.companyId === currentUser.companyId ? 'Sua Empresa' : 'Outra Empresa'}</p>
+                            <p className="text-sm text-gray-500 uppercase tracking-wider">{e.companyId === currentUser.companyId ? 'Sua Empresa' : 'Outra Empresa'}</p>
                           </div>
                         </div>
                       </TableCell>
-                      <TableCell className="text-center text-sm font-mono text-gray-600">
+                      <TableCell className="text-center text-base font-mono text-gray-600">
                         <div className="flex items-center justify-center gap-2">
                           {showCPF[e.id] ? e.cpf : maskCPF(e.cpf)}
                           <Button 
@@ -1495,17 +1495,17 @@ export default function RHView({
                         )}>{e.role}</Badge>
                       </TableCell>
 
-                      <TableCell className="text-center text-sm text-gray-600">
+                      <TableCell className="text-center text-base text-gray-600">
                         {formatDateForDisplay(e.admissionDate)}
                       </TableCell>
                       <TableCell className="text-center">
                         {(() => {
                           const contract = contracts.find(c => c.id === e.contractId);
-                          if (!contract) return <span className="text-gray-400 italic text-[10px]">Não Alocado</span>;
+                          if (!contract) return <span className="text-gray-400 italic text-sm">Não Alocado</span>;
                           return (
                             <div className="flex flex-col items-center">
-                              <span className="text-xs font-bold text-blue-700">{contract.contractNumber}</span>
-                              <span className="text-[9px] text-gray-500 uppercase font-medium max-w-[120px] truncate">
+                              <span className="text-sm font-bold text-blue-700">{contract.contractNumber}</span>
+                              <span className="text-xs text-gray-500 uppercase font-medium max-w-[120px] truncate">
                                 {contract.workName || contract.client}
                               </span>
                             </div>
@@ -1593,11 +1593,11 @@ export default function RHView({
                 </div>
                 <div className="p-4 bg-amber-50 rounded-lg border border-amber-100 flex gap-3">
                   <AlertCircle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
-                  <p className="text-xs text-amber-900 leading-relaxed">
+                  <p className="text-sm text-amber-900 leading-relaxed">
                     O preenchimento do ponto diário é fundamental para o cálculo automático de horas extras conforme convenção coletiva.
                   </p>
                 </div>
-                  <Button variant="outline" className="w-full gap-2 text-xs" onClick={exportAllEmployeesToExcel}>
+                  <Button variant="outline" className="w-full gap-2 text-sm" onClick={exportAllEmployeesToExcel}>
                     <Download className="w-3.5 h-3.5" /> Exportar Planilha (XLSX)
                   </Button>
               </CardContent>
@@ -1637,20 +1637,20 @@ export default function RHView({
                     <TableBody>
                       {Array.from({ length: getDaysInMonth(selectedMonth) }).map((_, i) => (
                         <TableRow key={i} className="hover:bg-gray-50/50">
-                          <TableCell className="font-medium text-xs">
+                          <TableCell className="font-medium text-sm">
                             {String(i + 1).padStart(2, '0')}/{selectedMonth.split('-')[1]}
                           </TableCell>
                           <TableCell className="text-center p-2">
-                            <Input className="h-8 text-center text-xs" type="time" placeholder="08:00" />
+                            <Input className="h-8 text-center text-sm" type="time" placeholder="08:00" />
                           </TableCell>
                           <TableCell className="text-center p-2">
-                            <Input className="h-8 text-center text-xs" type="time" placeholder="17:00" />
+                            <Input className="h-8 text-center text-sm" type="time" placeholder="17:00" />
                           </TableCell>
                           <TableCell className="text-center p-2">
-                            <Input className="h-8 text-center text-xs" type="number" placeholder="0.0" />
+                            <Input className="h-8 text-center text-sm" type="number" placeholder="0.0" />
                           </TableCell>
                           <TableCell className="text-center">
-                            <Badge variant="outline" className="text-[9px] uppercase font-bold text-gray-400">Pendente</Badge>
+                            <Badge variant="outline" className="text-xs uppercase font-bold text-gray-400">Pendente</Badge>
                           </TableCell>
                         </TableRow>
                       ))}
@@ -1683,8 +1683,8 @@ export default function RHView({
                   </div>
                 </CardHeader>
                 <CardContent className="flex justify-between items-center">
-                   <Badge variant="secondary" className="bg-blue-50 text-blue-700 text-[10px]">EM DESENVOLVIMENTO</Badge>
-                   <Button variant="ghost" size="sm" className="gap-2 text-xs">
+                   <Badge variant="secondary" className="bg-blue-50 text-blue-700 text-sm">EM DESENVOLVIMENTO</Badge>
+                   <Button variant="ghost" size="sm" className="gap-2 text-sm">
                      <FileDown className="w-3.5 h-3.5" /> Gerar
                    </Button>
                 </CardContent>

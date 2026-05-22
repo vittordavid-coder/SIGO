@@ -244,7 +244,7 @@ export function QuotationView({ quotations, services, resources, onAdd, onDelete
                       <TableBody>
                         {newQuotation.services.length === 0 ? (
                           <TableRow>
-                            <TableCell colSpan={5} className="text-center text-xs text-gray-400 py-4">Nenhum serviço adicionado.</TableCell>
+                            <TableCell colSpan={5} className="text-center text-sm text-gray-400 py-4">Nenhum serviço adicionado.</TableCell>
                           </TableRow>
                         ) : (
                           newQuotation.services.map((qs, idx) => {
@@ -253,10 +253,10 @@ export function QuotationView({ quotations, services, resources, onAdd, onDelete
                             const unitCost = calculateServiceUnitCost(s, resources, services);
                             return (
                               <TableRow key={idx} className={editingServiceIndex === idx ? "bg-orange-50" : ""}>
-                                <TableCell className="text-xs max-w-[200px] truncate" title={s.name}>{s.name}</TableCell>
-                                <TableCell className="text-right text-xs font-mono">{formatNumber(qs.quantity, 3)}</TableCell>
-                                <TableCell className="text-right text-xs font-mono">{formatCurrency(unitCost)}</TableCell>
-                                <TableCell className="text-right text-xs font-mono">{formatCurrency(unitCost * qs.quantity)}</TableCell>
+                                <TableCell className="text-sm max-w-[200px] truncate" title={s.name}>{s.name}</TableCell>
+                                <TableCell className="text-right text-sm font-mono">{formatNumber(qs.quantity, 3)}</TableCell>
+                                <TableCell className="text-right text-sm font-mono">{formatCurrency(unitCost)}</TableCell>
+                                <TableCell className="text-right text-sm font-mono">{formatCurrency(unitCost * qs.quantity)}</TableCell>
                                 <TableCell>
                                   <div className="flex items-center gap-1">
                                     <Button variant="ghost" size="icon" className="h-6 w-6 text-blue-400" onClick={() => editServiceInQuotation(idx, false)}>
@@ -376,7 +376,7 @@ export function QuotationView({ quotations, services, resources, onAdd, onDelete
                         <TableBody>
                           {editingQuotation.services.length === 0 ? (
                             <TableRow>
-                              <TableCell colSpan={5} className="text-center text-xs text-gray-400 py-4">Nenhum serviço adicionado.</TableCell>
+                              <TableCell colSpan={5} className="text-center text-sm text-gray-400 py-4">Nenhum serviço adicionado.</TableCell>
                             </TableRow>
                           ) : (
                             editingQuotation.services.map((qs, idx) => {
@@ -385,10 +385,10 @@ export function QuotationView({ quotations, services, resources, onAdd, onDelete
                               const unitCost = calculateServiceUnitCost(s, resources, services, bdi);
                               return (
                                 <TableRow key={idx} className={editingServiceIndex === idx ? "bg-orange-50" : ""}>
-                                  <TableCell className="text-xs py-1 max-w-[300px] truncate" title={s.name}>{s.name}</TableCell>
-                                  <TableCell className="text-right text-xs font-mono py-1">{formatNumber(qs.quantity, 3)}</TableCell>
-                                  <TableCell className="text-right text-xs font-mono py-1">{formatCurrency(unitCost)}</TableCell>
-                                  <TableCell className="text-right text-xs font-mono py-1">{formatCurrency(unitCost * qs.quantity)}</TableCell>
+                                  <TableCell className="text-sm py-1 max-w-[300px] truncate" title={s.name}>{s.name}</TableCell>
+                                  <TableCell className="text-right text-sm font-mono py-1">{formatNumber(qs.quantity, 3)}</TableCell>
+                                  <TableCell className="text-right text-sm font-mono py-1">{formatCurrency(unitCost)}</TableCell>
+                                  <TableCell className="text-right text-sm font-mono py-1">{formatCurrency(unitCost * qs.quantity)}</TableCell>
                                   <TableCell className="py-1">
                                     <div className="flex items-center gap-1">
                                       <Button variant="ghost" size="icon" className="h-6 w-6 text-blue-400" onClick={() => editServiceInQuotation(idx, true)}>
@@ -435,14 +435,14 @@ export function QuotationView({ quotations, services, resources, onAdd, onDelete
                   <div>
                     <h4 className="font-bold text-lg">{q.budgetName}</h4>
                     <div className="flex items-center gap-4 mt-1">
-                      <span className="text-sm text-gray-500">Data: <span className="text-gray-900 font-medium">{q.date}</span></span>
-                      <span className="text-sm text-gray-500">Serviços: <span className="text-gray-900 font-medium">{q.services.length}</span></span>
+                      <span className="text-base text-gray-500">Data: <span className="text-gray-900 font-medium">{q.date}</span></span>
+                      <span className="text-base text-gray-500">Serviços: <span className="text-gray-900 font-medium">{q.services.length}</span></span>
                     </div>
                   </div>
                 </div>
                 <div className="flex items-center gap-6">
                   <div className="text-right">
-                    <p className="text-xs text-gray-400 uppercase font-bold tracking-wider">Valor Total</p>
+                    <p className="text-sm text-gray-400 uppercase font-bold tracking-wider">Valor Total</p>
                     <p className="text-xl font-bold text-blue-600">{formatCurrency(calculateQuotationTotal(q, services, resources))}</p>
                   </div>
                   {!readonly && (
@@ -497,17 +497,17 @@ function QuotationReport({ quotation, services, resources, companyLogo }: {
           )}
           <div>
             <h1 className="text-lg font-bold uppercase tracking-tight">SIGO SISTEMA INTEGRADO DE GERENCIAMENTO DE OBRAS</h1>
-            <p className="text-sm text-gray-600">Planilha Orçamentária</p>
+            <p className="text-base text-gray-600">Planilha Orçamentária</p>
           </div>
         </div>
-        <div className="text-right text-sm text-gray-500">
+        <div className="text-right text-base text-gray-500">
           <p>{quotation.date}</p>
           <p>Página: 1 de 1</p>
         </div>
       </div>
 
       {/* Info Grid */}
-      <div className="grid grid-cols-2 gap-x-12 gap-y-2 text-sm">
+      <div className="grid grid-cols-2 gap-x-12 gap-y-2 text-base">
         <div className="flex gap-2"><span className="font-bold min-w-[140px]">Setor responsável:</span> <span>{quotation.sectorResponsible}</span></div>
         <div className="text-right font-bold">Valores expressos em Reais (R$)</div>
         
@@ -532,12 +532,12 @@ function QuotationReport({ quotation, services, resources, companyLogo }: {
         <Table>
           <TableHeader className="bg-gray-50">
             <TableRow>
-              <TableHead className="w-[100px] text-[10px] font-bold uppercase">Código</TableHead>
-              <TableHead className="text-[10px] font-bold uppercase">Descrição do Serviço</TableHead>
-              <TableHead className="w-[60px] text-[10px] font-bold uppercase text-center">Unid.</TableHead>
-              <TableHead className="w-[100px] text-right text-[10px] font-bold uppercase">Quantidade</TableHead>
-              <TableHead className="w-[120px] text-right text-[10px] font-bold uppercase">Unitário (R$)</TableHead>
-              <TableHead className="w-[120px] text-right text-[10px] font-bold uppercase">Total (R$)</TableHead>
+              <TableHead className="w-[100px] text-sm font-bold uppercase">Código</TableHead>
+              <TableHead className="text-sm font-bold uppercase">Descrição do Serviço</TableHead>
+              <TableHead className="w-[60px] text-sm font-bold uppercase text-center">Unid.</TableHead>
+              <TableHead className="w-[100px] text-right text-sm font-bold uppercase">Quantidade</TableHead>
+              <TableHead className="w-[120px] text-right text-sm font-bold uppercase">Unitário (R$)</TableHead>
+              <TableHead className="w-[120px] text-right text-sm font-bold uppercase">Total (R$)</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -548,12 +548,12 @@ function QuotationReport({ quotation, services, resources, companyLogo }: {
               const unitCost = calculateServiceUnitCost(s, resources, services);
               return (
                 <TableRow key={`main-${idx}`} className="hover:bg-transparent h-10">
-                  <TableCell className="text-[11px] font-bold text-blue-600">{s.code}</TableCell>
-                  <TableCell className="text-[11px] max-w-[250px] truncate" title={s.name}>{s.name}</TableCell>
-                  <TableCell className="text-[11px] text-center">{s.unit}</TableCell>
-                  <TableCell className="text-right text-[11px] font-mono">{formatNumber(qs.quantity, 3)}</TableCell>
-                  <TableCell className="text-right text-[11px] font-mono">{formatCurrency(unitCost)}</TableCell>
-                  <TableCell className="text-right text-[11px] font-mono font-bold">{formatCurrency(unitCost * qs.quantity)}</TableCell>
+                  <TableCell className="text-sm font-bold text-blue-600">{s.code}</TableCell>
+                  <TableCell className="text-sm max-w-[250px] truncate" title={s.name}>{s.name}</TableCell>
+                  <TableCell className="text-sm text-center">{s.unit}</TableCell>
+                  <TableCell className="text-right text-sm font-mono">{formatNumber(qs.quantity, 3)}</TableCell>
+                  <TableCell className="text-right text-sm font-mono">{formatCurrency(unitCost)}</TableCell>
+                  <TableCell className="text-right text-sm font-mono font-bold">{formatCurrency(unitCost * qs.quantity)}</TableCell>
                 </TableRow>
               );
             })}
@@ -562,8 +562,8 @@ function QuotationReport({ quotation, services, resources, companyLogo }: {
             {quotation.groups?.map((group) => (
               <React.Fragment key={group.id}>
                 <TableRow className="bg-gray-100/50">
-                  <TableCell colSpan={5} className="text-[11px] font-bold uppercase py-1 px-4">{group.name}</TableCell>
-                  <TableCell className="text-right text-[11px] font-bold py-1 px-4">
+                  <TableCell colSpan={5} className="text-sm font-bold uppercase py-1 px-4">{group.name}</TableCell>
+                  <TableCell className="text-right text-sm font-bold py-1 px-4">
                     {formatCurrency(group.services.reduce((acc, item) => {
                       const s = services.find(serv => serv.id === item.serviceId);
                       return acc + (s ? calculateServiceUnitCost(s, resources, services) * item.quantity : 0);
@@ -576,12 +576,12 @@ function QuotationReport({ quotation, services, resources, companyLogo }: {
                   const unitCost = calculateServiceUnitCost(s, resources, services);
                   return (
                     <TableRow key={`${group.id}-${idx}`} className="hover:bg-transparent h-10">
-                      <TableCell className="text-[11px] font-bold text-blue-600 pl-6">{s.code}</TableCell>
-                      <TableCell className="text-[11px] max-w-[250px] truncate" title={s.name}>{s.name}</TableCell>
-                      <TableCell className="text-[11px] text-center">{s.unit}</TableCell>
-                      <TableCell className="text-right text-[11px] font-mono">{formatNumber(gs.quantity, 3)}</TableCell>
-                      <TableCell className="text-right text-[11px] font-mono">{formatCurrency(unitCost)}</TableCell>
-                      <TableCell className="text-right text-[11px] font-mono font-bold">{formatCurrency(unitCost * gs.quantity)}</TableCell>
+                      <TableCell className="text-sm font-bold text-blue-600 pl-6">{s.code}</TableCell>
+                      <TableCell className="text-sm max-w-[250px] truncate" title={s.name}>{s.name}</TableCell>
+                      <TableCell className="text-sm text-center">{s.unit}</TableCell>
+                      <TableCell className="text-right text-sm font-mono">{formatNumber(gs.quantity, 3)}</TableCell>
+                      <TableCell className="text-right text-sm font-mono">{formatCurrency(unitCost)}</TableCell>
+                      <TableCell className="text-right text-sm font-mono font-bold">{formatCurrency(unitCost * gs.quantity)}</TableCell>
                     </TableRow>
                   );
                 })}
@@ -595,11 +595,11 @@ function QuotationReport({ quotation, services, resources, companyLogo }: {
       <div className="flex justify-end">
         <div className="bg-gray-50 border border-gray-200 p-4 rounded-lg min-w-[250px]">
           <div className="flex justify-between items-center border-b border-gray-200 pb-2 mb-2">
-            <span className="text-[10px] uppercase font-bold text-gray-500">Total de Itens</span>
-            <span className="font-bold text-sm">{quotation.services.length + (quotation.groups?.reduce((acc, g) => acc + g.services.length, 0) || 0)}</span>
+            <span className="text-sm uppercase font-bold text-gray-500">Total de Itens</span>
+            <span className="font-bold text-base">{quotation.services.length + (quotation.groups?.reduce((acc, g) => acc + g.services.length, 0) || 0)}</span>
           </div>
           <div className="flex justify-between items-end">
-            <span className="text-[10px] uppercase font-bold text-gray-500 mb-1">Total Geral</span>
+            <span className="text-sm uppercase font-bold text-gray-500 mb-1">Total Geral</span>
             <span className="text-xl font-bold text-blue-600">
               {formatCurrency(calculateQuotationTotal(quotation, services, resources))}
             </span>
@@ -608,9 +608,9 @@ function QuotationReport({ quotation, services, resources, companyLogo }: {
       </div>
 
       {/* Footer */}
-      <div className="pt-12 flex justify-between items-center text-[10px] text-gray-400 uppercase tracking-widest">
-        <span className="font-semibold uppercase text-[10px]">SIGO SISTEMA INTEGRADO DE GERENCIAMENTO DE OBRAS</span>
-        <span className="font-semibold uppercase text-[10px]">{quotation.organization || 'SIGO SISTEMA INTEGRADO DE GERENCIAMENTO DE OBRAS'}</span>
+      <div className="pt-12 flex justify-between items-center text-sm text-gray-400 uppercase tracking-widest">
+        <span className="font-semibold uppercase text-sm">SIGO SISTEMA INTEGRADO DE GERENCIAMENTO DE OBRAS</span>
+        <span className="font-semibold uppercase text-sm">{quotation.organization || 'SIGO SISTEMA INTEGRADO DE GERENCIAMENTO DE OBRAS'}</span>
       </div>
 
       <div className="flex justify-end gap-4 print:hidden">

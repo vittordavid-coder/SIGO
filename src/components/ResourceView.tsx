@@ -443,7 +443,7 @@ export function ResourceView({ resources, onAdd, onDelete, onUpdate, readonly }:
             ) : (
               sortedResources.map(r => (
                   <TableRow key={r.id} className="group">
-                  <TableCell className="font-mono text-xs">{r.code}</TableCell>
+                  <TableCell className="font-mono text-sm">{r.code}</TableCell>
                   <TableCell className="font-medium">{r.name}</TableCell>
                   <TableCell>
                     <Badge variant="outline" className={cn(

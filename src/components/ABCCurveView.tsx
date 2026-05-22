@@ -186,7 +186,7 @@ export function ABCCurveView({ services, resources, quotations, budgetItems, bud
           </div>
 
           <div className="flex items-center gap-2">
-            <Label className="text-xs font-bold text-gray-400 uppercase">Planilha:</Label>
+            <Label className="text-sm font-bold text-gray-400 uppercase">Planilha:</Label>
             <Select value={selectedQuotationId} onValueChange={setSelectedQuotationId}>
               <SelectTrigger className="w-[250px] bg-white">
                 <SelectValue placeholder="Selecionar Planilha" />
@@ -337,16 +337,16 @@ export function ABCCurveView({ services, resources, quotations, budgetItems, bud
         <div className="space-y-6">
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-gray-500 uppercase tracking-wider">Resumo da Análise</CardTitle>
+              <CardTitle className="text-base font-medium text-gray-500 uppercase tracking-wider">Resumo da Análise</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex justify-between items-end">
                 <div>
-                  <p className="text-xs text-gray-400">Valor Total da Planilha</p>
+                  <p className="text-sm text-gray-400">Valor Total da Planilha</p>
                   <p className="text-2xl font-bold text-gray-900">{formatCurrency(totalValue)}</p>
                 </div>
                 <div className="text-right">
-                  <p className="text-xs text-gray-400">Total de Itens</p>
+                  <p className="text-sm text-gray-400">Total de Itens</p>
                   <p className="text-xl font-semibold text-gray-700">{abcData.length}</p>
                 </div>
               </div>
@@ -355,23 +355,23 @@ export function ABCCurveView({ services, resources, quotations, budgetItems, bud
                     <div className="flex justify-between items-center">
                       <div className="flex items-center gap-2">
                         <div className="w-3 h-3 rounded-full bg-green-500" />
-                        <span className="text-sm font-medium">Classe A ({abcConfig.limitA}%)</span>
+                        <span className="text-base font-medium">Classe A ({abcConfig.limitA}%)</span>
                       </div>
-                      <span className="text-sm font-bold">{abcData.filter(i => i.category === 'A').length} itens</span>
+                      <span className="text-base font-bold">{abcData.filter(i => i.category === 'A').length} itens</span>
                     </div>
                     <div className="flex justify-between items-center">
                       <div className="flex items-center gap-2">
                         <div className="w-3 h-3 rounded-full bg-yellow-500" />
-                        <span className="text-sm font-medium">Classe B ({abcConfig.limitB}%)</span>
+                        <span className="text-base font-medium">Classe B ({abcConfig.limitB}%)</span>
                       </div>
-                      <span className="text-sm font-bold">{abcData.filter(i => i.category === 'B').length} itens</span>
+                      <span className="text-base font-bold">{abcData.filter(i => i.category === 'B').length} itens</span>
                     </div>
                     <div className="flex justify-between items-center">
                       <div className="flex items-center gap-2">
                         <div className="w-3 h-3 rounded-full bg-red-500" />
-                        <span className="text-sm font-medium">Classe C ({100 - abcConfig.limitA - abcConfig.limitB}%)</span>
+                        <span className="text-base font-medium">Classe C ({100 - abcConfig.limitA - abcConfig.limitB}%)</span>
                       </div>
-                      <span className="text-sm font-bold">{abcData.filter(i => i.category === 'C').length} itens</span>
+                      <span className="text-base font-bold">{abcData.filter(i => i.category === 'C').length} itens</span>
                     </div>
                   </div>
             </CardContent>
@@ -379,19 +379,19 @@ export function ABCCurveView({ services, resources, quotations, budgetItems, bud
 
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-gray-500 uppercase tracking-wider">Top 5 Itens (Classe A)</CardTitle>
+              <CardTitle className="text-base font-medium text-gray-500 uppercase tracking-wider">Top 5 Itens (Classe A)</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
                 {abcData.slice(0, 5).map((item) => (
                   <div key={item.id} className="flex justify-between items-start gap-4">
                     <div className="min-w-0">
-                      <p className="text-xs font-bold text-blue-600 truncate">{item.code}</p>
-                      <p className="text-xs font-medium text-gray-700 truncate">{item.name}</p>
+                      <p className="text-sm font-bold text-blue-600 truncate">{item.code}</p>
+                      <p className="text-sm font-medium text-gray-700 truncate">{item.name}</p>
                     </div>
                     <div className="text-right shrink-0">
-                      <p className="text-xs font-bold">{formatCurrency(item.totalCost)}</p>
-                      <p className="text-[10px] text-gray-400">{formatNumber(item.percentage, 2)}%</p>
+                      <p className="text-sm font-bold">{formatCurrency(item.totalCost)}</p>
+                      <p className="text-sm text-gray-400">{formatNumber(item.percentage, 2)}%</p>
                     </div>
                   </div>
                 ))}
@@ -426,26 +426,26 @@ export function ABCCurveView({ services, resources, quotations, budgetItems, bud
               <TableBody>
                 {abcData.map((item, idx) => (
                   <TableRow key={item.id} className="hover:bg-gray-50">
-                    <TableCell className="text-center text-xs text-gray-500">{idx + 1}</TableCell>
-                    <TableCell className="text-xs font-bold text-blue-600">{item.code}</TableCell>
-                    <TableCell className="text-xs font-medium">{item.name}</TableCell>
-                    <TableCell className="text-center text-xs">{item.unit}</TableCell>
-                    <TableCell className="text-right text-xs font-mono">{formatNumber(item.quantity, 3)}</TableCell>
-                    <TableCell className="text-right text-xs font-mono font-bold">{formatCurrency(item.totalCost)}</TableCell>
+                    <TableCell className="text-center text-sm text-gray-500">{idx + 1}</TableCell>
+                    <TableCell className="text-sm font-bold text-blue-600">{item.code}</TableCell>
+                    <TableCell className="text-sm font-medium">{item.name}</TableCell>
+                    <TableCell className="text-center text-sm">{item.unit}</TableCell>
+                    <TableCell className="text-right text-sm font-mono">{formatNumber(item.quantity, 3)}</TableCell>
+                    <TableCell className="text-right text-sm font-mono font-bold">{formatCurrency(item.totalCost)}</TableCell>
                     {viewType === 'resources' && (
-                      <TableCell className="text-[10px] uppercase font-bold text-gray-400">
+                      <TableCell className="text-sm uppercase font-bold text-gray-400">
                         {item.type === 'labor' ? 'Mão de Obra' : 
                          item.type === 'material' ? 'Material' : 
                          item.type === 'equipment' ? 'Equipamento' : 'Serv. Auxiliar'}
                       </TableCell>
                     )}
-                    <TableCell className="text-right text-xs font-mono">{formatNumber(item.percentage, 2)}%</TableCell>
-                    <TableCell className="text-right text-xs font-mono">{formatNumber(item.cumulativePercentage, 2)}%</TableCell>
+                    <TableCell className="text-right text-sm font-mono">{formatNumber(item.percentage, 2)}%</TableCell>
+                    <TableCell className="text-right text-sm font-mono">{formatNumber(item.cumulativePercentage, 2)}%</TableCell>
                     <TableCell className="text-center">
                       <Badge 
                         variant="outline" 
                         className={cn(
-                          "text-[10px] font-bold px-2 py-0",
+                          "text-sm font-bold px-2 py-0",
                           item.category === 'A' ? "bg-green-50 text-green-700 border-green-200" :
                           item.category === 'B' ? "bg-yellow-50 text-yellow-700 border-yellow-200" :
                           "bg-red-50 text-red-700 border-red-200"

@@ -1485,7 +1485,7 @@ export default function ControlView({
       >
         <div className="space-y-4 flex-1 overflow-y-auto p-4 scrollbar-thin-visible">
           <div className="space-y-2">
-            <Label className="text-[10px] uppercase font-bold text-gray-400">Obra de Destino</Label>
+            <Label className="text-base uppercase font-bold text-gray-400">Obra de Destino</Label>
             <Select value={importContractId || "_none_"} onValueChange={(val) => setImportContractId(val === "_none_" ? "" : val)}>
               <SelectTrigger className="h-12 rounded-xl focus:ring-blue-500 transition-all">
                 <SelectValue placeholder="Usar obra da planilha" />
@@ -1496,7 +1496,7 @@ export default function ControlView({
               </SelectContent>
             </Select>
           </div>
-          <p className="text-[10px] text-gray-500 italic">* Certifique-se de que o arquivo segue o modelo padrão de importação do SIGO.</p>
+          <p className="text-base text-gray-500 italic">* Certifique-se de que o arquivo segue o modelo padrão de importação do SIGO.</p>
         </div>
       </Modal>
 
@@ -1514,7 +1514,7 @@ export default function ControlView({
               <Wrench className="w-5 h-5 text-emerald-200" />
               Enviar para Manutenção
             </h2>
-            <p className="text-[10px] text-emerald-100 font-bold uppercase tracking-widest mt-1">
+            <p className="text-base text-emerald-100 font-bold uppercase tracking-widest mt-1">
               {maintenanceEquipment?.name} - {maintenanceEquipment?.plate}
             </p>
           </div>
@@ -1523,7 +1523,7 @@ export default function ControlView({
         <div className="p-6 space-y-6">
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="maintenance_date" className="text-[10px] uppercase font-black text-gray-500 tracking-tight">Data de Entrada</Label>
+              <Label htmlFor="maintenance_date" className="text-base uppercase font-black text-gray-500 tracking-tight">Data de Entrada</Label>
               <Input
                 id="maintenance_date"
                 type="date"
@@ -1533,7 +1533,7 @@ export default function ControlView({
               />
             </div>
             <div className="space-y-2">
-              <Label className="text-[10px] uppercase font-black text-gray-500 tracking-tight">Tipo de Manutenção</Label>
+              <Label className="text-base uppercase font-black text-gray-500 tracking-tight">Tipo de Manutenção</Label>
               <Select value={maintenanceType} onValueChange={(v: any) => setMaintenanceType(v)}>
                 <SelectTrigger className="rounded-xl border-gray-200 bg-gray-50/50 h-12 font-bold focus:ring-2 focus:ring-emerald-500/20">
                   <SelectValue placeholder="Selecione o tipo" />
@@ -1548,11 +1548,11 @@ export default function ControlView({
 
           <div className="space-y-4 p-5 bg-emerald-50/30 rounded-2xl border border-emerald-100 border-dashed">
             <div className="flex items-center justify-between">
-              <Label className="text-[10px] uppercase font-black text-emerald-700 flex items-center gap-2 tracking-widest">
+              <Label className="text-base uppercase font-black text-emerald-700 flex items-center gap-2 tracking-widest">
                 <ShoppingCart className="w-3 h-3" />
                 Solicitar Peças / Materiais
               </Label>
-              <Badge variant="outline" className="bg-white/50 text-[9px] font-black border-emerald-100">OPCIONAL</Badge>
+              <Badge variant="outline" className="bg-white/50 text-sm font-black border-emerald-100">OPCIONAL</Badge>
             </div>
 
             <div className="flex gap-2">
@@ -1560,25 +1560,25 @@ export default function ControlView({
                 placeholder="Descrição da peça ou serviço..."
                 value={newMaintenanceItem.description}
                 onChange={e => setNewMaintenanceItem({...newMaintenanceItem, description: e.target.value})}
-                className="rounded-xl border-emerald-100 bg-white h-11 text-xs font-bold"
+                className="rounded-xl border-emerald-100 bg-white h-11 text-base font-bold"
               />
               <Input 
                 type="number"
                 placeholder="Qtd"
-                className="w-20 rounded-xl border-emerald-100 bg-white h-11 text-xs font-bold"
+                className="w-20 rounded-xl border-emerald-100 bg-white h-11 text-base font-bold"
                 value={newMaintenanceItem.quantity}
                 onChange={e => setNewMaintenanceItem({...newMaintenanceItem, quantity: parseInt(e.target.value) || 1})}
               />
               <Input 
                 type="number"
                 placeholder="Valor (R$)"
-                className="w-24 rounded-xl border-emerald-100 bg-white h-11 text-xs font-bold"
+                className="w-24 rounded-xl border-emerald-100 bg-white h-11 text-base font-bold"
                 value={newMaintenanceItem.value}
                 onChange={e => setNewMaintenanceItem({...newMaintenanceItem, value: parseFloat(e.target.value) || 0})}
               />
               <div className="flex items-center gap-1">
                 <input type="checkbox" checked={newMaintenanceItem.discount} onChange={e => setNewMaintenanceItem({...newMaintenanceItem, discount: e.target.checked})} />
-                <Label className="text-[9px]">Desc.</Label>
+                <Label className="text-sm">Desc.</Label>
               </div>
               <Button 
                 size="icon" 
@@ -1599,7 +1599,7 @@ export default function ControlView({
               <div className="space-y-2 mt-2 max-h-40 overflow-y-auto scrollbar-thin-visible">
                 {maintenanceItems.map((item, idx) => (
                   <div key={idx} className="flex items-center justify-between bg-white p-3 rounded-xl border border-emerald-50 shadow-sm animate-in slide-in-from-left duration-200">
-                    <span className="text-xs font-black text-emerald-900">{item.quantity}x {item.description}</span>
+                    <span className="text-base font-black text-emerald-900">{item.quantity}x {item.description}</span>
                     <Button 
                       variant="ghost" 
                       size="icon" 
@@ -1615,13 +1615,13 @@ export default function ControlView({
 
             {maintenanceItems.length === 0 && (
               <div className="space-y-2">
-                <Label htmlFor="maintenance_items_legacy" className="text-[10px] uppercase font-black text-gray-400 tracking-tighter">Ou informe em texto livre</Label>
+                <Label htmlFor="maintenance_items_legacy" className="text-base uppercase font-black text-gray-400 tracking-tighter">Ou informe em texto livre</Label>
                 <Input
                   id="maintenance_items_legacy"
                   placeholder="Ex: Óleo, Filtros, Peça Específica..."
                   value={maintenanceRequestedItems}
                   onChange={(e) => setMaintenanceRequestedItems(e.target.value)}
-                  className="rounded-xl border-emerald-100 bg-white h-11 text-xs font-bold"
+                  className="rounded-xl border-emerald-100 bg-white h-11 text-base font-bold"
                 />
               </div>
             )}
@@ -1629,8 +1629,8 @@ export default function ControlView({
         </div>
 
         <div className="p-6 bg-gray-50 border-t flex flex-col sm:flex-row gap-3 rounded-b-2xl">
-          <Button variant="ghost" className="rounded-xl font-black uppercase text-[10px] tracking-widest h-12 flex-1" onClick={() => setIsMaintenanceModalOpen(false)}>Cancelar</Button>
-          <Button className="rounded-xl font-black uppercase text-[10px] tracking-widest bg-emerald-600 hover:bg-emerald-700 h-12 flex-[2] shadow-xl shadow-emerald-100" onClick={handleConfirmMaintenance}>
+          <Button variant="ghost" className="rounded-xl font-black uppercase text-base tracking-widest h-12 flex-1" onClick={() => setIsMaintenanceModalOpen(false)}>Cancelar</Button>
+          <Button className="rounded-xl font-black uppercase text-base tracking-widest bg-emerald-600 hover:bg-emerald-700 h-12 flex-[2] shadow-xl shadow-emerald-100" onClick={handleConfirmMaintenance}>
             Confirmar Envio para Oficina
           </Button>
         </div>
@@ -1650,7 +1650,7 @@ export default function ControlView({
               <Check className="w-5 h-5 text-red-200" />
               Finalizar Manutenção
             </h2>
-            <p className="text-[10px] text-red-100 font-bold uppercase tracking-widest mt-1">
+            <p className="text-base text-red-100 font-bold uppercase tracking-widest mt-1">
               {equipmentToExit?.name} - {equipmentToExit?.plate}
             </p>
           </div>
@@ -1658,7 +1658,7 @@ export default function ControlView({
 
         <div className="p-8 space-y-6 bg-white">
           <div className="space-y-2">
-            <Label htmlFor="exit_maintenance_date" className="text-[10px] uppercase font-black text-gray-500 tracking-tight">Data de Saída</Label>
+            <Label htmlFor="exit_maintenance_date" className="text-base uppercase font-black text-gray-500 tracking-tight">Data de Saída</Label>
             <Input
               type="date"
               id="exit_maintenance_date"
@@ -1669,15 +1669,15 @@ export default function ControlView({
           </div>
 
           <div className="p-4 bg-gray-50 rounded-xl border border-dashed border-gray-200">
-            <p className="text-sm font-medium text-gray-600">
+            <p className="text-base font-medium text-gray-600">
               Ao confirmar, o equipamento retornará ao status de <strong>Ativo</strong> e o histórico de manutenção será encerrado.
             </p>
           </div>
         </div>
 
         <div className="p-6 bg-gray-50 border-t flex flex-col sm:flex-row gap-3 rounded-b-2xl">
-          <Button variant="ghost" className="rounded-xl font-black uppercase text-[10px] tracking-widest h-12 flex-1" onClick={() => setIsExitMaintenanceModalOpen(false)}>Cancelar</Button>
-          <Button className="rounded-xl font-black uppercase text-[10px] tracking-widest bg-red-600 hover:bg-red-700 h-12 flex-[2] shadow-xl shadow-red-100" onClick={handleConfirmExitMaintenance}>
+          <Button variant="ghost" className="rounded-xl font-black uppercase text-base tracking-widest h-12 flex-1" onClick={() => setIsExitMaintenanceModalOpen(false)}>Cancelar</Button>
+          <Button className="rounded-xl font-black uppercase text-base tracking-widest bg-red-600 hover:bg-red-700 h-12 flex-[2] shadow-xl shadow-red-100" onClick={handleConfirmExitMaintenance}>
             Confirmar Saída
           </Button>
         </div>
@@ -1686,7 +1686,7 @@ export default function ControlView({
       <header className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-black text-gray-900">Controlador de Equipamentos</h1>
-          <p className="text-xs text-gray-500 font-medium">Gestão de frotas e manutenção preventiva/corretiva.</p>
+          <p className="text-base text-gray-500 font-medium">Gestão de frotas e manutenção preventiva/corretiva.</p>
         </div>
         <div className="flex items-center gap-3">
           <div className="relative w-full sm:w-64">
@@ -1694,7 +1694,7 @@ export default function ControlView({
             <Input className="pl-10 h-10 w-full rounded-xl shadow-sm bg-white" placeholder="Pesquisar..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
           </div>
           <div className="flex items-center gap-2 px-3 py-2 bg-white rounded-xl shadow-sm border border-gray-100">
-            <Label htmlFor="active-filter" className="text-[10px] font-bold uppercase text-gray-400 cursor-pointer">Apenas Ativos</Label>
+            <Label htmlFor="active-filter" className="text-base font-bold uppercase text-gray-400 cursor-pointer">Apenas Ativos</Label>
             <Switch 
               id="active-filter"
               checked={filterOnlyActive} 
@@ -1707,25 +1707,25 @@ export default function ControlView({
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 text-white">
         <Card className="bg-blue-600 border-none shadow-lg rounded-2xl p-4 relative overflow-hidden group">
           <Truck className="w-12 h-12 opacity-10 absolute -right-2 -bottom-2 group-hover:scale-110 transition-transform" />
-          <p className="text-[9px] font-black uppercase opacity-70 tracking-widest">Total Equipamentos</p>
+          <p className="text-sm font-black uppercase opacity-70 tracking-widest">Total Equipamentos</p>
           <div className="flex items-baseline gap-2 mt-1">
             <h3 className="text-2xl font-black">{stats.activeEquips}</h3>
-            <span className="text-[10px] font-bold opacity-60">unidades</span>
+            <span className="text-base font-bold opacity-60">unidades</span>
           </div>
         </Card>
 
         <Card className="bg-emerald-600 border-none shadow-lg rounded-2xl p-4 relative overflow-hidden group">
           <Wrench className="w-12 h-12 opacity-10 absolute -right-2 -bottom-2 group-hover:scale-110 transition-transform" />
-          <p className="text-[9px] font-black uppercase opacity-70 tracking-widest">Em Manutenção</p>
+          <p className="text-sm font-black uppercase opacity-70 tracking-widest">Em Manutenção</p>
           <div className="flex items-baseline gap-2 mt-1">
             <h3 className="text-2xl font-black">{stats.inMaintenanceCount}</h3>
-            <span className="text-[10px] font-bold opacity-60">ativos</span>
+            <span className="text-base font-bold opacity-60">ativos</span>
           </div>
         </Card>
 
         <Card className="bg-orange-500 border-none shadow-lg rounded-2xl p-4 relative overflow-hidden group">
           <ArrowRightLeft className="w-12 h-12 opacity-10 absolute -right-2 -bottom-2 group-hover:scale-110 transition-transform" />
-          <p className="text-[9px] font-black uppercase opacity-70 tracking-widest">Transf. Pendentes</p>
+          <p className="text-sm font-black uppercase opacity-70 tracking-widest">Transf. Pendentes</p>
           <div className="flex items-baseline gap-2 mt-1">
             <h3 className="text-2xl font-black">
               {transfers.filter(t => 
@@ -1737,15 +1737,15 @@ export default function ControlView({
                 )
               ).length}
             </h3>
-            <span className="text-[10px] font-bold opacity-60">solicitações</span>
+            <span className="text-base font-bold opacity-60">solicitações</span>
           </div>
         </Card>
 
         <Card className="bg-indigo-600 border-none shadow-lg rounded-2xl p-4 relative overflow-hidden group">
           <DollarSign className="w-12 h-12 opacity-10 absolute -right-2 -bottom-2 group-hover:scale-110 transition-transform" />
-          <p className="text-[9px] font-black uppercase opacity-70 tracking-widest">Custo Operacional</p>
+          <p className="text-sm font-black uppercase opacity-70 tracking-widest">Custo Operacional</p>
           <div className="flex items-baseline gap-1 mt-1">
-            <span className="text-sm font-bold opacity-70">R$</span>
+            <span className="text-base font-bold opacity-70">R$</span>
             <h3 className="text-2xl font-black">
               {stats.activeEquips > 0 ? (filteredEquipments.reduce((sum, e) => {
                 const cost = equipmentMonthly.find(d => d.equipmentId === e.id && d.month === selectedMonth)?.cost || 0;
@@ -1795,7 +1795,7 @@ export default function ControlView({
                  <div className="p-2 bg-blue-50 rounded-xl"><Truck className="w-5 h-5 text-blue-600" /></div>
                  <div>
                     <CardTitle className="text-lg font-black">Lista de Equipamentos</CardTitle>
-                    <CardDescription className="text-[10px] uppercase font-bold text-gray-400">Controle de custos e disponibilidade</CardDescription>
+                    <CardDescription className="text-base uppercase font-bold text-gray-400">Controle de custos e disponibilidade</CardDescription>
                  </div>
               </div>
               <div className="flex items-center gap-2">
@@ -1803,7 +1803,7 @@ export default function ControlView({
                   <button 
                     onClick={() => setPriceDisplayMode('monthly')}
                     className={cn(
-                      "px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all",
+                      "px-3 py-1.5 rounded-lg text-sm font-black uppercase tracking-widest transition-all",
                       priceDisplayMode === 'monthly' ? "bg-white text-blue-600 shadow-sm" : "text-slate-400 hover:text-slate-600"
                     )}
                   >
@@ -1812,15 +1812,15 @@ export default function ControlView({
                   <button 
                     onClick={() => setPriceDisplayMode('measurement')}
                     className={cn(
-                      "px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all",
+                      "px-3 py-1.5 rounded-lg text-sm font-black uppercase tracking-widest transition-all",
                       priceDisplayMode === 'measurement' ? "bg-white text-blue-600 shadow-sm" : "text-slate-400 hover:text-slate-600"
                     )}
                   >
                     Valor Medição
                   </button>
                 </div>
-                <Button variant="outline" size="sm" onClick={downloadTemplate} className="rounded-xl gap-2 font-bold text-xs"><FileDown className="w-4 h-4" /> Modelo</Button>
-                <Button variant="outline" size="sm" onClick={() => setIsImportModalOpen(true)} className="rounded-xl gap-2 font-bold text-xs"><Upload className="w-4 h-4" /> Importar</Button>
+                <Button variant="outline" size="sm" onClick={downloadTemplate} className="rounded-xl gap-2 font-bold text-base"><FileDown className="w-4 h-4" /> Modelo</Button>
+                <Button variant="outline" size="sm" onClick={() => setIsImportModalOpen(true)} className="rounded-xl gap-2 font-bold text-base"><Upload className="w-4 h-4" /> Importar</Button>
                 <Button onClick={() => {
                   setNewEquip({
                     id: uuidv4(),
@@ -1847,7 +1847,7 @@ export default function ControlView({
                     photos: []
                   });
                   setIsAddOpen(true);
-                }} className="rounded-xl bg-blue-600 gap-2 font-bold text-xs"><Plus className="w-4 h-4 mr-2" /> Novo</Button>
+                }} className="rounded-xl bg-blue-600 gap-2 font-bold text-base"><Plus className="w-4 h-4 mr-2" /> Novo</Button>
                 <Modal
                   isOpen={isAddOpen}
                   onClose={() => setIsAddOpen(false)}
@@ -1864,40 +1864,40 @@ export default function ControlView({
                       </div>
                       <div>
                         <h2 className="text-2xl font-black text-white leading-tight">Adicionar Equipamento</h2>
-                        <p className="text-blue-100 text-[10px] font-bold uppercase tracking-widest mt-1 opacity-80">Novo ativo SIGO Controlador</p>
+                        <p className="text-blue-100 text-base font-bold uppercase tracking-widest mt-1 opacity-80">Novo ativo SIGO Controlador</p>
                       </div>
                     </div>
                   </div>
 
                     <Tabs defaultValue="basic" className="w-full flex-1 flex flex-col overflow-hidden">
                       <TabsList className="w-full justify-start rounded-none bg-slate-50 border-b px-6 h-14 gap-6 shrink-0">
-                        <TabsTrigger value="basic" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:text-blue-600 border-b-2 border-transparent data-[state=active]:border-blue-600 rounded-none h-full px-0 font-black text-[11px] uppercase tracking-widest">Dados Principais</TabsTrigger>
-                        <TabsTrigger value="technical" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:text-blue-600 border-b-2 border-transparent data-[state=active]:border-blue-600 rounded-none h-full px-0 font-black text-[11px] uppercase tracking-widest">Atributos Técnicos</TabsTrigger>
-                        <TabsTrigger value="history" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:text-blue-600 border-b-2 border-transparent data-[state=active]:border-blue-600 rounded-none h-full px-0 font-black text-[11px] uppercase tracking-widest">Histórico</TabsTrigger>
-                        <TabsTrigger value="photos" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:text-blue-600 border-b-2 border-transparent data-[state=active]:border-blue-600 rounded-none h-full px-0 font-black text-[11px] uppercase tracking-widest">Fotos</TabsTrigger>
-                        <TabsTrigger value="obs" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:text-blue-600 border-b-2 border-transparent data-[state=active]:border-blue-600 rounded-none h-full px-0 font-black text-[11px] uppercase tracking-widest">Observações</TabsTrigger>
+                        <TabsTrigger value="basic" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:text-blue-600 border-b-2 border-transparent data-[state=active]:border-blue-600 rounded-none h-full px-0 font-black text-base uppercase tracking-widest">Dados Principais</TabsTrigger>
+                        <TabsTrigger value="technical" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:text-blue-600 border-b-2 border-transparent data-[state=active]:border-blue-600 rounded-none h-full px-0 font-black text-base uppercase tracking-widest">Atributos Técnicos</TabsTrigger>
+                        <TabsTrigger value="history" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:text-blue-600 border-b-2 border-transparent data-[state=active]:border-blue-600 rounded-none h-full px-0 font-black text-base uppercase tracking-widest">Histórico</TabsTrigger>
+                        <TabsTrigger value="photos" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:text-blue-600 border-b-2 border-transparent data-[state=active]:border-blue-600 rounded-none h-full px-0 font-black text-base uppercase tracking-widest">Fotos</TabsTrigger>
+                        <TabsTrigger value="obs" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:text-blue-600 border-b-2 border-transparent data-[state=active]:border-blue-600 rounded-none h-full px-0 font-black text-base uppercase tracking-widest">Observações</TabsTrigger>
                       </TabsList>
 
                       <div className="p-6 flex-1 overflow-y-auto scrollbar-thin-visible bg-white">
                         <TabsContent value="basic" className="mt-0 space-y-8 animate-in fade-in duration-300">
                           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                             <div className="space-y-2">
-                              <Label className="text-[11px] uppercase font-black text-slate-500 flex items-center gap-2 tracking-tight"><Hash className="w-4 h-4"/> Código de Identificação</Label>
-                              <Input className="rounded-xl border-slate-200 bg-slate-50/50 h-12 text-sm font-bold focus:ring-2 focus:ring-blue-500/20" value={newEquip.code} onChange={e => setNewEquip({...newEquip, code: e.target.value})} placeholder="Ex: EQ-001" />
+                              <Label className="text-base uppercase font-black text-slate-500 flex items-center gap-2 tracking-tight"><Hash className="w-4 h-4"/> Código de Identificação</Label>
+                              <Input className="rounded-xl border-slate-200 bg-slate-50/50 h-12 text-base font-bold focus:ring-2 focus:ring-blue-500/20" value={newEquip.code} onChange={e => setNewEquip({...newEquip, code: e.target.value})} placeholder="Ex: EQ-001" />
                             </div>
                             <div className="md:col-span-2 space-y-2">
-                              <Label className="text-[11px] uppercase font-black text-slate-500 flex items-center gap-2 tracking-tight"><Info className="w-4 h-4"/> Nome Completo do Ativo</Label>
-                              <Input className="rounded-xl border-slate-200 bg-slate-50/50 h-12 text-sm font-bold focus:ring-2 focus:ring-blue-500/20" value={newEquip.name} onChange={e => setNewEquip({...newEquip, name: e.target.value})} placeholder="Ex: Escavadeira CAT 320" />
+                              <Label className="text-base uppercase font-black text-slate-500 flex items-center gap-2 tracking-tight"><Info className="w-4 h-4"/> Nome Completo do Ativo</Label>
+                              <Input className="rounded-xl border-slate-200 bg-slate-50/50 h-12 text-base font-bold focus:ring-2 focus:ring-blue-500/20" value={newEquip.name} onChange={e => setNewEquip({...newEquip, name: e.target.value})} placeholder="Ex: Escavadeira CAT 320" />
                             </div>
 
                             <div className="space-y-2">
-                              <Label className="text-[11px] uppercase font-black text-slate-500 tracking-tight">Tipo de Equipamento</Label>
+                              <Label className="text-base uppercase font-black text-slate-500 tracking-tight">Tipo de Equipamento</Label>
                               <Popover>
                                 <PopoverTrigger asChild>
                                   <Button
                                     variant="outline"
                                     role="combobox"
-                                    className="w-full justify-between h-12 rounded-xl border-slate-200 bg-slate-50/50 text-sm font-bold"
+                                    className="w-full justify-between h-12 rounded-xl border-slate-200 bg-slate-50/50 text-base font-bold"
                                   >
                                     {newEquip.type || "Selecione ou digite..."}
                                     <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
@@ -1914,7 +1914,7 @@ export default function ControlView({
                                       <CommandEmpty>
                                         <Button 
                                           variant="ghost" 
-                                          className="w-full justify-start text-xs font-bold text-blue-600 h-10"
+                                          className="w-full justify-start text-base font-bold text-blue-600 h-10"
                                           onClick={() => {
                                             handleAddType(typeSearchTerm);
                                             handleTypeChange(typeSearchTerm);
@@ -1956,9 +1956,9 @@ export default function ControlView({
                               </Popover>
                             </div>
                             <div className="space-y-2">
-                              <Label className="text-[11px] uppercase font-black text-slate-500 tracking-tight">Origem do Ativo</Label>
+                              <Label className="text-base uppercase font-black text-slate-500 tracking-tight">Origem do Ativo</Label>
                               <Select value={newEquip.origin} onValueChange={val => setNewEquip({...newEquip, origin: val})}>
-                                <SelectTrigger className="rounded-xl border-slate-200 bg-slate-50/50 h-12 text-sm font-bold"><SelectValue /></SelectTrigger>
+                                <SelectTrigger className="rounded-xl border-slate-200 bg-slate-50/50 h-12 text-base font-bold"><SelectValue /></SelectTrigger>
                                 <SelectContent>
                                   <SelectItem value="Próprio">Próprio</SelectItem>
                                   <SelectItem value="Alugado">Alugado</SelectItem>
@@ -1969,20 +1969,20 @@ export default function ControlView({
                             {newEquip.origin === 'Alugado' && (
                               <>
                                 <div className="space-y-2">
-                                  <Label className="text-[11px] uppercase font-black text-slate-500 tracking-tight">Proprietário / Locador</Label>
-                                  <Input className="rounded-xl border-slate-200 bg-slate-50/50 h-12 text-sm font-bold" value={newEquip.ownerName} onChange={e => setNewEquip({...newEquip, ownerName: e.target.value})} placeholder="Razão Social" />
+                                  <Label className="text-base uppercase font-black text-slate-500 tracking-tight">Proprietário / Locador</Label>
+                                  <Input className="rounded-xl border-slate-200 bg-slate-50/50 h-12 text-base font-bold" value={newEquip.ownerName} onChange={e => setNewEquip({...newEquip, ownerName: e.target.value})} placeholder="Razão Social" />
                                 </div>
                                 <div className="space-y-2">
-                                  <Label className="text-[11px] uppercase font-black text-slate-500 tracking-tight">CNPJ Proprietário</Label>
-                                  <Input className="rounded-xl border-slate-200 bg-slate-50/50 h-12 text-sm font-bold" value={newEquip.ownerCnpj} onChange={e => setNewEquip({...newEquip, ownerCnpj: e.target.value})} placeholder="00.000.000/0000-00" />
+                                  <Label className="text-base uppercase font-black text-slate-500 tracking-tight">CNPJ Proprietário</Label>
+                                  <Input className="rounded-xl border-slate-200 bg-slate-50/50 h-12 text-base font-bold" value={newEquip.ownerCnpj} onChange={e => setNewEquip({...newEquip, ownerCnpj: e.target.value})} placeholder="00.000.000/0000-00" />
                                 </div>
                               </>
                             )}
 
                             <div className="space-y-2">
-                              <Label className="text-[11px] uppercase font-black text-slate-500 tracking-tight">Situação Operacional</Label>
+                              <Label className="text-base uppercase font-black text-slate-500 tracking-tight">Situação Operacional</Label>
                               <Select value={newEquip.situation} onValueChange={(val: any) => setNewEquip({...newEquip, situation: val})}>
-                                <SelectTrigger className="rounded-xl border-slate-200 bg-slate-50/50 h-12 text-sm font-bold"><SelectValue /></SelectTrigger>
+                                <SelectTrigger className="rounded-xl border-slate-200 bg-slate-50/50 h-12 text-base font-bold"><SelectValue /></SelectTrigger>
                                 <SelectContent>
                                   <SelectItem value="Ativo">Ativo</SelectItem>
                                   <SelectItem value="Inativo">Inativo</SelectItem>
@@ -1992,9 +1992,9 @@ export default function ControlView({
                               </Select>
                             </div>
                             <div className="space-y-2">
-                              <Label className="text-[11px] uppercase font-black text-slate-500 tracking-tight">Medição por</Label>
+                              <Label className="text-base uppercase font-black text-slate-500 tracking-tight">Medição por</Label>
                               <Select value={newEquip.measurementUnit || 'Horímetro'} onValueChange={val => setNewEquip({...newEquip, measurementUnit: val as any})}>
-                                <SelectTrigger className="rounded-xl border-slate-200 bg-slate-50/50 h-12 text-sm font-bold"><SelectValue /></SelectTrigger>
+                                <SelectTrigger className="rounded-xl border-slate-200 bg-slate-50/50 h-12 text-base font-bold"><SelectValue /></SelectTrigger>
                                 <SelectContent>
                                   <SelectItem value="Horímetro">Horímetro (h)</SelectItem>
                                   <SelectItem value="Quilometragem">Quilometragem (km)</SelectItem>
@@ -2003,32 +2003,32 @@ export default function ControlView({
                               </Select>
                             </div>
                             <div className="space-y-2">
-                              <Label className="text-[11px] uppercase font-black text-slate-500 tracking-tight">Leitura Inicial</Label>
-                              <NumericInput className="rounded-xl border-slate-200 bg-slate-50/50 h-12 text-sm font-bold" value={newEquip.currentReading} onChange={val => setNewEquip({...newEquip, currentReading: val})} />
+                              <Label className="text-base uppercase font-black text-slate-500 tracking-tight">Leitura Inicial</Label>
+                              <NumericInput className="rounded-xl border-slate-200 bg-slate-50/50 h-12 text-base font-bold" value={newEquip.currentReading} onChange={val => setNewEquip({...newEquip, currentReading: val})} />
                             </div>
                             <div className="space-y-2">
-                              <Label className="text-[11px] uppercase font-black text-slate-500 tracking-tight">
+                              <Label className="text-base uppercase font-black text-slate-500 tracking-tight">
                                 {newEquip.measurementUnit === 'Horímetro' ? 'Valor Hora' : newEquip.measurementUnit === 'Quilometragem' ? 'Valor KM' : 'Valor Medição'}
                               </Label>
-                              <NumericInput className="rounded-xl border-slate-200 bg-slate-50/50 h-12 text-sm font-bold" value={newEquip.contractedPrice} onChange={val => setNewEquip({...newEquip, contractedPrice: val})} prefix="R$" />
+                              <NumericInput className="rounded-xl border-slate-200 bg-slate-50/50 h-12 text-base font-bold" value={newEquip.contractedPrice} onChange={val => setNewEquip({...newEquip, contractedPrice: val})} prefix="R$" />
                             </div>
                             <div className="space-y-2">
-                              <Label className="text-[11px] uppercase font-black text-slate-500 tracking-tight">Valor Mensal</Label>
-                              <NumericInput className="rounded-xl border-slate-200 bg-slate-50/50 h-12 text-sm font-bold" value={newEquip.monthlyPrice} onChange={val => setNewEquip({...newEquip, monthlyPrice: val})} prefix="R$" />
+                              <Label className="text-base uppercase font-black text-slate-500 tracking-tight">Valor Mensal</Label>
+                              <NumericInput className="rounded-xl border-slate-200 bg-slate-50/50 h-12 text-base font-bold" value={newEquip.monthlyPrice} onChange={val => setNewEquip({...newEquip, monthlyPrice: val})} prefix="R$" />
                             </div>
                             
                             <div className="md:col-span-2 lg:col-span-3 space-y-2">
-                              <Label className="text-[11px] uppercase font-black text-slate-500 tracking-tight">Obra Vinculada (Centro de Custo)</Label>
+                              <Label className="text-base uppercase font-black text-slate-500 tracking-tight">Obra Vinculada (Centro de Custo)</Label>
                               <Select value={newEquip.contractId || '_none_'} onValueChange={val => setNewEquip({...newEquip, contractId: val === "_none_" ? "" : val})} disabled={!!selectedContractId}>
-                                <SelectTrigger className="rounded-xl border-slate-200 bg-slate-50/50 h-12 text-sm font-bold transition-all focus:ring-2 focus:ring-blue-500/20">
+                                <SelectTrigger className="rounded-xl border-slate-200 bg-slate-50/50 h-12 text-base font-bold transition-all focus:ring-2 focus:ring-blue-500/20">
                                   <SelectValue placeholder="Selecione a obra...">
                                     {newEquip.contractId && newEquip.contractId !== "_none_" ? getContractName(newEquip.contractId) : "Sem Obra (Disponível)"}
                                   </SelectValue>
                                 </SelectTrigger>
                                 <SelectContent>
-                                  <SelectItem value="_none_" className="font-bold py-3 uppercase text-[10px] tracking-tight">Sem Obra (Disponível)</SelectItem>
+                                  <SelectItem value="_none_" className="font-bold py-3 uppercase text-base tracking-tight">Sem Obra (Disponível)</SelectItem>
                                   {contracts.filter(c => currentUser?.role === 'master' || c.companyId === currentUser?.companyId || c.id === newEquip.contractId).map(c => (
-                                    <SelectItem key={c.id} value={c.id} className="font-bold py-3 uppercase text-[10px] tracking-tight">
+                                    <SelectItem key={c.id} value={c.id} className="font-bold py-3 uppercase text-base tracking-tight">
                                       {c.workName || c.contractNumber}
                                     </SelectItem>
                                   ))}
@@ -2041,10 +2041,10 @@ export default function ControlView({
                         <TabsContent value="technical" className="mt-0 space-y-4 animate-in slide-in-from-right duration-300">
                           <div className="flex items-center justify-between mb-4">
                             <div>
-                              <h4 className="text-sm font-black text-gray-900 uppercase">Especificações do Equipamento</h4>
-                              <p className="text-[10px] text-gray-500 font-bold uppercase">Campos personalizados salvos em JSONB</p>
+                              <h4 className="text-base font-black text-gray-900 uppercase">Especificações do Equipamento</h4>
+                              <p className="text-base text-gray-500 font-bold uppercase">Campos personalizados salvos em JSONB</p>
                             </div>
-                            <Button variant="outline" size="sm" onClick={addCustomField} className="rounded-xl gap-2 font-bold text-xs text-blue-600 border-blue-100 hover:bg-blue-50">
+                            <Button variant="outline" size="sm" onClick={addCustomField} className="rounded-xl gap-2 font-bold text-base text-blue-600 border-blue-100 hover:bg-blue-50">
                               <Plus className="w-4 h-4" /> Adicionar Campo
                             </Button>
                           </div>
@@ -2052,20 +2052,20 @@ export default function ControlView({
                           <div className="grid grid-cols-2 gap-6 bg-gray-50/50 p-6 rounded-3xl border border-gray-100 border-dashed">
                             {/* Standard Technical Fields moved from Basic */}
                             <div className="space-y-2">
-                              <Label className="text-[10px] uppercase font-black text-blue-600 tracking-tight">Marca / Fabricante</Label>
-                              <Input className="rounded-xl bg-white border-gray-100 h-10 font-bold text-xs" value={newEquip.brand} onChange={e => setNewEquip({...newEquip, brand: e.target.value})} placeholder="Ex: Caterpillar" />
+                              <Label className="text-base uppercase font-black text-blue-600 tracking-tight">Marca / Fabricante</Label>
+                              <Input className="rounded-xl bg-white border-gray-100 h-10 font-bold text-base" value={newEquip.brand} onChange={e => setNewEquip({...newEquip, brand: e.target.value})} placeholder="Ex: Caterpillar" />
                             </div>
                             <div className="space-y-2">
-                              <Label className="text-[10px] uppercase font-black text-blue-600 tracking-tight">Modelo / Versão</Label>
-                              <Input className="rounded-xl bg-white border-gray-100 h-10 font-bold text-xs" value={newEquip.model} onChange={e => setNewEquip({...newEquip, model: e.target.value})} placeholder="Ex: 320 NG" />
+                              <Label className="text-base uppercase font-black text-blue-600 tracking-tight">Modelo / Versão</Label>
+                              <Input className="rounded-xl bg-white border-gray-100 h-10 font-bold text-base" value={newEquip.model} onChange={e => setNewEquip({...newEquip, model: e.target.value})} placeholder="Ex: 320 NG" />
                             </div>
                             <div className="space-y-2">
-                              <Label className="text-[10px] uppercase font-black text-blue-600 tracking-tight">Ano de Fabricação</Label>
-                              <Input type="number" className="rounded-xl bg-white border-gray-100 h-10 font-bold text-xs" value={newEquip.year} onChange={e => setNewEquip({...newEquip, year: parseInt(e.target.value)})} />
+                              <Label className="text-base uppercase font-black text-blue-600 tracking-tight">Ano de Fabricação</Label>
+                              <Input type="number" className="rounded-xl bg-white border-gray-100 h-10 font-bold text-base" value={newEquip.year} onChange={e => setNewEquip({...newEquip, year: parseInt(e.target.value)})} />
                             </div>
                             <div className="space-y-2">
-                              <Label className="text-[10px] uppercase font-black text-blue-600 tracking-tight">Placa ou Serial</Label>
-                              <Input className="rounded-xl bg-white border-gray-100 h-10 font-bold text-xs" value={newEquip.plate} onChange={e => setNewEquip({...newEquip, plate: e.target.value})} placeholder="ABC-1234" />
+                              <Label className="text-base uppercase font-black text-blue-600 tracking-tight">Placa ou Serial</Label>
+                              <Input className="rounded-xl bg-white border-gray-100 h-10 font-bold text-base" value={newEquip.plate} onChange={e => setNewEquip({...newEquip, plate: e.target.value})} placeholder="ABC-1234" />
                             </div>
 
                             {Object.entries(newEquip.customFields || {}).map(([key, f]) => {
@@ -2073,7 +2073,7 @@ export default function ControlView({
                               return (
                                 <div key={key} className="space-y-2 group relative animate-in fade-in zoom-in duration-300">
                                   <div className="flex items-center justify-between">
-                                    <Label className="text-[10px] uppercase font-black text-blue-600 tracking-tight flex items-center gap-2">
+                                    <Label className="text-base uppercase font-black text-blue-600 tracking-tight flex items-center gap-2">
                                       <Activity className="w-3 h-3" />
                                       {key.replace(/_/g, ' ')}
                                     </Label>
@@ -2085,18 +2085,18 @@ export default function ControlView({
                                   {field.type === 'boolean' ? (
                                     <div className="flex items-center gap-2 h-10 px-4 bg-white rounded-xl border border-gray-100">
                                       <Switch checked={field.value} onCheckedChange={v => updateCustomField(key, { value: v })} />
-                                      <span className="text-xs font-bold text-gray-600 uppercase">{field.value ? 'Sim' : 'Não'}</span>
+                                      <span className="text-base font-bold text-gray-600 uppercase">{field.value ? 'Sim' : 'Não'}</span>
                                     </div>
                                   ) : field.type === 'select' ? (
                                     <Select value={field.value} onValueChange={v => updateCustomField(key, { value: v })}>
-                                      <SelectTrigger className="rounded-xl bg-white border-gray-100 h-10 font-bold text-xs"><SelectValue /></SelectTrigger>
+                                      <SelectTrigger className="rounded-xl bg-white border-gray-100 h-10 font-bold text-base"><SelectValue /></SelectTrigger>
                                       <SelectContent>
                                         {field.options?.map(opt => <SelectItem key={opt} value={opt}>{opt}</SelectItem>)}
                                       </SelectContent>
                                     </Select>
                                   ) : (
                                     <Input 
-                                      className="rounded-xl bg-white border-gray-100 h-10 font-bold text-xs" 
+                                      className="rounded-xl bg-white border-gray-100 h-10 font-bold text-base" 
                                       type={field.type === 'number' ? 'number' : 'text'}
                                       value={field.value}
                                       onChange={e => updateCustomField(key, { value: field.type === 'number' ? parseFloat(e.target.value) : e.target.value })}
@@ -2108,7 +2108,7 @@ export default function ControlView({
                             {Object.keys(newEquip.customFields || {}).length === 0 && (
                               <div className="col-span-2 py-10 flex flex-col items-center justify-center opacity-30">
                                 <Settings className="w-10 h-10 mb-2" />
-                                <p className="text-xs font-bold uppercase tracking-widest text-center">Nenhum campo personalizado.<br/>Selecione um tipo ou adicione campos manuais.</p>
+                                <p className="text-base font-bold uppercase tracking-widest text-center">Nenhum campo personalizado.<br/>Selecione um tipo ou adicione campos manuais.</p>
                               </div>
                             )}
                           </div>
@@ -2116,9 +2116,9 @@ export default function ControlView({
 
                         <TabsContent value="obs" className="mt-0 space-y-4 animate-in slide-in-from-right duration-300">
                            <div className="space-y-1.5">
-                              <Label className="text-[10px] uppercase font-bold text-gray-400">Observações Gerais</Label>
+                              <Label className="text-base uppercase font-bold text-gray-400">Observações Gerais</Label>
                               <textarea 
-                                className="w-full min-h-[150px] rounded-2xl border-gray-100 bg-gray-50/50 p-4 text-sm font-medium focus:ring-1 focus:ring-blue-500 outline-none transition-all"
+                                className="w-full min-h-[150px] rounded-2xl border-gray-100 bg-gray-50/50 p-4 text-base font-medium focus:ring-1 focus:ring-blue-500 outline-none transition-all"
                                 value={newEquip.observations}
                                 onChange={e => setNewEquip({...newEquip, observations: e.target.value})}
                                 placeholder="Descreva aqui detalhes adicionais, histórico ou informações relevantes..."
@@ -2128,22 +2128,22 @@ export default function ControlView({
 
                         <TabsContent value="history" className="mt-0 space-y-4 animate-in slide-in-from-bottom duration-300">
                           <div className="space-y-4">
-                            <h4 className="text-sm font-black text-gray-900 uppercase">Histórico do Equipamento</h4>
+                            <h4 className="text-base font-black text-gray-900 uppercase">Histórico do Equipamento</h4>
                             <div className="space-y-3">
                               {(newEquip.history || []).map(entry => (
                                 <div key={entry.id} className="p-4 bg-white rounded-2xl border border-gray-100 shadow-sm relative overflow-hidden group">
                                   <div className="absolute left-0 top-0 bottom-0 w-1 bg-blue-600" />
                                   <div className="flex justify-between items-start mb-2">
                                     <div>
-                                      <Badge variant="outline" className="text-[8px] font-black uppercase mb-1">{entry.type}</Badge>
-                                      <p className="text-xs font-black text-gray-900">{entry.description}</p>
+                                      <Badge variant="outline" className="text-sm font-black uppercase mb-1">{entry.type}</Badge>
+                                      <p className="text-base font-black text-gray-900">{entry.description}</p>
                                     </div>
-                                    <span className="text-[10px] font-bold text-gray-400">{new Date(entry.date).toLocaleDateString('pt-BR')}</span>
+                                    <span className="text-base font-bold text-gray-400">{new Date(entry.date).toLocaleDateString('pt-BR')}</span>
                                   </div>
                                   {entry.parts && entry.parts.length > 0 && (
                                     <div className="flex flex-wrap gap-1 mt-2">
                                       {entry.parts.map((p, idx) => (
-                                        <Badge key={idx} variant="secondary" className="text-[9px] bg-gray-50 text-gray-500">
+                                        <Badge key={idx} variant="secondary" className="text-sm bg-gray-50 text-gray-500">
                                           {p.quantity} {p.unit} - {p.description}
                                         </Badge>
                                       ))}
@@ -2154,7 +2154,7 @@ export default function ControlView({
                               {(!newEquip.history || newEquip.history.length === 0) && (
                                 <div className="py-10 text-center opacity-30">
                                   <History className="w-10 h-10 mx-auto mb-2" />
-                                  <p className="text-[10px] font-black uppercase tracking-widest">Nenhum registro no histórico</p>
+                                  <p className="text-base font-black uppercase tracking-widest">Nenhum registro no histórico</p>
                                 </div>
                               )}
                             </div>
@@ -2164,8 +2164,8 @@ export default function ControlView({
                         <TabsContent value="photos" className="mt-0 space-y-4 animate-in slide-in-from-top duration-300">
                           <div className="space-y-4">
                             <div className="flex items-center justify-between">
-                              <h4 className="text-sm font-black text-gray-900 uppercase">Fotos do Equipamento</h4>
-                              <p className="text-[10px] text-gray-500 font-bold uppercase tracking-tighter">Armazenado em Supabase Bucket: equipments</p>
+                              <h4 className="text-base font-black text-gray-900 uppercase">Fotos do Equipamento</h4>
+                              <p className="text-base text-gray-500 font-bold uppercase tracking-tighter">Armazenado em Supabase Bucket: equipments</p>
                             </div>
                             
                             <div className="grid grid-cols-4 gap-4">
@@ -2181,7 +2181,7 @@ export default function ControlView({
                               ))}
                               <label className="aspect-square rounded-2xl border-2 border-dashed border-gray-200 flex flex-col items-center justify-center gap-2 cursor-pointer hover:bg-gray-50 transition-colors">
                                 <Camera className="w-8 h-8 text-gray-300" />
-                                <span className="text-[8px] font-black uppercase text-gray-400">Adicionar Foto</span>
+                                <span className="text-sm font-black uppercase text-gray-400">Adicionar Foto</span>
                                 <input type="file" className="hidden" accept="image/*" onChange={async (e) => {
                                   const file = e.target.files?.[0];
                                   if (file) {
@@ -2217,8 +2217,8 @@ export default function ControlView({
                       </div>
 
                       <div className="p-6 bg-gray-50 border-t flex flex-col sm:flex-row gap-3 rounded-b-2xl">
-                        <Button variant="ghost" onClick={() => setIsAddOpen(false)} className="rounded-xl font-bold uppercase text-[10px] tracking-widest h-12 px-6">Cancelar</Button>
-                        <Button onClick={handleCreateEquip} className="flex-1 h-12 rounded-2xl bg-blue-600 hover:bg-blue-700 shadow-xl shadow-blue-100 font-black uppercase text-[10px] tracking-widest transition-all active:scale-95">
+                        <Button variant="ghost" onClick={() => setIsAddOpen(false)} className="rounded-xl font-bold uppercase text-base tracking-widest h-12 px-6">Cancelar</Button>
+                        <Button onClick={handleCreateEquip} className="flex-1 h-12 rounded-2xl bg-blue-600 hover:bg-blue-700 shadow-xl shadow-blue-100 font-black uppercase text-base tracking-widest transition-all active:scale-95">
                           <Check className="w-4 h-4 mr-2" /> Salvar Equipamento no SIGO
                         </Button>
                       </div>
@@ -2231,7 +2231,7 @@ export default function ControlView({
                 <TableHeader className="bg-gray-50/50">
                   <TableRow>
                     <TableHead 
-                      className="font-black text-[10px] h-8 uppercase tracking-widest text-slate-500 py-0 cursor-pointer hover:bg-slate-100/50 transition-colors min-w-[250px]"
+                      className="font-black text-base h-8 uppercase tracking-widest text-slate-500 py-0 cursor-pointer hover:bg-slate-100/50 transition-colors min-w-[250px]"
                       onClick={() => handleSort('name')}
                     >
                       <div className="flex items-center gap-2">
@@ -2240,12 +2240,12 @@ export default function ControlView({
                       </div>
                     </TableHead>
                     <TableHead 
-                      className="font-black text-[10px] h-8 uppercase tracking-widest text-slate-500 py-0 min-w-[180px]"
+                      className="font-black text-base h-8 uppercase tracking-widest text-slate-500 py-0 min-w-[180px]"
                     >
                       C. Custo / Obra
                     </TableHead>
                     <TableHead 
-                      className="font-black text-[10px] h-8 uppercase tracking-widest text-slate-500 cursor-pointer hover:bg-slate-100/50 transition-colors"
+                      className="font-black text-base h-8 uppercase tracking-widest text-slate-500 cursor-pointer hover:bg-slate-100/50 transition-colors"
                       onClick={() => handleSort('category')}
                     >
                       <div className="flex items-center gap-2">
@@ -2254,7 +2254,7 @@ export default function ControlView({
                       </div>
                     </TableHead>
                     <TableHead 
-                      className="font-black text-[10px] h-8 uppercase tracking-widest text-slate-500 text-center cursor-pointer hover:bg-slate-100/50 transition-colors"
+                      className="font-black text-base h-8 uppercase tracking-widest text-slate-500 text-center cursor-pointer hover:bg-slate-100/50 transition-colors"
                       onClick={() => handleSort('origin')}
                     >
                       <div className="flex items-center justify-center gap-2">
@@ -2263,7 +2263,7 @@ export default function ControlView({
                       </div>
                     </TableHead>
                     <TableHead 
-                      className="font-black text-[10px] h-8 uppercase tracking-widest text-slate-500 text-right cursor-pointer hover:bg-slate-100/50 transition-colors"
+                      className="font-black text-base h-8 uppercase tracking-widest text-slate-500 text-right cursor-pointer hover:bg-slate-100/50 transition-colors"
                       onClick={() => handleSort('cost')}
                     >
                       <div className="flex items-center justify-end gap-2">
@@ -2294,15 +2294,15 @@ export default function ControlView({
                           </div>
                           <div>
                             <div className="flex items-center gap-1.5 leading-none">
-                              <p className={cn("font-bold text-[13px] tracking-tight", e.exitDate ? "text-gray-400 line-through" : "text-gray-900")}>
+                              <p className={cn("font-bold text-base tracking-tight", e.exitDate ? "text-gray-400 line-through" : "text-gray-900")}>
                                 {e.name}
                               </p>
-                              <Badge variant="outline" className="text-[8px] font-bold uppercase py-0 px-1.5 h-3.5 bg-slate-50 text-slate-500 border-slate-200">
+                              <Badge variant="outline" className="text-sm font-bold uppercase py-0 px-1.5 h-3.5 bg-slate-50 text-slate-500 border-slate-200">
                                 {e.code || 'S/C'}
                               </Badge>
                             </div>
                             <div className="flex items-center gap-1.5 mt-0.5">
-                              <p className="text-[9px] text-gray-500 font-bold uppercase tracking-tight">
+                              <p className="text-sm text-gray-500 font-bold uppercase tracking-tight">
                                 {e.brand} {e.model} • <span className="text-blue-600 font-bold">{e.type}</span> • {e.plate}
                               </p>
                             </div>
@@ -2310,11 +2310,11 @@ export default function ControlView({
                         </div>
                       </TableCell>
                       <TableCell className="py-0.5">
-                        <span className="text-[10px] font-bold text-blue-600 uppercase tracking-tighter truncate max-w-[150px] inline-block">{getContractName(e.contractId)}</span>
+                        <span className="text-base font-bold text-blue-600 uppercase tracking-tighter truncate max-w-[150px] inline-block">{getContractName(e.contractId)}</span>
                       </TableCell>
-                      <TableCell className="py-0.5 text-[10px] font-bold text-slate-500 uppercase tracking-tight">{e.category}</TableCell>
-                      <TableCell className="py-0.5 text-center font-black uppercase text-[9px] tracking-widest"><Badge variant="outline" className={cn("rounded-lg h-5 px-2", e.origin === 'Próprio' ? "bg-blue-50 text-blue-700 border-blue-100" : "bg-amber-50 text-amber-700 border-amber-100")}>{e.origin}</Badge></TableCell>
-                      <TableCell className="py-0.5 text-right font-mono text-[10px] font-black text-slate-700">
+                      <TableCell className="py-0.5 text-base font-bold text-slate-500 uppercase tracking-tight">{e.category}</TableCell>
+                      <TableCell className="py-0.5 text-center font-black uppercase text-sm tracking-widest"><Badge variant="outline" className={cn("rounded-lg h-5 px-2", e.origin === 'Próprio' ? "bg-blue-50 text-blue-700 border-blue-100" : "bg-amber-50 text-amber-700 border-amber-100")}>{e.origin}</Badge></TableCell>
+                      <TableCell className="py-0.5 text-right font-mono text-base font-black text-slate-700">
                         {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(
                           (() => {
                             if (priceDisplayMode === 'monthly') {
@@ -2444,28 +2444,28 @@ export default function ControlView({
                 <div className="p-2 bg-emerald-50 rounded-xl"><Wrench className="w-5 h-5 text-emerald-600" /></div>
                 <div>
                   <CardTitle className="text-lg font-black">{showAllMaintenance ? "Histórico de Manutenções" : "Equipamentos em Manutenção"}</CardTitle>
-                  <CardDescription className="text-[10px] uppercase font-bold text-gray-400">{showAllMaintenance ? "Registro completo de manutenções" : "Frota atualmente indisponível para operação"}</CardDescription>
+                  <CardDescription className="text-base uppercase font-bold text-gray-400">{showAllMaintenance ? "Registro completo de manutenções" : "Frota atualmente indisponível para operação"}</CardDescription>
                 </div>
               </div>
               <div className="flex items-center gap-2">
                 <Checkbox id="showAllMain" checked={showAllMaintenance} onCheckedChange={(c) => setShowAllMaintenance(!!c)} />
-                <Label htmlFor="showAllMain" className="text-[10px] font-bold uppercase text-gray-600">Mostrar Histórico</Label>
+                <Label htmlFor="showAllMain" className="text-base font-bold uppercase text-gray-600">Mostrar Histórico</Label>
               </div>
             </CardHeader>
             <CardContent className="p-0">
               <Table>
                 <TableHeader className="bg-gray-50/50">
                   <TableRow>
-                    <TableHead className="font-bold text-[10px] uppercase tracking-widest text-gray-400 py-5">Equipamento</TableHead>
-                    <TableHead className="font-bold text-[10px] uppercase tracking-widest text-gray-400">Início Manut.</TableHead>
-                    {!showAllMaintenance && <TableHead className="font-bold text-[10px] uppercase tracking-widest text-gray-400">Dias</TableHead>}
-                    {showAllMaintenance && <TableHead className="font-bold text-[10px] uppercase tracking-widest text-gray-400">Saída</TableHead>}
-                    <TableHead className="font-bold text-[10px] uppercase tracking-widest text-gray-400">Tipo</TableHead>
-                    {!showAllMaintenance && <TableHead className="font-bold text-[10px] uppercase tracking-widest text-gray-400">Obra Atual</TableHead>}
-                    {!showAllMaintenance && <TableHead className="font-bold text-[10px] uppercase tracking-widest text-gray-400">Porte / Cat.</TableHead>}
-                    {!showAllMaintenance && <TableHead className="font-bold text-[10px] uppercase tracking-widest text-gray-400">Origem</TableHead>}
-                    {showAllMaintenance && <TableHead className="font-bold text-[10px] uppercase tracking-widest text-gray-400">Custo</TableHead>}
-                    {showAllMaintenance && <TableHead className="font-bold text-[10px] uppercase tracking-widest text-gray-400">Itens</TableHead>}
+                    <TableHead className="font-bold text-base uppercase tracking-widest text-gray-400 py-5">Equipamento</TableHead>
+                    <TableHead className="font-bold text-base uppercase tracking-widest text-gray-400">Início Manut.</TableHead>
+                    {!showAllMaintenance && <TableHead className="font-bold text-base uppercase tracking-widest text-gray-400">Dias</TableHead>}
+                    {showAllMaintenance && <TableHead className="font-bold text-base uppercase tracking-widest text-gray-400">Saída</TableHead>}
+                    <TableHead className="font-bold text-base uppercase tracking-widest text-gray-400">Tipo</TableHead>
+                    {!showAllMaintenance && <TableHead className="font-bold text-base uppercase tracking-widest text-gray-400">Obra Atual</TableHead>}
+                    {!showAllMaintenance && <TableHead className="font-bold text-base uppercase tracking-widest text-gray-400">Porte / Cat.</TableHead>}
+                    {!showAllMaintenance && <TableHead className="font-bold text-base uppercase tracking-widest text-gray-400">Origem</TableHead>}
+                    {showAllMaintenance && <TableHead className="font-bold text-base uppercase tracking-widest text-gray-400">Custo</TableHead>}
+                    {showAllMaintenance && <TableHead className="font-bold text-base uppercase tracking-widest text-gray-400">Itens</TableHead>}
                     <TableHead className="w-[120px]"></TableHead>
                   </TableRow>
                 </TableHeader>
@@ -2479,16 +2479,16 @@ export default function ControlView({
                             <TableRow key={m.id} className="hover:bg-gray-50 transition-colors">
                               <TableCell>
                                 <p className="font-bold text-gray-900">{equip?.name || 'Equipamento Excluído'}</p>
-                                <p className="text-[10px] text-gray-500 uppercase">{equip?.plate || '-'}</p>
+                                <p className="text-base text-gray-500 uppercase">{equip?.plate || '-'}</p>
                               </TableCell>
-                              <TableCell className="text-xs font-mono text-gray-600">{new Date(m.entryDate + 'T12:00:00').toLocaleDateString('pt-BR')}</TableCell>
-                              <TableCell className="text-xs font-mono text-gray-600">{m.exitDate ? new Date(m.exitDate + 'T12:00:00').toLocaleDateString('pt-BR') : <Badge className="bg-blue-50 text-blue-600 border-none">Em aberto</Badge>}</TableCell>
+                              <TableCell className="text-base font-mono text-gray-600">{new Date(m.entryDate + 'T12:00:00').toLocaleDateString('pt-BR')}</TableCell>
+                              <TableCell className="text-base font-mono text-gray-600">{m.exitDate ? new Date(m.exitDate + 'T12:00:00').toLocaleDateString('pt-BR') : <Badge className="bg-blue-50 text-blue-600 border-none">Em aberto</Badge>}</TableCell>
                               <TableCell>
-                                <Badge variant="outline" className={cn("text-[9px] uppercase font-black rounded-lg", m.type === 'preventive' ? "bg-emerald-50 text-emerald-600" : "bg-red-50 text-red-600")}>
+                                <Badge variant="outline" className={cn("text-sm uppercase font-black rounded-lg", m.type === 'preventive' ? "bg-emerald-50 text-emerald-600" : "bg-red-50 text-red-600")}>
                                   {m.type === 'preventive' ? 'Preventiva' : 'Corretiva'}
                                 </Badge>
                               </TableCell>
-                              <TableCell className="text-xs font-black text-gray-900 text-right">{m.totalCost ? `R$ ${m.totalCost.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : '-'}</TableCell>
+                              <TableCell className="text-base font-black text-gray-900 text-right">{m.totalCost ? `R$ ${m.totalCost.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : '-'}</TableCell>
                               <TableCell className="max-w-[150px] truncate" title={m.requestedItems}>{m.requestedItems || '-'}</TableCell>
                               <TableCell></TableCell>
                             </TableRow>
@@ -2507,14 +2507,14 @@ export default function ControlView({
                         <div className="flex items-center gap-3">
                           <div>
                             <p className="font-bold text-gray-900">{e.name}</p>
-                            <p className="text-[10px] text-gray-500 uppercase">{e.model} - {e.plate}</p>
+                            <p className="text-base text-gray-500 uppercase">{e.model} - {e.plate}</p>
                           </div>
                         </div>
                       </TableCell>
-                      <TableCell className="text-xs font-mono text-gray-600">
+                      <TableCell className="text-base font-mono text-gray-600">
                         {e.maintenance_entry_date ? new Date(e.maintenance_entry_date + 'T12:00:00').toLocaleDateString('pt-BR') : '-'}
                       </TableCell>
-                      <TableCell className="text-xs font-bold text-gray-900">
+                      <TableCell className="text-base font-bold text-gray-900">
                         {e.maintenance_entry_date ? (
                           (() => {
                             const entry = new Date(e.maintenance_entry_date + 'T12:00:00');
@@ -2529,7 +2529,7 @@ export default function ControlView({
                       <TableCell>
                         {e.maintenance_type ? (
                           <Badge variant="outline" className={cn(
-                            "text-[9px] uppercase font-black rounded-lg",
+                            "text-sm uppercase font-black rounded-lg",
                             e.maintenance_type === 'preventive' ? "bg-emerald-50 text-emerald-600 border-emerald-100" : "bg-red-50 text-red-600 border-red-100"
                           )}>
                             {e.maintenance_type === 'preventive' ? 'Preventiva' : 'Corretiva'}
@@ -2537,11 +2537,11 @@ export default function ControlView({
                         ) : '-'}
                       </TableCell>
                       <TableCell>
-                        <span className="text-xs font-bold text-blue-600">{getContractName(e.contractId)}</span>
+                        <span className="text-base font-bold text-blue-600">{getContractName(e.contractId)}</span>
                       </TableCell>
-                      <TableCell className="text-xs font-medium text-gray-600">{e.category}</TableCell>
+                      <TableCell className="text-base font-medium text-gray-600">{e.category}</TableCell>
                       <TableCell className="text-center">
-                        <Badge variant="outline" className={cn("text-[10px] font-bold rounded-lg", e.origin === 'Próprio' ? "bg-blue-50 text-blue-700" : "bg-amber-50 text-amber-700")}>
+                        <Badge variant="outline" className={cn("text-base font-bold rounded-lg", e.origin === 'Próprio' ? "bg-blue-50 text-blue-700" : "bg-amber-50 text-amber-700")}>
                           {e.origin}
                         </Badge>
                       </TableCell>
@@ -2572,7 +2572,7 @@ export default function ControlView({
                             variant="outline" 
                             size="sm" 
                             onClick={() => handleToggleMaintenance(e)}
-                            className="h-8 rounded-lg bg-blue-50 text-blue-600 border-blue-100 font-bold text-[10px]"
+                            className="h-8 rounded-lg bg-blue-50 text-blue-600 border-blue-100 font-bold text-base"
                           >
                             <Wrench className="w-3 h-3 mr-1" />
                             Finalizar Manutenção
@@ -2586,7 +2586,7 @@ export default function ControlView({
                       <TableCell colSpan={4} className="text-center py-20">
                          <div className="flex flex-col items-center justify-center opacity-30">
                             <Wrench className="w-10 h-10 mb-2" />
-                            <p className="text-xs font-bold uppercase tracking-widest">Nenhum equipamento em manutenção</p>
+                            <p className="text-base font-bold uppercase tracking-widest">Nenhum equipamento em manutenção</p>
                          </div>
                       </TableCell>
                     </TableRow>
@@ -2604,7 +2604,7 @@ export default function ControlView({
                 <div className="p-2 bg-orange-50 rounded-xl"><ArrowRightLeft className="w-5 h-5 text-orange-600" /></div>
                 <div>
                   <CardTitle className="text-lg font-black">Histórico e Aprovações</CardTitle>
-                  <CardDescription className="text-[10px] uppercase font-bold text-gray-400">Gerencie transferências entre obras</CardDescription>
+                  <CardDescription className="text-base uppercase font-bold text-gray-400">Gerencie transferências entre obras</CardDescription>
                 </div>
               </div>
             </CardHeader>
@@ -2612,11 +2612,11 @@ export default function ControlView({
               <Table>
                 <TableHeader className="bg-gray-50/50">
                   <TableRow>
-                    <TableHead className="font-bold text-[10px] uppercase tracking-widest text-gray-400 py-5">Equipamento</TableHead>
-                    <TableHead className="font-bold text-[10px] uppercase tracking-widest text-gray-400">Origem (Obra)</TableHead>
-                    <TableHead className="font-bold text-[10px] uppercase tracking-widest text-gray-400">Destino (Obra)</TableHead>
-                    <TableHead className="font-bold text-[10px] uppercase tracking-widest text-gray-400">Data Transferência</TableHead>
-                    <TableHead className="font-bold text-[10px] uppercase tracking-widest text-gray-400">Status</TableHead>
+                    <TableHead className="font-bold text-base uppercase tracking-widest text-gray-400 py-5">Equipamento</TableHead>
+                    <TableHead className="font-bold text-base uppercase tracking-widest text-gray-400">Origem (Obra)</TableHead>
+                    <TableHead className="font-bold text-base uppercase tracking-widest text-gray-400">Destino (Obra)</TableHead>
+                    <TableHead className="font-bold text-base uppercase tracking-widest text-gray-400">Data Transferência</TableHead>
+                    <TableHead className="font-bold text-base uppercase tracking-widest text-gray-400">Status</TableHead>
                     <TableHead className="w-[120px]"></TableHead>
                   </TableRow>
                 </TableHeader>
@@ -2645,18 +2645,18 @@ export default function ControlView({
                             <Truck className="w-4 h-4 text-gray-400" />
                             <div>
                                 <p className="font-bold text-gray-900">{equip?.name}</p>
-                                <p className="text-[10px] text-gray-500 uppercase">{equip?.plate}</p>
+                                <p className="text-base text-gray-500 uppercase">{equip?.plate}</p>
                             </div>
                           </div>
                         </TableCell>
-                        <TableCell className="text-xs font-bold text-gray-600">{source?.workName || source?.contractNumber || 'Obra não encontrada'}</TableCell>
-                        <TableCell className="text-xs font-bold text-blue-600">{target?.workName || target?.contractNumber || 'Obra não encontrada'}</TableCell>
-                        <TableCell className="text-xs font-medium text-gray-600 font-mono">{new Date(t.transferDate + 'T12:00:00').toLocaleDateString('pt-BR')}</TableCell>
+                        <TableCell className="text-base font-bold text-gray-600">{source?.workName || source?.contractNumber || 'Obra não encontrada'}</TableCell>
+                        <TableCell className="text-base font-bold text-blue-600">{target?.workName || target?.contractNumber || 'Obra não encontrada'}</TableCell>
+                        <TableCell className="text-base font-medium text-gray-600 font-mono">{new Date(t.transferDate + 'T12:00:00').toLocaleDateString('pt-BR')}</TableCell>
                         <TableCell>
                           <Badge 
                             variant="outline" 
                             className={cn(
-                              "text-[10px] font-black uppercase rounded-lg",
+                              "text-base font-black uppercase rounded-lg",
                               t.status === 'pending' ? "bg-orange-50 text-orange-600" :
                               t.status === 'approved' ? "bg-emerald-50 text-emerald-600" : "bg-red-50 text-red-600"
                             )}
@@ -2671,7 +2671,7 @@ export default function ControlView({
                                 size="sm" 
                                 variant="outline" 
                                 onClick={() => handleApproveTransfer(t)}
-                                className="h-8 rounded-lg bg-emerald-50 text-emerald-700 border-emerald-100 hover:bg-emerald-100 text-[10px] font-bold"
+                                className="h-8 rounded-lg bg-emerald-50 text-emerald-700 border-emerald-100 hover:bg-emerald-100 text-base font-bold"
                               >
                                 Aprovar
                               </Button>
@@ -2679,7 +2679,7 @@ export default function ControlView({
                                 size="sm" 
                                 variant="outline" 
                                 onClick={() => handleRejectTransfer(t)}
-                                className="h-8 rounded-lg bg-red-50 text-red-700 border-red-100 hover:bg-red-100 text-[10px] font-bold"
+                                className="h-8 rounded-lg bg-red-50 text-red-700 border-red-100 hover:bg-red-100 text-base font-bold"
                               >
                                 Rejeitar
                               </Button>
@@ -2694,7 +2694,7 @@ export default function ControlView({
                       <TableCell colSpan={6} className="text-center py-20">
                          <div className="flex flex-col items-center justify-center opacity-30">
                             <ArrowRightLeft className="w-10 h-10 mb-2" />
-                            <p className="text-xs font-bold uppercase tracking-widest">Nenhuma transferência registrada</p>
+                            <p className="text-base font-bold uppercase tracking-widest">Nenhuma transferência registrada</p>
                          </div>
                       </TableCell>
                     </TableRow>
@@ -2713,7 +2713,7 @@ export default function ControlView({
                   <div className="p-2 bg-blue-50 rounded-xl"><Droplet className="w-5 h-5 text-blue-600" /></div>
                   <CardTitle className="text-lg font-black">Reservatórios</CardTitle>
                 </div>
-                <Button size="sm" variant="outline" className="rounded-xl font-bold gap-2 text-xs" onClick={() => {
+                <Button size="sm" variant="outline" className="rounded-xl font-bold gap-2 text-base" onClick={() => {
                   setEditingTankId(null);
                   setNewTank({ name: '', capacity: 0, currentLevel: 0, fuelType: 'Diesel S10' });
                   setCustomFuel('');
@@ -2741,11 +2741,11 @@ export default function ControlView({
                             </Button>
                           </div>
                           <div className="flex items-center gap-2">
-                            <p className="text-[10px] uppercase font-bold text-gray-500">{getContractName(tank.contractId)}</p>
-                            <Badge variant="outline" className="text-[8px] px-1 h-3.5 bg-blue-50 text-blue-600 border-blue-100 font-black">{tank.fuelType || 'Diesel S10'}</Badge>
+                            <p className="text-base uppercase font-bold text-gray-500">{getContractName(tank.contractId)}</p>
+                            <Badge variant="outline" className="text-sm px-1 h-3.5 bg-blue-50 text-blue-600 border-blue-100 font-black">{tank.fuelType || 'Diesel S10'}</Badge>
                           </div>
                         </div>
-                        <p className="font-mono font-black text-sm">{tank.currentLevel} / {tank.capacity} L</p>
+                        <p className="font-mono font-black text-base">{tank.currentLevel} / {tank.capacity} L</p>
                       </div>
                       <div className="h-4 bg-gray-200 rounded-full overflow-hidden mt-3 max-w-[80%] relative z-10">
                         <motion.div 
@@ -2761,7 +2761,7 @@ export default function ControlView({
                 {fuelTanks.filter(t => !selectedContractId || t.contractId === selectedContractId).length === 0 && (
                   <div className="text-center py-10 opacity-30">
                     <Fuel className="w-8 h-8 mx-auto mb-2" />
-                    <p className="text-xs font-bold uppercase">Nenhum reservatório cadastrado</p>
+                    <p className="text-base font-bold uppercase">Nenhum reservatório cadastrado</p>
                   </div>
                 )}
               </CardContent>
@@ -2773,18 +2773,18 @@ export default function ControlView({
                   <div className="p-2 bg-purple-50 rounded-xl"><Fuel className="w-5 h-5 text-purple-600" /></div>
                   <div>
                     <CardTitle className="text-lg font-black">Histórico de Abastecimentos</CardTitle>
-                    <CardDescription className="text-[10px] uppercase font-bold text-gray-400">Entradas e saídas de combustível</CardDescription>
+                    <CardDescription className="text-base uppercase font-bold text-gray-400">Entradas e saídas de combustível</CardDescription>
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  <Button size="sm" variant="outline" className="rounded-xl font-bold gap-2 text-xs text-purple-700 bg-purple-50 border-purple-100 hover:bg-purple-100" onClick={() => {
+                  <Button size="sm" variant="outline" className="rounded-xl font-bold gap-2 text-base text-purple-700 bg-purple-50 border-purple-100 hover:bg-purple-100" onClick={() => {
                     setEditingFuelLogId(null);
                     setNewFuelLog({ type: 'entrada', date: new Date().toISOString().split('T')[0], quantity: 0, tankId: '', equipmentId: '', supplier: '', invoiceNumber: '', unitPrice: undefined, cost: undefined });
                     setIsFuelLogModalOpen(true);
                   }}>
                     <Plus className="w-4 h-4" /> Nova Entrada
                   </Button>
-                  <Button size="sm" variant="outline" className="rounded-xl font-bold gap-2 text-xs text-orange-700 bg-orange-50 border-orange-100 hover:bg-orange-100" onClick={() => {
+                  <Button size="sm" variant="outline" className="rounded-xl font-bold gap-2 text-base text-orange-700 bg-orange-50 border-orange-100 hover:bg-orange-100" onClick={() => {
                     setEditingFuelLogId(null);
                     setNewFuelLog({ type: 'saida', date: new Date().toISOString().split('T')[0], quantity: 0, tankId: '', equipmentId: '', supplier: '', invoiceNumber: '', unitPrice: undefined, cost: undefined });
                     setIsFuelLogModalOpen(true);
@@ -2797,13 +2797,13 @@ export default function ControlView({
                 <Table>
                   <TableHeader className="bg-gray-50/50">
                     <TableRow>
-                      <TableHead className="font-bold text-[10px] uppercase tracking-widest text-gray-400 py-4">Data</TableHead>
-                      <TableHead className="font-bold text-[10px] uppercase tracking-widest text-gray-400">Tipo / Ref</TableHead>
-                      <TableHead className="font-bold text-[10px] uppercase tracking-widest text-gray-400">Reservatório</TableHead>
-                      <TableHead className="font-bold text-[10px] uppercase tracking-widest text-gray-400 text-right">Quantidade (L)</TableHead>
-                      <TableHead className="font-bold text-[10px] uppercase tracking-widest text-gray-400 text-right whitespace-nowrap">Vlr. Unit.</TableHead>
-                      <TableHead className="font-bold text-[10px] uppercase tracking-widest text-gray-400 text-right">Total</TableHead>
-                      <TableHead className="font-bold text-[10px] uppercase tracking-widest text-gray-400 text-right">Ações</TableHead>
+                      <TableHead className="font-bold text-base uppercase tracking-widest text-gray-400 py-4">Data</TableHead>
+                      <TableHead className="font-bold text-base uppercase tracking-widest text-gray-400">Tipo / Ref</TableHead>
+                      <TableHead className="font-bold text-base uppercase tracking-widest text-gray-400">Reservatório</TableHead>
+                      <TableHead className="font-bold text-base uppercase tracking-widest text-gray-400 text-right">Quantidade (L)</TableHead>
+                      <TableHead className="font-bold text-base uppercase tracking-widest text-gray-400 text-right whitespace-nowrap">Vlr. Unit.</TableHead>
+                      <TableHead className="font-bold text-base uppercase tracking-widest text-gray-400 text-right">Total</TableHead>
+                      <TableHead className="font-bold text-base uppercase tracking-widest text-gray-400 text-right">Ações</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -2818,19 +2818,19 @@ export default function ControlView({
                         
                         return (
                           <TableRow key={log.id} className="hover:bg-gray-50 transition-colors">
-                            <TableCell className="font-mono text-[10px] text-gray-600">{new Date(log.date + 'T12:00:00').toLocaleDateString('pt-BR')}</TableCell>
+                            <TableCell className="font-mono text-base text-gray-600">{new Date(log.date + 'T12:00:00').toLocaleDateString('pt-BR')}</TableCell>
                             <TableCell>
                               <div className="flex flex-col gap-1">
                                 <div className="flex items-center gap-2">
-                                  <Badge variant="outline" className={cn("text-[9px] uppercase font-black px-1 h-4", log.type === 'entrada' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-orange-50 text-orange-600 border-orange-100')}>
+                                  <Badge variant="outline" className={cn("text-sm uppercase font-black px-1 h-4", log.type === 'entrada' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-orange-50 text-orange-600 border-orange-100')}>
                                     {log.type === 'entrada' ? 'Entrada' : destTank ? 'Transferência' : 'Saída'}
                                   </Badge>
-                                  {eq && <span className="text-xs font-bold text-gray-700">{eq.name} ({eq.plate})</span>}
-                                  {destTank && <span className="text-xs font-bold text-blue-700">Para: {destTank.name}</span>}
-                                  {!eq && !destTank && log.type === 'saida' && <span className="text-xs text-gray-400 italic">Consumo Geral</span>}
+                                  {eq && <span className="text-base font-bold text-gray-700">{eq.name} ({eq.plate})</span>}
+                                  {destTank && <span className="text-base font-bold text-blue-700">Para: {destTank.name}</span>}
+                                  {!eq && !destTank && log.type === 'saida' && <span className="text-base text-gray-400 italic">Consumo Geral</span>}
                                 </div>
                                 {log.type === 'entrada' && (log.supplier || log.invoiceNumber) && (
-                                  <span className="text-[10px] text-gray-500 font-medium">
+                                  <span className="text-base text-gray-500 font-medium">
                                     {log.supplier} {log.invoiceNumber ? `(NF: ${log.invoiceNumber})` : ''}
                                   </span>
                                 )}
@@ -2838,17 +2838,17 @@ export default function ControlView({
                             </TableCell>
                             <TableCell>
                               <div className="flex flex-col">
-                                <span className="text-xs font-bold text-gray-900">{tk?.name || '---'}</span>
-                                <span className="text-[9px] text-gray-400 font-bold uppercase tracking-tight">{tk?.fuelType || 'Diesel'}</span>
+                                <span className="text-base font-bold text-gray-900">{tk?.name || '---'}</span>
+                                <span className="text-sm text-gray-400 font-bold uppercase tracking-tight">{tk?.fuelType || 'Diesel'}</span>
                               </div>
                             </TableCell>
                             <TableCell className={cn("text-right font-mono font-bold", log.type === 'entrada' ? 'text-emerald-600' : 'text-orange-600')}>
                               {log.type === 'entrada' ? '+' : '-'}{log.quantity}
                             </TableCell>
-                            <TableCell className="text-right font-mono text-[10px] text-gray-500">
+                            <TableCell className="text-right font-mono text-base text-gray-500">
                               {log.unitPrice ? log.unitPrice.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : '-'}
                             </TableCell>
-                            <TableCell className="text-right font-mono font-bold text-xs text-gray-900">
+                            <TableCell className="text-right font-mono font-bold text-base text-gray-900">
                               {log.cost ? log.cost.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : (log.unitPrice && log.quantity ? (log.unitPrice * log.quantity).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : '-')}
                             </TableCell>
                             <TableCell className="text-right">
@@ -2892,7 +2892,7 @@ export default function ControlView({
                 <div className="p-2 bg-blue-50 rounded-xl"><ShoppingCart className="w-5 h-5 text-blue-600" /></div>
                 <div>
                   <CardTitle className="text-lg font-black">Acompanhamento de Solicitações</CardTitle>
-                  <CardDescription className="text-[10px] uppercase font-bold text-gray-400">Status das solicitações enviadas para compras</CardDescription>
+                  <CardDescription className="text-base uppercase font-bold text-gray-400">Status das solicitações enviadas para compras</CardDescription>
                 </div>
               </div>
               <Button 
@@ -2907,7 +2907,7 @@ export default function ControlView({
                   });
                   setIsMaterialRequestModalOpen(true);
                 }} 
-                className="rounded-xl bg-blue-600 gap-2 font-bold text-xs"
+                className="rounded-xl bg-blue-600 gap-2 font-bold text-base"
               >
                 <Plus className="w-4 h-4" /> Nova Solicitação
               </Button>
@@ -2916,17 +2916,17 @@ export default function ControlView({
               <Table>
                 <TableHeader className="bg-gray-50/50">
                   <TableRow>
-                    <TableHead className="font-bold text-[10px] uppercase tracking-widest text-gray-400 py-5">Data</TableHead>
-                    <TableHead className="font-bold text-[10px] uppercase tracking-widest text-gray-400">Descrição/Itens</TableHead>
-                    <TableHead className="font-bold text-[10px] uppercase tracking-widest text-gray-400">Categoria</TableHead>
-                    <TableHead className="font-bold text-[10px] uppercase tracking-widest text-gray-400 text-center">Status</TableHead>
-                    <TableHead className="font-bold text-[10px] uppercase tracking-widest text-gray-400 text-right">Previsão</TableHead>
+                    <TableHead className="font-bold text-base uppercase tracking-widest text-gray-400 py-5">Data</TableHead>
+                    <TableHead className="font-bold text-base uppercase tracking-widest text-gray-400">Descrição/Itens</TableHead>
+                    <TableHead className="font-bold text-base uppercase tracking-widest text-gray-400">Categoria</TableHead>
+                    <TableHead className="font-bold text-base uppercase tracking-widest text-gray-400 text-center">Status</TableHead>
+                    <TableHead className="font-bold text-base uppercase tracking-widest text-gray-400 text-right">Previsão</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {purchaseRequests.filter(r => r.sector === 'CONTROLADOR' && (!selectedContractId || r.contractId === selectedContractId)).map(request => (
                     <TableRow key={request.id} className="hover:bg-gray-50 transition-colors">
-                      <TableCell className="text-xs font-medium text-gray-500">
+                      <TableCell className="text-base font-medium text-gray-500">
                         {new Date(request.date).toLocaleDateString('pt-BR')}
                       </TableCell>
                       <TableCell>
@@ -2938,10 +2938,10 @@ export default function ControlView({
                             <AlertCircle className="w-4 h-4 text-red-600 animate-pulse" />
                           )}
                           <div>
-                            <p className="font-bold text-gray-900 text-sm">{request.description}</p>
+                            <p className="font-bold text-gray-900 text-base">{request.description}</p>
                             <div className="flex flex-wrap gap-1 mt-1">
                               {request.items.map(item => (
-                                <Badge key={item.id} variant="secondary" className="text-[9px] h-4 px-1 bg-gray-100 text-gray-600 border-none">
+                                <Badge key={item.id} variant="secondary" className="text-sm h-4 px-1 bg-gray-100 text-gray-600 border-none">
                                   {item.quantity}x {item.description}
                                 </Badge>
                               ))}
@@ -2950,11 +2950,11 @@ export default function ControlView({
                         </div>
                       </TableCell>
                       <TableCell>
-                        <Badge variant="outline" className="text-[10px] font-bold bg-blue-50 text-blue-700 border-blue-100">{request.category}</Badge>
+                        <Badge variant="outline" className="text-base font-bold bg-blue-50 text-blue-700 border-blue-100">{request.category}</Badge>
                       </TableCell>
                       <TableCell className="text-center">
                         <span className={cn(
-                          "px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider",
+                          "px-3 py-1 rounded-full text-base font-black uppercase tracking-wider",
                           request.status === 'Cancelado' ? 'bg-red-100 text-red-700' :
                           request.status === 'Pendente' ? 'bg-amber-100 text-amber-700' :
                           request.status === 'Em orçamento' ? 'bg-blue-100 text-blue-700' :
@@ -2966,7 +2966,7 @@ export default function ControlView({
                           {request.status}
                         </span>
                       </TableCell>
-                      <TableCell className="text-right text-xs font-bold text-gray-600">
+                      <TableCell className="text-right text-base font-bold text-gray-600">
                         <div className="flex flex-col items-end gap-1">
                           {request.deliveryDeadline ? new Date(request.deliveryDeadline).toLocaleDateString('pt-BR') : '-'}
                           {request.status === 'Recebido' && (
@@ -2974,7 +2974,7 @@ export default function ControlView({
                               variant="outline" 
                               size="sm" 
                               onClick={() => handleApplyRequestToHistory(request)}
-                              className="h-7 text-[9px] font-black uppercase tracking-tighter bg-emerald-50 text-emerald-600 border-emerald-100 hover:bg-emerald-600 hover:text-white"
+                              className="h-7 text-sm font-black uppercase tracking-tighter bg-emerald-50 text-emerald-600 border-emerald-100 hover:bg-emerald-600 hover:text-white"
                             >
                               Aplicar Ativo
                             </Button>
@@ -3001,23 +3001,23 @@ export default function ControlView({
                 <div className="p-2 bg-blue-50 rounded-xl"><Archive className="w-5 h-5 text-blue-600" /></div>
                 <div>
                   <CardTitle className="text-lg font-black">Estoque de Materiais</CardTitle>
-                  <CardDescription className="text-[10px] uppercase font-bold text-gray-400">Itens recebidos aguardando aplicação em equipamentos</CardDescription>
+                  <CardDescription className="text-base uppercase font-bold text-gray-400">Itens recebidos aguardando aplicação em equipamentos</CardDescription>
                 </div>
               </div>
               <div className="flex items-center gap-2">
                 <Checkbox id="showApplied" checked={showApplied} onCheckedChange={(checked) => setShowApplied(!!checked)} />
-                <Label htmlFor="showApplied" className="text-[10px] font-bold uppercase text-gray-600">Mostrar todos</Label>
+                <Label htmlFor="showApplied" className="text-base font-bold uppercase text-gray-600">Mostrar todos</Label>
               </div>
             </CardHeader>
             <CardContent className="p-0">
               <Table>
                 <TableHeader className="bg-gray-50/50">
                   <TableRow>
-                    <TableHead className="font-bold text-[10px] uppercase tracking-widest text-gray-400 py-5">Material / Peça</TableHead>
-                    <TableHead className="font-bold text-[10px] uppercase tracking-widest text-gray-400">Solicitação Origem</TableHead>
-                    <TableHead className="font-bold text-[10px] uppercase tracking-widest text-gray-400 text-center">Quantidade Total</TableHead>
-                    <TableHead className="font-bold text-[10px] uppercase tracking-widest text-gray-400 text-center">Ja Aplicado</TableHead>
-                    <TableHead className="font-bold text-[10px] uppercase tracking-widest text-gray-400 text-center">Saldo em Estoque</TableHead>
+                    <TableHead className="font-bold text-base uppercase tracking-widest text-gray-400 py-5">Material / Peça</TableHead>
+                    <TableHead className="font-bold text-base uppercase tracking-widest text-gray-400">Solicitação Origem</TableHead>
+                    <TableHead className="font-bold text-base uppercase tracking-widest text-gray-400 text-center">Quantidade Total</TableHead>
+                    <TableHead className="font-bold text-base uppercase tracking-widest text-gray-400 text-center">Ja Aplicado</TableHead>
+                    <TableHead className="font-bold text-base uppercase tracking-widest text-gray-400 text-center">Saldo em Estoque</TableHead>
                     <TableHead className="w-[150px]"></TableHead>
                   </TableRow>
                 </TableHeader>
@@ -3029,22 +3029,22 @@ export default function ControlView({
                     .map((item, idx) => (
                       <TableRow key={`${item.requestId}-${item.itemIdx}`} className="hover:bg-gray-50 transition-colors">
                         <TableCell>
-                          <p className="font-bold text-gray-900 text-sm">{item.description}</p>
-                          <p className="text-[10px] text-gray-500 font-bold uppercase tracking-tighter">Unidade: {item.unit}</p>
+                          <p className="font-bold text-gray-900 text-base">{item.description}</p>
+                          <p className="text-base text-gray-500 font-bold uppercase tracking-tighter">Unidade: {item.unit}</p>
                         </TableCell>
                         <TableCell>
-                          <p className="text-xs font-medium text-gray-600">{item.requestDescription}</p>
+                          <p className="text-base font-medium text-gray-600">{item.requestDescription}</p>
                         </TableCell>
                         <TableCell className="text-center font-bold text-gray-900">{item.quantity}</TableCell>
                         <TableCell className="text-center font-bold text-blue-600">{item.appliedQuantity || 0}</TableCell>
                         <TableCell className="text-center">
-                          <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-200 border-none px-3 py-1 text-sm font-black">
+                          <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-200 border-none px-3 py-1 text-base font-black">
                             {item.quantity - (item.appliedQuantity || 0)}
                           </Badge>
                         </TableCell>
                         <TableCell className="text-right">
                           <Button 
-                            className="bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-[10px] uppercase h-8 disabled:opacity-50 disabled:cursor-not-allowed"
+                            className="bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-base uppercase h-8 disabled:opacity-50 disabled:cursor-not-allowed"
                             disabled={item.quantity - (item.appliedQuantity || 0) <= 0}
                             onClick={() => {
                               setSelectedStockItem({ requestId: item.requestId, itemIdx: item.itemIdx, item });
@@ -3080,7 +3080,7 @@ export default function ControlView({
                 <div className="p-2 bg-blue-50 rounded-xl"><Calendar className="w-5 h-5 text-blue-600" /></div>
                 <div>
                   <CardTitle className="text-lg font-black">Histórico Geral de Manutenções</CardTitle>
-                  <CardDescription className="text-[10px] uppercase font-bold text-gray-400">Registro completo de preventivas e corretivas</CardDescription>
+                  <CardDescription className="text-base uppercase font-bold text-gray-400">Registro completo de preventivas e corretivas</CardDescription>
                 </div>
               </div>
             </CardHeader>
@@ -3088,13 +3088,13 @@ export default function ControlView({
               <Table>
                 <TableHeader className="bg-gray-50/50">
                   <TableRow>
-                    <TableHead className="py-5 px-4 font-bold text-[10px] uppercase tracking-widest text-gray-400">Equipamento</TableHead>
-                    <TableHead className="font-bold text-[10px] uppercase tracking-widest text-gray-400">Entrada</TableHead>
-                    <TableHead className="font-bold text-[10px] uppercase tracking-widest text-gray-400">Saída</TableHead>
-                    <TableHead className="font-bold text-[10px] uppercase tracking-widest text-gray-400">Dias</TableHead>
-                    <TableHead className="font-bold text-[10px] uppercase tracking-widest text-gray-400">Tipo</TableHead>
-                    <TableHead className="font-bold text-[10px] uppercase tracking-widest text-gray-400 text-right">Custo</TableHead>
-                    <TableHead className="font-bold text-[10px] uppercase tracking-widest text-gray-400">Itens Solicitados</TableHead>
+                    <TableHead className="py-5 px-4 font-bold text-base uppercase tracking-widest text-gray-400">Equipamento</TableHead>
+                    <TableHead className="font-bold text-base uppercase tracking-widest text-gray-400">Entrada</TableHead>
+                    <TableHead className="font-bold text-base uppercase tracking-widest text-gray-400">Saída</TableHead>
+                    <TableHead className="font-bold text-base uppercase tracking-widest text-gray-400">Dias</TableHead>
+                    <TableHead className="font-bold text-base uppercase tracking-widest text-gray-400">Tipo</TableHead>
+                    <TableHead className="font-bold text-base uppercase tracking-widest text-gray-400 text-right">Custo</TableHead>
+                    <TableHead className="font-bold text-base uppercase tracking-widest text-gray-400">Itens Solicitados</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -3115,30 +3115,30 @@ export default function ControlView({
                         >
                           <TableCell className="px-4">
                             <p className="font-bold text-gray-900">{equip?.name || 'Equipamento Excluído'}</p>
-                            <p className="text-[10px] text-gray-500 uppercase">{equip?.plate || '-'}</p>
+                            <p className="text-base text-gray-500 uppercase">{equip?.plate || '-'}</p>
                           </TableCell>
-                          <TableCell className="text-xs font-mono text-gray-600">
+                          <TableCell className="text-base font-mono text-gray-600">
                             {new Date(m.entryDate + 'T12:00:00').toLocaleDateString('pt-BR')}
                           </TableCell>
-                          <TableCell className="text-xs font-mono text-gray-600">
+                          <TableCell className="text-base font-mono text-gray-600">
                             {m.exitDate ? new Date(m.exitDate + 'T12:00:00').toLocaleDateString('pt-BR') : <Badge className="bg-blue-50 text-blue-600 border-none animate-pulse">Em aberto</Badge>}
                           </TableCell>
-                          <TableCell className="text-xs font-bold text-gray-900">
+                          <TableCell className="text-base font-bold text-gray-900">
                             {m.exitDate ? `${m.daysInMaintenance} d` : '-'}
                           </TableCell>
                           <TableCell>
                             <Badge variant="outline" className={cn(
-                              "text-[9px] uppercase font-black rounded-lg",
+                              "text-sm uppercase font-black rounded-lg",
                               m.type === 'preventive' ? "bg-emerald-50 text-emerald-600 border-emerald-100" : "bg-red-50 text-red-600 border-red-100"
                             )}>
                               {m.type === 'preventive' ? 'Preventiva' : 'Corretiva'}
                             </Badge>
                           </TableCell>
-                          <TableCell className="text-xs font-black text-gray-900 text-right">
+                          <TableCell className="text-base font-black text-gray-900 text-right">
                             {m.totalCost ? `R$ ${m.totalCost.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : '-'}
                           </TableCell>
                           <TableCell className="max-w-[200px] truncate" title={m.requestedItems}>
-                            <span className="text-xs text-gray-600 italic">{m.requestedItems || '-'}</span>
+                            <span className="text-base text-gray-600 italic">{m.requestedItems || '-'}</span>
                           </TableCell>
                         </TableRow>
                       );
@@ -3147,7 +3147,7 @@ export default function ControlView({
                     <TableRow>
                       <TableCell colSpan={7} className="text-center py-20 opacity-30">
                         <Wrench className="w-10 h-10 mx-auto mb-2" />
-                        <p className="text-xs font-bold uppercase tracking-widest">Nenhum histórico registrado</p>
+                        <p className="text-base font-bold uppercase tracking-widest">Nenhum histórico registrado</p>
                       </TableCell>
                     </TableRow>
                   )}
@@ -3174,42 +3174,42 @@ export default function ControlView({
             </div>
             <div>
               <h2 className="text-2xl font-black text-white leading-tight">Editar Equipamento</h2>
-              <p className="text-blue-100 text-[10px] font-bold uppercase tracking-widest mt-1 opacity-80">Alterar dados do ativo SIGO</p>
+              <p className="text-blue-100 text-base font-bold uppercase tracking-widest mt-1 opacity-80">Alterar dados do ativo SIGO</p>
             </div>
           </div>
-          <Badge className="bg-white/20 text-white border-none font-black text-xs px-4 py-1.5 uppercase rounded-xl backdrop-blur-md">{equipmentToEdit?.code || 'S/C'}</Badge>
+          <Badge className="bg-white/20 text-white border-none font-black text-base px-4 py-1.5 uppercase rounded-xl backdrop-blur-md">{equipmentToEdit?.code || 'S/C'}</Badge>
         </div>
 
           <Tabs defaultValue="basic" className="w-full flex-1 flex flex-col overflow-hidden">
             <TabsList className="w-full justify-start rounded-none bg-slate-50 border-b px-6 h-14 gap-6 shrink-0">
-              <TabsTrigger value="basic" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:text-blue-600 border-b-2 border-transparent data-[state=active]:border-blue-600 rounded-none h-full px-0 font-black text-[11px] uppercase tracking-widest">Dados Principais</TabsTrigger>
-              <TabsTrigger value="technical" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:text-blue-600 border-b-2 border-transparent data-[state=active]:border-blue-600 rounded-none h-full px-0 font-black text-[11px] uppercase tracking-widest">Atributos Técnicos</TabsTrigger>
-              <TabsTrigger value="measure" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:text-blue-600 border-b-2 border-transparent data-[state=active]:border-blue-600 rounded-none h-full px-0 font-black text-[11px] uppercase tracking-widest">Medição</TabsTrigger>
-              <TabsTrigger value="history" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:text-blue-600 border-b-2 border-transparent data-[state=active]:border-blue-600 rounded-none h-full px-0 font-black text-[11px] uppercase tracking-widest">Histórico</TabsTrigger>
-              <TabsTrigger value="photos" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:text-blue-600 border-b-2 border-transparent data-[state=active]:border-blue-600 rounded-none h-full px-0 font-black text-[11px] uppercase tracking-widest">Fotos</TabsTrigger>
-              <TabsTrigger value="obs" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:text-blue-600 border-b-2 border-transparent data-[state=active]:border-blue-600 rounded-none h-full px-0 font-black text-[11px] uppercase tracking-widest">Observações</TabsTrigger>
+              <TabsTrigger value="basic" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:text-blue-600 border-b-2 border-transparent data-[state=active]:border-blue-600 rounded-none h-full px-0 font-black text-base uppercase tracking-widest">Dados Principais</TabsTrigger>
+              <TabsTrigger value="technical" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:text-blue-600 border-b-2 border-transparent data-[state=active]:border-blue-600 rounded-none h-full px-0 font-black text-base uppercase tracking-widest">Atributos Técnicos</TabsTrigger>
+              <TabsTrigger value="measure" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:text-blue-600 border-b-2 border-transparent data-[state=active]:border-blue-600 rounded-none h-full px-0 font-black text-base uppercase tracking-widest">Medição</TabsTrigger>
+              <TabsTrigger value="history" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:text-blue-600 border-b-2 border-transparent data-[state=active]:border-blue-600 rounded-none h-full px-0 font-black text-base uppercase tracking-widest">Histórico</TabsTrigger>
+              <TabsTrigger value="photos" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:text-blue-600 border-b-2 border-transparent data-[state=active]:border-blue-600 rounded-none h-full px-0 font-black text-base uppercase tracking-widest">Fotos</TabsTrigger>
+              <TabsTrigger value="obs" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:text-blue-600 border-b-2 border-transparent data-[state=active]:border-blue-600 rounded-none h-full px-0 font-black text-base uppercase tracking-widest">Observações</TabsTrigger>
             </TabsList>
 
             <div className="p-6 flex-1 overflow-y-auto scrollbar-thin-visible bg-white">
               <TabsContent value="basic" className="mt-0 space-y-8">
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                   <div className="space-y-2">
-                    <Label className="text-[11px] uppercase font-black text-slate-500 tracking-tight">Código</Label>
-                    <Input className="rounded-xl border-slate-200 bg-slate-50/50 h-12 text-sm font-bold" value={equipmentToEdit?.code || ''} onChange={e => setEquipmentToEdit(prev => prev ? {...prev, code: e.target.value} : null)} />
+                    <Label className="text-base uppercase font-black text-slate-500 tracking-tight">Código</Label>
+                    <Input className="rounded-xl border-slate-200 bg-slate-50/50 h-12 text-base font-bold" value={equipmentToEdit?.code || ''} onChange={e => setEquipmentToEdit(prev => prev ? {...prev, code: e.target.value} : null)} />
                   </div>
                   <div className="md:col-span-2 space-y-2">
-                    <Label className="text-[11px] uppercase font-black text-slate-500 tracking-tight">Nome do Equipamento</Label>
-                    <Input className="rounded-xl border-slate-200 bg-slate-50/50 h-12 text-sm font-bold" value={equipmentToEdit?.name || ''} onChange={e => setEquipmentToEdit(prev => prev ? {...prev, name: e.target.value} : null)} />
+                    <Label className="text-base uppercase font-black text-slate-500 tracking-tight">Nome do Equipamento</Label>
+                    <Input className="rounded-xl border-slate-200 bg-slate-50/50 h-12 text-base font-bold" value={equipmentToEdit?.name || ''} onChange={e => setEquipmentToEdit(prev => prev ? {...prev, name: e.target.value} : null)} />
                   </div>
 
                   <div className="space-y-4">
-                    <Label className="text-[11px] uppercase font-black text-slate-500 tracking-tight">Tipo de Equipamento</Label>
+                    <Label className="text-base uppercase font-black text-slate-500 tracking-tight">Tipo de Equipamento</Label>
                     <Popover>
                       <PopoverTrigger asChild>
                         <Button
                           variant="outline"
                           role="combobox"
-                          className="w-full justify-between h-12 rounded-xl border-slate-200 bg-slate-50/50 text-sm font-bold"
+                          className="w-full justify-between h-12 rounded-xl border-slate-200 bg-slate-50/50 text-base font-bold"
                         >
                           {equipmentToEdit?.type || "Selecione ou digite..."}
                           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
@@ -3226,7 +3226,7 @@ export default function ControlView({
                             <CommandEmpty>
                               <Button 
                                 variant="ghost" 
-                                className="w-full justify-start text-xs font-bold text-blue-600 h-10"
+                                className="w-full justify-start text-base font-bold text-blue-600 h-10"
                                 onClick={() => {
                                   handleAddType(typeSearchTerm);
                                   setEquipmentToEdit(prev => prev ? { ...prev, type: typeSearchTerm } : null);
@@ -3268,7 +3268,7 @@ export default function ControlView({
                     </Popover>
                   </div>
                   <div className="space-y-3">
-                    <Label className="text-[12px] uppercase font-black text-slate-500 tracking-tight">Origem</Label>
+                    <Label className="text-base uppercase font-black text-slate-500 tracking-tight">Origem</Label>
                     <Select value={equipmentToEdit?.origin || 'Próprio'} onValueChange={val => setEquipmentToEdit(prev => prev ? {...prev, origin: val} : null)}>
                       <SelectTrigger className="rounded-xl border-slate-200 bg-slate-50/50 h-16 text-base font-bold"><SelectValue /></SelectTrigger>
                       <SelectContent>
@@ -3281,18 +3281,18 @@ export default function ControlView({
                   {equipmentToEdit?.origin === 'Alugado' && (
                     <>
                       <div className="space-y-3">
-                        <Label className="text-[12px] uppercase font-black text-slate-500 tracking-tight">Proprietário / Locador</Label>
+                        <Label className="text-base uppercase font-black text-slate-500 tracking-tight">Proprietário / Locador</Label>
                         <Input className="rounded-xl border-slate-200 bg-slate-50/50 h-16 text-base font-bold" value={equipmentToEdit?.ownerName || ''} onChange={e => setEquipmentToEdit(prev => prev ? {...prev, ownerName: e.target.value} : null)} />
                       </div>
                       <div className="space-y-3">
-                        <Label className="text-[12px] uppercase font-black text-slate-500 tracking-tight">CNPJ Proprietário</Label>
+                        <Label className="text-base uppercase font-black text-slate-500 tracking-tight">CNPJ Proprietário</Label>
                         <Input className="rounded-xl border-slate-200 bg-slate-50/50 h-16 text-base font-bold" value={equipmentToEdit?.ownerCnpj || ''} onChange={e => setEquipmentToEdit(prev => prev ? {...prev, ownerCnpj: e.target.value} : null)} />
                       </div>
                     </>
                   )}
 
                   <div className="space-y-3">
-                    <Label className="text-[12px] uppercase font-black text-slate-500 tracking-tight">Situação</Label>
+                    <Label className="text-base uppercase font-black text-slate-500 tracking-tight">Situação</Label>
                     <Select value={equipmentToEdit?.situation || 'Ativo'} onValueChange={(val: any) => setEquipmentToEdit(prev => prev ? {...prev, situation: val} : null)}>
                       <SelectTrigger className="rounded-xl border-slate-200 bg-slate-50/50 h-16 text-base font-bold"><SelectValue /></SelectTrigger>
                       <SelectContent>
@@ -3305,16 +3305,16 @@ export default function ControlView({
                     </Select>
                   </div>
                   <div className="space-y-3">
-                    <Label className="text-[12px] uppercase font-black text-slate-500 tracking-tight">Entrada</Label>
+                    <Label className="text-base uppercase font-black text-slate-500 tracking-tight">Entrada</Label>
                     <Input type="date" className="rounded-xl border-slate-200 bg-slate-50/50 h-16 text-base font-bold" value={equipmentToEdit?.entryDate || ''} onChange={e => setEquipmentToEdit(prev => prev ? {...prev, entryDate: e.target.value} : null)} />
                   </div>
                   <div className="space-y-3">
-                    <Label className="text-[12px] uppercase font-black text-slate-500 tracking-tight">Saída</Label>
+                    <Label className="text-base uppercase font-black text-slate-500 tracking-tight">Saída</Label>
                     <Input type="date" className="rounded-xl border-slate-200 bg-slate-50/50 h-16 text-base font-bold" value={equipmentToEdit?.exitDate || ''} onChange={e => setEquipmentToEdit(prev => prev ? {...prev, exitDate: e.target.value} : null)} />
                   </div>
 
                   <div className="space-y-3">
-                    <Label className="text-[12px] uppercase font-black text-slate-500 tracking-tight">Medição por</Label>
+                    <Label className="text-base uppercase font-black text-slate-500 tracking-tight">Medição por</Label>
                     <Select value={equipmentToEdit?.measurementUnit || 'Horímetro'} onValueChange={val => setEquipmentToEdit(prev => prev ? {...prev, measurementUnit: val as any} : null)}>
                       <SelectTrigger className="rounded-xl border-slate-200 bg-slate-50/50 h-16 text-base font-bold"><SelectValue /></SelectTrigger>
                       <SelectContent>
@@ -3325,22 +3325,22 @@ export default function ControlView({
                     </Select>
                   </div>
                   <div className="space-y-3">
-                    <Label className="text-[12px] uppercase font-black text-slate-500 tracking-tight">Leitura Atual / Inicial</Label>
+                    <Label className="text-base uppercase font-black text-slate-500 tracking-tight">Leitura Atual / Inicial</Label>
                     <NumericInput className="rounded-xl border-slate-200 bg-slate-50/50 h-16 text-base font-bold" value={equipmentToEdit?.currentReading || 0} onChange={val => setEquipmentToEdit(prev => prev ? {...prev, currentReading: val} : null)} />
                   </div>
                   <div className="space-y-3">
-                    <Label className="text-[12px] uppercase font-black text-slate-500 tracking-tight">
+                    <Label className="text-base uppercase font-black text-slate-500 tracking-tight">
                       {equipmentToEdit?.measurementUnit === 'Horímetro' ? 'Valor Hora' : equipmentToEdit?.measurementUnit === 'Quilometragem' ? 'Valor KM' : 'Valor Medição'}
                     </Label>
                     <NumericInput className="rounded-xl border-slate-200 bg-slate-50/50 h-16 text-base font-bold" value={equipmentToEdit?.contractedPrice || 0} onChange={val => setEquipmentToEdit(prev => prev ? {...prev, contractedPrice: val} : null)} prefix="R$" />
                   </div>
                   <div className="space-y-3">
-                    <Label className="text-[12px] uppercase font-black text-slate-500 tracking-tight">Valor Mensal</Label>
+                    <Label className="text-base uppercase font-black text-slate-500 tracking-tight">Valor Mensal</Label>
                     <NumericInput className="rounded-xl border-slate-200 bg-slate-50/50 h-16 text-base font-bold" value={equipmentToEdit?.monthlyPrice || 0} onChange={val => setEquipmentToEdit(prev => prev ? {...prev, monthlyPrice: val} : null)} prefix="R$" />
                   </div>
 
                   <div className="md:col-span-2 lg:col-span-3 space-y-3">
-                    <Label className="text-[12px] uppercase font-black text-slate-500 tracking-tight">Obra Vinculada (Centro de Custo)</Label>
+                    <Label className="text-base uppercase font-black text-slate-500 tracking-tight">Obra Vinculada (Centro de Custo)</Label>
                     <Select value={equipmentToEdit?.contractId || '_none_'} onValueChange={val => setEquipmentToEdit(prev => prev ? {...prev, contractId: val === "_none_" ? "" : val} : null)}>
                       <SelectTrigger className="rounded-xl border-slate-200 bg-slate-50/50 h-16 text-base font-bold transition-all focus:ring-2 focus:ring-blue-500/20">
                         <SelectValue placeholder="Selecione a obra...">
@@ -3348,9 +3348,9 @@ export default function ControlView({
                         </SelectValue>
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="_none_" className="font-bold py-4 uppercase text-[11px] tracking-tight">Sem Obra (Disponível)</SelectItem>
+                        <SelectItem value="_none_" className="font-bold py-4 uppercase text-base tracking-tight">Sem Obra (Disponível)</SelectItem>
                         {contracts.filter(c => currentUser?.role === 'master' || c.companyId === currentUser?.companyId || c.id === equipmentToEdit?.contractId).map(c => (
-                          <SelectItem key={c.id} value={c.id} className="font-bold py-4 uppercase text-[11px] tracking-tight">{c.workName || c.contractNumber}</SelectItem>
+                          <SelectItem key={c.id} value={c.id} className="font-bold py-4 uppercase text-base tracking-tight">{c.workName || c.contractNumber}</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
@@ -3362,7 +3362,7 @@ export default function ControlView({
                 <div className="flex items-center justify-between mb-2">
                   <div>
                     <h4 className="text-base font-black text-gray-900 uppercase">Especificações do Equipamento</h4>
-                    <p className="text-xs text-gray-500 font-bold uppercase tracking-tight">Atributos técnicos dinâmicos</p>
+                    <p className="text-base text-gray-500 font-bold uppercase tracking-tight">Atributos técnicos dinâmicos</p>
                   </div>
                   <Button variant="outline" size="sm" onClick={() => {
                     const fieldName = prompt('Nome do novo campo:');
@@ -3374,7 +3374,7 @@ export default function ControlView({
                         [fieldName]: { type: 'text', value: '' }
                       }
                     } : null);
-                  }} className="rounded-xl gap-2 font-bold text-xs text-blue-600 border-blue-100 hover:bg-blue-50 h-10 px-4">
+                  }} className="rounded-xl gap-2 font-bold text-base text-blue-600 border-blue-100 hover:bg-blue-50 h-10 px-4">
                     <Plus className="w-4 h-4" /> Adicionar Atributo
                   </Button>
                 </div>
@@ -3382,28 +3382,28 @@ export default function ControlView({
                 <div className="grid grid-cols-2 gap-6 bg-gray-50/50 p-8 rounded-3xl border border-gray-100">
                   {/* Standard Technical Fields moved from Basic */}
                   <div className="space-y-2">
-                    <Label className="text-xs uppercase font-black text-blue-600 tracking-tight flex items-center gap-2">
+                    <Label className="text-base uppercase font-black text-blue-600 tracking-tight flex items-center gap-2">
                       <Settings className="w-4 h-4" /> Marca / Fabricante
                     </Label>
-                    <Input className="rounded-xl bg-white border-gray-100 h-12 font-bold text-sm shadow-sm" value={equipmentToEdit?.brand || ''} onChange={e => setEquipmentToEdit(prev => prev ? {...prev, brand: e.target.value} : null)} />
+                    <Input className="rounded-xl bg-white border-gray-100 h-12 font-bold text-base shadow-sm" value={equipmentToEdit?.brand || ''} onChange={e => setEquipmentToEdit(prev => prev ? {...prev, brand: e.target.value} : null)} />
                   </div>
                   <div className="space-y-2">
-                    <Label className="text-xs uppercase font-black text-blue-600 tracking-tight flex items-center gap-2">
+                    <Label className="text-base uppercase font-black text-blue-600 tracking-tight flex items-center gap-2">
                       <Settings className="w-4 h-4" /> Modelo / Versão
                     </Label>
-                    <Input className="rounded-xl bg-white border-gray-100 h-12 font-bold text-sm shadow-sm" value={equipmentToEdit?.model || ''} onChange={e => setEquipmentToEdit(prev => prev ? {...prev, model: e.target.value} : null)} />
+                    <Input className="rounded-xl bg-white border-gray-100 h-12 font-bold text-base shadow-sm" value={equipmentToEdit?.model || ''} onChange={e => setEquipmentToEdit(prev => prev ? {...prev, model: e.target.value} : null)} />
                   </div>
                   <div className="space-y-2">
-                    <Label className="text-xs uppercase font-black text-blue-600 tracking-tight flex items-center gap-2">
+                    <Label className="text-base uppercase font-black text-blue-600 tracking-tight flex items-center gap-2">
                       <Settings className="w-4 h-4" /> Ano de Fabricação
                     </Label>
-                    <Input type="number" className="rounded-xl bg-white border-gray-100 h-12 font-bold text-sm shadow-sm" value={equipmentToEdit?.year || ''} onChange={e => setEquipmentToEdit(prev => prev ? {...prev, year: parseInt(e.target.value)} : null)} />
+                    <Input type="number" className="rounded-xl bg-white border-gray-100 h-12 font-bold text-base shadow-sm" value={equipmentToEdit?.year || ''} onChange={e => setEquipmentToEdit(prev => prev ? {...prev, year: parseInt(e.target.value)} : null)} />
                   </div>
                   <div className="space-y-2">
-                    <Label className="text-xs uppercase font-black text-blue-600 tracking-tight flex items-center gap-2">
+                    <Label className="text-base uppercase font-black text-blue-600 tracking-tight flex items-center gap-2">
                       <Settings className="w-4 h-4" /> Placa / Serial
                     </Label>
-                    <Input className="rounded-xl bg-white border-gray-100 h-12 font-bold text-sm shadow-sm" value={equipmentToEdit?.plate || ''} onChange={e => setEquipmentToEdit(prev => prev ? {...prev, plate: e.target.value} : null)} />
+                    <Input className="rounded-xl bg-white border-gray-100 h-12 font-bold text-base shadow-sm" value={equipmentToEdit?.plate || ''} onChange={e => setEquipmentToEdit(prev => prev ? {...prev, plate: e.target.value} : null)} />
                   </div>
 
                   {Object.entries(equipmentToEdit?.customFields || {}).map(([key, f]) => {
@@ -3411,7 +3411,7 @@ export default function ControlView({
                     return (
                       <div key={key} className="space-y-2 group relative">
                         <div className="flex items-center justify-between">
-                          <Label className="text-xs uppercase font-black text-blue-600 tracking-tight flex items-center gap-2">
+                          <Label className="text-base uppercase font-black text-blue-600 tracking-tight flex items-center gap-2">
                             <Activity className="w-4 h-4" />
                             {key.replace(/_/g, ' ')}
                           </Label>
@@ -3433,7 +3433,7 @@ export default function ControlView({
                                 customFields: { ...prev.customFields, [key]: { ...field, value: v } }
                               } : null);
                             }} />
-                            <span className="text-sm font-bold text-gray-600 uppercase">{field.value ? 'Sim' : 'Não'}</span>
+                            <span className="text-base font-bold text-gray-600 uppercase">{field.value ? 'Sim' : 'Não'}</span>
                           </div>
                         ) : field.type === 'select' ? (
                           <Select value={field.value} onValueChange={v => {
@@ -3442,14 +3442,14 @@ export default function ControlView({
                                 customFields: { ...prev.customFields, [key]: { ...field, value: v } }
                              } : null);
                           }}>
-                            <SelectTrigger className="rounded-xl bg-white border-gray-100 h-12 font-bold text-sm shadow-sm"><SelectValue /></SelectTrigger>
+                            <SelectTrigger className="rounded-xl bg-white border-gray-100 h-12 font-bold text-base shadow-sm"><SelectValue /></SelectTrigger>
                             <SelectContent>
                               {field.options?.map(opt => <SelectItem key={opt} value={opt}>{opt}</SelectItem>)}
                             </SelectContent>
                           </Select>
                         ) : (
                           <Input 
-                            className="rounded-xl bg-white border-gray-100 h-12 font-bold text-sm shadow-sm" 
+                            className="rounded-xl bg-white border-gray-100 h-12 font-bold text-base shadow-sm" 
                             type={field.type === 'number' ? 'number' : 'text'}
                             value={field.value}
                             onChange={e => {
@@ -3466,14 +3466,14 @@ export default function ControlView({
                   })}
                   {Object.entries(equipmentToEdit?.customFields || {}).length === 0 && (
                     <div className="col-span-2 py-10 text-center opacity-20">
-                      <p className="text-xs font-black uppercase tracking-widest text-gray-400">Nenhum atributo adicional definido</p>
+                      <p className="text-base font-black uppercase tracking-widest text-gray-400">Nenhum atributo adicional definido</p>
                     </div>
                   )}
                 </div>
               </TabsContent>
 
               <TabsContent value="obs" className="mt-0 space-y-6">
-                <Label className="text-xs uppercase font-bold text-gray-500">Observações do Equipamento</Label>
+                <Label className="text-base uppercase font-bold text-gray-500">Observações do Equipamento</Label>
                 <textarea 
                   className="w-full min-h-[250px] rounded-2xl border-gray-100 bg-gray-50/50 p-6 text-base font-medium focus:ring-2 focus:ring-blue-500 outline-none transition-all shadow-inner"
                   value={equipmentToEdit?.observations || ''}
@@ -3487,29 +3487,29 @@ export default function ControlView({
                   <Table>
                     <TableHeader className="bg-slate-50">
                       <TableRow>
-                        <TableHead className="text-[10px] uppercase font-black">Número</TableHead>
-                        <TableHead className="text-[10px] uppercase font-black">Mês</TableHead>
-                        <TableHead className="text-[10px] uppercase font-black">Período</TableHead>
-                        <TableHead className="text-[10px] uppercase font-black text-right">Total Produção</TableHead>
-                        <TableHead className="text-[10px] uppercase font-black text-right">Valor Total</TableHead>
+                        <TableHead className="text-base uppercase font-black">Número</TableHead>
+                        <TableHead className="text-base uppercase font-black">Mês</TableHead>
+                        <TableHead className="text-base uppercase font-black">Período</TableHead>
+                        <TableHead className="text-base uppercase font-black text-right">Total Produção</TableHead>
+                        <TableHead className="text-base uppercase font-black text-right">Valor Total</TableHead>
                         <TableHead className="w-[50px]"></TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {(equipmentToEdit?.measurements || []).map(m => (
                         <TableRow key={m.id}>
-                          <TableCell className="font-bold text-xs">{m.number}</TableCell>
-                          <TableCell className="font-bold text-xs">{m.month}</TableCell>
-                          <TableCell className="text-xs text-slate-500">
+                          <TableCell className="font-bold text-base">{m.number}</TableCell>
+                          <TableCell className="font-bold text-base">{m.month}</TableCell>
+                          <TableCell className="text-base text-slate-500">
                             {m.period.includes(' a ') ? m.period.split(' a ').map(d => {
                               const date = new Date(d + 'T12:00:00');
                               return isNaN(date.getTime()) ? d : date.toLocaleDateString('pt-BR');
                             }).join(' a ') : m.period}
                           </TableCell>
-                          <TableCell className="text-right font-bold text-xs">
+                          <TableCell className="text-right font-bold text-base">
                             {m.totalUnits || 0}{equipmentToEdit?.measurementUnit === 'Horímetro' ? 'h' : equipmentToEdit?.measurementUnit === 'Quilometragem' ? 'km' : ''}
                           </TableCell>
-                          <TableCell className="text-right font-bold text-xs text-blue-600">
+                          <TableCell className="text-right font-bold text-base text-blue-600">
                             {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(m.totalValue || 0)}
                           </TableCell>
                           <TableCell className="text-right">
@@ -3585,7 +3585,7 @@ export default function ControlView({
                       setSelectedEquipment(equipmentToEdit);
                       setEditingMeasurementId(null);
                     }}
-                    className="rounded-xl bg-blue-600 font-bold text-xs h-11 px-6 shadow-lg shadow-blue-100 transition-all hover:scale-[1.02] active:scale-95"
+                    className="rounded-xl bg-blue-600 font-bold text-base h-11 px-6 shadow-lg shadow-blue-100 transition-all hover:scale-[1.02] active:scale-95"
                   >
                     <Plus className="w-4 h-4 mr-2" /> Nova Medição
                   </Button>
@@ -3594,22 +3594,22 @@ export default function ControlView({
 
               <TabsContent value="history" className="mt-0 space-y-4">
                 <div className="space-y-4">
-                  <h4 className="text-sm font-black text-gray-900 uppercase">Histórico Completo</h4>
+                  <h4 className="text-base font-black text-gray-900 uppercase">Histórico Completo</h4>
                   <div className="space-y-3">
                     {(equipmentToEdit?.history || []).map(entry => (
                       <div key={entry.id} className="p-4 bg-white rounded-2xl border border-gray-100 shadow-sm relative overflow-hidden">
                         <div className="absolute left-0 top-0 bottom-0 w-1 bg-blue-600" />
                         <div className="flex justify-between items-start mb-2">
                           <div>
-                            <Badge variant="outline" className="text-[8px] font-black uppercase mb-1">{entry.type}</Badge>
-                            <p className="text-xs font-black text-gray-900">{entry.description}</p>
+                            <Badge variant="outline" className="text-sm font-black uppercase mb-1">{entry.type}</Badge>
+                            <p className="text-base font-black text-gray-900">{entry.description}</p>
                           </div>
-                          <span className="text-[10px] font-bold text-gray-400">{new Date(entry.date).toLocaleDateString('pt-BR')}</span>
+                          <span className="text-base font-bold text-gray-400">{new Date(entry.date).toLocaleDateString('pt-BR')}</span>
                         </div>
                         {entry.parts && entry.parts.length > 0 && (
                           <div className="flex flex-wrap gap-1 mt-2">
                             {entry.parts.map((p, idx) => (
-                              <Badge key={idx} variant="secondary" className="text-[9px] bg-gray-50 text-gray-500">
+                              <Badge key={idx} variant="secondary" className="text-sm bg-gray-50 text-gray-500">
                                 {p.quantity} {p.unit} - {p.description}
                               </Badge>
                             ))}
@@ -3620,7 +3620,7 @@ export default function ControlView({
                     {(!equipmentToEdit?.history || equipmentToEdit.history.length === 0) && (
                       <div className="py-10 text-center opacity-30">
                         <History className="w-10 h-10 mx-auto mb-2" />
-                        <p className="text-[10px] font-black uppercase tracking-widest">Nenhum registro encontrado</p>
+                        <p className="text-base font-black uppercase tracking-widest">Nenhum registro encontrado</p>
                       </div>
                     )}
                   </div>
@@ -3630,8 +3630,8 @@ export default function ControlView({
               <TabsContent value="photos" className="mt-0 space-y-4">
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
-                    <h4 className="text-sm font-black text-gray-900 uppercase">Galeria de Fotos</h4>
-                    <p className="text-[10px] text-gray-500 font-bold uppercase tracking-tighter shadow-sm">SIGO Bucket: equipments</p>
+                    <h4 className="text-base font-black text-gray-900 uppercase">Galeria de Fotos</h4>
+                    <p className="text-base text-gray-500 font-bold uppercase tracking-tighter shadow-sm">SIGO Bucket: equipments</p>
                   </div>
                   
                   <div className="grid grid-cols-4 gap-4">
@@ -3647,7 +3647,7 @@ export default function ControlView({
                     ))}
                     <label className="aspect-square rounded-2xl border-2 border-dashed border-gray-200 flex flex-col items-center justify-center gap-2 cursor-pointer hover:bg-gray-50 transition-colors">
                       <Camera className="w-8 h-8 text-gray-300" />
-                      <span className="text-[8px] font-black uppercase text-gray-400">Upar Foto</span>
+                      <span className="text-sm font-black uppercase text-gray-400">Upar Foto</span>
                       <input type="file" className="hidden" accept="image/*" onChange={async (e) => {
                         const file = e.target.files?.[0];
                         if (file) {
@@ -3685,13 +3685,13 @@ export default function ControlView({
               <Button 
                 variant="ghost" 
                 onClick={handlePermanentDelete} 
-                className="text-red-500 hover:text-red-600 hover:bg-red-50 font-bold uppercase text-[10px] tracking-widest h-12 px-6 border border-red-100 rounded-2xl w-full sm:w-auto"
+                className="text-red-500 hover:text-red-600 hover:bg-red-50 font-bold uppercase text-base tracking-widest h-12 px-6 border border-red-100 rounded-2xl w-full sm:w-auto"
               >
                 <Trash2 className="w-4 h-4 mr-2" /> Excluir Ativo permanentemente
               </Button>
               <div className="flex items-center gap-3 w-full sm:w-auto">
-                <Button variant="ghost" onClick={() => setIsEditOpen(false)} className="rounded-xl font-bold uppercase text-[10px] tracking-widest h-12 px-6 flex-1 sm:flex-none">Cancelar</Button>
-                <Button onClick={handleUpdateEquip} className="h-12 rounded-2xl bg-blue-600 hover:bg-blue-700 shadow-xl shadow-blue-100 font-black uppercase text-[10px] tracking-widest px-8 flex-1 sm:flex-none transition-all active:scale-95">
+                <Button variant="ghost" onClick={() => setIsEditOpen(false)} className="rounded-xl font-bold uppercase text-base tracking-widest h-12 px-6 flex-1 sm:flex-none">Cancelar</Button>
+                <Button onClick={handleUpdateEquip} className="h-12 rounded-2xl bg-blue-600 hover:bg-blue-700 shadow-xl shadow-blue-100 font-black uppercase text-base tracking-widest px-8 flex-1 sm:flex-none transition-all active:scale-95">
                   <Check className="w-4 h-4 mr-2" /> Atualizar Dados do Equipamento
                 </Button>
               </div>
@@ -3757,18 +3757,18 @@ export default function ControlView({
             <Table className="w-full min-w-max border-collapse">
               <TableHeader className="bg-white sticky top-0 z-20">
                 <TableRow className="border-b-2 border-slate-100">
-                  <TableHead className="w-24 text-[10px] font-black uppercase text-slate-500">Data</TableHead>
-                  <TableHead className="w-32 text-[10px] font-black uppercase text-slate-500">Inicial</TableHead>
-                  <TableHead className="w-32 text-[10px] font-black uppercase text-slate-500">Final</TableHead>
-                  <TableHead className="w-24 text-[10px] font-black uppercase text-slate-500 text-center">Desc.</TableHead>
-                  <TableHead className="w-24 text-[10px] font-black uppercase text-slate-500 text-center">Total</TableHead>
-                  <TableHead className="w-48 text-[10px] font-black uppercase text-slate-500">Status</TableHead>
+                  <TableHead className="w-24 text-base font-black uppercase text-slate-500">Data</TableHead>
+                  <TableHead className="w-32 text-base font-black uppercase text-slate-500">Inicial</TableHead>
+                  <TableHead className="w-32 text-base font-black uppercase text-slate-500">Final</TableHead>
+                  <TableHead className="w-24 text-base font-black uppercase text-slate-500 text-center">Desc.</TableHead>
+                  <TableHead className="w-24 text-base font-black uppercase text-slate-500 text-center">Total</TableHead>
+                  <TableHead className="w-48 text-base font-black uppercase text-slate-500">Status</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {tempDailyData.map((day, idx) => (
                   <TableRow key={day.date} className="hover:bg-slate-50 transition-colors h-14">
-                    <TableCell className="text-[11px] font-bold text-slate-600">
+                    <TableCell className="text-base font-bold text-slate-600">
                       {new Date(day.date + 'T12:00:00').toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: '2-digit' })}
                     </TableCell>
                     <TableCell>
@@ -3780,7 +3780,7 @@ export default function ControlView({
                           setTempDailyData(newDays);
                         }}
                         onFocus={(e) => requestAnimationFrame(() => e.target.select())}
-                        className="h-9 rounded-lg text-xs font-bold border-slate-200"
+                        className="h-9 rounded-lg text-base font-bold border-slate-200"
                       />
                     </TableCell>
                     <TableCell>
@@ -3799,7 +3799,7 @@ export default function ControlView({
                           setTempDailyData(newDays);
                         }}
                         onFocus={(e) => requestAnimationFrame(() => e.target.select())}
-                        className="h-9 rounded-lg text-xs font-bold border-slate-200"
+                        className="h-9 rounded-lg text-base font-bold border-slate-200"
                       />
                     </TableCell>
                     <TableCell>
@@ -3817,7 +3817,7 @@ export default function ControlView({
                         />
                       </div>
                     </TableCell>
-                    <TableCell className="text-center font-black text-blue-600 text-[11px]">
+                    <TableCell className="text-center font-black text-blue-600 text-base">
                       {(day.initialReading > 0 && day.finalReading > 0 && day.finalReading > day.initialReading) ? (day.finalReading - day.initialReading).toLocaleString('pt-BR') : '-'}
                     </TableCell>
                     <TableCell>
@@ -3831,15 +3831,15 @@ export default function ControlView({
                         }
                         setTempDailyData(newDays);
                       }}>
-                        <SelectTrigger className="h-9 rounded-lg text-xs font-medium border-slate-200 px-2" tabIndex={-1}>
+                        <SelectTrigger className="h-9 rounded-lg text-base font-medium border-slate-200 px-2" tabIndex={-1}>
                           <SelectValue placeholder="Selecione..." />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="Trabalhando" className="text-xs">Trabalhando</SelectItem>
-                          <SelectItem value="Chuva" className="text-xs">Chuva</SelectItem>
-                          <SelectItem value="Manutenção" className="text-xs">Manutenção</SelectItem>
-                          <SelectItem value="Aguardando Frente" className="text-xs">Aguardando Frente</SelectItem>
-                          <SelectItem value="à Disposição" className="text-xs">à Disposição</SelectItem>
+                          <SelectItem value="Trabalhando" className="text-base">Trabalhando</SelectItem>
+                          <SelectItem value="Chuva" className="text-base">Chuva</SelectItem>
+                          <SelectItem value="Manutenção" className="text-base">Manutenção</SelectItem>
+                          <SelectItem value="Aguardando Frente" className="text-base">Aguardando Frente</SelectItem>
+                          <SelectItem value="à Disposição" className="text-base">à Disposição</SelectItem>
                         </SelectContent>
                       </Select>
                     </TableCell>
@@ -3853,14 +3853,14 @@ export default function ControlView({
             <div className="flex items-center justify-between overflow-x-auto pb-2">
               <div className="flex gap-10">
                 <div className="flex flex-col">
-                  <span className="text-[9px] uppercase font-black text-slate-400 tracking-wider">Total Líquido</span>
+                  <span className="text-sm uppercase font-black text-slate-400 tracking-wider">Total Líquido</span>
                   <span className="text-2xl font-black text-blue-600 leading-none">
                     {tempDailyData.filter(d => d.initialReading > 0 && d.finalReading > 0 && d.finalReading > d.initialReading).reduce((acc, curr) => acc + (curr.discount ? 0 : (curr.finalReading - curr.initialReading)), 0).toLocaleString('pt-BR')}
-                    <span className="text-[10px] ml-1 uppercase">{selectedEquipment?.measurementUnit === 'Horímetro' ? 'h' : 'km'}</span>
+                    <span className="text-base ml-1 uppercase">{selectedEquipment?.measurementUnit === 'Horímetro' ? 'h' : 'km'}</span>
                   </span>
                 </div>
                 <div className="flex flex-col">
-                  <span className="text-[9px] uppercase font-black text-slate-400 tracking-wider">Valor Total</span>
+                  <span className="text-sm uppercase font-black text-slate-400 tracking-wider">Valor Total</span>
                   <span className="text-2xl font-black text-emerald-600 leading-none">
                     {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(
                       tempDailyData.filter(d => d.initialReading > 0 && d.finalReading > 0 && d.finalReading > d.initialReading).reduce((acc, curr) => acc + (curr.discount ? 0 : (curr.finalReading - curr.initialReading)), 0) * (selectedEquipment?.contractedPrice || 0)
@@ -3868,20 +3868,20 @@ export default function ControlView({
                   </span>
                 </div>
                 <div className="hidden lg:flex flex-col">
-                  <span className="text-[9px] uppercase font-black text-slate-400 tracking-wider">Média Diária</span>
+                  <span className="text-sm uppercase font-black text-slate-400 tracking-wider">Média Diária</span>
                   <span className="text-2xl font-black text-slate-600 leading-none">
                     {(tempDailyData.filter(d => d.initialReading > 0 && d.finalReading > 0 && d.finalReading > d.initialReading).reduce((acc, curr) => acc + (curr.discount ? 0 : (curr.finalReading - curr.initialReading)), 0) / (tempDailyData.filter(d => d.initialReading > 0 && d.finalReading > 0 && d.finalReading > d.initialReading).length || 1)).toFixed(1).toLocaleString()}
-                    <span className="text-[10px] ml-1 uppercase font-bold text-slate-400">/dia</span>
+                    <span className="text-base ml-1 uppercase font-bold text-slate-400">/dia</span>
                   </span>
                 </div>
               </div>
               
               <div className="flex items-center gap-3">
-                <Button variant="ghost" onClick={() => setIsNewMeasurementModalOpen(false)} className="rounded-xl font-bold text-xs uppercase tracking-widest px-6 h-12">Descartar</Button>
-                <Button onClick={() => { handleSaveMeasurement(); setIsNewMeasurementModalOpen(false); }} className="rounded-2xl bg-red-600 hover:bg-red-700 px-10 font-black text-[11px] uppercase tracking-widest shadow-xl shadow-red-100 h-12 transition-all active:scale-95 group">
+                <Button variant="ghost" onClick={() => setIsNewMeasurementModalOpen(false)} className="rounded-xl font-bold text-base uppercase tracking-widest px-6 h-12">Descartar</Button>
+                <Button onClick={() => { handleSaveMeasurement(); setIsNewMeasurementModalOpen(false); }} className="rounded-2xl bg-red-600 hover:bg-red-700 px-10 font-black text-base uppercase tracking-widest shadow-xl shadow-red-100 h-12 transition-all active:scale-95 group">
                    <X className="w-5 h-5 mr-2" /> Encerrar Medição
                 </Button>
-                <Button onClick={handleSaveMeasurement} className="rounded-2xl bg-blue-600 px-10 font-black text-[11px] uppercase tracking-widest shadow-xl shadow-blue-100 h-12 transition-all active:scale-95 group">
+                <Button onClick={handleSaveMeasurement} className="rounded-2xl bg-blue-600 px-10 font-black text-base uppercase tracking-widest shadow-xl shadow-blue-100 h-12 transition-all active:scale-95 group">
                   <Check className="w-5 h-5 mr-2 group-hover:scale-110 transition-transform" /> Confirmar e Salvar Medição
                 </Button>
               </div>
@@ -3901,7 +3901,7 @@ export default function ControlView({
           <ArrowRightLeft className="absolute -right-8 -bottom-8 w-40 h-40 opacity-10 rotate-12" />
           <div className="relative z-10">
             <h2 className="text-2xl font-black text-white leading-tight">Transferir Equipamento</h2>
-            <p className="text-emerald-100 text-[10px] font-bold uppercase tracking-widest mt-1 opacity-80">Mudança de Centro de Custo / Obra</p>
+            <p className="text-emerald-100 text-base font-bold uppercase tracking-widest mt-1 opacity-80">Mudança de Centro de Custo / Obra</p>
           </div>
         </div>
 
@@ -3912,14 +3912,14 @@ export default function ControlView({
             </div>
             <div className="relative z-10">
                 <p className="text-lg font-black text-emerald-900 leading-tight">{equipmentToTransfer?.name}</p>
-                <p className="text-[10px] text-emerald-700 font-bold uppercase tracking-widest mt-1">Série/Placa: {equipmentToTransfer?.plate || 'S/N'}</p>
+                <p className="text-base text-emerald-700 font-bold uppercase tracking-widest mt-1">Série/Placa: {equipmentToTransfer?.plate || 'S/N'}</p>
             </div>
           </div>
 
           <div className="space-y-2">
-            <Label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Obra de Destino</Label>
+            <Label className="text-base font-black text-gray-500 uppercase tracking-widest">Obra de Destino</Label>
             <Select value={targetContractId} onValueChange={setTargetContractId}>
-              <SelectTrigger className="h-14 border-gray-100 bg-gray-50/50 rounded-2xl text-sm font-bold focus:ring-2 focus:ring-emerald-500/20">
+              <SelectTrigger className="h-14 border-gray-100 bg-gray-50/50 rounded-2xl text-base font-bold focus:ring-2 focus:ring-emerald-500/20">
                 <SelectValue placeholder="Selecione a obra de destino">
                   {targetContractId ? (
                     (() => {
@@ -3935,8 +3935,8 @@ export default function ControlView({
                   .map(c => (
                   <SelectItem key={c.id} value={c.id} textValue={c.workName || c.contractNumber} className="py-3 px-4 rounded-xl focus:bg-emerald-50">
                     <div className="flex flex-col">
-                      <span className="font-black text-gray-900 leading-tight uppercase text-[10px]">{c.workName || c.client || 'Sem nome'}</span>
-                      <span className="text-[9px] text-gray-500 font-bold uppercase mt-0.5 tracking-tighter italic">{c.contractNumber || 'S/N'}</span>
+                      <span className="font-black text-gray-900 leading-tight uppercase text-base">{c.workName || c.client || 'Sem nome'}</span>
+                      <span className="text-sm text-gray-500 font-bold uppercase mt-0.5 tracking-tighter italic">{c.contractNumber || 'S/N'}</span>
                     </div>
                   </SelectItem>
                 ))}
@@ -3945,12 +3945,12 @@ export default function ControlView({
           </div>
 
           <div className="space-y-2">
-            <Label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Data da Transferência</Label>
+            <Label className="text-base font-black text-gray-500 uppercase tracking-widest">Data da Transferência</Label>
             <Input 
               type="date" 
               value={transferDateInput} 
               onChange={e => setTransferDateInput(e.target.value)}
-              className="h-14 border-gray-100 bg-gray-50/50 rounded-2xl text-sm font-bold focus:ring-2 focus:ring-emerald-500/20"
+              className="h-14 border-gray-100 bg-gray-50/50 rounded-2xl text-base font-bold focus:ring-2 focus:ring-emerald-500/20"
             />
           </div>
         </div>
@@ -3959,14 +3959,14 @@ export default function ControlView({
           <Button 
             onClick={handleTransferRequest} 
             disabled={!targetContractId}
-            className="w-full h-14 rounded-2xl bg-emerald-600 hover:bg-emerald-700 shadow-xl shadow-emerald-100 font-black uppercase text-xs tracking-widest transition-all active:scale-[0.98] disabled:opacity-50"
+            className="w-full h-14 rounded-2xl bg-emerald-600 hover:bg-emerald-700 shadow-xl shadow-emerald-100 font-black uppercase text-base tracking-widest transition-all active:scale-[0.98] disabled:opacity-50"
           >
             Confirmar Transferência
           </Button>
           <Button 
             variant="ghost" 
             onClick={() => setIsTransferOpen(false)}
-            className="w-full mt-2 h-10 rounded-xl font-bold uppercase text-[9px] text-gray-400 tracking-widest hover:text-gray-600"
+            className="w-full mt-2 h-10 rounded-xl font-bold uppercase text-sm text-gray-400 tracking-widest hover:text-gray-600"
           >
             Cancelar operação
           </Button>
@@ -3984,7 +3984,7 @@ export default function ControlView({
           <XCircle className="absolute -right-8 -bottom-8 w-40 h-40 opacity-10 rotate-12" />
           <div className="relative z-10">
             <h2 className="text-2xl font-black text-white leading-tight">Dispensar Equipamento</h2>
-            <p className="text-orange-100 text-[10px] font-bold uppercase tracking-widest mt-1 opacity-80">O equipamento será marcado como inativo</p>
+            <p className="text-orange-100 text-base font-bold uppercase tracking-widest mt-1 opacity-80">O equipamento será marcado como inativo</p>
           </div>
         </div>
 
@@ -3992,17 +3992,17 @@ export default function ControlView({
           <div className="p-5 bg-orange-50 rounded-2xl border border-orange-100 relative overflow-hidden">
             <div className="relative z-10">
                 <p className="text-lg font-black text-orange-900 leading-tight">{equipmentToDelete?.name}</p>
-                <p className="text-[10px] text-orange-700 font-bold uppercase tracking-widest mt-1">Série/Placa: {equipmentToDelete?.plate || 'S/N'}</p>
+                <p className="text-base text-orange-700 font-bold uppercase tracking-widest mt-1">Série/Placa: {equipmentToDelete?.plate || 'S/N'}</p>
             </div>
           </div>
 
           <div className="space-y-2">
-            <Label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Data de Saída</Label>
+            <Label className="text-base font-black text-gray-500 uppercase tracking-widest">Data de Saída</Label>
             <Input 
               type="date" 
               value={exitDateInput} 
               onChange={e => setExitDateInput(e.target.value)} 
-              className="h-14 border-gray-100 bg-gray-50/50 rounded-2xl text-sm font-bold focus:ring-2 focus:ring-orange-500/20"
+              className="h-14 border-gray-100 bg-gray-50/50 rounded-2xl text-base font-bold focus:ring-2 focus:ring-orange-500/20"
             />
           </div>
         </div>
@@ -4010,14 +4010,14 @@ export default function ControlView({
         <div className="px-8 pb-8 pt-2">
           <Button 
             onClick={handleSoftDelete} 
-            className="w-full h-14 rounded-2xl bg-orange-600 hover:bg-orange-700 shadow-xl shadow-orange-100 font-black uppercase text-xs tracking-widest transition-all active:scale-[0.98]"
+            className="w-full h-14 rounded-2xl bg-orange-600 hover:bg-orange-700 shadow-xl shadow-orange-100 font-black uppercase text-base tracking-widest transition-all active:scale-[0.98]"
           >
             Confirmar Saída
           </Button>
           <Button 
             variant="ghost" 
             onClick={() => setIsDeleteOpen(false)}
-            className="w-full mt-2 h-10 rounded-xl font-bold uppercase text-[9px] text-gray-400 tracking-widest hover:text-gray-600"
+            className="w-full mt-2 h-10 rounded-xl font-bold uppercase text-sm text-gray-400 tracking-widest hover:text-gray-600"
           >
             Cancelar operação
           </Button>
@@ -4035,24 +4035,24 @@ export default function ControlView({
           <Droplet className="absolute -right-8 -bottom-8 w-40 h-40 opacity-10 rotate-12" />
           <div className="relative z-10">
             <h2 className="text-2xl font-black text-white leading-tight">{editingTankId ? 'Editar Reservatório' : 'Novo Reservatório'}</h2>
-            <p className="text-blue-100 text-[10px] font-bold uppercase tracking-widest mt-1 opacity-80">{editingTankId ? 'Atualize as informações do seu ativo' : 'Cadastro de armazenamento de combustível'}</p>
+            <p className="text-blue-100 text-base font-bold uppercase tracking-widest mt-1 opacity-80">{editingTankId ? 'Atualize as informações do seu ativo' : 'Cadastro de armazenamento de combustível'}</p>
           </div>
         </div>
 
         <div className="p-8 space-y-6">
           <div className="space-y-4">
             <div className="space-y-2">
-              <Label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Nome/Identificação</Label>
+              <Label className="text-base font-black text-gray-400 uppercase tracking-widest">Nome/Identificação</Label>
               <Input 
                 placeholder="Ex: Reservatório Principal Obra" 
                 value={newTank.name} 
                 onChange={e => setNewTank({...newTank, name: e.target.value})} 
-                className="h-14 border-gray-100 bg-gray-50/50 rounded-2xl text-sm font-bold"
+                className="h-14 border-gray-100 bg-gray-50/50 rounded-2xl text-base font-bold"
               />
             </div>
 
             <div className="space-y-2 text-left">
-              <Label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Tipo de Combustível</Label>
+              <Label className="text-base font-black text-gray-400 uppercase tracking-widest">Tipo de Combustível</Label>
               <div className="grid grid-cols-2 gap-4">
                 <Select value={newTank.fuelType || 'Diesel S10'} onValueChange={val => setNewTank({...newTank, fuelType: val})}>
                   <SelectTrigger className="h-14 border-gray-100 bg-gray-50/50 rounded-2xl font-bold">
@@ -4070,7 +4070,7 @@ export default function ControlView({
                     placeholder="Digite o combustível" 
                     value={customFuel || (DEFAULT_FUELS.includes(newTank.fuelType || '') ? '' : newTank.fuelType)} 
                     onChange={e => setCustomFuel(e.target.value)} 
-                    className="h-14 border-gray-100 bg-gray-50/50 rounded-2xl text-sm font-bold"
+                    className="h-14 border-gray-100 bg-gray-50/50 rounded-2xl text-base font-bold"
                   />
                 )}
               </div>
@@ -4079,21 +4079,21 @@ export default function ControlView({
           
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Capacidade (L)</Label>
+              <Label className="text-base font-black text-gray-400 uppercase tracking-widest">Capacidade (L)</Label>
               <Input 
                 type="number" 
                 value={newTank.capacity || ''} 
                 onChange={e => setNewTank({...newTank, capacity: Number(e.target.value)})} 
-                className="h-12 border-gray-100 bg-gray-50/50 rounded-xl text-sm font-bold"
+                className="h-12 border-gray-100 bg-gray-50/50 rounded-xl text-base font-bold"
               />
             </div>
             <div className="space-y-2">
-              <Label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Volume Inicial (L)</Label>
+              <Label className="text-base font-black text-gray-400 uppercase tracking-widest">Volume Inicial (L)</Label>
               <Input 
                 type="number" 
                 value={newTank.currentLevel || ''} 
                 onChange={e => setNewTank({...newTank, currentLevel: Number(e.target.value)})} 
-                className="h-12 border-gray-100 bg-gray-50/50 rounded-xl text-sm font-bold"
+                className="h-12 border-gray-100 bg-gray-50/50 rounded-xl text-base font-bold"
               />
             </div>
           </div>
@@ -4102,7 +4102,7 @@ export default function ControlView({
         <div className="px-8 pb-8 pt-2 space-y-3">
           <Button 
             onClick={handleCreateTank} 
-            className="w-full h-14 rounded-2xl bg-blue-600 hover:bg-blue-700 shadow-xl shadow-blue-100 font-black uppercase text-xs tracking-widest transition-all active:scale-[0.98]"
+            className="w-full h-14 rounded-2xl bg-blue-600 hover:bg-blue-700 shadow-xl shadow-blue-100 font-black uppercase text-base tracking-widest transition-all active:scale-[0.98]"
           >
             <Check className="w-4 h-4 mr-2" /> {editingTankId ? 'Salvar Alterações' : 'Salvar Reservatório'}
           </Button>
@@ -4114,7 +4114,7 @@ export default function ControlView({
                 const tank = fuelTanks.find(t => t.id === editingTankId);
                 if (tank) handleDeleteTankRequest(tank);
               }}
-              className="w-full h-14 rounded-2xl border-red-50 text-red-500 hover:bg-red-50 hover:text-red-600 font-black uppercase text-xs tracking-widest transition-colors"
+              className="w-full h-14 rounded-2xl border-red-50 text-red-500 hover:bg-red-50 hover:text-red-600 font-black uppercase text-base tracking-widest transition-colors"
             >
               <Trash2 className="w-4 h-4 mr-2" /> Excluir Reservatório
             </Button>
@@ -4135,7 +4135,7 @@ export default function ControlView({
             <h2 className="text-2xl font-black text-white leading-tight">
               {newFuelLog.type === 'entrada' ? 'Entrada de Combustível' : 'Abastecimento'}
             </h2>
-            <p className="text-white/80 text-[10px] font-bold uppercase tracking-widest mt-1 opacity-80">
+            <p className="text-white/80 text-base font-bold uppercase tracking-widest mt-1 opacity-80">
               {newFuelLog.type === 'entrada' ? 'Registro de compra/carga' : 'Saída para equipamento'}
             </p>
           </div>
@@ -4144,7 +4144,7 @@ export default function ControlView({
         <div className="p-8 space-y-6">
           <div className="grid grid-cols-1 gap-4">
             <div className="space-y-2 text-left">
-              <Label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Data</Label>
+              <Label className="text-base font-black text-gray-400 uppercase tracking-widest">Data</Label>
               <Input 
                 type="date" 
                 value={newFuelLog.date} 
@@ -4154,7 +4154,7 @@ export default function ControlView({
             </div>
             
             <div className="space-y-2 text-left">
-              <Label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Reservatório de Origem</Label>
+              <Label className="text-base font-black text-gray-400 uppercase tracking-widest">Reservatório de Origem</Label>
               <Select value={newFuelLog.tankId || ''} onValueChange={val => setNewFuelLog({...newFuelLog, tankId: val})}>
                 <SelectTrigger className="h-12 border-gray-100 bg-gray-50/50 rounded-xl font-bold">
                   <SelectValue placeholder="Selecione o reservatório" />
@@ -4170,13 +4170,13 @@ export default function ControlView({
             {newFuelLog.type === 'saida' && (
               <div className="space-y-4">
                 <div className="space-y-2 text-left">
-                  <Label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Equipamento Destino</Label>
+                  <Label className="text-base font-black text-gray-400 uppercase tracking-widest">Equipamento Destino</Label>
                   <Popover open={openDest} onOpenChange={setOpenDest}>
                     <PopoverTrigger asChild>
                       <Button
                         variant="outline"
                         role="combobox"
-                        className="w-full justify-between h-12 px-4 border-gray-100 bg-gray-50/50 rounded-xl font-bold text-sm"
+                        className="w-full justify-between h-12 px-4 border-gray-100 bg-gray-50/50 rounded-xl font-bold text-base"
                       >
                         {(() => {
                           if (!newFuelLog.equipmentId) return "Selecionar destino...";
@@ -4212,8 +4212,8 @@ export default function ControlView({
                                   >
                                     <Check className={cn("mr-2 h-4 w-4 text-blue-600", newFuelLog.equipmentId === t.id ? "opacity-100" : "opacity-0")} />
                                     <div className="flex flex-col">
-                                      <span className="font-black text-gray-900 uppercase text-[10px]">Reservatório: {t.name}</span>
-                                      <span className="text-[9px] text-gray-500 font-bold">Nível: {t.currentLevel}L / {t.capacity}L</span>
+                                      <span className="font-black text-gray-900 uppercase text-base">Reservatório: {t.name}</span>
+                                      <span className="text-sm text-gray-500 font-bold">Nível: {t.currentLevel}L / {t.capacity}L</span>
                                     </div>
                                   </CommandItem>
                                 ))}
@@ -4235,8 +4235,8 @@ export default function ControlView({
                                 >
                                   <Check className={cn("mr-2 h-4 w-4 text-blue-600", newFuelLog.equipmentId === e.id ? "opacity-100" : "opacity-0")} />
                                   <div className="flex flex-col">
-                                    <span className="font-black text-gray-900 uppercase text-[10px]">{e.name}</span>
-                                    <span className="text-[9px] text-gray-500 font-bold tracking-tight">PLACA: {e.plate || 'S/N'}</span>
+                                    <span className="font-black text-gray-900 uppercase text-base">{e.name}</span>
+                                    <span className="text-sm text-gray-500 font-bold tracking-tight">PLACA: {e.plate || 'S/N'}</span>
                                   </div>
                                 </CommandItem>
                               ))}
@@ -4250,7 +4250,7 @@ export default function ControlView({
             )}
 
             <div className="space-y-2 text-left">
-              <Label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Quantidade (Litros)</Label>
+              <Label className="text-base font-black text-gray-400 uppercase tracking-widest">Quantidade (Litros)</Label>
               <Input 
                 type="number" 
                 value={newFuelLog.quantity || ''} 
@@ -4265,7 +4265,7 @@ export default function ControlView({
             {newFuelLog.type === 'entrada' && (
               <div className="grid grid-cols-1 gap-4 pt-4 border-t border-gray-100">
                 <div className="space-y-2 text-left">
-                  <Label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Fornecedor / Nº Nota</Label>
+                  <Label className="text-base font-black text-gray-400 uppercase tracking-widest">Fornecedor / Nº Nota</Label>
                   <div className="grid grid-cols-2 gap-2">
                     <Input placeholder="Fornecedor" value={newFuelLog.supplier || ''} onChange={e => setNewFuelLog({...newFuelLog, supplier: e.target.value})} className="h-12 border-gray-100 bg-gray-50/50 rounded-xl" />
                     <Input placeholder="Nota Fiscal" value={newFuelLog.invoiceNumber || ''} onChange={e => setNewFuelLog({...newFuelLog, invoiceNumber: e.target.value})} className="h-12 border-gray-100 bg-gray-50/50 rounded-xl" />
@@ -4273,7 +4273,7 @@ export default function ControlView({
                 </div>
                 <div className="grid grid-cols-2 gap-2">
                   <div className="space-y-2 text-left">
-                    <Label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Preço Un. (R$)</Label>
+                    <Label className="text-base font-black text-gray-400 uppercase tracking-widest">Preço Un. (R$)</Label>
                     <Input 
                       type="number" 
                       step="0.01" 
@@ -4286,7 +4286,7 @@ export default function ControlView({
                     />
                   </div>
                   <div className="space-y-2 text-left">
-                    <Label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Custo Total (R$)</Label>
+                    <Label className="text-base font-black text-gray-400 uppercase tracking-widest">Custo Total (R$)</Label>
                     <Input type="number" step="0.01" value={newFuelLog.cost || ''} onChange={e => setNewFuelLog({...newFuelLog, cost: Number(e.target.value)})} className="h-12 border-emerald-100 bg-emerald-50/50 rounded-xl font-black text-emerald-700" />
                   </div>
                 </div>
@@ -4298,11 +4298,11 @@ export default function ControlView({
         <div className="px-8 pb-8 pt-2">
           <Button 
             onClick={handleCreateFuelLog} 
-            className={cn("w-full h-14 rounded-2xl font-black uppercase text-xs tracking-widest shadow-xl transition-all active:scale-[0.98]", newFuelLog.type === 'entrada' ? 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-100' : 'bg-orange-600 hover:bg-orange-700 shadow-orange-100')}
+            className={cn("w-full h-14 rounded-2xl font-black uppercase text-base tracking-widest shadow-xl transition-all active:scale-[0.98]", newFuelLog.type === 'entrada' ? 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-100' : 'bg-orange-600 hover:bg-orange-700 shadow-orange-100')}
           >
             {newFuelLog.type === 'entrada' ? 'Registrar Nova Entrada' : 'Registrar Saída'}
           </Button>
-          <Button variant="ghost" onClick={() => setIsFuelLogModalOpen(false)} className="w-full mt-2 h-10 rounded-xl font-bold uppercase text-[9px] text-gray-400">Cancelar operação</Button>
+          <Button variant="ghost" onClick={() => setIsFuelLogModalOpen(false)} className="w-full mt-2 h-10 rounded-xl font-bold uppercase text-sm text-gray-400">Cancelar operação</Button>
         </div>
       </Modal>
 
@@ -4317,14 +4317,14 @@ export default function ControlView({
           <ShoppingCart className="absolute -right-8 -bottom-8 w-40 h-40 opacity-10 rotate-12" />
           <div className="relative z-10 text-left">
             <h2 className="text-3xl font-black tracking-tight">Solicitação de Compra</h2>
-            <p className="text-blue-100 font-bold uppercase text-[10px] tracking-widest mt-1">Gerencie os detalhes e itens da solicitação para o Controlador</p>
+            <p className="text-blue-100 font-bold uppercase text-base tracking-widest mt-1">Gerencie os detalhes e itens da solicitação para o Controlador</p>
           </div>
         </div>
 
         <div className="p-8 space-y-8">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-2">
-              <Label className="text-[10px] uppercase font-bold text-gray-400">Data da Solicitação</Label>
+              <Label className="text-base uppercase font-bold text-gray-400">Data da Solicitação</Label>
               <Input 
                 type="date" 
                 className="h-12 border-gray-200 rounded-xl focus:ring-blue-500 font-medium"
@@ -4333,7 +4333,7 @@ export default function ControlView({
               />
             </div>
             <div className="space-y-2">
-              <Label className="text-[10px] uppercase font-bold text-gray-400">Setor Solicitante</Label>
+              <Label className="text-base uppercase font-bold text-gray-400">Setor Solicitante</Label>
               <Input 
                 placeholder="Ex: CONTROLADOR"
                 value={currentRequest.sector || 'CONTROLADOR'}
@@ -4344,7 +4344,7 @@ export default function ControlView({
           </div>
 
           <div className="space-y-2">
-            <Label className="text-[10px] uppercase font-bold text-gray-400">Descrição Geral / Motivo</Label>
+            <Label className="text-base uppercase font-bold text-gray-400">Descrição Geral / Motivo</Label>
             <Input 
               placeholder="Ex: Reposição de peças para equipamentos" 
               className="h-12 border-gray-200 rounded-xl focus:ring-blue-500 font-medium"
@@ -4354,7 +4354,7 @@ export default function ControlView({
           </div>
 
           <div className="space-y-2">
-            <Label className="text-[10px] uppercase font-bold text-gray-400">Obra / Contrato Vinculado</Label>
+            <Label className="text-base uppercase font-bold text-gray-400">Obra / Contrato Vinculado</Label>
             <Select 
               value={currentRequest.contractId || (selectedContractId !== 'all' ? selectedContractId : 'none')} 
               onValueChange={v => setCurrentRequest({...currentRequest, contractId: v})}
@@ -4386,7 +4386,7 @@ export default function ControlView({
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-2">
-              <Label className="text-[10px] uppercase font-bold text-gray-400">Prioridade</Label>
+              <Label className="text-base uppercase font-bold text-gray-400">Prioridade</Label>
               <Select 
                 value={currentRequest.priority || 'Normal'}
                 onValueChange={(v: any) => setCurrentRequest({ ...currentRequest, priority: v })}
@@ -4413,7 +4413,7 @@ export default function ControlView({
               </Select>
             </div>
             <div className="space-y-2 relative">
-              <Label className="text-[10px] uppercase font-bold text-gray-400">Categoria</Label>
+              <Label className="text-base uppercase font-bold text-gray-400">Categoria</Label>
               <div className="relative">
                 <Input 
                   value={newRequestCategory} 
@@ -4433,7 +4433,7 @@ export default function ControlView({
                       .map(cat => (
                         <div 
                           key={cat} 
-                          className="px-4 py-3 hover:bg-emerald-50 cursor-pointer text-xs font-bold text-gray-700"
+                          className="px-4 py-3 hover:bg-emerald-50 cursor-pointer text-base font-bold text-gray-700"
                           onClick={() => {
                             setNewRequestCategory(cat);
                             setShowCategorySuggestions(false);
@@ -4450,12 +4450,12 @@ export default function ControlView({
 
           <div className="space-y-4 pt-4 border-t border-gray-100">
             <div className="flex justify-between items-center mb-2">
-              <Label className="text-[10px] uppercase font-black text-gray-400 tracking-widest">Itens da Solicitação</Label>
+              <Label className="text-base uppercase font-black text-gray-400 tracking-widest">Itens da Solicitação</Label>
               <Button 
                 type="button" 
                 size="sm" 
                 onClick={addItemInput}
-                className="bg-blue-50 text-blue-600 hover:bg-blue-100 border-none h-8 font-bold text-[10px] rounded-lg"
+                className="bg-blue-50 text-blue-600 hover:bg-blue-100 border-none h-8 font-bold text-base rounded-lg"
               >
                 <Plus className="w-3 h-3 mr-1" /> Adicionar Item
               </Button>
@@ -4465,7 +4465,7 @@ export default function ControlView({
               {(currentRequest.items || []).map((item, idx) => (
                 <div key={item.id} className="grid grid-cols-12 gap-3 p-4 bg-gray-50 rounded-2xl border border-gray-100 group transition-all hover:bg-white hover:shadow-md hover:border-blue-100 relative">
                   <div className="col-span-12 sm:col-span-7 space-y-1">
-                    <Label className="text-[9px] font-black text-gray-400 uppercase tracking-tighter">Descrição do Item / Aplicação</Label>
+                    <Label className="text-sm font-black text-gray-400 uppercase tracking-tighter">Descrição do Item / Aplicação</Label>
                     <Input 
                       placeholder="Ex: Filtro de Óleo - Placa ABC-1234"
                       value={item.description}
@@ -4474,7 +4474,7 @@ export default function ControlView({
                     />
                   </div>
                   <div className="col-span-6 sm:col-span-2 space-y-1">
-                    <Label className="text-[9px] font-black text-gray-400 uppercase tracking-tighter">Qtd</Label>
+                    <Label className="text-sm font-black text-gray-400 uppercase tracking-tighter">Qtd</Label>
                     <Input 
                       type="number"
                       value={item.quantity}
@@ -4483,7 +4483,7 @@ export default function ControlView({
                     />
                   </div>
                   <div className="col-span-6 sm:col-span-2 space-y-1">
-                    <Label className="text-[9px] font-black text-gray-400 uppercase tracking-tighter">Unid</Label>
+                    <Label className="text-sm font-black text-gray-400 uppercase tracking-tighter">Unid</Label>
                     <Input 
                       placeholder="un"
                       value={item.unit}
@@ -4506,7 +4506,7 @@ export default function ControlView({
               
               {(currentRequest.items || []).length === 0 && (
                 <div className="py-8 text-center bg-gray-50 rounded-2xl border border-dashed border-gray-200">
-                  <p className="text-gray-400 text-xs font-medium">Nenhum item adicionado ainda.</p>
+                  <p className="text-gray-400 text-base font-medium">Nenhum item adicionado ainda.</p>
                   <Button 
                     variant="outline" 
                     size="sm" 
@@ -4524,14 +4524,14 @@ export default function ControlView({
         <div className="px-8 pb-8 pt-2">
           <Button 
             onClick={handleCreateMaterialRequest} 
-            className="w-full h-14 rounded-2xl bg-blue-600 hover:bg-blue-700 shadow-xl shadow-blue-100 font-black uppercase text-xs tracking-widest transition-all active:scale-[0.98]"
+            className="w-full h-14 rounded-2xl bg-blue-600 hover:bg-blue-700 shadow-xl shadow-blue-100 font-black uppercase text-base tracking-widest transition-all active:scale-[0.98]"
           >
             Enviar Solicitação
           </Button>
           <Button 
             variant="ghost" 
             onClick={() => setIsMaterialRequestModalOpen(false)}
-            className="w-full mt-2 h-10 rounded-xl font-bold uppercase text-[9px] text-gray-400 tracking-widest hover:text-gray-600"
+            className="w-full mt-2 h-10 rounded-xl font-bold uppercase text-sm text-gray-400 tracking-widest hover:text-gray-600"
           >
             Fechar janela
           </Button>
@@ -4549,75 +4549,75 @@ export default function ControlView({
           <Truck className="absolute -right-8 -bottom-8 w-40 h-40 opacity-10 rotate-12" />
           <div className="relative z-10 text-left">
             <div className="flex items-center gap-3 mb-2">
-               <Badge variant="outline" className="border-blue-400 text-blue-100 bg-blue-500/20 px-2 py-0.5 text-[9px] font-black uppercase tracking-widest">{selectedEquipment?.code || 'SEM CÓDIGO'}</Badge>
-               <Badge variant="outline" className="border-blue-400 text-blue-100 bg-blue-500/20 px-2 py-0.5 text-[9px] font-black uppercase tracking-widest">{selectedEquipment?.situation}</Badge>
+               <Badge variant="outline" className="border-blue-400 text-blue-100 bg-blue-500/20 px-2 py-0.5 text-sm font-black uppercase tracking-widest">{selectedEquipment?.code || 'SEM CÓDIGO'}</Badge>
+               <Badge variant="outline" className="border-blue-400 text-blue-100 bg-blue-500/20 px-2 py-0.5 text-sm font-black uppercase tracking-widest">{selectedEquipment?.situation}</Badge>
             </div>
             <h2 className="text-3xl font-black tracking-tight">{selectedEquipment?.name}</h2>
-            <p className="text-blue-100 font-bold uppercase text-[10px] tracking-widest mt-1">{selectedEquipment?.brand} {selectedEquipment?.model} • Placa: {selectedEquipment?.plate}</p>
+            <p className="text-blue-100 font-bold uppercase text-base tracking-widest mt-1">{selectedEquipment?.brand} {selectedEquipment?.model} • Placa: {selectedEquipment?.plate}</p>
           </div>
         </div>
 
         <div className="p-8 space-y-8">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             <div className="space-y-4">
-              <h4 className="text-[10px] font-black uppercase text-gray-400 tracking-widest border-b pb-2">Informações Base</h4>
+              <h4 className="text-base font-black uppercase text-gray-400 tracking-widest border-b pb-2">Informações Base</h4>
               <div className="grid gap-3">
                 <div className="flex justify-between border-b border-gray-50 pb-2">
-                  <span className="text-[10px] font-bold text-gray-500 uppercase">Ano</span>
-                  <span className="text-[11px] font-black">{selectedEquipment?.year}</span>
+                  <span className="text-base font-bold text-gray-500 uppercase">Ano</span>
+                  <span className="text-base font-black">{selectedEquipment?.year}</span>
                 </div>
                 <div className="flex justify-between border-b border-gray-50 pb-2">
-                  <span className="text-[10px] font-bold text-gray-500 uppercase">Horímetro Atual</span>
-                  <span className="text-[11px] font-black text-blue-600 font-mono tracking-tighter">{selectedEquipment?.currentReading}h</span>
+                  <span className="text-base font-bold text-gray-500 uppercase">Horímetro Atual</span>
+                  <span className="text-base font-black text-blue-600 font-mono tracking-tighter">{selectedEquipment?.currentReading}h</span>
                 </div>
                  <div className="flex justify-between border-b border-gray-50 pb-2">
-                  <span className="text-[10px] font-bold text-gray-500 uppercase">Obra Atual</span>
-                  <span className="text-[11px] font-black text-emerald-600">{getContractName(selectedEquipment?.contractId || '')}</span>
+                  <span className="text-base font-bold text-gray-500 uppercase">Obra Atual</span>
+                  <span className="text-base font-black text-emerald-600">{getContractName(selectedEquipment?.contractId || '')}</span>
                 </div>
               </div>
             </div>
 
             <div className="space-y-4">
-              <h4 className="text-[10px] font-black uppercase text-gray-400 tracking-widest border-b pb-2">Status Operacional</h4>
+              <h4 className="text-base font-black uppercase text-gray-400 tracking-widest border-b pb-2">Status Operacional</h4>
               <div className="grid gap-3">
                 <div className="flex justify-between border-b border-gray-50 pb-2">
-                  <span className="text-[10px] font-bold text-gray-500 uppercase">Em Manutenção?</span>
-                  <Badge className={cn("text-[9px] font-black px-2", selectedEquipment?.inMaintenance ? "bg-red-100 text-red-600 hover:bg-red-200" : "bg-emerald-100 text-emerald-600 hover:bg-emerald-200")}>
+                  <span className="text-base font-bold text-gray-500 uppercase">Em Manutenção?</span>
+                  <Badge className={cn("text-sm font-black px-2", selectedEquipment?.inMaintenance ? "bg-red-100 text-red-600 hover:bg-red-200" : "bg-emerald-100 text-emerald-600 hover:bg-emerald-200")}>
                     {selectedEquipment?.inMaintenance ? 'SIM' : 'NÃO'}
                   </Badge>
                 </div>
                 <div className="flex justify-between border-b border-gray-50 pb-2">
-                  <span className="text-[10px] font-bold text-gray-500 uppercase">Status do Patrimônio</span>
-                  <span className="text-[11px] font-black">{selectedEquipment?.situation}</span>
+                  <span className="text-base font-bold text-gray-500 uppercase">Status do Patrimônio</span>
+                  <span className="text-base font-black">{selectedEquipment?.situation}</span>
                 </div>
               </div>
             </div>
           </div>
 
           <div className="space-y-4">
-            <h4 className="text-[10px] font-black uppercase text-gray-400 tracking-widest border-b pb-2">Atributos Técnicos</h4>
+            <h4 className="text-base font-black uppercase text-gray-400 tracking-widest border-b pb-2">Atributos Técnicos</h4>
             <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
               {Object.entries(selectedEquipment?.customFields || {}).map(([key, f]) => {
                 const field = f as EquipmentAttribute;
                 return (
                   <div key={key} className="p-3 bg-gray-50 rounded-2xl border border-gray-100 flex flex-col gap-1">
-                    <span className="text-[9px] font-bold text-blue-600 uppercase tracking-tighter">{key.replace(/_/g, ' ')}</span>
-                    <span className="text-xs font-black text-gray-900">
+                    <span className="text-sm font-bold text-blue-600 uppercase tracking-tighter">{key.replace(/_/g, ' ')}</span>
+                    <span className="text-base font-black text-gray-900">
                       {field.type === 'boolean' ? (field.value ? 'Sim' : 'Não') : field.value}
                     </span>
                   </div>
                 );
               })}
               {(!selectedEquipment?.customFields || Object.keys(selectedEquipment.customFields).length === 0) && (
-                 <div className="col-span-full py-4 text-center text-[10px] text-gray-400 font-bold uppercase italic">Sem atributos customizados</div>
+                 <div className="col-span-full py-4 text-center text-base text-gray-400 font-bold uppercase italic">Sem atributos customizados</div>
               )}
             </div>
           </div>
 
           {selectedEquipment?.observations && (
             <div className="space-y-2">
-              <h4 className="text-[10px] font-black uppercase text-gray-400 tracking-widest border-b pb-2">Observações Gerais</h4>
-              <div className="p-4 bg-amber-50/50 border border-amber-100 rounded-2xl text-xs font-medium text-gray-700 leading-relaxed italic">
+              <h4 className="text-base font-black uppercase text-gray-400 tracking-widest border-b pb-2">Observações Gerais</h4>
+              <div className="p-4 bg-amber-50/50 border border-amber-100 rounded-2xl text-base font-medium text-gray-700 leading-relaxed italic">
                 "{selectedEquipment.observations}"
               </div>
             </div>
@@ -4625,14 +4625,14 @@ export default function ControlView({
         </div>
 
         <DialogFooter className="p-6 bg-gray-50 border-t flex flex-col sm:flex-row gap-3">
-          <Button variant="ghost" onClick={() => setIsDetailOpen(false)} className="rounded-xl font-bold uppercase text-[10px] h-12 px-6 flex-1">Fechar</Button>
+          <Button variant="ghost" onClick={() => setIsDetailOpen(false)} className="rounded-xl font-bold uppercase text-base h-12 px-6 flex-1">Fechar</Button>
           <Button 
               onClick={() => {
                  setEquipmentToEdit(selectedEquipment);
                  setIsEditOpen(true);
                  setIsDetailOpen(false);
               }} 
-              className="h-12 rounded-xl bg-blue-600 hover:bg-blue-700 font-bold uppercase text-[10px] tracking-widest flex-[2]"
+              className="h-12 rounded-xl bg-blue-600 hover:bg-blue-700 font-bold uppercase text-base tracking-widest flex-[2]"
           >
               <Edit className="w-4 h-4 mr-2" /> Editar Equipamento
           </Button>
@@ -4654,7 +4654,7 @@ export default function ControlView({
             }}
           >
             <FileText className="w-8 h-8 mb-2" />
-            <span className="font-bold text-xs uppercase">PDF</span>
+            <span className="font-bold text-base uppercase">PDF</span>
           </Button>
           <Button 
             className="flex flex-col items-center justify-center p-6 bg-white border border-emerald-200 text-emerald-600 rounded-2xl hover:bg-emerald-50 hover:border-emerald-300 transition-colors"
@@ -4664,7 +4664,7 @@ export default function ControlView({
             }}
           >
             <FileDown className="w-8 h-8 mb-2" />
-            <span className="font-bold text-xs uppercase">Excel</span>
+            <span className="font-bold text-base uppercase">Excel</span>
           </Button>
         </div>
       </Modal>
@@ -4707,7 +4707,7 @@ export default function ControlView({
                            }
                         }}
                       />
-                      <label className="text-sm font-medium">
+                      <label className="text-base font-medium">
                         {new Date(maint.entryDate).toLocaleDateString('pt-BR')} - {maint.type === 'preventive' ? 'PREV' : 'CORR'} - {maint.requestedItems}
                       </label>
                    </div>
@@ -4732,7 +4732,7 @@ export default function ControlView({
         <DialogContent className="max-w-md rounded-3xl p-8">
           <DialogHeader>
             <DialogTitle className="text-2xl font-black text-blue-600">Aplicar Material em Equipamento</DialogTitle>
-            <DialogDescription className="text-xs font-bold text-gray-400 uppercase">
+            <DialogDescription className="text-base font-bold text-gray-400 uppercase">
               Retirada de material do estoque para manutenção
             </DialogDescription>
           </DialogHeader>
@@ -4740,10 +4740,10 @@ export default function ControlView({
           {selectedStockItem && (
             <div className="space-y-6 pt-4">
               <div className="p-4 bg-gray-50 rounded-2xl flex flex-col gap-1">
-                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Material Selecionado</span>
-                <span className="text-sm font-black text-gray-900">{selectedStockItem.item.description}</span>
+                <span className="text-base font-bold text-gray-400 uppercase tracking-widest">Material Selecionado</span>
+                <span className="text-base font-black text-gray-900">{selectedStockItem.item.description}</span>
                 <div className="flex justify-between items-center mt-2 pt-2 border-t border-gray-200">
-                  <span className="text-[10px] font-bold text-gray-400 uppercase">Saldo Disponível</span>
+                  <span className="text-base font-bold text-gray-400 uppercase">Saldo Disponível</span>
                   <Badge className="bg-blue-100 text-blue-700 border-none font-black">
                     {(selectedStockItem.item.quantity - (selectedStockItem.item.appliedQuantity || 0))} {selectedStockItem.item.unit}
                   </Badge>
@@ -4752,7 +4752,7 @@ export default function ControlView({
 
               <div className="space-y-4">
                 <div className="space-y-2">
-                  <Label className="text-[10px] uppercase font-bold text-gray-400">Equipamento de Destino</Label>
+                  <Label className="text-base uppercase font-bold text-gray-400">Equipamento de Destino</Label>
                   <Select value={applyEquipmentId} onValueChange={setApplyEquipmentId}>
                     <SelectTrigger className="h-12 border-gray-200 rounded-xl focus:ring-blue-500">
                       <SelectValue placeholder="Selecione o Equipamento" />
@@ -4764,7 +4764,7 @@ export default function ControlView({
                           <SelectItem key={e.id} value={e.id} className="font-bold py-3">
                             <div className="flex flex-col">
                               <span>{e.name}</span>
-                              <span className="text-[10px] text-gray-400 uppercase tracking-tighter">Placa: {e.plate}</span>
+                              <span className="text-base text-gray-400 uppercase tracking-tighter">Placa: {e.plate}</span>
                             </div>
                           </SelectItem>
                         ))
@@ -4774,7 +4774,7 @@ export default function ControlView({
                 </div>
 
                 <div className="space-y-2">
-                  <Label className="text-[10px] uppercase font-bold text-gray-400">Quantidade a Aplicar</Label>
+                  <Label className="text-base uppercase font-bold text-gray-400">Quantidade a Aplicar</Label>
                   <Input 
                     type="number"
                     value={applyQuantity}
@@ -4783,7 +4783,7 @@ export default function ControlView({
                     min={1}
                     className="h-12 border-gray-200 rounded-xl font-black text-blue-600 focus:ring-blue-500"
                   />
-                  <p className="text-[9px] text-gray-400 font-medium italic">* A quantidade aplicada será registrada no histórico do equipamento.</p>
+                  <p className="text-sm text-gray-400 font-medium italic">* A quantidade aplicada será registrada no histórico do equipamento.</p>
                 </div>
               </div>
             </div>

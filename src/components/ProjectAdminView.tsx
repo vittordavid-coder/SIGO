@@ -201,7 +201,7 @@ export function ProjectAdminView({
 
                         return (
                           <TableRow key={q.id} className="hover:bg-blue-50/30 transition-colors">
-                            <TableCell className="font-mono text-xs font-bold text-gray-500">
+                            <TableCell className="font-mono text-sm font-bold text-gray-500">
                               COT-{q.date.replace(/-/g, '')}-{q.id.substring(0, 4).toUpperCase()}
                             </TableCell>
                             <TableCell className="text-gray-600 font-medium">
@@ -216,7 +216,7 @@ export function ProjectAdminView({
                                   <div 
                                     key={s.supplierId} 
                                     className={cn(
-                                      "w-8 h-8 rounded-full border-2 border-white flex items-center justify-center text-[10px] font-black uppercase text-white shadow-sm",
+                                      "w-8 h-8 rounded-full border-2 border-white flex items-center justify-center text-sm font-black uppercase text-white shadow-sm",
                                       idx % 2 === 0 ? "bg-blue-500" : "bg-emerald-500"
                                     )}
                                     title={suppliers.find(sup => sup.id === s.supplierId)?.name || 'Fornecedor'}
@@ -282,7 +282,7 @@ export function ProjectAdminView({
                         <TableHead className="text-center font-bold">Qtd</TableHead>
                         {selectedQuotation.suppliers?.map(qs => (
                           <TableHead key={qs.supplierId} className="text-center">
-                            <div className="text-xs font-black text-blue-600 uppercase">
+                            <div className="text-sm font-black text-blue-600 uppercase">
                               {suppliers.find(s => s.id === qs.supplierId)?.name || 'Fornecedor'}
                             </div>
                           </TableHead>
@@ -294,13 +294,13 @@ export function ProjectAdminView({
                         <TableRow key={item.itemId}>
                           <TableCell>
                             <div className="font-bold text-gray-900">{item.description}</div>
-                            <div className="text-[10px] text-gray-400 font-medium">{item.unit}</div>
+                            <div className="text-sm text-gray-400 font-medium">{item.unit}</div>
                           </TableCell>
                           <TableCell className="text-center font-medium">{item.quantity}</TableCell>
                           {selectedQuotation.suppliers?.map(qs => {
                             const res = (qs.responses || []).find(r => r.itemId === item.itemId);
                             return (
-                              <TableCell key={qs.supplierId} className="text-center font-mono text-sm text-emerald-700 font-black">
+                              <TableCell key={qs.supplierId} className="text-center font-mono text-base text-emerald-700 font-black">
                                 R$ {(res?.price ?? 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                               </TableCell>
                             );
@@ -308,15 +308,15 @@ export function ProjectAdminView({
                         </TableRow>
                       ))}
                       <TableRow className="bg-gray-50/80 font-black">
-                        <TableCell colSpan={2} className="text-right text-xs uppercase text-gray-500">Forma de Pagamento</TableCell>
+                        <TableCell colSpan={2} className="text-right text-sm uppercase text-gray-500">Forma de Pagamento</TableCell>
                         {selectedQuotation.suppliers?.map(qs => (
-                          <TableCell key={qs.supplierId} className="text-center text-xs text-blue-600">
+                          <TableCell key={qs.supplierId} className="text-center text-sm text-blue-600">
                             {qs.paymentCondition || 'Não informada'}
                           </TableCell>
                         ))}
                       </TableRow>
                       <TableRow className="bg-slate-50 font-black">
-                        <TableCell colSpan={2} className="text-right text-xs uppercase text-gray-500">Investimento Total</TableCell>
+                        <TableCell colSpan={2} className="text-right text-sm uppercase text-gray-500">Investimento Total</TableCell>
                         {selectedQuotation.suppliers?.map(qs => {
                           const total = (selectedQuotation.items || []).reduce((acc, item) => {
                             const res = (qs.responses || []).find(r => r.itemId === item.itemId);
@@ -336,11 +336,11 @@ export function ProjectAdminView({
                                 R$ {(total ?? 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                               </div>
                               {isSelected ? (
-                                <div className="text-[10px] text-emerald-600 uppercase font-black mt-1 flex items-center justify-center gap-1">
+                                <div className="text-sm text-emerald-600 uppercase font-black mt-1 flex items-center justify-center gap-1">
                                   <CheckCircle className="w-3 h-3" /> Selecionado
                                 </div>
                               ) : (
-                                <div className="text-[10px] text-gray-400 uppercase font-bold mt-1 opacity-0 group-hover:opacity-100 italic">
+                                <div className="text-sm text-gray-400 uppercase font-bold mt-1 opacity-0 group-hover:opacity-100 italic">
                                   Clique para selecionar
                                 </div>
                               )}
@@ -376,7 +376,7 @@ export function ProjectAdminView({
                       Aprovar e Liberar Compra
                     </Button>
                     {!selectedSupplierId && (
-                      <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-[10px] py-1 px-3 rounded-lg font-bold whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity">
+                      <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-sm py-1 px-3 rounded-lg font-bold whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity">
                         Selecione um fornecedor na tabela acima
                       </div>
                     )}

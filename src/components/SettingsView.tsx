@@ -333,7 +333,7 @@ export function SettingsView({
             <TabsTrigger value="requests" className="gap-2 px-6 relative">
               <Key className="w-4 h-4" /> Solicitações
               {resetRequests.filter(r => r.status === 'pending').length > 0 && (
-                <Badge variant="destructive" className="absolute -top-2 -right-2 h-5 w-5 flex items-center justify-center p-0 text-[10px] rounded-full">
+                <Badge variant="destructive" className="absolute -top-2 -right-2 h-5 w-5 flex items-center justify-center p-0 text-sm rounded-full">
                   {resetRequests.filter(r => r.status === 'pending').length}
                 </Badge>
               )}
@@ -358,9 +358,9 @@ export function SettingsView({
                   </div>
                   <div>
                     <p className="font-bold text-gray-900">{currentUser.name}</p>
-                    <p className="text-sm text-gray-500 flex items-center gap-1.5">
+                    <p className="text-base text-gray-500 flex items-center gap-1.5">
                       @{currentUser.username} • 
-                      <Badge variant="outline" className="text-[10px] uppercase font-bold py-0 h-4 border-blue-200 bg-blue-50 text-blue-700">
+                      <Badge variant="outline" className="text-sm uppercase font-bold py-0 h-4 border-blue-200 bg-blue-50 text-blue-700">
                         {currentUser.role}
                       </Badge>
                     </p>
@@ -423,7 +423,7 @@ export function SettingsView({
               </CardHeader>
               <CardContent className="space-y-6">
                 <div className="space-y-2 bg-blue-50 p-4 rounded-xl border border-blue-100 mb-4">
-                  <Label htmlFor="logo-mode-select" className="text-sm font-bold leading-none cursor-pointer">
+                  <Label htmlFor="logo-mode-select" className="text-base font-bold leading-none cursor-pointer">
                     Configuração de Visualização de Logos
                   </Label>
                   <Select value={logoMode} onValueChange={(v: any) => onLogoModeChange(v)}>
@@ -437,7 +437,7 @@ export function SettingsView({
                       <SelectItem value="none">Nenhum Logo</SelectItem>
                     </SelectContent>
                   </Select>
-                  <p className="text-xs text-blue-600 mt-1">
+                  <p className="text-sm text-blue-600 mt-1">
                     Esta configuração define como os logos serão exibidos em todos os relatórios do sistema.
                   </p>
                 </div>
@@ -445,7 +445,7 @@ export function SettingsView({
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                   {/* Logo Esquerdo */}
                   <div className="space-y-3">
-                    <Label className="text-xs font-bold uppercase text-gray-400">Logo 01 (Lado Esquerdo)</Label>
+                    <Label className="text-sm font-bold uppercase text-gray-400">Logo 01 (Lado Esquerdo)</Label>
                     <div className="flex flex-col items-center justify-center p-6 border-2 border-dashed border-gray-200 rounded-xl bg-gray-50 h-48">
                       {companyLogo ? (
                         <div className="relative group w-full h-full flex items-center justify-center">
@@ -457,7 +457,7 @@ export function SettingsView({
                       ) : (
                         <div className="text-center">
                           <Upload className="w-8 h-8 text-gray-300 mx-auto mb-2" />
-                          <Label htmlFor="logo-left-upload" className="cursor-pointer text-xs font-bold text-blue-600 hover:underline">
+                          <Label htmlFor="logo-left-upload" className="cursor-pointer text-sm font-bold text-blue-600 hover:underline">
                             Carregar Logo Principal
                             <input id="logo-left-upload" type="file" accept="image/*" className="hidden" onChange={(e) => onLogoUpload(e, 'left')} />
                           </Label>
@@ -468,7 +468,7 @@ export function SettingsView({
 
                   {/* Logo Direito */}
                   <div className="space-y-3">
-                    <Label className="text-xs font-bold uppercase text-gray-400">Logo 02 (Lado Direito)</Label>
+                    <Label className="text-sm font-bold uppercase text-gray-400">Logo 02 (Lado Direito)</Label>
                     <div className="flex flex-col items-center justify-center p-6 border-2 border-dashed border-gray-200 rounded-xl bg-gray-50 h-48">
                       {companyLogoRight ? (
                         <div className="relative group w-full h-full flex items-center justify-center">
@@ -480,7 +480,7 @@ export function SettingsView({
                       ) : (
                         <div className="text-center">
                           <Upload className="w-8 h-8 text-gray-300 mx-auto mb-2" />
-                          <Label htmlFor="logo-right-upload" className="cursor-pointer text-xs font-bold text-blue-600 hover:underline">
+                          <Label htmlFor="logo-right-upload" className="cursor-pointer text-sm font-bold text-blue-600 hover:underline">
                             Carregar Logo Secundário
                             <input id="logo-right-upload" type="file" accept="image/*" className="hidden" onChange={(e) => onLogoUpload(e, 'right')} />
                           </Label>
@@ -552,8 +552,8 @@ export function SettingsView({
 
                   <div className="flex items-center justify-between p-3 bg-slate-50 rounded-lg border border-slate-100">
                     <div className="space-y-0.5">
-                      <Label className="text-sm">Usar Conexão Segura (SSL/TLS)</Label>
-                      <p className="text-[10px] text-gray-500">Recomendado para a maioria dos provedores modernos</p>
+                      <Label className="text-base">Usar Conexão Segura (SSL/TLS)</Label>
+                      <p className="text-sm text-gray-500">Recomendado para a maioria dos provedores modernos</p>
                     </div>
                     <Checkbox 
                       checked={emailConfig?.smtpSecure || false} 
@@ -630,7 +630,7 @@ export function SettingsView({
                     )}
                   >
                     <item.icon className="w-6 h-6" />
-                    <span className="text-xs font-bold">{item.label}</span>
+                    <span className="text-sm font-bold">{item.label}</span>
                   </button>
                 ))}
               </div>
@@ -665,8 +665,8 @@ export function SettingsView({
             <CardContent>
               <div className="space-y-4 max-w-xl">
                 <div className="bg-white p-4 border border-amber-100 rounded-xl shadow-sm">
-                  <h4 className="text-sm font-bold text-gray-800 mb-2">Reabrir Medição Encerrada</h4>
-                  <p className="text-xs text-gray-500 mb-4 leading-relaxed">
+                  <h4 className="text-base font-bold text-gray-800 mb-2">Reabrir Medição Encerrada</h4>
+                  <p className="text-sm text-gray-500 mb-4 leading-relaxed">
                     As opções abaixo permitem reabrir uma medição previamente encerrada. Suas modificações ficarão ativas novamente para edição.
                   </p>
                   <div className="flex flex-col gap-4">
@@ -768,7 +768,7 @@ export function SettingsView({
                           <Button 
                             variant="outline" 
                             size="sm" 
-                            className="h-8 text-xs text-red-600 border-red-100"
+                            className="h-8 text-sm text-red-600 border-red-100"
                             onClick={() => {
                               const updated = resetRequests.map(item => item.id === r.id ? { ...item, status: 'rejected' as const } : item);
                               onUpdateResetRequests(updated);
@@ -778,7 +778,7 @@ export function SettingsView({
                           </Button>
                           <Button 
                             size="sm" 
-                            className="h-8 text-xs bg-emerald-600 hover:bg-emerald-700"
+                            className="h-8 text-sm bg-emerald-600 hover:bg-emerald-700"
                             onClick={async () => {
                               const tempPass = Math.random().toString(36).slice(-8); 
                               const hashedTempPass = await hashPassword(tempPass);
@@ -817,17 +817,17 @@ export function SettingsView({
           {resetRequests.filter(r => r.status !== 'pending').length > 0 && (
             <Card className="border-none shadow-sm opacity-60">
               <CardHeader>
-                <CardTitle className="text-sm">Histórico de Solicitações</CardTitle>
+                <CardTitle className="text-base">Histórico de Solicitações</CardTitle>
               </CardHeader>
               <CardContent>
                 <Table>
                    <TableBody>
                      {resetRequests.filter(r => r.status !== 'pending').sort((a,b) => b.timestamp.localeCompare(a.timestamp)).slice(0, 5).map(r => (
                        <TableRow key={r.id}>
-                         <TableCell className="text-xs">
+                         <TableCell className="text-sm">
                            <span className="font-bold">{r.username}</span> ({r.email})
                          </TableCell>
-                         <TableCell className="text-xs text-gray-500 text-right">
+                         <TableCell className="text-sm text-gray-500 text-right">
                            {r.status === 'approved' ? 'Aprovado' : 'Recusado'} em {r.approvedAt ? new Date(r.approvedAt).toLocaleDateString() : '---'}
                          </TableCell>
                        </TableRow>
@@ -895,7 +895,7 @@ function AdminContractsTab({ contracts, onAdd, onUpdate, onDelete }: { contracts
                     <TableCell>
                       <div className="flex flex-col">
                         <span className="font-bold text-gray-900">{contract.contractNumber}</span>
-                        {contract.workName && <span className="text-xs text-blue-600 font-bold uppercase">{contract.workName}</span>}
+                        {contract.workName && <span className="text-sm text-blue-600 font-bold uppercase">{contract.workName}</span>}
                       </div>
                     </TableCell>
                     <TableCell className="text-gray-500">{contract.client}</TableCell>
@@ -1057,7 +1057,7 @@ function DashboardSettings({ config, onChange, currentUser }: { config: Dashboar
                       </div>
                       <div>
                         <h4 className="font-bold text-gray-900">{section.label}</h4>
-                        <p className="text-[10px] uppercase font-black tracking-widest text-gray-400">Setor</p>
+                        <p className="text-sm uppercase font-black tracking-widest text-gray-400">Setor</p>
                       </div>
                     </div>
                     <Checkbox 
@@ -1069,7 +1069,7 @@ function DashboardSettings({ config, onChange, currentUser }: { config: Dashboar
                   <div className="space-y-2">
                     {section.items.map(item => (
                       <div key={item.id} className="flex items-center justify-between p-3 bg-white rounded-xl border border-gray-100 shadow-sm">
-                        <span className="text-sm font-medium text-gray-600">{item.label}</span>
+                        <span className="text-base font-medium text-gray-600">{item.label}</span>
                         <Checkbox 
                           checked={!!item.visible} 
                           disabled={!section.visible}
@@ -1187,7 +1187,7 @@ function MeasurementTemplatesTab({ templates, onSave, onDelete }: { templates: M
       <div className="flex justify-between items-center bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
         <div>
           <h4 className="text-xl font-bold text-gray-900">Templates de Memória de Cálculo</h4>
-          <p className="text-sm text-gray-500">Personalize tabelas e fórmulas para serviços por Unidade de Medida.</p>
+          <p className="text-base text-gray-500">Personalize tabelas e fórmulas para serviços por Unidade de Medida.</p>
         </div>
         <Button onClick={handleCreateNew} className="bg-blue-600 hover:bg-blue-700 shadow-md">
           <Plus className="w-4 h-4 mr-2" /> Novo Template
@@ -1214,12 +1214,12 @@ function MeasurementTemplatesTab({ templates, onSave, onDelete }: { templates: M
             <CardContent className="pt-2">
               <div className="flex flex-wrap gap-1.5">
                 {(t.columns || []).slice(0, 5).map(c => (
-                  <Badge key={c.id} variant="secondary" className="text-[9px] font-bold py-0 h-5 bg-gray-50 text-gray-500">
+                  <Badge key={c.id} variant="secondary" className="text-xs font-bold py-0 h-5 bg-gray-50 text-gray-500">
                     {c.label}
                   </Badge>
                 ))}
                 {(t.columns || []).length > 5 && (
-                  <Badge variant="secondary" className="text-[9px] font-bold py-0 h-5">
+                  <Badge variant="secondary" className="text-xs font-bold py-0 h-5">
                     +{(t.columns || []).length - 5}
                   </Badge>
                 )}
@@ -1253,7 +1253,7 @@ function MeasurementTemplatesTab({ templates, onSave, onDelete }: { templates: M
                 <Button 
                    variant="ghost" 
                    onClick={() => setEditingTemplate(null)}
-                   className="h-9 px-4 text-xs font-bold text-gray-400 hover:text-gray-600"
+                   className="h-9 px-4 text-sm font-bold text-gray-400 hover:text-gray-600"
                 >
                   Cancelar
                 </Button>
@@ -1270,7 +1270,7 @@ function MeasurementTemplatesTab({ templates, onSave, onDelete }: { templates: M
                        setEditingTemplate(null); 
                      }, 1500);
                    }} 
-                   className="h-9 bg-blue-600 hover:bg-blue-700 text-xs font-bold shadow-lg shadow-blue-200"
+                   className="h-9 bg-blue-600 hover:bg-blue-700 text-sm font-bold shadow-lg shadow-blue-200"
                 >
                   <Save className="w-3.5 h-3.5 mr-2" /> Salvar
                 </Button>
@@ -1283,25 +1283,25 @@ function MeasurementTemplatesTab({ templates, onSave, onDelete }: { templates: M
                 <div className="px-8 py-6 space-y-8">
                   <div className="grid grid-cols-2 gap-6 bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
                     <div className="space-y-2">
-                      <Label className="text-xs font-bold text-gray-500 uppercase">Nome do Template</Label>
+                      <Label className="text-sm font-bold text-gray-500 uppercase">Nome do Template</Label>
                       <Input value={editingTemplate.name} onChange={e => setEditingTemplate({...editingTemplate, name: e.target.value})} placeholder="Ex: Medição por Volume" className="bg-gray-50/50" />
                     </div>
                     <div className="space-y-2">
-                      <Label className="text-xs font-bold text-gray-500 uppercase">Unidade de Medida</Label>
+                      <Label className="text-sm font-bold text-gray-500 uppercase">Unidade de Medida</Label>
                       <Input value={editingTemplate.unit} onChange={e => setEditingTemplate({...editingTemplate, unit: e.target.value})} placeholder="Ex: m³" className="bg-gray-50/50 font-bold text-blue-600" />
                     </div>
                   </div>
 
                   <div className="space-y-4">
                     <div className="flex justify-between items-center">
-                      <Label className="text-xs font-black text-gray-400 uppercase tracking-widest">Colunas da Memória</Label>
-                      <Button variant="outline" size="sm" onClick={addColumn} className="h-8 text-[11px] font-bold bg-white text-blue-600 border-blue-200 hover:bg-blue-50">
+                      <Label className="text-sm font-black text-gray-400 uppercase tracking-widest">Colunas da Memória</Label>
+                      <Button variant="outline" size="sm" onClick={addColumn} className="h-8 text-sm font-bold bg-white text-blue-600 border-blue-200 hover:bg-blue-50">
                         <Plus className="w-3 h-3 mr-1" /> Adicionar Coluna
                       </Button>
                     </div>
 
                     <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden divide-y divide-gray-50">
-                      <div className="grid grid-cols-[1fr_80px_200px_40px] gap-4 p-4 bg-gray-50 text-[10px] font-black text-gray-400 uppercase tracking-widest">
+                      <div className="grid grid-cols-[1fr_80px_200px_40px] gap-4 p-4 bg-gray-50 text-sm font-black text-gray-400 uppercase tracking-widest">
                          <div>Rótulo / Nome da Coluna</div>
                          <div>Tipo de Dado</div>
                          <div className="text-center">Fórmula Matemática / Medição</div>
@@ -1311,11 +1311,11 @@ function MeasurementTemplatesTab({ templates, onSave, onDelete }: { templates: M
                         {(editingTemplate.columns || []).map((col) => (
                           <div key={col.id} className="grid grid-cols-[1fr_80px_200px_40px] gap-4 p-4 items-center group/col hover:bg-gray-50/50 transition-colors">
                             <div>
-                              <Input className="h-9 text-xs font-bold" value={col.label} onChange={e => updateColumn(col.id, { label: e.target.value })} />
+                              <Input className="h-9 text-sm font-bold" value={col.label} onChange={e => updateColumn(col.id, { label: e.target.value })} />
                             </div>
                             <div>
                               <Select value={col.type} onValueChange={v => updateColumn(col.id, { type: v as any })}>
-                                <SelectTrigger className="h-9 text-xs border-0 bg-transparent px-1 min-w-0">
+                                <SelectTrigger className="h-9 text-sm border-0 bg-transparent px-1 min-w-0">
                                   <SelectValue>
                                     {col.type === 'number' ? 'Num' : col.type === 'text' ? 'Txt' : 'Fórm'}
                                   </SelectValue>
@@ -1329,10 +1329,10 @@ function MeasurementTemplatesTab({ templates, onSave, onDelete }: { templates: M
                             </div>
                             <div className="flex items-center gap-2">
                               {col.type === 'calculated' ? (
-                                <Input className="h-9 text-xs font-mono font-bold text-blue-600 bg-blue-50/30 border-blue-100 flex-1" placeholder="Ex: Larg * Alt" value={col.formula || ''} onChange={e => updateColumn(col.id, { formula: e.target.value })} />
+                                <Input className="h-9 text-sm font-mono font-bold text-blue-600 bg-blue-50/30 border-blue-100 flex-1" placeholder="Ex: Larg * Alt" value={col.formula || ''} onChange={e => updateColumn(col.id, { formula: e.target.value })} />
                               ) : (
                                 <div className="h-9 flex-1 flex items-center justify-center bg-gray-50/50 rounded-md border border-dashed border-gray-200">
-                                  <span className="text-[10px] font-bold text-gray-400 italic px-2">Entrada manual</span>
+                                  <span className="text-sm font-bold text-gray-400 italic px-2">Entrada manual</span>
                                 </div>
                               )}
                               <Button
@@ -1357,7 +1357,7 @@ function MeasurementTemplatesTab({ templates, onSave, onDelete }: { templates: M
                     
                     <div className="p-4 bg-amber-50 rounded-2xl border border-amber-100 flex gap-4">
                       <AlertCircle className="w-10 h-10 text-amber-500 shrink-0 mt-1" />
-                      <div className="text-[11px] text-amber-800 leading-relaxed">
+                      <div className="text-sm text-amber-800 leading-relaxed">
                         <p className="font-black mb-1 flex items-center gap-1 uppercase tracking-wider">Como funcionam as fórmulas:</p>
                         Para a coluna <b>Calculada</b>, use o nome exato dos rótulos acima (inclusive pontos e espaços). <br />
                         Exemplo: <code>((Final-Inicial)*20)+(frac.f-frac.i)</code> <br />
@@ -1375,7 +1375,7 @@ function MeasurementTemplatesTab({ templates, onSave, onDelete }: { templates: M
                         initial={{ opacity: 0, x: -20 }} 
                         animate={{ opacity: 1, x: 0 }} 
                         exit={{ opacity: 0 }} 
-                        className="text-green-600 font-bold text-sm flex items-center gap-2"
+                        className="text-green-600 font-bold text-base flex items-center gap-2"
                      >
                        <CheckCircle2 className="w-4 h-4" /> {statusMessage}
                      </motion.div>
@@ -1394,7 +1394,7 @@ function MeasurementTemplatesTab({ templates, onSave, onDelete }: { templates: M
                         setEditingTemplate(null); 
                       }, 1500);
                     }} 
-                    className="bg-blue-600 hover:bg-blue-700 px-10 h-11 text-sm font-bold shadow-lg shadow-blue-200 transition-all active:scale-95"
+                    className="bg-blue-600 hover:bg-blue-700 px-10 h-11 text-base font-bold shadow-lg shadow-blue-200 transition-all active:scale-95"
                   >
                     <CheckCircle2 className="w-4 h-4 mr-2" /> Salvar Template
                  </Button>
@@ -1527,7 +1527,7 @@ function CompanyUsersTab({ currentUser, users, onUpdateUsers, quotations, contra
                 </Badge>
                 {currentUser.keysExpiresAt && (
                    <span className={cn(
-                     "text-[10px] font-bold uppercase tracking-wider",
+                     "text-sm font-bold uppercase tracking-wider",
                      isPast(new Date(currentUser.keysExpiresAt)) ? "text-red-500" : "text-amber-500"
                    )}>
                      Vencimento: {format(new Date(currentUser.keysExpiresAt), 'dd/MM/yyyy')}
@@ -1569,7 +1569,7 @@ function CompanyUsersTab({ currentUser, users, onUpdateUsers, quotations, contra
           </div>
 
           <div className="space-y-3 pt-2">
-            <Label className="text-xs text-gray-400 uppercase tracking-wider font-bold">Módulos que pode acessar</Label>
+            <Label className="text-sm text-gray-400 uppercase tracking-wider font-bold">Módulos que pode acessar</Label>
             <ScrollArea className="h-[200px] border rounded-md p-2">
               <div className="grid grid-cols-1 gap-2">
                 {availableModules.map(m => (
@@ -1584,7 +1584,7 @@ function CompanyUsersTab({ currentUser, users, onUpdateUsers, quotations, contra
                         setNewUser({ ...newUser, allowedModules: modules as AppModule[] });
                       }}
                     />
-                    <Label htmlFor={`local-mod-${m.id}`} className="text-xs cursor-pointer">{m.label}</Label>
+                    <Label htmlFor={`local-mod-${m.id}`} className="text-sm cursor-pointer">{m.label}</Label>
                   </div>
                 ))}
               </div>
@@ -1592,7 +1592,7 @@ function CompanyUsersTab({ currentUser, users, onUpdateUsers, quotations, contra
           </div>
 
           <div className="space-y-3 pt-2">
-            <Label className="text-xs text-gray-400 uppercase tracking-wider font-bold">Contratos que pode acessar</Label>
+            <Label className="text-sm text-gray-400 uppercase tracking-wider font-bold">Contratos que pode acessar</Label>
             <ScrollArea className="h-[200px] border rounded-md p-2">
               <div className="grid grid-cols-1 gap-2">
                 {contracts.map(c => (
@@ -1608,13 +1608,13 @@ function CompanyUsersTab({ currentUser, users, onUpdateUsers, quotations, contra
                       }}
                     />
                     <div className="flex flex-col">
-                      <Label htmlFor={`local-contract-${c.id}`} className="text-xs cursor-pointer font-bold">{c.contractNumber}</Label>
-                      <span className="text-[10px] text-gray-500">{c.client}</span>
+                      <Label htmlFor={`local-contract-${c.id}`} className="text-sm cursor-pointer font-bold">{c.contractNumber}</Label>
+                      <span className="text-sm text-gray-500">{c.client}</span>
                     </div>
                   </div>
                 ))}
                 {contracts.length === 0 && (
-                  <div className="text-xs text-gray-400 text-center py-4">Nenhum contrato cadastrado.</div>
+                  <div className="text-sm text-gray-400 text-center py-4">Nenhum contrato cadastrado.</div>
                 )}
               </div>
             </ScrollArea>
@@ -1635,10 +1635,10 @@ function CompanyUsersTab({ currentUser, users, onUpdateUsers, quotations, contra
           <Table>
             <TableHeader className="bg-gray-50/50">
               <TableRow>
-                <TableHead className="text-[10px] uppercase font-bold">Usuário</TableHead>
-                <TableHead className="text-[10px] uppercase font-bold text-center">Nível</TableHead>
-                <TableHead className="text-[10px] uppercase font-bold text-center">Permissão: Contratos</TableHead>
-                <TableHead className="text-[10px] uppercase font-bold text-center">Permissão: Módulos</TableHead>
+                <TableHead className="text-sm uppercase font-bold">Usuário</TableHead>
+                <TableHead className="text-sm uppercase font-bold text-center">Nível</TableHead>
+                <TableHead className="text-sm uppercase font-bold text-center">Permissão: Contratos</TableHead>
+                <TableHead className="text-sm uppercase font-bold text-center">Permissão: Módulos</TableHead>
                 <TableHead className="w-[80px]"></TableHead>
               </TableRow>
             </TableHeader>
@@ -1648,17 +1648,17 @@ function CompanyUsersTab({ currentUser, users, onUpdateUsers, quotations, contra
                   <TableCell>
                     <div className="flex flex-col">
                       <div className="flex items-center gap-1">
-                        <span className="font-bold text-sm text-gray-900">{u.name}</span>
-                        {u.jobFunction && <span className="text-[10px] text-blue-600">({u.jobFunction})</span>}
+                        <span className="font-bold text-base text-gray-900">{u.name}</span>
+                        {u.jobFunction && <span className="text-sm text-blue-600">({u.jobFunction})</span>}
                       </div>
-                      <span className="text-[10px] text-gray-500">@{u.username}</span>
+                      <span className="text-sm text-gray-500">@{u.username}</span>
                     </div>
                   </TableCell>
                   <TableCell className="text-center">
                     <Select value={u.role} onValueChange={(role: UserRole) => {
                       onUpdateUsers(users.map(user => user.id === u.id ? { ...user, role } : user));
                     }}>
-                      <SelectTrigger className="h-7 w-24 text-[10px] mx-auto">
+                      <SelectTrigger className="h-7 w-24 text-sm mx-auto">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -1681,7 +1681,7 @@ function CompanyUsersTab({ currentUser, users, onUpdateUsers, quotations, contra
                         onUpdateUsers(users.map(user => user.id === u.id ? { ...user, allowedContractIds: newIds } : user));
                       }}
                       triggerButton={
-                        <Button variant="outline" size="sm" className="h-7 text-[10px] gap-1 px-2 border-orange-200 text-orange-700 hover:bg-orange-50 hover:text-orange-800">
+                        <Button variant="outline" size="sm" className="h-7 text-sm gap-1 px-2 border-orange-200 text-orange-700 hover:bg-orange-50 hover:text-orange-800">
                           <Landmark className="w-3 h-3" /> Gerenciar Acessos ({u.allowedContractIds?.length || 0})
                         </Button>
                       }
@@ -1701,7 +1701,7 @@ function CompanyUsersTab({ currentUser, users, onUpdateUsers, quotations, contra
                         onUpdateUsers(users.map(user => user.id === u.id ? { ...user, allowedModules: newIds as AppModule[] } : user));
                       }}
                       triggerButton={
-                        <Button variant="outline" size="sm" className="h-7 text-[10px] gap-1 px-2 border-blue-200 text-blue-700 hover:bg-blue-50 hover:text-blue-800">
+                        <Button variant="outline" size="sm" className="h-7 text-sm gap-1 px-2 border-blue-200 text-blue-700 hover:bg-blue-50 hover:text-blue-800">
                           <SettingsIcon className="w-3 h-3" /> Gerenciar Módulos ({u.allowedModules?.length || 0})
                         </Button>
                       }

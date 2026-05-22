@@ -73,7 +73,7 @@ export const ManagementView = ({
           >
             <Card className="shadow-lg hover:shadow-xl transition-shadow border-t-4" style={{borderTopColor: item.color}}>
               <CardHeader>
-                <CardTitle className="text-sm uppercase text-slate-500">{item.name}</CardTitle>
+                <CardTitle className="text-base uppercase text-slate-500">{item.name}</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="text-3xl font-bold" style={{ color: item.color }}>

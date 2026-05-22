@@ -313,11 +313,11 @@ export function MeasurementsView({
               </div>
               <div>
                 <CardTitle className="text-xl font-black text-gray-900 tracking-tight">Resumo por Equipe</CardTitle>
-                <p className="text-[10px] uppercase font-bold text-gray-400 tracking-widest">Custo total e composição</p>
+                <p className="text-sm uppercase font-bold text-gray-400 tracking-widest">Custo total e composição</p>
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <Label className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Mês:</Label>
+              <Label className="text-sm font-bold uppercase tracking-wider text-gray-400">Mês:</Label>
               <Input type="month" value={selectedMonth} onChange={e => setSelectedMonth(e.target.value)} className="w-40 h-9 rounded-xl border-gray-200 bg-white" />
             </div>
           </CardHeader>
@@ -326,7 +326,7 @@ export function MeasurementsView({
               <TableHeader className="bg-gray-50/50">
                 <TableRow className="hover:bg-transparent border-b border-gray-100 italic">
                   <TableHead 
-                    className="font-bold text-[10px] uppercase tracking-widest text-gray-400 py-4 cursor-pointer hover:text-blue-600 transition-colors"
+                    className="font-bold text-sm uppercase tracking-widest text-gray-400 py-4 cursor-pointer hover:text-blue-600 transition-colors"
                     onClick={() => handleTeamsSort('name')}
                   >
                     <div className="flex items-center gap-1">
@@ -337,7 +337,7 @@ export function MeasurementsView({
                     </div>
                   </TableHead>
                   <TableHead 
-                    className="font-bold text-[10px] uppercase tracking-widest text-gray-400 cursor-pointer hover:text-blue-600 transition-colors"
+                    className="font-bold text-sm uppercase tracking-widest text-gray-400 cursor-pointer hover:text-blue-600 transition-colors"
                     onClick={() => handleTeamsSort('supervisor')}
                   >
                     <div className="flex items-center gap-1">
@@ -348,7 +348,7 @@ export function MeasurementsView({
                     </div>
                   </TableHead>
                   <TableHead 
-                    className="text-center font-bold text-[10px] uppercase tracking-widest text-gray-400 cursor-pointer hover:text-blue-600 transition-colors"
+                    className="text-center font-bold text-sm uppercase tracking-widest text-gray-400 cursor-pointer hover:text-blue-600 transition-colors"
                     onClick={() => handleTeamsSort('manCount')}
                   >
                     <div className="flex items-center justify-center gap-1">
@@ -359,7 +359,7 @@ export function MeasurementsView({
                     </div>
                   </TableHead>
                   <TableHead 
-                    className="text-right font-bold text-[10px] uppercase tracking-widest text-gray-400 cursor-pointer hover:text-blue-600 transition-colors"
+                    className="text-right font-bold text-sm uppercase tracking-widest text-gray-400 cursor-pointer hover:text-blue-600 transition-colors"
                     onClick={() => handleTeamsSort('manValue')}
                   >
                     <div className="flex items-center justify-end gap-1">
@@ -370,7 +370,7 @@ export function MeasurementsView({
                     </div>
                   </TableHead>
                   <TableHead 
-                    className="text-center font-bold text-[10px] uppercase tracking-widest text-gray-400 cursor-pointer hover:text-blue-600 transition-colors"
+                    className="text-center font-bold text-sm uppercase tracking-widest text-gray-400 cursor-pointer hover:text-blue-600 transition-colors"
                     onClick={() => handleTeamsSort('equipCount')}
                   >
                     <div className="flex items-center justify-center gap-1">
@@ -381,7 +381,7 @@ export function MeasurementsView({
                     </div>
                   </TableHead>
                   <TableHead 
-                    className="text-right font-bold text-[10px] uppercase tracking-widest text-gray-400 cursor-pointer hover:text-blue-600 transition-colors"
+                    className="text-right font-bold text-sm uppercase tracking-widest text-gray-400 cursor-pointer hover:text-blue-600 transition-colors"
                     onClick={() => handleTeamsSort('equipValue')}
                   >
                     <div className="flex items-center justify-end gap-1">
@@ -392,7 +392,7 @@ export function MeasurementsView({
                     </div>
                   </TableHead>
                   <TableHead 
-                    className="text-right font-bold text-[10px] uppercase tracking-widest text-blue-600 bg-blue-50/50 cursor-pointer hover:bg-blue-100 transition-colors"
+                    className="text-right font-bold text-sm uppercase tracking-widest text-blue-600 bg-blue-50/50 cursor-pointer hover:bg-blue-100 transition-colors"
                     onClick={() => handleTeamsSort('total')}
                   >
                     <div className="flex items-center justify-end gap-1">
@@ -407,16 +407,16 @@ export function MeasurementsView({
               <TableBody>
                 {summaryData.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center py-12 text-gray-400 font-bold italic uppercase tracking-widest text-[10px]">Nenhuma equipe cadastrada para este contrato.</TableCell>
+                    <TableCell colSpan={7} className="text-center py-12 text-gray-400 font-bold italic uppercase tracking-widest text-sm">Nenhuma equipe cadastrada para este contrato.</TableCell>
                   </TableRow>
                 ) : summaryData.map(row => (
                   <TableRow key={row.id} className="hover:bg-gray-50/30 transition-colors border-b border-gray-50">
                     <TableCell className="font-black text-gray-900">{row.name}</TableCell>
                     <TableCell className="text-gray-600 font-medium">{row.supervisor}</TableCell>
                     <TableCell className="text-center font-bold text-gray-900">{row.manCount}</TableCell>
-                    <TableCell className="text-right font-mono text-xs text-gray-600">R$ {row.manValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</TableCell>
+                    <TableCell className="text-right font-mono text-sm text-gray-600">R$ {row.manValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</TableCell>
                     <TableCell className="text-center font-bold text-gray-900">{row.equipCount}</TableCell>
-                    <TableCell className="text-right font-mono text-xs text-gray-600">R$ {row.equipValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</TableCell>
+                    <TableCell className="text-right font-mono text-sm text-gray-600">R$ {row.equipValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</TableCell>
                     <TableCell className="text-right font-black text-blue-700 bg-blue-50/20">R$ {row.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</TableCell>
                   </TableRow>
                 ))}
@@ -436,17 +436,17 @@ export function MeasurementsView({
                 </div>
                 <div>
                   <CardTitle className="text-xl font-black text-gray-900 tracking-tight">Recursos Disponíveis</CardTitle>
-                  <p className="text-[10px] uppercase font-bold text-gray-400 tracking-widest">Arraste para as equipes</p>
+                  <p className="text-sm uppercase font-bold text-gray-400 tracking-widest">Arraste para as equipes</p>
                 </div>
               </div>
             </CardHeader>
             <CardContent className="p-0">
                <Tabs defaultValue="manpower" className="w-full">
                   <TabsList className="w-full bg-transparent border-b border-gray-100 rounded-none h-12 p-0">
-                    <TabsTrigger value="manpower" className="flex-1 rounded-none border-b-2 border-transparent data-[state=active]:border-blue-600 data-[state=active]:bg-blue-50/30 data-[state=active]:text-blue-700 text-[10px] font-black uppercase tracking-widest">
+                    <TabsTrigger value="manpower" className="flex-1 rounded-none border-b-2 border-transparent data-[state=active]:border-blue-600 data-[state=active]:bg-blue-50/30 data-[state=active]:text-blue-700 text-sm font-black uppercase tracking-widest">
                       Colaboradores
                     </TabsTrigger>
-                    <TabsTrigger value="equipment" className="flex-1 rounded-none border-b-2 border-transparent data-[state=active]:border-blue-600 data-[state=active]:bg-blue-50/30 data-[state=active]:text-blue-700 text-[10px] font-black uppercase tracking-widest">
+                    <TabsTrigger value="equipment" className="flex-1 rounded-none border-b-2 border-transparent data-[state=active]:border-blue-600 data-[state=active]:bg-blue-50/30 data-[state=active]:text-blue-700 text-sm font-black uppercase tracking-widest">
                       Equipamentos
                     </TabsTrigger>
                   </TabsList>
@@ -469,12 +469,12 @@ export function MeasurementsView({
                               <div className="flex items-center gap-3">
                                 <Users2 className="w-5 h-5 text-gray-400" />
                                 <div>
-                                  <p className="text-sm font-black text-gray-900 leading-tight">{person.name}</p>
-                                  <p className="text-[10px] text-gray-500 font-bold uppercase tracking-wider">{person.role}</p>
+                                  <p className="text-base font-black text-gray-900 leading-tight">{person.name}</p>
+                                  <p className="text-sm text-gray-500 font-bold uppercase tracking-wider">{person.role}</p>
                                 </div>
                               </div>
                               <div className="flex items-center gap-2">
-                                {isAssigned && <Badge variant="secondary" className="text-[10px] font-bold">Alocado</Badge>}
+                                {isAssigned && <Badge variant="secondary" className="text-sm font-bold">Alocado</Badge>}
                                 {!isAssigned && selectedTeamId && (
                                   <Button 
                                     size="icon" 
@@ -495,7 +495,7 @@ export function MeasurementsView({
                         {poolManpower.length === 0 && (
                           <div className="text-center py-20">
                              <Users2 className="w-12 h-12 text-gray-100 mx-auto mb-4" />
-                             <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest italic">Nenhum colaborador encontrado.</p>
+                             <p className="text-sm text-gray-400 font-bold uppercase tracking-widest italic">Nenhum colaborador encontrado.</p>
                           </div>
                         )}
                       </div>
@@ -520,12 +520,12 @@ export function MeasurementsView({
                               <div className="flex items-center gap-3">
                                 <Truck className="w-5 h-5 text-gray-400" />
                                 <div>
-                                  <p className="text-sm font-black text-gray-900 leading-tight">{equip.name}</p>
-                                  <p className="text-[10px] text-gray-500 font-bold uppercase tracking-wider">{equip.plate}</p>
+                                  <p className="text-base font-black text-gray-900 leading-tight">{equip.name}</p>
+                                  <p className="text-sm text-gray-500 font-bold uppercase tracking-wider">{equip.plate}</p>
                                 </div>
                               </div>
                               <div className="flex items-center gap-2">
-                                {isAssigned && <Badge variant="secondary" className="text-[10px] font-bold">Alocado</Badge>}
+                                {isAssigned && <Badge variant="secondary" className="text-sm font-bold">Alocado</Badge>}
                                 {!isAssigned && selectedTeamId && (
                                   <Button 
                                     size="icon" 
@@ -546,7 +546,7 @@ export function MeasurementsView({
                         {poolEquipments.length === 0 && (
                           <div className="text-center py-20">
                              <Truck className="w-12 h-12 text-gray-100 mx-auto mb-4" />
-                             <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest italic">Nenhum equipamento encontrado.</p>
+                             <p className="text-sm text-gray-400 font-bold uppercase tracking-widest italic">Nenhum equipamento encontrado.</p>
                           </div>
                         )}
                       </div>
@@ -562,38 +562,38 @@ export function MeasurementsView({
           <div className="flex items-center justify-between bg-white/80 backdrop-blur-md p-6 rounded-3xl border border-gray-100 shadow-xl">
              <div>
                <h3 className="text-2xl font-black text-gray-900 tracking-tight">Gerenciamento de Equipes</h3>
-               <p className="text-[10px] uppercase font-bold text-gray-400 tracking-widest">Mês de Competência: {selectedMonth}</p>
+               <p className="text-sm uppercase font-bold text-gray-400 tracking-widest">Mês de Competência: {selectedMonth}</p>
              </div>
              <div className="flex items-center gap-4">
                 <Input 
                   type="month" 
                   value={selectedMonth} 
                   onChange={(e) => setSelectedMonth(e.target.value)}
-                  className="w-[160px] h-12 rounded-2xl border-gray-200 bg-gray-50/50 font-bold text-xs"
+                  className="w-[160px] h-12 rounded-2xl border-gray-200 bg-gray-50/50 font-bold text-sm"
                 />
                 <Dialog open={isAddTeamOpen} onOpenChange={setIsAddTeamOpen}>
                     <DialogTrigger asChild>
-                      <Button className="rounded-2xl h-12 px-6 font-black uppercase tracking-widest text-xs gap-3 shadow-lg shadow-blue-100 bg-blue-600 hover:bg-blue-700 hover:shadow-blue-200 transition-all active:scale-95">
+                      <Button className="rounded-2xl h-12 px-6 font-black uppercase tracking-widest text-sm gap-3 shadow-lg shadow-blue-100 bg-blue-600 hover:bg-blue-700 hover:shadow-blue-200 transition-all active:scale-95">
                         <Plus className="w-5 h-5" /> Nova Equipe
                       </Button>
                     </DialogTrigger>
                     <DialogContent className="max-w-md rounded-3xl p-8">
                       <DialogHeader>
                         <DialogTitle className="text-2xl font-black text-gray-900 tracking-tight">Criar Nova Equipe</DialogTitle>
-                        <DialogDescription className="text-sm">Defina o nome e o encarregado da frente de trabalho.</DialogDescription>
+                        <DialogDescription className="text-base">Defina o nome e o encarregado da frente de trabalho.</DialogDescription>
                       </DialogHeader>
                       <div className="space-y-6 py-6">
                         <div className="space-y-2">
-                          <Label className="text-[10px] font-black uppercase tracking-widest text-gray-400">Nome da Equipe</Label>
+                          <Label className="text-sm font-black uppercase tracking-widest text-gray-400">Nome da Equipe</Label>
                           <Input 
                             placeholder="Ex: Equipe de Pavimentação" 
-                            className="h-12 rounded-xl text-sm font-medium border-gray-200 focus:ring-blue-500"
+                            className="h-12 rounded-xl text-base font-medium border-gray-200 focus:ring-blue-500"
                             value={newTeam.name || ''} 
                             onChange={e => setNewTeam({...newTeam, name: e.target.value})} 
                           />
                         </div>
                         <div className="space-y-2">
-                          <Label className="text-[10px] font-black uppercase tracking-widest text-gray-400">Encarregado</Label>
+                          <Label className="text-sm font-black uppercase tracking-widest text-gray-400">Encarregado</Label>
                           <Select value={newTeam.supervisorId || ''} onValueChange={val => setNewTeam({...newTeam, supervisorId: val})}>
                             <SelectTrigger className="h-12 rounded-xl border-gray-200">
                               <SelectValue placeholder="Selecione o encarregado">
@@ -602,14 +602,14 @@ export function MeasurementsView({
                             </SelectTrigger>
                             <SelectContent className="rounded-2xl">
                               {poolManpower.map(m => (
-                                <SelectItem key={m.id} value={m.id} className="rounded-lg text-sm">{m.name}</SelectItem>
+                                <SelectItem key={m.id} value={m.id} className="rounded-lg text-base">{m.name}</SelectItem>
                               ))}
                             </SelectContent>
                           </Select>
                         </div>
                       </div>
                       <DialogFooter>
-                        <Button onClick={handleCreateTeam} className="w-full h-12 rounded-2xl bg-blue-600 font-bold uppercase tracking-widest text-xs">Salvar Equipe</Button>
+                        <Button onClick={handleCreateTeam} className="w-full h-12 rounded-2xl bg-blue-600 font-bold uppercase tracking-widest text-sm">Salvar Equipe</Button>
                       </DialogFooter>
                     </DialogContent>
                 </Dialog>
@@ -657,7 +657,7 @@ export function MeasurementsView({
                             <h4 className="font-black text-gray-900 tracking-tight">{team.name}</h4>
                             <div className="flex items-center gap-2">
                               <HardHat className="w-3 h-3 text-gray-400" />
-                              <p className="text-[10px] text-gray-500 uppercase tracking-widest font-black">{supervisor?.name || 'Não definido'}</p>
+                              <p className="text-sm text-gray-500 uppercase tracking-widest font-black">{supervisor?.name || 'Não definido'}</p>
                             </div>
                           </div>
                         </div>
@@ -667,11 +667,11 @@ export function MeasurementsView({
                       <div className="flex gap-6 mt-4 pt-4 border-t border-gray-50">
                         <div className="text-center bg-gray-50/50 flex-1 py-3 rounded-2xl border border-gray-100">
                           <p className="text-lg font-black text-gray-900">{teamMems.filter(m => m.type === 'manpower').length}</p>
-                          <p className="text-[8px] text-gray-400 font-black uppercase tracking-widest">Colaboradores</p>
+                          <p className="text-[10px] text-gray-400 font-black uppercase tracking-widest">Colaboradores</p>
                         </div>
                         <div className="text-center bg-gray-50/50 flex-1 py-3 rounded-2xl border border-gray-100">
                           <p className="text-lg font-black text-gray-900">{teamMems.filter(m => m.type === 'equipment').length}</p>
-                          <p className="text-[8px] text-gray-400 font-black uppercase tracking-widest">Equipamentos</p>
+                          <p className="text-[10px] text-gray-400 font-black uppercase tracking-widest">Equipamentos</p>
                         </div>
                       </div>
                     </div>
@@ -687,7 +687,7 @@ export function MeasurementsView({
                           <div className="p-6 space-y-6">
                             <div className="space-y-4">
                               <div>
-                                <h5 className="text-[10px] uppercase font-black text-gray-400 mb-3 flex items-center gap-2 tracking-[0.2em]">
+                                <h5 className="text-sm uppercase font-black text-gray-400 mb-3 flex items-center gap-2 tracking-[0.2em]">
                                   <HardHat className="w-3.5 h-3.5" /> Equipe de Campo
                                 </h5>
                                 <div className="grid grid-cols-1 gap-2">
@@ -697,7 +697,7 @@ export function MeasurementsView({
                                       <div key={m.id} className="flex items-center justify-between bg-white p-3 rounded-xl border border-gray-100 shadow-sm transition-all hover:border-blue-200 group">
                                         <div className="flex items-center gap-2">
                                           <div className="w-1.5 h-1.5 rounded-full bg-blue-500" />
-                                          <span className="text-xs font-bold text-gray-700">{person?.name}</span>
+                                          <span className="text-sm font-bold text-gray-700">{person?.name}</span>
                                         </div>
                                         <Button 
                                           variant="ghost" 
@@ -711,12 +711,12 @@ export function MeasurementsView({
                                     );
                                   })}
                                   {teamMems.filter(m => m.type === 'manpower').length === 0 && (
-                                    <div className="text-[10px] text-gray-400 font-bold uppercase tracking-widest italic py-4 text-center border-2 border-dashed rounded-2xl border-gray-200">Arraste colaboradores aqui</div>
+                                    <div className="text-sm text-gray-400 font-bold uppercase tracking-widest italic py-4 text-center border-2 border-dashed rounded-2xl border-gray-200">Arraste colaboradores aqui</div>
                                   )}
                                 </div>
                               </div>
                               <div>
-                                <h5 className="text-[10px] uppercase font-black text-gray-400 mb-3 flex items-center gap-2 tracking-[0.2em]">
+                                <h5 className="text-sm uppercase font-black text-gray-400 mb-3 flex items-center gap-2 tracking-[0.2em]">
                                   <Truck className="w-3.5 h-3.5" /> Equipamentos Alocados
                                 </h5>
                                 <div className="grid grid-cols-1 gap-2">
@@ -726,7 +726,7 @@ export function MeasurementsView({
                                       <div key={m.id} className="flex items-center justify-between bg-white p-3 rounded-xl border border-gray-100 shadow-sm transition-all hover:border-emerald-200 group">
                                         <div className="flex items-center gap-2">
                                           <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                                          <span className="text-xs font-bold text-gray-700">{equip?.name} <span className="text-[10px] text-gray-400">({equip?.plate})</span></span>
+                                          <span className="text-sm font-bold text-gray-700">{equip?.name} <span className="text-sm text-gray-400">({equip?.plate})</span></span>
                                         </div>
                                         <Button 
                                           variant="ghost" 
@@ -740,7 +740,7 @@ export function MeasurementsView({
                                     );
                                   })}
                                   {teamMems.filter(m => m.type === 'equipment').length === 0 && (
-                                    <div className="text-[10px] text-gray-400 font-bold uppercase tracking-widest italic py-4 text-center border-2 border-dashed rounded-2xl border-gray-200">Arraste equipamentos aqui</div>
+                                    <div className="text-sm text-gray-400 font-bold uppercase tracking-widest italic py-4 text-center border-2 border-dashed rounded-2xl border-gray-200">Arraste equipamentos aqui</div>
                                   )}
                                 </div>
                               </div>
@@ -749,7 +749,7 @@ export function MeasurementsView({
                                <Button 
                                 variant="ghost" 
                                 size="sm" 
-                                className="text-red-500 hover:bg-red-50 text-[10px] font-black uppercase tracking-widest gap-2 rounded-xl"
+                                className="text-red-500 hover:bg-red-50 text-sm font-black uppercase tracking-widest gap-2 rounded-xl"
                                 onClick={() => {
                                   if (confirm("Excluir esta equipe permanentemente?")) {
                                     onUpdateTeams(controllerTeams.filter(t => t.id !== team.id));
@@ -774,7 +774,7 @@ export function MeasurementsView({
                   <Users2 className="w-10 h-10 text-blue-200" />
                 </div>
                 <h5 className="text-xl font-black text-gray-300 tracking-tight">Nenhuma equipe configurada</h5>
-                <p className="text-gray-400 text-xs font-bold uppercase tracking-widest mt-2">Clique em 'Nova Equipe' para estruturar sua frente de trabalho</p>
+                <p className="text-gray-400 text-sm font-bold uppercase tracking-widest mt-2">Clique em 'Nova Equipe' para estruturar sua frente de trabalho</p>
               </div>
             )}
           </div>
@@ -1312,7 +1312,7 @@ function MeasurementSummaryView({
           </div>
           <div>
             <h3 className="text-xl font-bold">Resumo por Grupo de Serviços</h3>
-            <p className="text-sm text-gray-500">
+            <p className="text-base text-gray-500">
               {contract.contractNumber} | {contract.client}
             </p>
           </div>
@@ -1335,7 +1335,7 @@ function MeasurementSummaryView({
 
         {measurements.length > 0 && (
           <div className="flex items-center gap-3 bg-gray-50 p-2 rounded-xl border border-gray-100">
-            <span className="text-xs font-bold text-gray-400 uppercase tracking-widest pl-2">Medição Referência:</span>
+            <span className="text-sm font-bold text-gray-400 uppercase tracking-widest pl-2">Medição Referência:</span>
             <Select value={selectedMeasurementId || ''} onValueChange={setSelectedMeasurementId}>
               <SelectTrigger className="w-[240px] h-9 bg-white border-none shadow-none font-bold text-blue-600">
                 <SelectValue placeholder="Selecione a medição">
@@ -1370,7 +1370,7 @@ function MeasurementSummaryView({
           <div className="space-y-4 py-4 max-h-[60vh] overflow-y-auto pr-2">
             {summaryByGroup.map((g, idx) => (
               <div key={idx} className="flex items-center justify-between gap-4">
-                <Label className="text-sm font-medium capitalize">{g.name.toLowerCase()}</Label>
+                <Label className="text-base font-medium capitalize">{g.name.toLowerCase()}</Label>
                 <div className="flex items-center gap-2">
                   <Input 
                     type="number"
@@ -1389,7 +1389,7 @@ function MeasurementSummaryView({
                       });
                     }}
                   />
-                  <span className="text-[10px] text-gray-400">x</span>
+                  <span className="text-sm text-gray-400">x</span>
                 </div>
               </div>
             ))}
@@ -1451,7 +1451,7 @@ function MeasurementSummaryView({
                   <TableCell className="font-bold text-gray-700 py-4 capitalize">
                     {group.name.toLowerCase()}
                   </TableCell>
-                  <TableCell className="text-center font-mono text-[11px] text-amber-600 bg-amber-50/30">
+                  <TableCell className="text-center font-mono text-sm text-amber-600 bg-amber-50/30">
                     {formatNumber(group.adjustmentIndex, 4)}x
                   </TableCell>
                   <TableCell className="text-right font-medium text-gray-600">
@@ -1483,7 +1483,7 @@ function MeasurementSummaryView({
               );
             })}
             <TableRow className="bg-gray-900 hover:bg-gray-900 border-none">
-              <TableCell className="font-black text-white py-4 uppercase tracking-widest text-xs">Total do Contrato</TableCell>
+              <TableCell className="font-black text-white py-4 uppercase tracking-widest text-sm">Total do Contrato</TableCell>
               <TableCell className="text-center text-gray-500">-</TableCell>
               <TableCell className="text-right font-black text-white">{formatCurrency(totals.contractValue)}</TableCell>
               <TableCell className="text-right font-bold text-gray-400">{formatCurrency(totals.previousValue)}</TableCell>
@@ -1491,7 +1491,7 @@ function MeasurementSummaryView({
               <TableCell className="text-right font-black text-blue-400">{formatCurrency(totals.accumulatedValue)}</TableCell>
               <TableCell className="text-right font-bold text-amber-400">{formatCurrency(totals.balanceValue)}</TableCell>
               <TableCell className="text-right">
-                <div className="text-white font-black text-xs">
+                <div className="text-white font-black text-sm">
                   {formatNumber((totals.accumulatedValue / totals.contractValue) * 100, 1)}%
                 </div>
               </TableCell>
@@ -1517,11 +1517,11 @@ function SummaryCard({ label, value, icon, color, percentage }: { label: string,
         {icon}
       </div>
       <div className="min-w-0 flex-1">
-        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest truncate">{label}</p>
+        <p className="text-sm font-bold text-gray-400 uppercase tracking-widest truncate">{label}</p>
         <div className="flex items-baseline gap-2">
           <h4 className="text-xl font-black text-gray-900 truncate">{formatCurrency(value)}</h4>
           {percentage !== undefined && (
-            <span className="text-[10px] font-black text-gray-400 whitespace-nowrap">
+            <span className="text-sm font-black text-gray-400 whitespace-nowrap">
               {formatNumber(percentage, 1)}%
             </span>
           )}
@@ -1930,18 +1930,18 @@ function ContractTab({
                       onChange={handleImportSpreadsheet} 
                     />
                     {importFeedbackMsg && (
-                      <div className={`mt-2 p-3 text-sm font-medium rounded-lg ${importFeedbackMsg.startsWith('✅') ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' : 'bg-red-50 text-red-700 border border-red-100'}`}>
+                      <div className={`mt-2 p-3 text-base font-medium rounded-lg ${importFeedbackMsg.startsWith('✅') ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' : 'bg-red-50 text-red-700 border border-red-100'}`}>
                         {importFeedbackMsg}
                       </div>
                     )}
-                    <p className="text-xs text-blue-600/70 italic text-center sm:text-left">
+                    <p className="text-sm text-blue-600/70 italic text-center sm:text-left">
                       Dica: Baixe nosso modelo em Excel, preencha os serviços e import-o aqui.
                     </p>
                   </div>
 
                   <div className="flex items-center gap-4 py-2">
                     <div className="h-px bg-gray-200 flex-1"></div>
-                    <span className="text-xs font-black uppercase tracking-widest text-gray-500">Dados Principais do Contrato</span>
+                    <span className="text-sm font-black uppercase tracking-widest text-gray-500">Dados Principais do Contrato</span>
                     <div className="h-px bg-gray-200 flex-1"></div>
                   </div>
 
@@ -1991,20 +1991,20 @@ function ContractTab({
 
                   <div className="grid grid-cols-1 sm:grid-cols-4 gap-6 pt-4 border-t border-gray-100 bg-gray-50/50 p-4 rounded-xl border border-gray-100">
                     <div className="space-y-2 relative group">
-                      <div className="flex items-center gap-1.5"><Label className="text-xs font-bold text-gray-700 uppercase tracking-tight" title="Ex: Quando o contrato possui extensão a controlar (como km ou estacas).">Unid. de Medição ⓘ</Label></div>
-                      <Input className="h-10 text-sm bg-white" placeholder="Ex: KM, Estaca" value={newContract.measurementUnit || ''} onChange={e => setNewContract({...newContract, measurementUnit: e.target.value})} />
+                      <div className="flex items-center gap-1.5"><Label className="text-sm font-bold text-gray-700 uppercase tracking-tight" title="Ex: Quando o contrato possui extensão a controlar (como km ou estacas).">Unid. de Medição ⓘ</Label></div>
+                      <Input className="h-10 text-base bg-white" placeholder="Ex: KM, Estaca" value={newContract.measurementUnit || ''} onChange={e => setNewContract({...newContract, measurementUnit: e.target.value})} />
                     </div>
                     <div className="space-y-2 relative group">
-                      <div className="flex items-center gap-1.5"><Label className="text-xs font-bold text-gray-700 uppercase tracking-tight">Qtd. Unid.</Label></div>
-                      <Input className="h-10 text-sm bg-white" placeholder="Ex: 50" value={newContract.measurementUnitValue || ''} onChange={e => setNewContract({...newContract, measurementUnitValue: e.target.value})} />
+                      <div className="flex items-center gap-1.5"><Label className="text-sm font-bold text-gray-700 uppercase tracking-tight">Qtd. Unid.</Label></div>
+                      <Input className="h-10 text-base bg-white" placeholder="Ex: 50" value={newContract.measurementUnitValue || ''} onChange={e => setNewContract({...newContract, measurementUnitValue: e.target.value})} />
                     </div>
                     <div className="space-y-2 relative group">
-                      <Label className="text-xs font-bold text-emerald-700 uppercase tracking-tight">Estaca/KM Inic.</Label>
-                      <Input className="h-10 text-sm border-emerald-200 bg-white" placeholder="Ex: 0+0,00" value={newContract.initialStation || ''} onChange={e => setNewContract({...newContract, initialStation: e.target.value})} />
+                      <Label className="text-sm font-bold text-emerald-700 uppercase tracking-tight">Estaca/KM Inic.</Label>
+                      <Input className="h-10 text-base border-emerald-200 bg-white" placeholder="Ex: 0+0,00" value={newContract.initialStation || ''} onChange={e => setNewContract({...newContract, initialStation: e.target.value})} />
                     </div>
                     <div className="space-y-2 relative group">
-                      <Label className="text-xs font-bold text-emerald-700 uppercase tracking-tight">Estaca/KM Final</Label>
-                      <Input className="h-10 text-sm border-emerald-200 bg-white" placeholder="Ex: 150+0,00" value={newContract.finalStation || ''} onChange={e => setNewContract({...newContract, finalStation: e.target.value})} />
+                      <Label className="text-sm font-bold text-emerald-700 uppercase tracking-tight">Estaca/KM Final</Label>
+                      <Input className="h-10 text-base border-emerald-200 bg-white" placeholder="Ex: 150+0,00" value={newContract.finalStation || ''} onChange={e => setNewContract({...newContract, finalStation: e.target.value})} />
                     </div>
                   </div>
 
@@ -2041,16 +2041,16 @@ function ContractTab({
                 </div>
                 <div className="min-w-0">
                   <h4 className="font-bold text-lg truncate">{contract.contractNumber}</h4>
-                  {contract.workName && <p className="text-sm font-bold text-blue-600 uppercase tracking-tight truncate">{contract.workName}</p>}
-                  <p className="text-sm text-gray-500 truncate">{contract.client} • {contract.contractor}</p>
+                  {contract.workName && <p className="text-base font-bold text-blue-600 uppercase tracking-tight truncate">{contract.workName}</p>}
+                  <p className="text-base text-gray-500 truncate">{contract.client} • {contract.contractor}</p>
                   <div className="flex flex-wrap gap-2 mt-1">
                     {(contract.measurementUnit || contract.measurementUnitValue) && (
-                      <p className="text-[10px] text-blue-600 font-bold bg-blue-50 px-2 py-0.5 rounded-full inline-block whitespace-nowrap">
+                      <p className="text-sm text-blue-600 font-bold bg-blue-50 px-2 py-0.5 rounded-full inline-block whitespace-nowrap">
                         {contract.measurementUnit}: {contract.measurementUnitValue}
                       </p>
                     )}
                     {(contract.initialStation || contract.finalStation) && (
-                      <p className="text-[10px] text-emerald-600 font-bold bg-emerald-50 px-2 py-0.5 rounded-full inline-block whitespace-nowrap">
+                      <p className="text-sm text-emerald-600 font-bold bg-emerald-50 px-2 py-0.5 rounded-full inline-block whitespace-nowrap">
                         Trecho: {contract.initialStation || 'Início'} → {contract.finalStation || 'Fim'}
                       </p>
                     )}
@@ -2061,7 +2061,7 @@ function ContractTab({
               <div className="flex items-center gap-6 shrink-0">
                 {contract.totalValue !== undefined && contract.totalValue > 0 && (
                   <div className="text-right flex flex-col items-end">
-                    <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest leading-none mb-1">Vlr. Total Contrato</p>
+                    <p className="text-sm text-gray-400 font-bold uppercase tracking-widest leading-none mb-1">Vlr. Total Contrato</p>
                     <p className="text-lg font-black text-emerald-600 leading-none">
                       {formatCurrency(contract.totalValue)}
                     </p>
@@ -2312,7 +2312,7 @@ function MeasurementsSpreadsheet({
           </div>
           <div className="min-w-0">
             <h3 className="text-xl font-bold truncate">Planilha de Medições</h3>
-            <p className="text-sm text-gray-500 truncate">
+            <p className="text-base text-gray-500 truncate">
                <span className="font-semibold text-gray-700">{contract.contractNumber}</span> | {contract.client}
             </p>
           </div>
@@ -2345,7 +2345,7 @@ function MeasurementsSpreadsheet({
                       {configBudgetData.map((group, gIdx) => (
                         <div key={gIdx} className="space-y-4">
                           <div className="flex items-center gap-3">
-                            <h4 className="text-[10px] font-black text-blue-600 uppercase tracking-[0.2em] whitespace-nowrap">{group.name}</h4>
+                            <h4 className="text-sm font-black text-blue-600 uppercase tracking-[0.2em] whitespace-nowrap">{group.name}</h4>
                             <div className="h-px bg-blue-100 flex-1" />
                           </div>
                           <div className="grid gap-3">
@@ -2357,17 +2357,17 @@ function MeasurementsSpreadsheet({
                                 <div key={cs.serviceId} className="flex flex-col sm:flex-row sm:items-center justify-between p-4 rounded-xl border border-gray-100 bg-white hover:border-blue-200 hover:shadow-md transition-all group/item gap-4">
                                   <div className="flex-1 min-w-0">
                                     <div className="flex items-center gap-2 mb-1">
-                                      <span className="text-[9px] font-bold text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded uppercase">{s.code}</span>
-                                      <span className="text-[9px] font-semibold text-gray-400 capitalize">{s.unit}</span>
+                                      <span className="text-xs font-bold text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded uppercase">{s.code}</span>
+                                      <span className="text-xs font-semibold text-gray-400 capitalize">{s.unit}</span>
                                     </div>
-                                    <p className="text-sm font-bold text-gray-800 break-words group-hover/item:text-blue-900 transition-colors uppercase leading-tight">{s.name}</p>
+                                    <p className="text-base font-bold text-gray-800 break-words group-hover/item:text-blue-900 transition-colors uppercase leading-tight">{s.name}</p>
                                   </div>
                                   <div className="shrink-0 w-full sm:w-[240px]">
                                     <Select 
                                       value={currentType} 
                                       onValueChange={(v: WorksheetType) => updateServiceWorksheetType(cs.serviceId, v)}
                                     >
-                                      <SelectTrigger className="w-full h-10 text-xs font-medium bg-gray-50 border-gray-200 hover:bg-white transition-colors focus:ring-blue-100">
+                                      <SelectTrigger className="w-full h-10 text-sm font-medium bg-gray-50 border-gray-200 hover:bg-white transition-colors focus:ring-blue-100">
                                         <SelectValue />
                                       </SelectTrigger>
                                       <SelectContent>
@@ -2518,7 +2518,7 @@ function MeasurementsSpreadsheet({
           )}
 
           <div className="w-full sm:w-64">
-            <Label className="text-[10px] text-gray-400 uppercase font-bold pr-1 block mb-1">Selecione o Período</Label>
+            <Label className="text-sm text-gray-400 uppercase font-bold pr-1 block mb-1">Selecione o Período</Label>
             <Select 
               value={selectedMeasurementId || "-1"} 
               onValueChange={v => setSelectedMeasurementId(v === "-1" ? null : v)}
@@ -2575,11 +2575,11 @@ function MeasurementsSpreadsheet({
                     </DialogDescription>
                   </DialogHeader>
                   <div className="py-4 space-y-4">
-                    <p className="text-sm border-l-4 border-red-500 pl-4 bg-red-50 py-2 text-red-800">
+                    <p className="text-base border-l-4 border-red-500 pl-4 bg-red-50 py-2 text-red-800">
                       <strong>Aviso:</strong> Apenas usuários com nível de <strong>Administrador</strong> ou <strong>Master</strong> podem concluir esta exclusão conforme as políticas do sistema.
                     </p>
                     {!(currentUser.role === 'admin' || currentUser.role === 'master') && (
-                      <p className="text-xs text-amber-600 font-bold italic">
+                      <p className="text-sm text-amber-600 font-bold italic">
                         * Sua conta atual não possui permissões suficientes para aprovar esta exclusão.
                       </p>
                     )}
@@ -2627,7 +2627,7 @@ function MeasurementsSpreadsheet({
                     </DialogDescription>
                   </DialogHeader>
                   <div className="py-4">
-                    <p className="text-sm text-gray-600">
+                    <p className="text-base text-gray-600">
                       Após encerrada, <strong className="text-red-500">não será mais possível alterar</strong> ou adicionar serviços nesta medição, exceto por um usuário administrador.
                     </p>
                   </div>
@@ -2641,7 +2641,7 @@ function MeasurementsSpreadsheet({
             )}
 
             {isMeasurementClosed && (
-              <div className="flex items-center gap-2 px-3 h-9 bg-amber-50 text-amber-700 rounded-lg border border-amber-100 text-[10px] font-bold uppercase shadow-sm shrink-0">
+              <div className="flex items-center gap-2 px-3 h-9 bg-amber-50 text-amber-700 rounded-lg border border-amber-100 text-sm font-bold uppercase shadow-sm shrink-0">
                  <Lock className="w-3.5 h-3.5" /> Encerrada
               </div>
             )}
@@ -2680,23 +2680,23 @@ function MeasurementsSpreadsheet({
 
     <Card className="border-[10px] border-gray-100 shadow-sm overflow-hidden flex flex-col flex-1 min-h-[500px]">
         <div className="max-h-[70vh] overflow-auto custom-scrollbar border rounded-md relative">
-          <table className="w-full border-separate border-spacing-0 text-sm">
+          <table className="w-full border-separate border-spacing-0 text-base">
             <thead className="bg-gray-50 sticky top-0 z-30 shadow-sm">
               <TableRow>
-                <TableHead className="w-[100px] text-[10px] uppercase font-bold bg-gray-50 sticky top-0">Cód</TableHead>
-                <TableHead className="min-w-[150px] max-w-[300px] text-[10px] uppercase font-bold bg-gray-50 sticky top-0">Discriminação</TableHead>
-                <TableHead className="text-center text-[10px] uppercase font-bold bg-gray-50 sticky top-0">UM</TableHead>
-                <TableHead className="text-right text-[10px] uppercase font-bold bg-gray-50 sticky top-0">Preço Unit.</TableHead>
-                <TableHead className="text-right text-[10px] uppercase font-bold bg-gray-50 sticky top-0">Qtd. Contrato</TableHead>
-                <TableHead className="text-right text-[10px] uppercase font-bold bg-gray-50 sticky top-0">Total Contrato</TableHead>
-                <TableHead className="text-right bg-blue-50 text-blue-600 text-[10px] uppercase font-bold sticky top-0">Qtd. Med. Atual</TableHead>
-                <TableHead className="text-right bg-blue-50 text-blue-600 text-[10px] uppercase font-bold sticky top-0">Vlr. Med. Atual</TableHead>
-                <TableHead className="text-right text-[10px] uppercase font-bold bg-gray-50 sticky top-0">Acum. Med. Anterior</TableHead>
-                <TableHead className="text-right text-[10px] uppercase font-bold bg-gray-50 sticky top-0">Vlr. Med. Anterior</TableHead>
-                <TableHead className="text-right font-bold text-gray-900 text-[10px] uppercase font-bold bg-gray-50 sticky top-0">Quant. Acum. Total</TableHead>
-                <TableHead className="text-right text-[10px] uppercase font-bold bg-gray-50 sticky top-0">Saldo Qtd.</TableHead>
-                <TableHead className="text-right text-[10px] uppercase font-bold bg-gray-50 sticky top-0">Saldo Vlr.</TableHead>
-                <TableHead className="text-right text-[10px] uppercase font-bold bg-gray-50 sticky top-0">%</TableHead>
+                <TableHead className="w-[100px] text-sm uppercase font-bold bg-gray-50 sticky top-0">Cód</TableHead>
+                <TableHead className="min-w-[150px] max-w-[300px] text-sm uppercase font-bold bg-gray-50 sticky top-0">Discriminação</TableHead>
+                <TableHead className="text-center text-sm uppercase font-bold bg-gray-50 sticky top-0">UM</TableHead>
+                <TableHead className="text-right text-sm uppercase font-bold bg-gray-50 sticky top-0">Preço Unit.</TableHead>
+                <TableHead className="text-right text-sm uppercase font-bold bg-gray-50 sticky top-0">Qtd. Contrato</TableHead>
+                <TableHead className="text-right text-sm uppercase font-bold bg-gray-50 sticky top-0">Total Contrato</TableHead>
+                <TableHead className="text-right bg-blue-50 text-blue-600 text-sm uppercase font-bold sticky top-0">Qtd. Med. Atual</TableHead>
+                <TableHead className="text-right bg-blue-50 text-blue-600 text-sm uppercase font-bold sticky top-0">Vlr. Med. Atual</TableHead>
+                <TableHead className="text-right text-sm uppercase font-bold bg-gray-50 sticky top-0">Acum. Med. Anterior</TableHead>
+                <TableHead className="text-right text-sm uppercase font-bold bg-gray-50 sticky top-0">Vlr. Med. Anterior</TableHead>
+                <TableHead className="text-right font-bold text-gray-900 text-sm uppercase font-bold bg-gray-50 sticky top-0">Quant. Acum. Total</TableHead>
+                <TableHead className="text-right text-sm uppercase font-bold bg-gray-50 sticky top-0">Saldo Qtd.</TableHead>
+                <TableHead className="text-right text-sm uppercase font-bold bg-gray-50 sticky top-0">Saldo Vlr.</TableHead>
+                <TableHead className="text-right text-sm uppercase font-bold bg-gray-50 sticky top-0">%</TableHead>
               </TableRow>
             </thead>
             <TableBody>
@@ -2705,7 +2705,7 @@ function MeasurementsSpreadsheet({
                 return (
                 <React.Fragment key={groupIdx}>
                   <TableRow className="bg-gray-100/50">
-                    <TableCell colSpan={14} className="py-2 px-4 font-bold text-blue-800 text-xs italic">
+                    <TableCell colSpan={14} className="py-2 px-4 font-bold text-blue-800 text-sm italic">
                       {group.name}
                     </TableCell>
                   </TableRow>
@@ -2771,17 +2771,17 @@ function MeasurementsSpreadsheet({
                             }}
                             title={`Clique duplo para abrir ${worksheetType === 'direct' ? 'a memória' : worksheetType === 'cubation' ? 'a cubação' : 'o transporte'}`}
                           >
-                            <TableCell className="font-mono text-[10px] py-2">{displayCode}</TableCell>
-                            <TableCell className="text-[11px] py-2 leading-tight min-w-[150px] max-w-[300px] whitespace-normal break-words font-medium text-gray-700 capitalize">{displayName.toLowerCase()}</TableCell>
-                            <TableCell className="text-center text-xs py-2">{displayUnit}</TableCell>
-                            <TableCell className="text-right text-[10px] font-mono py-2">{formatCurrency(unitCost)}</TableCell>
-                            <TableCell className="text-right text-[10px] font-mono py-2">{formatNumber(qs.quantity, 3)}</TableCell>
-                            <TableCell className="text-right text-[10px] font-mono py-2">{formatCurrency(totalContracted)}</TableCell>
+                            <TableCell className="font-mono text-sm py-2">{displayCode}</TableCell>
+                            <TableCell className="text-sm py-2 leading-tight min-w-[150px] max-w-[300px] whitespace-normal break-words font-medium text-gray-700 capitalize">{displayName.toLowerCase()}</TableCell>
+                            <TableCell className="text-center text-sm py-2">{displayUnit}</TableCell>
+                            <TableCell className="text-right text-sm font-mono py-2">{formatCurrency(unitCost)}</TableCell>
+                            <TableCell className="text-right text-sm font-mono py-2">{formatNumber(qs.quantity, 3)}</TableCell>
+                            <TableCell className="text-right text-sm font-mono py-2">{formatCurrency(totalContracted)}</TableCell>
                         
                             {/* Atual */}
                             <TableCell className="text-right bg-blue-50/30 py-2">
                               <div className="flex items-center justify-end gap-1 px-1">
-                                <span className="text-[10px] font-mono font-bold text-blue-600 min-w-[60px]">
+                                <span className="text-sm font-mono font-bold text-blue-600 min-w-[60px]">
                                   {formatNumber(medAtual, 3)}
                                 </span>
                                 <button 
@@ -2800,23 +2800,23 @@ function MeasurementsSpreadsheet({
                                 </button>
                               </div>
                             </TableCell>
-                            <TableCell className="text-right bg-blue-50/30 text-[10px] font-mono text-blue-600 py-2">{formatCurrency(vlrMedAtual)}</TableCell>
+                            <TableCell className="text-right bg-blue-50/30 text-sm font-mono text-blue-600 py-2">{formatCurrency(vlrMedAtual)}</TableCell>
                             
                             {/* Anterior */}
-                            <TableCell className="text-right text-[10px] font-mono py-2">{formatNumber(acumAnterior, 3)}</TableCell>
-                            <TableCell className="text-right text-[10px] font-mono py-2">{formatCurrency(vlrAcumAnterior)}</TableCell>
+                            <TableCell className="text-right text-sm font-mono py-2">{formatNumber(acumAnterior, 3)}</TableCell>
+                            <TableCell className="text-right text-sm font-mono py-2">{formatCurrency(vlrAcumAnterior)}</TableCell>
                             
                             {/* Acum. Total */}
-                            <TableCell className="text-right text-[10px] font-mono font-bold py-2">{formatNumber(acumTotal, 3)}</TableCell>
+                            <TableCell className="text-right text-sm font-mono font-bold py-2">{formatNumber(acumTotal, 3)}</TableCell>
                             
                             {/* Saldo */}
-                            <TableCell className={cn("text-right text-[10px] font-mono py-2", saldoQtd < 0 && "text-red-500")}>{formatNumber(saldoQtd, 3)}</TableCell>
-                            <TableCell className={cn("text-right text-[10px] font-mono py-2", saldoVlr < 0 && "text-red-500")}>{formatCurrency(saldoVlr)}</TableCell>
+                            <TableCell className={cn("text-right text-sm font-mono py-2", saldoQtd < 0 && "text-red-500")}>{formatNumber(saldoQtd, 3)}</TableCell>
+                            <TableCell className={cn("text-right text-sm font-mono py-2", saldoVlr < 0 && "text-red-500")}>{formatCurrency(saldoVlr)}</TableCell>
                             
                             {/* % */}
                             <TableCell className="text-right py-2">
                               <div className="flex flex-col items-end gap-1">
-                                  <span className="text-[10px] font-bold">{formatNumber(perc, 1)}%</span>
+                                  <span className="text-sm font-bold">{formatNumber(perc, 1)}%</span>
                                   <div className="w-12 h-1 bg-gray-100 rounded-full overflow-hidden">
                                     <div className={cn("h-full", perc > 100 ? "bg-red-500" : "bg-blue-600")} style={{ width: `${Math.min(perc, 100)}%` }} />
                                   </div>
@@ -2826,10 +2826,10 @@ function MeasurementsSpreadsheet({
                         );
                       })}
                   <TableRow className="bg-blue-50/30">
-                    <TableCell colSpan={7} className="py-2 px-4 text-right font-bold text-blue-800 text-[10px] uppercase">
+                    <TableCell colSpan={7} className="py-2 px-4 text-right font-bold text-blue-800 text-sm uppercase">
                       Subtotal {group.name} (Medição Atual):
                     </TableCell>
-                    <TableCell className="text-right font-mono font-bold text-blue-800 text-[10px] py-2">
+                    <TableCell className="text-right font-mono font-bold text-blue-800 text-sm py-2">
                        {formatCurrency(groupTotalMedAtual)}
                     </TableCell>
                     <TableCell colSpan={6} />
@@ -2839,10 +2839,10 @@ function MeasurementsSpreadsheet({
 
               {budgetData.length > 0 && (
                 <TableRow className="bg-blue-100/50">
-                   <TableCell colSpan={7} className="py-3 px-4 text-right font-black text-blue-900 text-xs uppercase">
+                   <TableCell colSpan={7} className="py-3 px-4 text-right font-black text-blue-900 text-sm uppercase">
                      Total da Medição Atual:
                    </TableCell>
-                   <TableCell className="text-right font-mono font-black text-blue-900 text-xs py-3">
+                   <TableCell className="text-right font-mono font-black text-blue-900 text-sm py-3">
                      {formatCurrency(
                         budgetData.reduce((acc, group) => {
                           return acc + group.services.reduce((gAcc, qs) => {
@@ -3189,8 +3189,8 @@ function CalculationMemoryModal({
                   </div>
                   <div>
                       <h3 className="text-xl font-bold text-gray-900 mb-2">Sobreposição Detectada</h3>
-                      <p className="text-sm text-gray-500">Existem trechos com estacas se sobrepondo ou em duplicidade (destacados em vermelho).</p>
-                      <p className="text-sm text-gray-500 mt-2">Deseja concluir a memória mesmo assim?</p>
+                      <p className="text-base text-gray-500">Existem trechos com estacas se sobrepondo ou em duplicidade (destacados em vermelho).</p>
+                      <p className="text-base text-gray-500 mt-2">Deseja concluir a memória mesmo assim?</p>
                   </div>
                   <div className="flex gap-3 justify-center">
                       <Button variant="outline" className="flex-1" onClick={() => setShowOverlapWarning(false)}>Revisar</Button>
@@ -3206,16 +3206,16 @@ function CalculationMemoryModal({
                 <Calculator className="w-5 h-5 text-white" />
               </div>
               <div>
-                <DialogTitle className="text-sm md:text-base">Memória de Cálculo: {service.name}</DialogTitle>
-                <DialogDescription className="text-[10px] md:text-xs">
+                <DialogTitle className="text-base md:text-base">Memória de Cálculo: {service.name}</DialogTitle>
+                <DialogDescription className="text-sm md:text-sm">
                   Unidade: {service.unit} | Template: {template?.name || 'Padrão'}
                 </DialogDescription>
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <Label className="text-[10px] text-gray-400 font-bold uppercase whitespace-nowrap">Medição:</Label>
+              <Label className="text-sm text-gray-400 font-bold uppercase whitespace-nowrap">Medição:</Label>
               <Select value={activeMeasurementId} onValueChange={setActiveMeasurementId}>
-                <SelectTrigger className="w-[180px] h-8 text-xs font-bold">
+                <SelectTrigger className="w-[180px] h-8 text-sm font-bold">
                   <SelectValue placeholder="Selecione a medição">
                     {activeMeasurementId && measurements.find(m => m.id === activeMeasurementId) 
                       ? (() => {
@@ -3260,7 +3260,7 @@ function CalculationMemoryModal({
                 <>
                     <div className="flex flex-wrap gap-4 justify-between items-center py-4">
                       <div className="flex items-center gap-6">
-                        <span className="text-xs font-bold text-gray-400 uppercase tracking-widest whitespace-nowrap">Registros de Medição</span>
+                        <span className="text-sm font-bold text-gray-400 uppercase tracking-widest whitespace-nowrap">Registros de Medição</span>
                         <div className="flex items-center gap-2">
                           <Checkbox 
                             id="show-previous" 
@@ -3269,7 +3269,7 @@ function CalculationMemoryModal({
                           />
                           <label 
                             htmlFor="show-previous" 
-                            className="text-[10px] md:text-xs font-medium text-gray-500 cursor-pointer select-none whitespace-nowrap"
+                            className="text-sm md:text-sm font-medium text-gray-500 cursor-pointer select-none whitespace-nowrap"
                           >
                             Mostrar medições anteriores
                           </label>
@@ -3287,7 +3287,7 @@ function CalculationMemoryModal({
                       <TableHeader className="bg-gray-50 sticky top-0 z-10 shadow-sm">
                         <TableRow>
                           {template.columns.map(col => (
-                            <TableHead key={col.id} className="text-[10px] font-bold text-gray-500 uppercase px-2">
+                            <TableHead key={col.id} className="text-sm font-bold text-gray-500 uppercase px-2">
                               {col.label}
                             </TableHead>
                           ))}
@@ -3301,17 +3301,17 @@ function CalculationMemoryModal({
                               <TableCell key={col.id} className="p-2 opacity-60">
                                 {colIdx === 0 ? (
                                   <div className="flex items-center gap-2">
-                                    <span className="text-[9px] font-bold bg-gray-200 text-gray-600 px-1.5 py-0.5 rounded shadow-sm whitespace-nowrap">
+                                    <span className="text-xs font-bold bg-gray-200 text-gray-600 px-1.5 py-0.5 rounded shadow-sm whitespace-nowrap">
                                       M#{row.__measurementName}
                                     </span>
-                                    <span className="text-xs font-medium text-gray-600">{row.values[col.id] || '-'}</span>
+                                    <span className="text-sm font-medium text-gray-600">{row.values[col.id] || '-'}</span>
                                   </div>
                                 ) : col.type === 'calculated' ? (
-                                  <div className="h-8 px-2 flex items-center bg-gray-100/50 rounded text-xs font-mono font-bold text-gray-500">
+                                  <div className="h-8 px-2 flex items-center bg-gray-100/50 rounded text-sm font-mono font-bold text-gray-500">
                                     {formatNumber(row.values[col.id] || 0, 3)}
                                   </div>
                                 ) : (
-                                  <div className="h-8 px-2 flex items-center bg-transparent border-transparent text-xs font-medium text-gray-500">
+                                  <div className="h-8 px-2 flex items-center bg-transparent border-transparent text-sm font-medium text-gray-500">
                                     {row.values[col.id] || '-'}
                                   </div>
                                 )}
@@ -3328,7 +3328,7 @@ function CalculationMemoryModal({
                               <TableCell key={col.id} className="p-2">
                                 {col.type === 'calculated' ? (
                                   <div className={cn(
-                                    "h-9 px-3 flex items-center rounded-lg text-xs font-mono font-bold",
+                                    "h-9 px-3 flex items-center rounded-lg text-sm font-mono font-bold",
                                     isOverlapping ? "bg-red-100/50 text-red-700" : "bg-gray-50 text-blue-600"
                                   )}>
                                     {formatNumber(row.values[col.id] || 0, 3)}
@@ -3338,7 +3338,7 @@ function CalculationMemoryModal({
                                     <Input 
                                       type={col.type === 'number' ? 'number' : 'text'}
                                       className={cn(
-                                        "h-9 text-xs font-medium",
+                                        "h-9 text-sm font-medium",
                                         isOverlapping && "border-red-300 bg-red-50 text-red-900 focus-visible:border-red-500 focus-visible:ring-red-500",
                                         (col.label.toLowerCase().includes('frac') && 
                                           unitLimit > 0 && 
@@ -3352,7 +3352,7 @@ function CalculationMemoryModal({
                                     {(col.label.toLowerCase().includes('frac') && 
                                       unitLimit > 0 && 
                                       (parseFloat(row.values[col.id]?.toString().replace(',', '.') || '0') >= unitLimit)) && (
-                                        <p className="text-[9px] text-red-500 font-bold px-1">
+                                        <p className="text-xs text-red-500 font-bold px-1">
                                           Máx: {(unitLimit - 0.01).toFixed(2).replace('.', ',')}
                                         </p>
                                     )}
@@ -3386,25 +3386,25 @@ function CalculationMemoryModal({
             <div className="mt-4 p-4 bg-white rounded-xl border border-gray-100 shadow-sm flex flex-col gap-4">
               <div className="grid grid-cols-4 gap-4">
                  <div className="space-y-1 p-3 bg-gray-50 rounded-lg">
-                   <p className="text-gray-400 uppercase font-bold text-[9px] tracking-wider">Ant. Acumulado</p>
-                   <p className="text-sm font-mono font-bold text-gray-600">{formatNumber(stats?.prevAccumulated || 0, 3)}</p>
+                   <p className="text-gray-400 uppercase font-bold text-xs tracking-wider">Ant. Acumulado</p>
+                   <p className="text-base font-mono font-bold text-gray-600">{formatNumber(stats?.prevAccumulated || 0, 3)}</p>
                  </div>
                  <div className="space-y-1 p-3 bg-blue-50 rounded-lg border border-blue-100">
-                   <p className="text-blue-400 uppercase font-bold text-[9px] tracking-wider">Medição Atual</p>
-                   <p className="text-sm font-mono font-bold text-blue-700">{formatNumber(stats?.currentQty || 0, 3)}</p>
+                   <p className="text-blue-400 uppercase font-bold text-xs tracking-wider">Medição Atual</p>
+                   <p className="text-base font-mono font-bold text-blue-700">{formatNumber(stats?.currentQty || 0, 3)}</p>
                  </div>
                  <div className="space-y-1 p-3 bg-indigo-50 rounded-lg border border-indigo-100">
-                   <p className="text-indigo-400 uppercase font-bold text-[9px] tracking-wider">Total Acumulado</p>
-                   <p className="text-sm font-mono font-bold text-indigo-700">{formatNumber(stats?.totalAccumulated || 0, 3)}</p>
+                   <p className="text-indigo-400 uppercase font-bold text-xs tracking-wider">Total Acumulado</p>
+                   <p className="text-base font-mono font-bold text-indigo-700">{formatNumber(stats?.totalAccumulated || 0, 3)}</p>
                  </div>
                  <div className="space-y-1 p-3 bg-emerald-50 rounded-lg border border-emerald-100">
-                   <p className="text-emerald-400 uppercase font-bold text-[9px] tracking-wider">Saldo do Serviço</p>
-                   <p className="text-sm font-mono font-bold text-emerald-700">{formatNumber(stats?.balance || 0, 3)}</p>
+                   <p className="text-emerald-400 uppercase font-bold text-xs tracking-wider">Saldo do Serviço</p>
+                   <p className="text-base font-mono font-bold text-emerald-700">{formatNumber(stats?.balance || 0, 3)}</p>
                  </div>
               </div>
               
               <div className="flex justify-between items-center pt-2">
-                 <div className="text-xs text-gray-400">
+                 <div className="text-sm text-gray-400">
                    Quantidade Contratada: <span className="font-bold text-gray-600">{formatNumber(stats?.budgetQty || 0, 3)} {service.unit}</span>
                  </div>
                  <div className="flex gap-2">
@@ -3581,7 +3581,7 @@ function MeasureSelectionView({
       <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-wrap gap-4 items-center justify-between">
         <div className="min-w-[200px]">
           <h3 className="text-xl font-bold">Lançamento de Medições</h3>
-          <p className="text-sm text-gray-500">Contrato: {contract.contractNumber} | Medição Ativa: {measurement?.period || 'Nenhuma'}</p>
+          <p className="text-base text-gray-500">Contrato: {contract.contractNumber} | Medição Ativa: {measurement?.period || 'Nenhuma'}</p>
         </div>
         <div className="flex flex-wrap gap-2">
            <Button variant="outline" size="sm" onClick={() => onSetType('locations')} className="text-blue-600 border-blue-200 hover:bg-blue-50">
@@ -3636,7 +3636,7 @@ function MeasureSelectionView({
             </div>
 
             <div className="pt-4">
-              <h4 className="text-sm font-bold text-gray-400 uppercase tracking-widest mb-3">Pesquisa Rápida</h4>
+              <h4 className="text-base font-bold text-gray-400 uppercase tracking-widest mb-3">Pesquisa Rápida</h4>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                 {services
                   .filter(s => {
@@ -3651,8 +3651,8 @@ function MeasureSelectionView({
                     className="flex text-left p-3 rounded-xl border border-gray-100 hover:border-blue-300 hover:bg-blue-50 transition-all group"
                   >
                     <div>
-                      <p className="text-[10px] font-bold text-blue-600">{s.code}</p>
-                      <p className="text-xs font-semibold text-gray-700 truncate">{s.name}</p>
+                      <p className="text-sm font-bold text-blue-600">{s.code}</p>
+                      <p className="text-sm font-semibold text-gray-700 truncate">{s.name}</p>
                     </div>
                   </button>
                 ))}
@@ -3661,7 +3661,7 @@ function MeasureSelectionView({
           </CardContent>
           <Separator />
           <div className="p-4 flex justify-start">
-             <Button variant="ghost" onClick={() => onSetType(null)} className="text-gray-500 text-xs">← Voltar para seleção</Button>
+             <Button variant="ghost" onClick={() => onSetType(null)} className="text-gray-500 text-sm">← Voltar para seleção</Button>
           </div>
         </Card>
       ) : (
@@ -3683,7 +3683,7 @@ function MeasureTypeCard({ title, description, icon, onClick }: { title: string,
        </div>
        <div>
          <h4 className="text-lg font-bold text-gray-900">{title}</h4>
-         <p className="text-sm text-gray-500">{description}</p>
+         <p className="text-base text-gray-500">{description}</p>
        </div>
     </button>
   );
@@ -3823,7 +3823,7 @@ function CubationView({ contract, measurement, stationGroups, cubationData, onUp
           <Button variant="ghost" onClick={onBack} size="icon"><ChevronRight className="w-5 h-5 rotate-180" /></Button>
           <div>
             <h3 className="text-xl font-bold">Planilha de Cubação</h3>
-            <p className="text-sm text-gray-500">
+            <p className="text-base text-gray-500">
               {browsingMeasurementId === measurement?.id 
                 ? "Medição Ativa" 
                 : browsingMeasurement 
@@ -3835,9 +3835,9 @@ function CubationView({ contract, measurement, stationGroups, cubationData, onUp
         <div className="flex flex-wrap items-center gap-4">
            {!selectedGroupId && (
              <div className="flex items-center gap-2 pr-4 lg:border-r">
-                <Label className="text-[10px] font-bold text-gray-400 uppercase">Período:</Label>
+                <Label className="text-sm font-bold text-gray-400 uppercase">Período:</Label>
                 <Select value={browsingMeasurementId} onValueChange={(v) => { setBrowsingMeasurementId(v); setSelectedGroupId(''); }}>
-                   <SelectTrigger className="w-[180px] h-8 text-xs">
+                   <SelectTrigger className="w-[180px] h-8 text-sm">
                       <SelectValue placeholder="Selecione a medição">
                         {browsingMeasurementId && allMeasurements.find(m => m.id === browsingMeasurementId)
                           ? (() => {
@@ -3863,9 +3863,9 @@ function CubationView({ contract, measurement, stationGroups, cubationData, onUp
            )}
 
            <div className="flex items-center gap-2">
-             <Label className="text-[10px] font-bold text-gray-400 uppercase">Grupo:</Label>
+             <Label className="text-sm font-bold text-gray-400 uppercase">Grupo:</Label>
              <Select value={selectedGroupId} onValueChange={setSelectedGroupId}>
-                <SelectTrigger className="w-[200px] h-8 text-xs">
+                <SelectTrigger className="w-[200px] h-8 text-sm">
                    <SelectValue placeholder="Selecione o grupo..." />
                 </SelectTrigger>
                 <SelectContent>
@@ -3888,7 +3888,7 @@ function CubationView({ contract, measurement, stationGroups, cubationData, onUp
              </div>
            )}
            {selectedGroupId && !isBrowsingCurrent && (
-             <div className="bg-amber-50 text-amber-700 px-3 py-1 rounded-lg text-xs font-bold border border-amber-100 flex items-center gap-2">
+             <div className="bg-amber-50 text-amber-700 px-3 py-1 rounded-lg text-sm font-bold border border-amber-100 flex items-center gap-2">
                 <Lock className="w-3 h-3" /> Visualização Histórica (Leitura)
              </div>
            )}
@@ -3899,8 +3899,8 @@ function CubationView({ contract, measurement, stationGroups, cubationData, onUp
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 flex-1 overflow-hidden min-h-0">
            <Card className="col-span-1 border-[10px] border-gray-100 font-sans shadow-sm flex flex-col overflow-hidden bg-gray-50/50 min-h-[300px]">
              <div className="p-4 bg-white border-b border-gray-100 flex items-center justify-between">
-                <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest">Grupos Medidos {isBrowsingCurrent ? "neste período" : ""}</h4>
-                <div className="bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full text-[10px] font-bold">
+                <h4 className="text-sm font-bold text-gray-400 uppercase tracking-widest">Grupos Medidos {isBrowsingCurrent ? "neste período" : ""}</h4>
+                <div className="bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full text-sm font-bold">
                    {measuredGroupIds.length}
                 </div>
              </div>
@@ -3909,7 +3909,7 @@ function CubationView({ contract, measurement, stationGroups, cubationData, onUp
                    {measuredGroupIds.length === 0 ? (
                       <div className="py-12 text-center">
                          <AlertCircle className="w-8 h-8 text-gray-300 mx-auto mb-2" />
-                         <p className="text-xs text-gray-400">Nenhum grupo medido neste período.</p>
+                         <p className="text-sm text-gray-400">Nenhum grupo medido neste período.</p>
                       </div>
                    ) : (
                       stationGroups
@@ -3924,10 +3924,10 @@ function CubationView({ contract, measurement, stationGroups, cubationData, onUp
                                 className="w-full text-left p-3 rounded-xl bg-white border border-gray-100 hover:border-blue-300 hover:shadow-md transition-all group"
                              >
                                 <div className="flex justify-between items-start mb-1">
-                                   <p className="text-xs font-bold text-gray-700 group-hover:text-blue-600 transition-colors">{g.name}</p>
-                                   <p className="text-[10px] font-black text-emerald-600">{formatNumber(vol, 2)} m³</p>
+                                   <p className="text-sm font-bold text-gray-700 group-hover:text-blue-600 transition-colors">{g.name}</p>
+                                   <p className="text-sm font-black text-emerald-600">{formatNumber(vol, 2)} m³</p>
                                 </div>
-                                <p className="text-[10px] text-gray-400">Estaca: {g.initialStation || 'N/A'} → {g.finalStation || 'N/A'}</p>
+                                <p className="text-sm text-gray-400">Estaca: {g.initialStation || 'N/A'} → {g.finalStation || 'N/A'}</p>
                              </button>
                            );
                         })
@@ -3939,7 +3939,7 @@ function CubationView({ contract, measurement, stationGroups, cubationData, onUp
            <Card className="col-span-1 lg:col-span-2 border-[10px] border-gray-100 shadow-sm p-12 flex flex-col items-center justify-center bg-white border-dashed min-h-[300px]">
               <Layers className="w-16 h-16 text-gray-100 mb-4" />
               <h4 className="text-lg font-bold text-gray-400 select-none">Selecione um grupo para detalhamento</h4>
-              <p className="text-sm text-gray-300 max-w-xs text-center select-none">Escolha um item na lista ao lado ou na seleção acima para visualizar a planilha de cubação.</p>
+              <p className="text-base text-gray-300 max-w-xs text-center select-none">Escolha um item na lista ao lado ou na seleção acima para visualizar a planilha de cubação.</p>
            </Card>
         </div>
       ) : (
@@ -3949,14 +3949,14 @@ function CubationView({ contract, measurement, stationGroups, cubationData, onUp
               <Table>
               <TableHeader className="bg-gray-50 sticky top-0 z-10 shadow-sm">
                 <TableRow>
-                  <TableHead className="w-24 text-[10px] font-bold uppercase">Estaca</TableHead>
-                  <TableHead className="w-20 text-[10px] font-bold uppercase text-center">Frac</TableHead>
-                  <TableHead className="w-24 text-[10px] font-bold uppercase">AC / FC</TableHead>
-                  <TableHead className="w-24 text-[10px] font-bold uppercase text-right">Área (m²)</TableHead>
-                  <TableHead className="w-32 text-[10px] font-bold uppercase text-right">Soma Áreas</TableHead>
-                  <TableHead className="w-32 text-[10px] font-bold uppercase text-right">Semi-Dist.</TableHead>
-                  <TableHead className="w-32 text-[10px] font-bold uppercase text-right">Volume (m³)</TableHead>
-                  <TableHead className="text-[10px] font-bold uppercase">Observação</TableHead>
+                  <TableHead className="w-24 text-sm font-bold uppercase">Estaca</TableHead>
+                  <TableHead className="w-20 text-sm font-bold uppercase text-center">Frac</TableHead>
+                  <TableHead className="w-24 text-sm font-bold uppercase">AC / FC</TableHead>
+                  <TableHead className="w-24 text-sm font-bold uppercase text-right">Área (m²)</TableHead>
+                  <TableHead className="w-32 text-sm font-bold uppercase text-right">Soma Áreas</TableHead>
+                  <TableHead className="w-32 text-sm font-bold uppercase text-right">Semi-Dist.</TableHead>
+                  <TableHead className="w-32 text-sm font-bold uppercase text-right">Volume (m³)</TableHead>
+                  <TableHead className="text-sm font-bold uppercase">Observação</TableHead>
                   <TableHead className="w-12"></TableHead>
                 </TableRow>
               </TableHeader>
@@ -3967,7 +3967,7 @@ function CubationView({ contract, measurement, stationGroups, cubationData, onUp
                       <Input 
                         value={row.estaca || ''} 
                         onChange={e => updateRow(row.id, 'estaca', e.target.value)} 
-                        className="h-8 text-xs font-mono" 
+                        className="h-8 text-sm font-mono" 
                         placeholder="0+0"
                       />
                     </TableCell>
@@ -3977,12 +3977,12 @@ function CubationView({ contract, measurement, stationGroups, cubationData, onUp
                         step="0.01" 
                         value={row.frac ?? ''} 
                         onChange={e => updateRow(row.id, 'frac', e.target.value)} 
-                        className="h-8 text-xs text-center font-mono"
+                        className="h-8 text-sm text-center font-mono"
                       />
                     </TableCell>
                     <TableCell>
                       <Select value={row.acFc} onValueChange={v => updateRow(row.id, 'acFc', v)}>
-                         <SelectTrigger className="h-8 text-xs font-bold">
+                         <SelectTrigger className="h-8 text-sm font-bold">
                             <SelectValue placeholder="-" />
                          </SelectTrigger>
                          <SelectContent>
@@ -3998,21 +3998,21 @@ function CubationView({ contract, measurement, stationGroups, cubationData, onUp
                         step="0.001" 
                         value={row.area ?? ''} 
                         onChange={e => updateRow(row.id, 'area', e.target.value)} 
-                        className="h-8 text-xs text-right font-mono text-blue-600"
+                        className="h-8 text-sm text-right font-mono text-blue-600"
                       />
                     </TableCell>
                     <TableCell>
-                      <div className="h-8 flex items-center justify-end px-3 bg-gray-50 rounded text-xs font-mono font-bold text-gray-500">
+                      <div className="h-8 flex items-center justify-end px-3 bg-gray-50 rounded text-sm font-mono font-bold text-gray-500">
                         {formatNumber(row.somaAreas, 3)}
                       </div>
                     </TableCell>
                     <TableCell>
-                      <div className="h-8 flex items-center justify-end px-3 bg-gray-50 rounded text-xs font-mono font-bold text-gray-500">
+                      <div className="h-8 flex items-center justify-end px-3 bg-gray-50 rounded text-sm font-mono font-bold text-gray-500">
                         {formatNumber(row.semiDistancia, 2)}
                       </div>
                     </TableCell>
                     <TableCell>
-                      <div className="h-8 flex items-center justify-end px-3 bg-emerald-50 rounded text-xs font-mono font-bold text-emerald-700">
+                      <div className="h-8 flex items-center justify-end px-3 bg-emerald-50 rounded text-sm font-mono font-bold text-emerald-700">
                         {formatNumber(row.volume, 3)}
                       </div>
                     </TableCell>
@@ -4020,7 +4020,7 @@ function CubationView({ contract, measurement, stationGroups, cubationData, onUp
                       <Input 
                         value={row.observacao || ''} 
                         onChange={e => updateRow(row.id, 'observacao', e.target.value)} 
-                        className="h-8 text-xs" 
+                        className="h-8 text-sm" 
                       />
                     </TableCell>
                     <TableCell>
@@ -4037,8 +4037,8 @@ function CubationView({ contract, measurement, stationGroups, cubationData, onUp
           <div className="bg-gray-50 p-4 border-t flex flex-wrap gap-4 justify-between items-center shrink-0">
              <div className="flex gap-8">
                 <div>
-                   <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Serviço Vinculado</p>
-                   <p className="text-sm font-bold text-gray-700">
+                   <p className="text-sm font-bold text-gray-400 uppercase tracking-widest">Serviço Vinculado</p>
+                   <p className="text-base font-bold text-gray-700">
                      {(() => {
                         const sId = stationGroups.find(g => g.id === selectedGroupId)?.serviceId;
                         const s = services.find(x => x.id === sId);
@@ -4047,12 +4047,12 @@ function CubationView({ contract, measurement, stationGroups, cubationData, onUp
                    </p>
                 </div>
                 <div>
-                   <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Total de Estacas</p>
-                   <p className="text-sm font-bold text-gray-700">{localCubation?.rows.length || 0}</p>
+                   <p className="text-sm font-bold text-gray-400 uppercase tracking-widest">Total de Estacas</p>
+                   <p className="text-base font-bold text-gray-700">{localCubation?.rows.length || 0}</p>
                 </div>
              </div>
              <div className="text-right">
-                <p className="text-[10px] font-bold text-emerald-600 uppercase tracking-widest">Volume Total da Cubação</p>
+                <p className="text-sm font-bold text-emerald-600 uppercase tracking-widest">Volume Total da Cubação</p>
                 <p className="text-2xl font-mono font-bold text-emerald-700">{formatNumber(totalVolume, 3)} m³</p>
              </div>
           </div>
@@ -4104,7 +4104,7 @@ function HighwayLocationsView({ contract, locations, onUpdate, onDelete, onBack,
           <Button variant="ghost" onClick={onBack} size="icon"><ChevronRight className="w-5 h-5 rotate-180" /></Button>
           <div>
             <h3 className="text-xl font-bold">Cadastro de Locais</h3>
-            <p className="text-sm text-gray-500">Defina os pontos geográficos de extração ou depósito.</p>
+            <p className="text-base text-gray-500">Defina os pontos geográficos de extração ou depósito.</p>
           </div>
         </div>
         <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
@@ -4126,14 +4126,14 @@ function HighwayLocationsView({ contract, locations, onUpdate, onDelete, onBack,
                 <div className="space-y-2">
                   <Label className="flex justify-between">
                     Materiais (Composições de Insumo)
-                    <span className="text-[10px] text-gray-400 font-normal">Selecione para adicionar</span>
+                    <span className="text-sm text-gray-400 font-normal">Selecione para adicionar</span>
                   </Label>
                   
                   <div className="relative">
                     <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                     <Input 
                       placeholder="Pesquisar material..." 
-                      className="pl-9 h-9 text-sm"
+                      className="pl-9 h-9 text-base"
                       value={searchMaterial}
                       onChange={e => setSearchMaterial(e.target.value)}
                     />
@@ -4153,7 +4153,7 @@ function HighwayLocationsView({ contract, locations, onUpdate, onDelete, onBack,
                             }
                           }}
                           className={cn(
-                            "w-full text-left px-3 py-2 rounded text-xs transition-colors",
+                            "w-full text-left px-3 py-2 rounded text-sm transition-colors",
                             formData.materialIds.includes(m.id) 
                               ? "bg-blue-100 text-blue-700 font-bold border border-blue-200" 
                               : "hover:bg-gray-100 text-gray-600 border border-transparent"
@@ -4161,12 +4161,12 @@ function HighwayLocationsView({ contract, locations, onUpdate, onDelete, onBack,
                         >
                           <div className="flex justify-between items-center">
                             <span>{m.name}</span>
-                            <span className="text-[10px] text-gray-400">{m.code}</span>
+                            <span className="text-sm text-gray-400">{m.code}</span>
                           </div>
                         </button>
                       ))}
                       {filteredMaterials.length === 0 && (
-                        <p className="text-center py-4 text-xs text-gray-400 italic">Nenhum material encontrado.</p>
+                        <p className="text-center py-4 text-sm text-gray-400 italic">Nenhum material encontrado.</p>
                       )}
                     </div>
                   </ScrollArea>
@@ -4174,7 +4174,7 @@ function HighwayLocationsView({ contract, locations, onUpdate, onDelete, onBack,
                   {formData.materialIds.length > 0 && (
                     <div className="flex flex-wrap gap-2 mt-2">
                        {formData.materialIds.map(id => (
-                         <div key={id} className="bg-blue-50 text-blue-700 border border-blue-100 px-2 py-1 rounded text-[10px] flex items-center gap-2">
+                         <div key={id} className="bg-blue-50 text-blue-700 border border-blue-100 px-2 py-1 rounded text-sm flex items-center gap-2">
                            <span className="truncate max-w-[150px]">{resources.find(r => r.id === id)?.name}</span>
                            <button type="button" onClick={() => setFormData({...formData, materialIds: formData.materialIds.filter(x => x !== id)})} className="text-blue-500 hover:text-red-500">×</button>
                          </div>
@@ -4219,26 +4219,26 @@ function HighwayLocationsView({ contract, locations, onUpdate, onDelete, onBack,
                 </div>
               </div>
               <h4 className="font-bold text-lg mb-1">{loc.name}</h4>
-              <p className="text-xs text-gray-500 mb-4">{loc.city || 'Sem município'}</p>
+              <p className="text-sm text-gray-500 mb-4">{loc.city || 'Sem município'}</p>
               
               <div className="space-y-2">
-                <div className="flex justify-between text-[11px]">
+                <div className="flex justify-between text-sm">
                    <span className="text-gray-400">Estaca Ref.</span>
                    <span className="font-bold">{loc.referenceStation || '-'}</span>
                 </div>
-                <div className="flex justify-between text-[11px]">
+                <div className="flex justify-between text-sm">
                    <span className="text-gray-400">Dist. Lateral</span>
                    <span className="font-bold">{loc.lateralDistance} m</span>
                 </div>
                 <div className="mt-3">
-                   <p className="text-[10px] font-bold text-gray-400 uppercase mb-1">Materiais</p>
+                   <p className="text-sm font-bold text-gray-400 uppercase mb-1">Materiais</p>
                    <div className="flex flex-wrap gap-1">
                      {loc.materialIds.map(id => (
-                       <span key={id} className="bg-gray-100 text-gray-600 px-2 py-0.5 rounded text-[9px]">
+                       <span key={id} className="bg-gray-100 text-gray-600 px-2 py-0.5 rounded text-xs">
                          {resources.find(r => r.id === id)?.name}
                        </span>
                      ))}
-                     {loc.materialIds.length === 0 && <span className="text-gray-300 text-[10px] italic">Nenhum material vinculado</span>}
+                     {loc.materialIds.length === 0 && <span className="text-gray-300 text-sm italic">Nenhum material vinculado</span>}
                    </div>
                 </div>
               </div>
@@ -4309,7 +4309,7 @@ function StationGroupsView({ contract, groups, onUpdate, onDelete, onBack, resou
           <Button variant="ghost" onClick={onBack} size="icon"><ChevronRight className="w-5 h-5 rotate-180" /></Button>
           <div>
             <h3 className="text-xl font-bold">Grupos de Estacas</h3>
-            <p className="text-sm text-gray-500">Defina intervalos de estaqueamento para cubação.</p>
+            <p className="text-base text-gray-500">Defina intervalos de estaqueamento para cubação.</p>
           </div>
         </div>
         <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
@@ -4342,14 +4342,14 @@ function StationGroupsView({ contract, groups, onUpdate, onDelete, onBack, resou
                 <div className="space-y-2">
                   <Label className="flex justify-between">
                     Materiais (Composições de Insumo)
-                    <span className="text-[10px] text-gray-400 font-normal">Selecione para adicionar</span>
+                    <span className="text-sm text-gray-400 font-normal">Selecione para adicionar</span>
                   </Label>
                   
                   <div className="relative">
                     <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                     <Input 
                       placeholder="Pesquisar material..." 
-                      className="pl-9 h-9 text-sm"
+                      className="pl-9 h-9 text-base"
                       value={searchMaterial}
                       onChange={e => setSearchMaterial(e.target.value)}
                     />
@@ -4369,7 +4369,7 @@ function StationGroupsView({ contract, groups, onUpdate, onDelete, onBack, resou
                             }
                           }}
                           className={cn(
-                            "w-full text-left px-3 py-2 rounded text-xs transition-colors",
+                            "w-full text-left px-3 py-2 rounded text-sm transition-colors",
                             formData.materialIds.includes(m.id) 
                               ? "bg-emerald-100 text-emerald-700 font-bold border border-emerald-200" 
                               : "hover:bg-gray-100 text-gray-600 border border-transparent"
@@ -4377,7 +4377,7 @@ function StationGroupsView({ contract, groups, onUpdate, onDelete, onBack, resou
                         >
                           <div className="flex justify-between items-center">
                             <span>{m.name}</span>
-                            <span className="text-[10px] text-gray-400">{m.code}</span>
+                            <span className="text-sm text-gray-400">{m.code}</span>
                           </div>
                         </button>
                       ))}
@@ -4387,7 +4387,7 @@ function StationGroupsView({ contract, groups, onUpdate, onDelete, onBack, resou
                   {formData.materialIds.length > 0 && (
                     <div className="flex flex-wrap gap-2 mt-2">
                        {formData.materialIds.map(id => (
-                         <div key={id} className="bg-emerald-50 text-emerald-700 border border-emerald-100 px-2 py-1 rounded text-[10px] flex items-center gap-2">
+                         <div key={id} className="bg-emerald-50 text-emerald-700 border border-emerald-100 px-2 py-1 rounded text-sm flex items-center gap-2">
                            <span className="truncate max-w-[150px]">{resources.find(r => r.id === id)?.name}</span>
                            <button type="button" onClick={() => setFormData({...formData, materialIds: formData.materialIds.filter(x => x !== id)})} className="text-emerald-500 hover:text-red-500">×</button>
                          </div>
@@ -4411,7 +4411,7 @@ function StationGroupsView({ contract, groups, onUpdate, onDelete, onBack, resou
                               placeholder="Pesquisar serviço..." 
                               value={searchService}
                               onChange={e => setSearchService(e.target.value)}
-                              className="h-8 text-xs"
+                              className="h-8 text-sm"
                               onKeyDown={(e) => e.stopPropagation()}
                             />
                          </div>
@@ -4420,7 +4420,7 @@ function StationGroupsView({ contract, groups, onUpdate, onDelete, onBack, resou
                              <SelectItem key={cs.serviceId} value={cs.serviceId}>{cs.code} - {cs.name}</SelectItem>
                            ))}
                            {filteredServices.length === 0 && (
-                             <p className="text-center py-4 text-xs text-gray-400 italic">Nenhum serviço encontrado.</p>
+                             <p className="text-center py-4 text-sm text-gray-400 italic">Nenhum serviço encontrado.</p>
                            )}
                          </ScrollArea>
                       </SelectContent>
@@ -4450,26 +4450,26 @@ function StationGroupsView({ contract, groups, onUpdate, onDelete, onBack, resou
                 </div>
               </div>
               <h4 className="font-bold text-lg mb-1">{group.name}</h4>
-              <p className="text-[10px] text-gray-400 font-bold uppercase mb-4">Serviço: {services.find(s => s.id === group.serviceId)?.code || 'Não vinculado'}</p>
+              <p className="text-sm text-gray-400 font-bold uppercase mb-4">Serviço: {services.find(s => s.id === group.serviceId)?.code || 'Não vinculado'}</p>
               
               <div className="space-y-2">
-                <div className="flex justify-between text-[11px]">
+                <div className="flex justify-between text-sm">
                    <span className="text-gray-400">Intervalo</span>
                    <span className="font-bold">{group.initialStation} → {group.finalStation}</span>
                 </div>
-                <div className="flex justify-between text-[11px]">
+                <div className="flex justify-between text-sm">
                    <span className="text-gray-400">Volume Est.</span>
                    <span className="font-bold">{formatNumber(group.volume, 2)} m³</span>
                 </div>
                 <div className="mt-3">
-                   <p className="text-[10px] font-bold text-gray-400 uppercase mb-1">Materiais</p>
+                   <p className="text-sm font-bold text-gray-400 uppercase mb-1">Materiais</p>
                    <div className="flex flex-wrap gap-1">
                      {group.materialIds.map(id => (
-                       <span key={id} className="bg-gray-100 text-gray-600 px-2 py-0.5 rounded text-[9px]">
+                       <span key={id} className="bg-gray-100 text-gray-600 px-2 py-0.5 rounded text-xs">
                          {resources.find(r => r.id === id)?.name}
                        </span>
                      ))}
-                     {group.materialIds.length === 0 && <span className="text-gray-300 text-[10px] italic">Nenhum material vinculado</span>}
+                     {group.materialIds.length === 0 && <span className="text-gray-300 text-sm italic">Nenhum material vinculado</span>}
                    </div>
                 </div>
               </div>
@@ -4649,7 +4649,7 @@ function TransportView({ contract, measurement, locations, transportData, onUpda
           <Button variant="ghost" onClick={onBack} size="icon"><ChevronRight className="w-5 h-5 rotate-180" /></Button>
           <div>
             <h3 className="text-xl font-bold">Planilha de Transporte</h3>
-            <p className="text-sm text-gray-500">
+            <p className="text-base text-gray-500">
               {browsingMeasurementId === measurement?.id 
                 ? "Medição Ativa" 
                 : browsingMeasurement
@@ -4661,9 +4661,9 @@ function TransportView({ contract, measurement, locations, transportData, onUpda
 
         <div className="flex flex-wrap items-center gap-4">
            <div className="flex items-center gap-2 lg:pr-4 lg:border-r">
-              <Label className="text-[10px] font-bold text-gray-400 uppercase">Medição:</Label>
+              <Label className="text-sm font-bold text-gray-400 uppercase">Medição:</Label>
               <Select value={browsingMeasurementId} onValueChange={setBrowsingMeasurementId}>
-                 <SelectTrigger className="w-[180px] h-8 text-xs font-bold">
+                 <SelectTrigger className="w-[180px] h-8 text-sm font-bold">
                     <SelectValue>
                        {browsingMeasurementId 
                          ? (allMeasurements.find(x => x.id === browsingMeasurementId) 
@@ -4687,9 +4687,9 @@ function TransportView({ contract, measurement, locations, transportData, onUpda
            </div>
 
            <div className="flex items-center gap-2 pr-4 lg:border-r">
-              <Label className="text-[10px] font-bold text-gray-400 uppercase">Serviço:</Label>
+              <Label className="text-sm font-bold text-gray-400 uppercase">Serviço:</Label>
               <Select value={selectedServiceId} onValueChange={setSelectedServiceId}>
-                 <SelectTrigger className="w-[220px] h-8 text-xs">
+                 <SelectTrigger className="w-[220px] h-8 text-sm">
                     <SelectValue>
                         {(() => {
                            const s = services.find(x => x.id === selectedServiceId);
@@ -4723,15 +4723,15 @@ function TransportView({ contract, measurement, locations, transportData, onUpda
          <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 flex-1 overflow-hidden min-h-0">
             <Card className="col-span-1 border-[10px] border-gray-100 shadow-sm flex flex-col overflow-hidden bg-gray-50/50 min-h-[300px]">
                 <div className="p-4 bg-white border-b border-gray-100 flex items-center justify-between">
-                    <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest">Locais Cadastrados</h4>
-                    <span className="text-[10px] bg-blue-100 text-blue-600 px-2 py-0.5 rounded-full font-bold">{locations.length}</span>
+                    <h4 className="text-sm font-bold text-gray-400 uppercase tracking-widest">Locais Cadastrados</h4>
+                    <span className="text-sm bg-blue-100 text-blue-600 px-2 py-0.5 rounded-full font-bold">{locations.length}</span>
                 </div>
                 <ScrollArea className="flex-1">
                     <div className="p-4 space-y-2">
                         {locations.map(loc => (
                             <div key={loc.id} className="p-3 bg-white border border-gray-100 rounded-xl shadow-sm hover:border-blue-200 transition-colors">
-                                <p className="text-xs font-bold text-gray-700 mb-1">{loc.name}</p>
-                                <div className="flex justify-between items-center text-[10px] text-gray-400">
+                                <p className="text-sm font-bold text-gray-700 mb-1">{loc.name}</p>
+                                <div className="flex justify-between items-center text-sm text-gray-400">
                                     <span>Estaca Ref: {loc.referenceStation}</span>
                                     <span>{loc.city}</span>
                                 </div>
@@ -4740,7 +4740,7 @@ function TransportView({ contract, measurement, locations, transportData, onUpda
                         {locations.length === 0 && (
                             <div className="text-center py-12 px-4">
                                 <Landmark className="w-8 h-8 text-gray-200 mx-auto mb-2" />
-                                <p className="text-xs text-gray-400 italic">Nenhum local cadastrado para este contrato.</p>
+                                <p className="text-sm text-gray-400 italic">Nenhum local cadastrado para este contrato.</p>
                             </div>
                         )}
                     </div>
@@ -4751,7 +4751,7 @@ function TransportView({ contract, measurement, locations, transportData, onUpda
                 <Truck className="w-10 h-10 text-gray-200" />
               </div>
               <h4 className="text-lg font-bold text-gray-400 select-none">Selecione um serviço de transporte</h4>
-              <p className="text-sm text-gray-300 max-w-xs text-center select-none mt-2">Apenas serviços com unidade volumétrica ou de peso combinada com distância (ex: m³*km, t*km) são listados aqui.</p>
+              <p className="text-base text-gray-300 max-w-xs text-center select-none mt-2">Apenas serviços com unidade volumétrica ou de peso combinada com distância (ex: m³*km, t*km) são listados aqui.</p>
            </Card>
          </div>
       ) : (
@@ -4761,16 +4761,16 @@ function TransportView({ contract, measurement, locations, transportData, onUpda
                  <Table>
                     <TableHeader className="bg-gray-50 sticky top-0 z-10 shadow-sm">
                        <TableRow>
-                          <TableHead className="w-48 text-[10px] font-bold uppercase pl-6 text-gray-500">Local de Origem</TableHead>
-                          <TableHead className="w-32 text-[10px] font-bold uppercase text-center text-gray-500">Início (Estaca+Fr)</TableHead>
-                          <TableHead className="w-32 text-[10px] font-bold uppercase text-center text-gray-500">Fim (Estaca+Fr)</TableHead>
-                          <TableHead className="w-32 text-[10px] font-bold uppercase text-right text-gray-500">Volume (m³)</TableHead>
-                          <TableHead className="w-24 text-[10px] font-bold uppercase text-right text-gray-500">Dens. (t/m³)</TableHead>
-                          <TableHead className="w-32 text-[10px] font-bold uppercase text-right text-gray-500">Peso Total (t)</TableHead>
-                          <TableHead className="w-48 text-[10px] font-bold uppercase text-gray-500">Cálculo DMT</TableHead>
-                          <TableHead className="w-28 text-[10px] font-bold uppercase text-right text-gray-500">DMT Calc (km)</TableHead>
-                          <TableHead className="w-36 text-[10px] font-bold uppercase text-right text-gray-500">Momento Transp.</TableHead>
-                          <TableHead className="text-[10px] font-bold uppercase text-gray-500">Observações</TableHead>
+                          <TableHead className="w-48 text-sm font-bold uppercase pl-6 text-gray-500">Local de Origem</TableHead>
+                          <TableHead className="w-32 text-sm font-bold uppercase text-center text-gray-500">Início (Estaca+Fr)</TableHead>
+                          <TableHead className="w-32 text-sm font-bold uppercase text-center text-gray-500">Fim (Estaca+Fr)</TableHead>
+                          <TableHead className="w-32 text-sm font-bold uppercase text-right text-gray-500">Volume (m³)</TableHead>
+                          <TableHead className="w-24 text-sm font-bold uppercase text-right text-gray-500">Dens. (t/m³)</TableHead>
+                          <TableHead className="w-32 text-sm font-bold uppercase text-right text-gray-500">Peso Total (t)</TableHead>
+                          <TableHead className="w-48 text-sm font-bold uppercase text-gray-500">Cálculo DMT</TableHead>
+                          <TableHead className="w-28 text-sm font-bold uppercase text-right text-gray-500">DMT Calc (km)</TableHead>
+                          <TableHead className="w-36 text-sm font-bold uppercase text-right text-gray-500">Momento Transp.</TableHead>
+                          <TableHead className="text-sm font-bold uppercase text-gray-500">Observações</TableHead>
                           <TableHead className="w-14 pr-6"></TableHead>
                        </TableRow>
                     </TableHeader>
@@ -4779,7 +4779,7 @@ function TransportView({ contract, measurement, locations, transportData, onUpda
                           <TableRow key={row.id} className="hover:bg-blue-50/20 transition-colors">
                              <TableCell className="pl-6">
                                 <Select value={row.locationId} onValueChange={v => updateRow(row.id, 'locationId', v)} disabled={!isBrowsingCurrent}>
-                                   <SelectTrigger className="h-8 text-[11px] bg-gray-50/50"><SelectValue placeholder="Selecione local...">
+                                   <SelectTrigger className="h-8 text-sm bg-gray-50/50"><SelectValue placeholder="Selecione local...">
                                          {row.locationId && locations.find(l => l.id === row.locationId) 
                                            ? (() => {
                                                const l = locations.find(x => x.id === row.locationId);
@@ -4800,7 +4800,7 @@ function TransportView({ contract, measurement, locations, transportData, onUpda
                                       value={row.initialStation ?? ''} 
                                       onChange={e => updateRow(row.id, 'initialStation', e.target.value)} 
                                       disabled={!isBrowsingCurrent}
-                                      className="h-8 text-[11px] w-16 px-1.5 text-center bg-transparent border-gray-200" 
+                                      className="h-8 text-sm w-16 px-1.5 text-center bg-transparent border-gray-200" 
                                       placeholder="0+00" 
                                    />
                                    <Input 
@@ -4808,7 +4808,7 @@ function TransportView({ contract, measurement, locations, transportData, onUpda
                                       value={row.initialFrac ?? ''} 
                                       onChange={e => updateRow(row.id, 'initialFrac', e.target.value)} 
                                       disabled={!isBrowsingCurrent}
-                                      className="h-8 text-[11px] w-14 px-1 text-center bg-transparent border-gray-200" 
+                                      className="h-8 text-sm w-14 px-1 text-center bg-transparent border-gray-200" 
                                    />
                                 </div>
                              </TableCell>
@@ -4818,7 +4818,7 @@ function TransportView({ contract, measurement, locations, transportData, onUpda
                                       value={row.finalStation ?? ''} 
                                       onChange={e => updateRow(row.id, 'finalStation', e.target.value)} 
                                       disabled={!isBrowsingCurrent}
-                                      className="h-8 text-[11px] w-16 px-1.5 text-center bg-transparent border-gray-200" 
+                                      className="h-8 text-sm w-16 px-1.5 text-center bg-transparent border-gray-200" 
                                       placeholder="0+00" 
                                    />
                                    <Input 
@@ -4826,7 +4826,7 @@ function TransportView({ contract, measurement, locations, transportData, onUpda
                                       value={row.finalFrac ?? ''} 
                                       onChange={e => updateRow(row.id, 'finalFrac', e.target.value)}
                                       disabled={!isBrowsingCurrent} 
-                                      className="h-8 text-[11px] w-14 px-1 text-center bg-transparent border-gray-200" 
+                                      className="h-8 text-sm w-14 px-1 text-center bg-transparent border-gray-200" 
                                    />
                                 </div>
                              </TableCell>
@@ -4836,7 +4836,7 @@ function TransportView({ contract, measurement, locations, transportData, onUpda
                                    value={row.volume ?? ''} 
                                    onChange={e => updateRow(row.id, 'volume', e.target.value)} 
                                    disabled={!isBrowsingCurrent}
-                                   className="h-8 text-[11px] text-right font-medium text-gray-700 bg-transparent border-gray-200 px-2" 
+                                   className="h-8 text-sm text-right font-medium text-gray-700 bg-transparent border-gray-200 px-2" 
                                 />
                              </TableCell>
                              <TableCell>
@@ -4845,10 +4845,10 @@ function TransportView({ contract, measurement, locations, transportData, onUpda
                                    value={row.density || 0} 
                                    onChange={e => updateRow(row.id, 'density', e.target.value)} 
                                    disabled={!isBrowsingCurrent}
-                                   className="h-8 text-[11px] text-right font-medium text-gray-500 bg-transparent border-gray-200 px-2" 
+                                   className="h-8 text-sm text-right font-medium text-gray-500 bg-transparent border-gray-200 px-2" 
                                 />
                              </TableCell>
-                             <TableCell className="text-right text-[11px] font-bold text-gray-500 pr-4">
+                             <TableCell className="text-right text-sm font-bold text-gray-500 pr-4">
                                 {formatNumber(row.weight, 2)}
                              </TableCell>
                              <TableCell>
@@ -4858,10 +4858,10 @@ function TransportView({ contract, measurement, locations, transportData, onUpda
                                       onValueChange={v => updateRow(row.id, 'dmtCalculationMode', v)}
                                       disabled={!isBrowsingCurrent}
                                    >
-                                      <SelectTrigger className="h-7 text-[10px] font-bold uppercase bg-gray-50 ring-offset-0 focus:ring-1"><SelectValue /></SelectTrigger>
+                                      <SelectTrigger className="h-7 text-sm font-bold uppercase bg-gray-50 ring-offset-0 focus:ring-1"><SelectValue /></SelectTrigger>
                                       <SelectContent>
-                                         <SelectItem value="average"><span className="text-[10px] font-bold">ESTACA MÉDIA</span></SelectItem>
-                                         <SelectItem value="center_of_mass"><span className="text-[10px] font-bold">CENTRO DE MASSA</span></SelectItem>
+                                         <SelectItem value="average"><span className="text-sm font-bold">ESTACA MÉDIA</span></SelectItem>
+                                         <SelectItem value="center_of_mass"><span className="text-sm font-bold">CENTRO DE MASSA</span></SelectItem>
                                       </SelectContent>
                                    </Select>
                                    {row.dmtCalculationMode === 'center_of_mass' && (
@@ -4870,7 +4870,7 @@ function TransportView({ contract, measurement, locations, transportData, onUpda
                                             value={row.centerOfMassStake ?? ''} 
                                             onChange={e => updateRow(row.id, 'centerOfMassStake', e.target.value)} 
                                             disabled={!isBrowsingCurrent}
-                                            className="h-6 text-[10px] w-16 px-1.5 bg-amber-50/30 border-amber-200 placeholder:text-amber-300" 
+                                            className="h-6 text-sm w-16 px-1.5 bg-amber-50/30 border-amber-200 placeholder:text-amber-300" 
                                             placeholder="Est" 
                                          />
                                          <Input 
@@ -4878,16 +4878,16 @@ function TransportView({ contract, measurement, locations, transportData, onUpda
                                             value={row.centerOfMassFrac || 0} 
                                             onChange={e => updateRow(row.id, 'centerOfMassFrac', e.target.value)} 
                                             disabled={!isBrowsingCurrent}
-                                            className="h-6 text-[10px] w-12 px-1 text-center bg-amber-50/30 border-amber-200" 
+                                            className="h-6 text-sm w-12 px-1 text-center bg-amber-50/30 border-amber-200" 
                                          />
                                       </div>
                                    )}
                                 </div>
                              </TableCell>
-                             <TableCell className="text-right text-[11px] font-black text-blue-600 pr-4 italic">
+                             <TableCell className="text-right text-sm font-black text-blue-600 pr-4 italic">
                                 {formatNumber(row.dmt, 3)}
                              </TableCell>
-                             <TableCell className="text-right text-[11px] font-black text-emerald-600 bg-emerald-50/10 pr-4">
+                             <TableCell className="text-right text-sm font-black text-emerald-600 bg-emerald-50/10 pr-4">
                                 {formatNumber(row.moment, 2)}
                              </TableCell>
                              <TableCell>
@@ -4895,7 +4895,7 @@ function TransportView({ contract, measurement, locations, transportData, onUpda
                                    value={row.observacao || ''} 
                                    onChange={e => updateRow(row.id, 'observacao', e.target.value)} 
                                    disabled={!isBrowsingCurrent}
-                                   className="h-8 text-[10px] bg-transparent border-gray-100 italic" 
+                                   className="h-8 text-sm bg-transparent border-gray-100 italic" 
                                    placeholder="Notas..." 
                                 />
                              </TableCell>
@@ -4919,7 +4919,7 @@ function TransportView({ contract, measurement, locations, transportData, onUpda
                           <TableRow>
                              <TableCell colSpan={11} className="py-20 text-center">
                                 <Truck className="w-12 h-12 text-gray-100 mx-auto mb-3" />
-                                <p className="text-sm font-medium text-gray-400">Clique em "Adicionar Linha" para registrar o transporte.</p>
+                                <p className="text-base font-medium text-gray-400">Clique em "Adicionar Linha" para registrar o transporte.</p>
                              </TableCell>
                           </TableRow>
                        )}
@@ -4931,12 +4931,12 @@ function TransportView({ contract, measurement, locations, transportData, onUpda
            <div className="bg-white p-6 border-t flex flex-wrap gap-6 justify-between items-center shrink-0">
               <div className="flex gap-10">
                  <div className="space-y-1">
-                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Volume Ciclo</p>
-                    <p className="text-xl font-bold text-gray-900">{formatNumber(localTransport?.rows.reduce((s, r) => s + (parseFloat(r.volume.toString()) || 0), 0) || 0, 2)} <span className="text-sm font-normal text-gray-400">m³</span></p>
+                    <p className="text-sm font-bold text-gray-400 uppercase tracking-widest">Volume Ciclo</p>
+                    <p className="text-xl font-bold text-gray-900">{formatNumber(localTransport?.rows.reduce((s, r) => s + (parseFloat(r.volume.toString()) || 0), 0) || 0, 2)} <span className="text-base font-normal text-gray-400">m³</span></p>
                  </div>
                  <div className="space-y-1">
-                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Peso Ciclo</p>
-                    <p className="text-xl font-bold text-gray-900">{formatNumber(localTransport?.rows.reduce((s, r) => s + (parseFloat(r.weight.toString()) || 0), 0) || 0, 2)} <span className="text-sm font-normal text-gray-400">t</span></p>
+                    <p className="text-sm font-bold text-gray-400 uppercase tracking-widest">Peso Ciclo</p>
+                    <p className="text-xl font-bold text-gray-900">{formatNumber(localTransport?.rows.reduce((s, r) => s + (parseFloat(r.weight.toString()) || 0), 0) || 0, 2)} <span className="text-base font-normal text-gray-400">t</span></p>
                  </div>
 
                  {(() => {
@@ -4957,11 +4957,11 @@ function TransportView({ contract, measurement, locations, transportData, onUpda
                     return (
                        <>
                           <div className="space-y-1">
-                             <p className="text-[10px] font-bold text-indigo-400 uppercase tracking-widest">Momento Acumulado</p>
+                             <p className="text-sm font-bold text-indigo-400 uppercase tracking-widest">Momento Acumulado</p>
                              <p className="text-xl font-bold text-indigo-700">{formatNumber(totalAccumulated, 2)}</p>
                           </div>
                           <div className="space-y-1">
-                             <p className="text-[10px] font-bold text-emerald-400 uppercase tracking-widest">Saldo Contrato</p>
+                             <p className="text-sm font-bold text-emerald-400 uppercase tracking-widest">Saldo Contrato</p>
                              <p className="text-xl font-bold text-emerald-700">{formatNumber(balance, 2)}</p>
                           </div>
                        </>
@@ -4971,7 +4971,7 @@ function TransportView({ contract, measurement, locations, transportData, onUpda
               
               <div className="bg-blue-600 px-8 py-4 rounded-2xl text-white shadow-lg shadow-blue-100 flex items-center gap-6">
                  <div className="text-right">
-                    <p className="text-[10px] font-bold opacity-70 uppercase tracking-widest leading-none mb-1">Momento Medição Atual</p>
+                    <p className="text-sm font-bold opacity-70 uppercase tracking-widest leading-none mb-1">Momento Medição Atual</p>
                     <p className="text-2xl font-black leading-none">{formatNumber(localTransport?.rows.reduce((s, r) => s + r.moment, 0) || 0, 2)}</p>
                  </div>
                  <div className="w-12 h-12 bg-white/10 rounded-xl flex items-center justify-center">
@@ -5331,14 +5331,14 @@ function ProductionControlView({
         <div className="flex flex-wrap gap-4 justify-between items-center mb-2">
           <div>
             <h3 className="text-2xl font-black text-gray-900 tracking-tight">Sala Técnica: Acompanhamento</h3>
-            <p className="text-gray-500 text-sm">Gerencie o desempenho diário e projeções de produtividade para o contrato.</p>
+            <p className="text-gray-500 text-base">Gerencie o desempenho diário e projeções de produtividade para o contrato.</p>
           </div>
           <div className="flex items-center gap-3">
              <div className="flex items-center gap-2 bg-white/80 p-1.5 rounded-2xl border border-gray-100 shadow-sm">
                 <Calendar className="w-4 h-4 text-blue-500 ml-2" />
                 <Input 
                    type="month" 
-                   className="border-none shadow-none bg-transparent w-44 text-xs font-black uppercase tracking-tight h-8 focus-visible:ring-0" 
+                   className="border-none shadow-none bg-transparent w-44 text-sm font-black uppercase tracking-tight h-8 focus-visible:ring-0" 
                    value={listMonthFilter} 
                    onChange={e => setListMonthFilter(e.target.value)} 
                 />
@@ -5367,12 +5367,12 @@ function ProductionControlView({
           <div className="space-y-6">
              <Card className="border-[10px] border-blue-500 shadow-sm bg-blue-600 text-white overflow-visible">
                 <CardHeader className="pb-2 relative z-10">
-                   <CardTitle className="text-xs font-black uppercase tracking-widest text-blue-100">Controle Operacional</CardTitle>
+                   <CardTitle className="text-sm font-black uppercase tracking-widest text-blue-100">Controle Operacional</CardTitle>
                    <h4 className="text-lg font-bold">Novo Monitoramento</h4>
                 </CardHeader>
                 <CardContent className="space-y-4 overflow-visible">
                    <div className="space-y-2 relative">
-                      <Label className="text-blue-100 text-[10px] font-bold uppercase">1. Selecione o Serviço</Label>
+                      <Label className="text-blue-100 text-sm font-bold uppercase">1. Selecione o Serviço</Label>
                       <div className="relative">
                          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-blue-300" />
                          <Input 
@@ -5413,13 +5413,13 @@ function ProductionControlView({
                                            setShowDropdown(false);
                                         }}
                                      >
-                                        <span className="font-black text-[10px] text-blue-600 uppercase tracking-wider mb-1">{s?.code}</span>
-                                        <span className="text-sm font-semibold leading-tight text-gray-800">{s?.name}</span>
+                                        <span className="font-black text-sm text-blue-600 uppercase tracking-wider mb-1">{s?.code}</span>
+                                        <span className="text-base font-semibold leading-tight text-gray-800">{s?.name}</span>
                                      </button>
                                   );
                                })
                             ) : (
-                               <div className="p-4 text-center text-gray-400 text-sm">
+                               <div className="p-4 text-center text-gray-400 text-base">
                                   Nenhum serviço encontrado
                                </div>
                             )}
@@ -5456,9 +5456,9 @@ function ProductionControlView({
                 <div className="p-1.5 bg-slate-200 rounded-lg">
                   <BarChart3 className="w-4 h-4" />
                 </div>
-                <p className="font-black text-xs uppercase tracking-widest">Painel de Curvas</p>
+                <p className="font-black text-sm uppercase tracking-widest">Painel de Curvas</p>
               </div>
-              <p className="text-xs leading-relaxed text-slate-500 font-medium">
+              <p className="text-sm leading-relaxed text-slate-500 font-medium">
                 Monitore a evolução física comparando o <span className="text-blue-600 font-bold">previsto</span> vs <span className="text-emerald-600 font-bold">realizado</span>. 
                 Defina a capacidade e acompanhe a projeção estatística automática para o fechamento do período.
               </p>
@@ -5467,7 +5467,7 @@ function ProductionControlView({
 
           <div className="lg:col-span-3 space-y-12">
             <div>
-               <h4 className="text-[11px] font-black text-blue-600 uppercase tracking-widest pl-1 mb-6 flex items-center gap-2">
+               <h4 className="text-sm font-black text-blue-600 uppercase tracking-widest pl-1 mb-6 flex items-center gap-2">
                  <Activity className="w-4 h-4" />
                  Controles Ativos por Mês
                </h4>
@@ -5507,10 +5507,10 @@ function ProductionControlView({
                           <h4 className="text-lg font-black text-gray-900 uppercase tracking-tight">
                             {new Date(month + '-01T12:00:00Z').toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}
                           </h4>
-                          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Compilação Mensal de Dados</p>
+                          <p className="text-sm font-bold text-gray-400 uppercase tracking-widest">Compilação Mensal de Dados</p>
                         </div>
                       </div>
-                      <Badge className="bg-blue-50 text-blue-600 hover:bg-blue-100 border-blue-100 px-3 py-1 text-[11px] font-black tracking-widest">
+                      <Badge className="bg-blue-50 text-blue-600 hover:bg-blue-100 border-blue-100 px-3 py-1 text-sm font-black tracking-widest">
                         {productions.length} {productions.length === 1 ? 'ACOMPANHAMENTO' : 'ACOMPANHAMENTOS'}
                       </Badge>
                     </div>
@@ -5555,10 +5555,10 @@ function ProductionControlView({
                                      <BarChart3 className="w-4 h-4" />
                                   </div>
                                   <div className="min-w-0">
-                                     <p className="text-[9px] font-bold text-blue-600 uppercase tracking-widest truncate mb-0.5">{s?.code}</p>
-                                     <h5 className="font-bold text-gray-900 text-sm truncate leading-tight mb-1" title={p.customTitle || s?.name}>{p.customTitle || s?.name}</h5>
+                                     <p className="text-xs font-bold text-blue-600 uppercase tracking-widest truncate mb-0.5">{s?.code}</p>
+                                     <h5 className="font-bold text-gray-900 text-base truncate leading-tight mb-1" title={p.customTitle || s?.name}>{p.customTitle || s?.name}</h5>
                                      <div className="flex flex-wrap items-center gap-1.5 mt-1">
-                                        <span className="text-[10px] text-gray-400 font-medium whitespace-nowrap">Acum: {formatNumber(totalExec, 1)} {s?.unit}</span>
+                                        <span className="text-sm text-gray-400 font-medium whitespace-nowrap">Acum: {formatNumber(totalExec, 1)} {s?.unit}</span>
                                      </div>
                                   </div>
                                 </div>
@@ -5603,11 +5603,11 @@ function ProductionControlView({
             </DragDropContext>
           ) : (
             <div>
-                <h4 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest pl-1 mb-4">Controles em Andamento</h4>
+                <h4 className="text-sm font-bold text-gray-400 uppercase tracking-widest pl-1 mb-4">Controles em Andamento</h4>
                 <div className="p-12 text-center border-2 border-dashed rounded-3xl border-gray-100 bg-white/50">
                   <AlertCircle className="w-12 h-12 text-gray-200 mx-auto mb-4" />
                   <h5 className="font-bold text-gray-400">Nenhum controle iniciado</h5>
-                  <p className="text-sm text-gray-400 max-w-xs mx-auto mt-1">Utilize o painel ao lado para escolher um serviço e iniciar o monitoramento.</p>
+                  <p className="text-base text-gray-400 max-w-xs mx-auto mt-1">Utilize o painel ao lado para escolher um serviço e iniciar o monitoramento.</p>
                 </div>
               </div>
             )}
@@ -5660,18 +5660,18 @@ function ProductionControlView({
         <div className="md:col-span-1 space-y-6">
            <Card className="border-[10px] border-gray-200 shadow-sm">
               <CardHeader>
-                 <CardTitle className="text-xs uppercase tracking-wider text-gray-500">Parâmetros de Produção</CardTitle>
+                 <CardTitle className="text-sm uppercase tracking-wider text-gray-500">Parâmetros de Produção</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
                  <div className="space-y-2">
-                    <Label className="text-[11px] font-bold text-gray-400 uppercase tracking-widest">Mês Referência</Label>
+                    <Label className="text-sm font-bold text-gray-400 uppercase tracking-widest">Mês Referência</Label>
                     <Input type="month" value={selectedMonth} onChange={e => setSelectedMonth(e.target.value)} />
                  </div>
 
                  {production && (
                     <div className="space-y-4 pt-2">
                        <div className="space-y-2 pb-2">
-                          <Label className="text-[11px] font-bold text-gray-400 uppercase tracking-widest">Título Personalizado (Opcional)</Label>
+                          <Label className="text-sm font-bold text-gray-400 uppercase tracking-widest">Título Personalizado (Opcional)</Label>
                           <Input 
                             placeholder="Substitui o nome do serviço..." 
                             value={production.customTitle || ''} 
@@ -5679,41 +5679,41 @@ function ProductionControlView({
                             className="h-9 border-blue-100 focus:border-blue-400"
                             disabled={readonly}
                           />
-                          <p className="text-[9px] text-gray-400 italic">Se preenchido, este título substituirá o nome original do serviço.</p>
+                          <p className="text-xs text-gray-400 italic">Se preenchido, este título substituirá o nome original do serviço.</p>
                        </div>
                        <div className="grid grid-cols-2 gap-4">
                           <div className="space-y-1">
-                             <Label className="text-[10px] font-bold">Nº Equip.</Label>
+                             <Label className="text-sm font-bold">Nº Equip.</Label>
                              <Input type="number" className="h-9" value={production.numEquip || 0} onChange={e => handleUpdate({ numEquip: e.target.valueAsNumber })} disabled={readonly} />
                           </div>
                           <div className="space-y-1">
-                             <Label className="text-[10px] font-bold">Dias/Mês</Label>
+                             <Label className="text-sm font-bold">Dias/Mês</Label>
                              <Input type="number" className="h-9" value={production.workDays || 0} onChange={e => handleUpdate({ workDays: e.target.valueAsNumber })} disabled={readonly} />
                           </div>
                        </div>
                        <div className="grid grid-cols-2 gap-4">
                           <div className="space-y-1">
-                             <Label className="text-[10px] font-bold">Horas/Dia</Label>
+                             <Label className="text-sm font-bold">Horas/Dia</Label>
                              <Input type="number" className="h-9" value={production.hoursDay || 0} onChange={e => handleUpdate({ hoursDay: e.target.valueAsNumber })} disabled={readonly} />
                           </div>
                           <div className="space-y-1">
-                             <Label className="text-[10px] font-bold">Prod. ({selectedService?.unit}/h)</Label>
+                             <Label className="text-sm font-bold">Prod. ({selectedService?.unit}/h)</Label>
                              <Input type="number" className="h-9" value={production.unitHour || 0} onChange={e => handleUpdate({ unitHour: e.target.valueAsNumber })} disabled={readonly} />
                           </div>
                        </div>
                        <div className="grid grid-cols-2 gap-4">
                           <div className="space-y-1">
-                             <Label className="text-[10px] font-bold">Efic. (%)</Label>
+                             <Label className="text-sm font-bold">Efic. (%)</Label>
                              <Input type="number" className="h-9" value={production.efficiency || 0} onChange={e => handleUpdate({ efficiency: e.target.valueAsNumber })} disabled={readonly} />
                           </div>
                           <div className="space-y-1">
-                             <Label className="text-[10px] font-bold">% Chuva</Label>
+                             <Label className="text-sm font-bold">% Chuva</Label>
                              <Input type="number" className="h-9" value={production.rainPercent || 0} onChange={e => handleUpdate({ rainPercent: e.target.valueAsNumber })} disabled={readonly} />
                           </div>
                        </div>
                        <div className="grid grid-cols-2 gap-4">
                           <div className="space-y-1">
-                             <Label className="text-[10px] font-bold">Data Início Serviço</Label>
+                             <Label className="text-sm font-bold">Data Início Serviço</Label>
                              <Input 
                                 type="date" 
                                 className="h-9" 
@@ -5725,7 +5725,7 @@ function ProductionControlView({
                              />
                           </div>
                           <div className="space-y-1">
-                             <Label className="text-[10px] font-bold">Acum. Ant. ({selectedService?.unit})</Label>
+                             <Label className="text-sm font-bold">Acum. Ant. ({selectedService?.unit})</Label>
                              <Input 
                                 type="number" 
                                 className="h-9 bg-gray-50 font-bold text-blue-600" 
@@ -5748,18 +5748,18 @@ function ProductionControlView({
               <CardContent className="p-4 space-y-3">
                  <div className="flex items-center gap-2 text-blue-600">
                     <AlertCircle className="w-4 h-4" />
-                    <span className="text-[10px] font-bold uppercase tracking-widest">Resumo Operacional</span>
+                    <span className="text-sm font-bold uppercase tracking-widest">Resumo Operacional</span>
                  </div>
                  <div className="space-y-2">
-                    <div className="flex justify-between items-center text-xs">
+                    <div className="flex justify-between items-center text-sm">
                        <span className="text-gray-500">Meta Diária:</span>
                        <span className="font-bold text-gray-900">{formatNumber(production?.unitHour ? (production.unitHour * production.hoursDay * production.numEquip * (production.efficiency/100)) : 0, 2)} {selectedService?.unit}</span>
                     </div>
-                    <div className="flex justify-between items-center text-xs">
+                    <div className="flex justify-between items-center text-sm">
                        <span className="text-gray-500">Previsão Mês:</span>
                        <span className="font-bold text-blue-600">{formatNumber(dailyProcessedData[dailyProcessedData.length-1]?.plannedAccumulated || 0, 2)} {selectedService?.unit}</span>
                     </div>
-                    <div className="flex justify-between items-center text-xs border-t border-blue-200/50 pt-2 mt-2">
+                    <div className="flex justify-between items-center text-sm border-t border-blue-200/50 pt-2 mt-2">
                        <span className="text-gray-500 font-bold">Acumulado Total:</span>
                        <span className="font-bold text-emerald-600">
                            {formatNumber((production?.prevMonthAccumulated || 0) + (dailyProcessedData.length > 0 ? dailyProcessedData[dailyProcessedData.length-1].actualAccumulated : 0), 2)} {selectedService?.unit}
@@ -5773,21 +5773,21 @@ function ProductionControlView({
         <div className="md:col-span-5 space-y-6">
            {selectedService && production ? (
               <>
-                 <Card className="border-[10px] border-blue-100 shadow-sm overflow-hidden text-sm">
+                 <Card className="border-[10px] border-blue-100 shadow-sm overflow-hidden text-base">
                     <CardHeader className="bg-blue-600 text-white py-6">
                        <div className="flex justify-between items-end">
                           <div>
-                             <p className="text-blue-100 text-[10px] font-bold uppercase tracking-[0.2em] mb-1">Acompanhamento Físico</p>
+                             <p className="text-blue-100 text-sm font-bold uppercase tracking-[0.2em] mb-1">Acompanhamento Físico</p>
                              <CardTitle className="text-2xl uppercase font-black">{production.customTitle || selectedService.name}</CardTitle>
                              <div className="flex items-center gap-3 mt-2">
-                                <span className="bg-white/10 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-widest">{selectedService.code}</span>
-                                <span className="text-blue-200 text-xs">Unidade: {selectedService.unit} | Mês: {selectedMonth}</span>
+                                <span className="bg-white/10 px-2 py-0.5 rounded text-sm font-bold uppercase tracking-widest">{selectedService.code}</span>
+                                <span className="text-blue-200 text-sm">Unidade: {selectedService.unit} | Mês: {selectedMonth}</span>
                              </div>
                           </div>
                           <div className="text-right">
-                             <p className="text-[10px] font-bold opacity-70 uppercase tracking-widest mb-1">Projeção Final do Mês</p>
+                             <p className="text-sm font-bold opacity-70 uppercase tracking-widest mb-1">Projeção Final do Mês</p>
                              <p className="text-4xl font-black leading-none">{formatNumber(dailyProcessedData[dailyProcessedData.length-1]?.projectedAccumulated || 0, 2)}</p>
-                             <p className="text-[10px] opacity-70 mt-1 uppercase font-bold tracking-widest">{selectedService.unit} Estimados</p>
+                             <p className="text-sm opacity-70 mt-1 uppercase font-bold tracking-widest">{selectedService.unit} Estimados</p>
                           </div>
                        </div>
                     </CardHeader>
@@ -5797,8 +5797,8 @@ function ProductionControlView({
                       <div className="grid grid-cols-1 gap-8">
                         <div ref={chartRef} className="h-96 xl:h-[400px]" style={{ backgroundColor: '#ffffff' }}>
                            <div className="flex justify-between items-center mb-6">
-                              <p className="text-[8px] font-bold uppercase tracking-widest" style={{ color: '#94a3b8' }}>Acompanhamento de Produção: Diário vs Acumulado</p>
-                              <div className="flex items-center gap-4 text-[9px] font-bold uppercase tracking-wider">
+                              <p className="text-[10px] font-bold uppercase tracking-widest" style={{ color: '#94a3b8' }}>Acompanhamento de Produção: Diário vs Acumulado</p>
+                              <div className="flex items-center gap-4 text-xs font-bold uppercase tracking-wider">
                                  <div className="flex items-center gap-1"><div className="w-3 h-1 rounded" style={{ backgroundColor: '#3b82f6' }} /> Previsto</div>
                                  <div className="flex items-center gap-1"><div className="w-3 h-3 rounded-sm" style={{ backgroundColor: '#10b981' }} /> Executado (Dia)</div>
                                  <div className="flex items-center gap-1"><div className="w-3 h-1 rounded" style={{ backgroundColor: '#10b981' }} /> Executado (Acum)</div>
@@ -5887,8 +5887,8 @@ function ProductionControlView({
 
                     <div className="bg-gray-50/50">
                        <div className="p-4 border-b bg-white/80 backdrop-blur sticky top-0 z-20 flex items-center justify-between">
-                          <h6 className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Tabela Mensal de Apuração</h6>
-                          <div className="flex items-center gap-4 text-[10px] font-bold text-gray-400">
+                          <h6 className="text-sm font-bold text-gray-500 uppercase tracking-widest">Tabela Mensal de Apuração</h6>
+                          <div className="flex items-center gap-4 text-sm font-bold text-gray-400">
                              <div className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-blue-500" /> Previsto</div>
                              <div className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-emerald-500" /> Executado</div>
                              <div className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-amber-500" /> Projeção</div>
@@ -5897,13 +5897,13 @@ function ProductionControlView({
                        <ScrollArea className="h-[50vh]">
                           <Table>
                              <TableHeader className="bg-gray-100/50">
-                                <TableRow className="text-[9px] uppercase tracking-wider">
+                                <TableRow className="text-xs uppercase tracking-wider">
                                    <TableHead rowSpan={2} className="border-r font-bold w-20">DATA/DIA</TableHead>
                                    <TableHead colSpan={2} className="text-center border-r text-blue-600 font-bold bg-blue-50/30">PREVISTO</TableHead>
                                    <TableHead colSpan={2} className="text-center border-r text-emerald-600 font-bold bg-emerald-50/30">EXECUTADO</TableHead>
                                    <TableHead colSpan={2} className="text-center text-amber-600 font-bold bg-amber-50/30">PROJEÇÃO</TableHead>
                                 </TableRow>
-                                <TableRow className="text-[9px] uppercase tracking-wider">
+                                <TableRow className="text-xs uppercase tracking-wider">
                                    <TableHead className="text-right font-bold w-24">NO DIA</TableHead>
                                    <TableHead className="text-right font-bold border-r w-32">ACUMULADO</TableHead>
                                    <TableHead className="text-right font-bold w-24">NO DIA</TableHead>
@@ -5917,8 +5917,8 @@ function ProductionControlView({
                                    const dayNum = idx + 1;
                                    const isWeekend = new Date(day.date + 'T12:00:00').getDay() === 0;
                                    return (
-                                      <TableRow key={day.date} className={cn("text-xs transition-colors h-10 hover:bg-white", isWeekend && "bg-gray-50/30 text-gray-400 opacity-60")}>
-                                         <TableCell className="font-mono border-r font-bold text-[10px] text-center">
+                                      <TableRow key={day.date} className={cn("text-sm transition-colors h-10 hover:bg-white", isWeekend && "bg-gray-50/30 text-gray-400 opacity-60")}>
+                                         <TableCell className="font-mono border-r font-bold text-sm text-center">
                                             {dayNum.toString().padStart(2, '0')}/{selectedMonth.split('-')[1]}
                                          </TableCell>
                                          
@@ -5928,7 +5928,7 @@ function ProductionControlView({
                                          <TableCell className="text-right p-1 bg-emerald-50/5">
                                             <Input 
                                                type="number" 
-                                               className="h-8 text-[11px] text-right font-bold bg-transparent border-transparent focus:border-emerald-200 focus:bg-white transition-all" 
+                                               className="h-8 text-sm text-right font-bold bg-transparent border-transparent focus:border-emerald-200 focus:bg-white transition-all" 
                                                value={(day.actual === undefined || day.actual === null) ? "" : day.actual} 
                                                onChange={e => {
                                                   const val = e.target.value;
@@ -5950,12 +5950,12 @@ function ProductionControlView({
                                    );
                                 })}
                                 <TableRow className="bg-gray-900 h-10">
-                                   <TableCell className="border-r font-black text-white text-[10px] text-center">TOTAIS</TableCell>
-                                   <TableCell className="text-right text-blue-200/50 text-[10px]">-</TableCell>
+                                   <TableCell className="border-r font-black text-white text-sm text-center">TOTAIS</TableCell>
+                                   <TableCell className="text-right text-blue-200/50 text-sm">-</TableCell>
                                    <TableCell className="text-right border-r text-white font-black">{formatNumber(dailyProcessedData[dailyProcessedData.length-1]?.plannedAccumulated || 0, 2)}</TableCell>
-                                   <TableCell className="text-right text-emerald-200/50 text-[10px]">-</TableCell>
+                                   <TableCell className="text-right text-emerald-200/50 text-sm">-</TableCell>
                                    <TableCell className="text-right border-r text-emerald-400 font-black">{formatNumber(dailyProcessedData[dailyProcessedData.length-1]?.actualAccumulated || 0, 2)}</TableCell>
-                                   <TableCell className="text-right text-amber-200/50 text-[10px]">-</TableCell>
+                                   <TableCell className="text-right text-amber-200/50 text-sm">-</TableCell>
                                    <TableCell className="text-right text-amber-400 font-black">{formatNumber(dailyProcessedData[dailyProcessedData.length-1]?.projectedAccumulated || 0, 2)}</TableCell>
                                 </TableRow>
                              </TableBody>
@@ -5969,7 +5969,7 @@ function ProductionControlView({
                  <BarChart3 className="w-16 h-16 text-gray-100 mx-auto animate-pulse" />
                  <div>
                     <h4 className="font-bold text-gray-900">Configuração de Controle</h4>
-                    <p className="text-sm text-gray-400 max-w-xs mx-auto">Verifique os parâmetros operacionais no painel lateral para começar o acompanhamento mensal.</p>
+                    <p className="text-base text-gray-400 max-w-xs mx-auto">Verifique os parâmetros operacionais no painel lateral para começar o acompanhamento mensal.</p>
                  </div>
               </div>
            )}

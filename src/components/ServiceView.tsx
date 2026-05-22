@@ -210,13 +210,13 @@ export function ServiceView({ services, resources, onAdd, onDelete, onUpdate, co
                                     placeholder="Pesquisar..." 
                                     value={resourceSearch} 
                                     onChange={e => setResourceSearch(e.target.value)}
-                                    className="h-8 text-xs"
+                                    className="h-8 text-sm"
                                     onClick={e => e.stopPropagation()}
                                     onKeyDown={e => e.stopPropagation()}
                                   />
                                 </div>
                                 <Separator className="mb-1" />
-                                <div className="px-2 py-1.5 text-xs font-bold text-gray-500 uppercase">Insumos</div>
+                                <div className="px-2 py-1.5 text-sm font-bold text-gray-500 uppercase">Insumos</div>
                                 {resources
                                   .filter(r => 
                                     r.name.toLowerCase().includes(resourceSearch.toLowerCase()) || 
@@ -226,7 +226,7 @@ export function ServiceView({ services, resources, onAdd, onDelete, onUpdate, co
                                     <SelectItem key={r.id} value={r.id}>{r.code} - {r.name}</SelectItem>
                                   ))}
                                 <Separator className="my-1" />
-                                <div className="px-2 py-1.5 text-xs font-bold text-gray-500 uppercase">Serviços</div>
+                                <div className="px-2 py-1.5 text-sm font-bold text-gray-500 uppercase">Serviços</div>
                                 {services
                                   .filter(s => 
                                     s.name.toLowerCase().includes(resourceSearch.toLowerCase()) || 
@@ -264,16 +264,16 @@ export function ServiceView({ services, resources, onAdd, onDelete, onUpdate, co
                           <TableBody>
                             {newService.items.length === 0 ? (
                               <TableRow>
-                                <TableCell colSpan={4} className="text-center text-xs text-gray-400 py-4">Nenhum item adicionado.</TableCell>
+                                <TableCell colSpan={4} className="text-center text-sm text-gray-400 py-4">Nenhum item adicionado.</TableCell>
                               </TableRow>
                             ) : (
                               newService.items.map((item, index) => {
                                 const res = resources.find(r => r.id === item.resourceId) || services.find(serv => serv.id === item.resourceId);
                                 return (
                                   <TableRow key={`${item.resourceId}-${index}`} className={editingItemIndex === index ? "bg-orange-50" : ""}>
-                                    <TableCell className="text-xs">{res?.name}</TableCell>
-                                    <TableCell className="text-xs">{res?.unit}</TableCell>
-                                    <TableCell className="text-right text-xs font-mono">{formatNumber(item.consumption, 6)}</TableCell>
+                                    <TableCell className="text-sm">{res?.name}</TableCell>
+                                    <TableCell className="text-sm">{res?.unit}</TableCell>
+                                    <TableCell className="text-right text-sm font-mono">{formatNumber(item.consumption, 6)}</TableCell>
                                     <TableCell>
                                       <div className="flex items-center gap-1">
                                         <Button variant="ghost" size="icon" className="h-6 w-6 text-blue-400" onClick={() => editItem(index, false)}>
@@ -297,12 +297,12 @@ export function ServiceView({ services, resources, onAdd, onDelete, onUpdate, co
                   <DialogFooter className="pt-4 border-t">
                     <div className="flex-1 flex flex-col items-start">
                       <div className="flex items-center gap-2">
-                        <span className="text-xs text-gray-500 uppercase font-bold">Custo Direto:</span>
-                        <span className="text-sm font-bold text-gray-700">{formatCurrency(calculateServiceUnitCost(newService, resources, services))}</span>
+                        <span className="text-sm text-gray-500 uppercase font-bold">Custo Direto:</span>
+                        <span className="text-base font-bold text-gray-700">{formatCurrency(calculateServiceUnitCost(newService, resources, services))}</span>
                       </div>
                       {bdi > 0 && (
                         <div className="flex items-center gap-2">
-                          <span className="text-xs text-green-600 uppercase font-bold">Venda (BDI {formatNumber(bdi, 2)}%):</span>
+                          <span className="text-sm text-green-600 uppercase font-bold">Venda (BDI {formatNumber(bdi, 2)}%):</span>
                           <span className="text-lg font-bold text-blue-600">{formatCurrency(calculateServiceUnitCost(newService, resources, services, bdi))}</span>
                         </div>
                       )}
@@ -376,13 +376,13 @@ export function ServiceView({ services, resources, onAdd, onDelete, onUpdate, co
                                   placeholder="Pesquisar..." 
                                   value={resourceSearch} 
                                   onChange={e => setResourceSearch(e.target.value)}
-                                  className="h-8 text-xs"
+                                  className="h-8 text-sm"
                                   onClick={e => e.stopPropagation()}
                                   onKeyDown={e => e.stopPropagation()}
                                 />
                               </div>
                               <Separator className="mb-1" />
-                              <div className="px-2 py-1.5 text-xs font-bold text-gray-500 uppercase">Insumos</div>
+                              <div className="px-2 py-1.5 text-sm font-bold text-gray-500 uppercase">Insumos</div>
                               {resources
                                 .filter(r => 
                                   r.name.toLowerCase().includes(resourceSearch.toLowerCase()) || 
@@ -392,7 +392,7 @@ export function ServiceView({ services, resources, onAdd, onDelete, onUpdate, co
                                   <SelectItem key={r.id} value={r.id}>{r.code} - {r.name}</SelectItem>
                                 ))}
                               <Separator className="my-1" />
-                              <div className="px-2 py-1.5 text-xs font-bold text-gray-500 uppercase">Serviços</div>
+                              <div className="px-2 py-1.5 text-sm font-bold text-gray-500 uppercase">Serviços</div>
                               {services
                                 .filter(s => s.id !== editingService.id)
                                 .filter(s => 
@@ -431,16 +431,16 @@ export function ServiceView({ services, resources, onAdd, onDelete, onUpdate, co
                           <TableBody>
                             {editingService.items.length === 0 ? (
                               <TableRow>
-                                <TableCell colSpan={4} className="text-center text-xs text-gray-400 py-4">Nenhum item adicionado.</TableCell>
+                                <TableCell colSpan={4} className="text-center text-sm text-gray-400 py-4">Nenhum item adicionado.</TableCell>
                               </TableRow>
                             ) : (
                               editingService.items.map((item, index) => {
                                 const res = resources.find(r => r.id === item.resourceId) || services.find(serv => serv.id === item.resourceId);
                                 return (
                                   <TableRow key={`${item.resourceId}-${index}`} className={editingItemIndex === index ? "bg-orange-50" : ""}>
-                                    <TableCell className="text-xs">{res?.name}</TableCell>
-                                    <TableCell className="text-xs">{res?.unit}</TableCell>
-                                    <TableCell className="text-right text-xs font-mono">{formatNumber(item.consumption, 6)}</TableCell>
+                                    <TableCell className="text-sm">{res?.name}</TableCell>
+                                    <TableCell className="text-sm">{res?.unit}</TableCell>
+                                    <TableCell className="text-right text-sm font-mono">{formatNumber(item.consumption, 6)}</TableCell>
                                     <TableCell>
                                       <div className="flex items-center gap-1">
                                         <Button variant="ghost" size="icon" className="h-6 w-6 text-blue-400" onClick={() => editItem(index, true)}>
@@ -464,12 +464,12 @@ export function ServiceView({ services, resources, onAdd, onDelete, onUpdate, co
                   <DialogFooter className="pt-4 border-t">
                     <div className="flex-1 flex flex-col items-start">
                       <div className="flex items-center gap-2">
-                        <span className="text-xs text-gray-500 uppercase font-bold">Custo Direto:</span>
-                        <span className="text-sm font-bold text-gray-700">{formatCurrency(calculateServiceUnitCost(editingService, resources, services))}</span>
+                        <span className="text-sm text-gray-500 uppercase font-bold">Custo Direto:</span>
+                        <span className="text-base font-bold text-gray-700">{formatCurrency(calculateServiceUnitCost(editingService, resources, services))}</span>
                       </div>
                       {bdi > 0 && (
                         <div className="flex items-center gap-2">
-                          <span className="text-xs text-green-600 uppercase font-bold">Venda (BDI {formatNumber(bdi, 2)}%):</span>
+                          <span className="text-sm text-green-600 uppercase font-bold">Venda (BDI {formatNumber(bdi, 2)}%):</span>
                           <span className="text-lg font-bold text-blue-600">{formatCurrency(calculateServiceUnitCost(editingService, resources, services, bdi))}</span>
                         </div>
                       )}
@@ -509,21 +509,21 @@ export function ServiceView({ services, resources, onAdd, onDelete, onUpdate, co
                   </div>
                   <div>
                     <div className="flex items-center gap-2">
-                      <span className="text-xs font-mono text-gray-400">{s.code}</span>
+                      <span className="text-sm font-mono text-gray-400">{s.code}</span>
                       <h4 className="font-bold text-lg">{s.name}</h4>
                     </div>
                     <div className="flex items-center gap-4 mt-1">
-                      <span className="text-sm text-gray-500">Unidade: <span className="text-gray-900 font-medium">{s.unit}</span></span>
-                      <span className="text-sm text-gray-500">Itens: <span className="text-gray-900 font-medium">{s.items.length}</span></span>
+                      <span className="text-base text-gray-500">Unidade: <span className="text-gray-900 font-medium">{s.unit}</span></span>
+                      <span className="text-base text-gray-500">Itens: <span className="text-gray-900 font-medium">{s.items.length}</span></span>
                     </div>
                   </div>
                 </div>
                 <div className="flex items-center gap-6">
                   <div className="text-right">
-                    <p className="text-xs text-gray-400 uppercase font-bold tracking-wider">Custo Unitário</p>
+                    <p className="text-sm text-gray-400 uppercase font-bold tracking-wider">Custo Unitário</p>
                     <p className="text-xl font-bold text-blue-600">{formatCurrency(calculateServiceUnitCost(s, resources, services))}</p>
                     {bdi > 0 && (
-                      <p className="text-[10px] text-green-600 font-medium">
+                      <p className="text-sm text-green-600 font-medium">
                         Com BDI: {formatCurrency(calculateServiceUnitCost(s, resources, services, bdi))}
                       </p>
                     )}

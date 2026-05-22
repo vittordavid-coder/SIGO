@@ -487,8 +487,8 @@ export function DailyReportView({
           <Card>
             <CardHeader className="p-4 border-b flex flex-row items-center justify-between">
               <div>
-                <CardTitle className="text-sm font-bold">Planilha de Atividades</CardTitle>
-                <CardDescription className="text-[10px]">Todas as atividades registradas nos diários.</CardDescription>
+                <CardTitle className="text-base font-bold">Planilha de Atividades</CardTitle>
+                <CardDescription className="text-sm">Todas as atividades registradas nos diários.</CardDescription>
               </div>
               {!readonly && (
                 <Button size="sm" variant="outline" className="h-8 text-blue-600 border-blue-200 hover:bg-blue-50" onClick={() => {
@@ -508,9 +508,9 @@ export function DailyReportView({
             <Table>
               <TableHeader className="bg-gray-50">
                 <TableRow>
-                  <TableHead className="w-32 text-[10px] uppercase font-bold text-gray-500">Data</TableHead>
-                  <TableHead className="text-[10px] uppercase font-bold text-gray-500">Atividade / Descrição</TableHead>
-                  <TableHead className="w-48 text-[10px] uppercase font-bold text-gray-500 border-l">Tipo</TableHead>
+                  <TableHead className="w-32 text-sm uppercase font-bold text-gray-500">Data</TableHead>
+                  <TableHead className="text-sm uppercase font-bold text-gray-500">Atividade / Descrição</TableHead>
+                  <TableHead className="w-48 text-sm uppercase font-bold text-gray-500 border-l">Tipo</TableHead>
                   {!readonly && <TableHead className="w-12 border-l"></TableHead>}
                 </TableRow>
               </TableHeader>
@@ -522,7 +522,7 @@ export function DailyReportView({
                         <Input 
                           type="date"
                           disabled={readonly}
-                          className="h-8 text-[11px] w-32 border-transparent bg-transparent hover:border-gray-200 focus:border-blue-500 p-1"
+                          className="h-8 text-sm w-32 border-transparent bg-transparent hover:border-gray-200 focus:border-blue-500 p-1"
                           value={a.date}
                           onChange={e => handleUpdateActivityDate(a.reportId, a.id, e.target.value)}
                         />
@@ -531,7 +531,7 @@ export function DailyReportView({
                     <TableCell className="p-2">
                       <Input 
                         disabled={readonly}
-                        className="h-8 text-[11px] border-transparent hover:border-gray-200 focus:border-blue-500 transition-all" 
+                        className="h-8 text-sm border-transparent hover:border-gray-200 focus:border-blue-500 transition-all" 
                         value={a.description}
                         onChange={e => handleUpdateActivity(a.reportId, a.id, 'description', e.target.value)}
                       />
@@ -542,7 +542,7 @@ export function DailyReportView({
                         value={a.type} 
                         onValueChange={v => handleUpdateActivity(a.reportId, a.id, 'type', v)}
                       >
-                        <SelectTrigger className="h-8 text-[11px] border-transparent"><SelectValue /></SelectTrigger>
+                        <SelectTrigger className="h-8 text-sm border-transparent"><SelectValue /></SelectTrigger>
                         <SelectContent>
                           <SelectItem value="Produção">Produção</SelectItem>
                           <SelectItem value="Projeto">Projeto</SelectItem>
@@ -585,7 +585,7 @@ export function DailyReportView({
             <div className="col-span-12 lg:col-span-3">
               <Card className="h-[calc(100vh-360px)] flex flex-col">
                 <CardHeader className="p-4 border-b shrink-0">
-                  <CardTitle className="text-sm font-bold flex items-center gap-2">
+                  <CardTitle className="text-base font-bold flex items-center gap-2">
                     <Calendar className="w-4 h-4 text-blue-600" /> Histórico de Dias
                   </CardTitle>
                 </CardHeader>
@@ -602,9 +602,9 @@ export function DailyReportView({
                             onClick={() => toggleMonth(monthKey)}
                             className="w-full flex items-center justify-between p-2 rounded-md hover:bg-gray-50 transition-colors group"
                           >
-                            <span className="text-[11px] font-bold text-gray-600 uppercase tracking-wider">{getMonthLabel(monthKey)}</span>
+                            <span className="text-sm font-bold text-gray-600 uppercase tracking-wider">{getMonthLabel(monthKey)}</span>
                             <div className="flex items-center gap-2">
-                              <Badge variant="secondary" className="h-4 text-[9px] px-1 font-medium">{monthReports.length}</Badge>
+                              <Badge variant="secondary" className="h-4 text-xs px-1 font-medium">{monthReports.length}</Badge>
                               {isExpanded ? <ChevronDown className="w-3 h-3 text-gray-400" /> : <ChevronRight className="w-3 h-3 text-gray-400" />}
                             </div>
                           </button>
@@ -625,13 +625,13 @@ export function DailyReportView({
                                     )}
                                   >
                       <div className="flex justify-between items-center mb-1">
-                                      <span className="font-bold text-[10px] text-blue-800">RDO #{reportIdx + 1}</span>
+                                      <span className="font-bold text-sm text-blue-800">RDO #{reportIdx + 1}</span>
                                       <div className="flex flex-col items-end">
-                                        <span className="text-[10px] font-bold text-gray-700 capitalize">{new Date(r.date + 'T12:00:00').toLocaleDateString('pt-BR', { weekday: 'short' })}</span>
-                                        <span className="text-[9px] font-medium text-gray-500">{new Date(r.date + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}</span>
+                                        <span className="text-sm font-bold text-gray-700 capitalize">{new Date(r.date + 'T12:00:00').toLocaleDateString('pt-BR', { weekday: 'short' })}</span>
+                                        <span className="text-xs font-medium text-gray-500">{new Date(r.date + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}</span>
                                       </div>
                                     </div>
-                                    <div className="flex items-center gap-2 text-[9px] text-gray-400 italic truncate">
+                                    <div className="flex items-center gap-2 text-xs text-gray-400 italic truncate">
                                       {r.activities.length} atividades • {r.rainfallMm}mm
                                     </div>
                                   </button>
@@ -645,7 +645,7 @@ export function DailyReportView({
                     {monthKeys.length === 0 && (
                       <div className="p-8 text-center text-gray-400">
                         <Calendar className="w-8 h-8 mx-auto mb-2 opacity-20" />
-                        <p className="text-xs">Nenhum RDO</p>
+                        <p className="text-sm">Nenhum RDO</p>
                       </div>
                     )}
                   </div>
@@ -689,29 +689,29 @@ export function DailyReportView({
                                 return (
                                     <>
                                         <div className="p-3 bg-gray-50 rounded-lg border border-gray-100">
-                                            <Label className="text-[9px] uppercase text-gray-400 font-bold block mb-1">Noite Anterior</Label>
-                                            <span className="text-sm font-bold flex items-center gap-2">
+                                            <Label className="text-xs uppercase text-gray-400 font-bold block mb-1">Noite Anterior</Label>
+                                            <span className="text-base font-bold flex items-center gap-2">
                                                 {pluvi?.nightStatus === 'Chuvoso' ? '🌧️' : pluvi?.nightStatus === 'Impraticável' ? '🛑' : '☀️'} 
                                                 {pluvi?.nightStatus || selectedReport.weatherNight}
                                             </span>
                                         </div>
                                         <div className="p-3 bg-gray-50 rounded-lg border border-gray-100">
-                                            <Label className="text-[9px] uppercase text-gray-400 font-bold block mb-1">Manhã</Label>
-                                            <span className="text-sm font-bold flex items-center gap-2">
+                                            <Label className="text-xs uppercase text-gray-400 font-bold block mb-1">Manhã</Label>
+                                            <span className="text-base font-bold flex items-center gap-2">
                                                 {pluvi?.morningStatus === 'Chuvoso' ? '🌧️' : pluvi?.morningStatus === 'Impraticável' ? '🛑' : '☀️'} 
                                                 {pluvi?.morningStatus || selectedReport.weatherMorning}
                                             </span>
                                         </div>
                                         <div className="p-3 bg-gray-50 rounded-lg border border-gray-100">
-                                            <Label className="text-[9px] uppercase text-gray-400 font-bold block mb-1">Tarde</Label>
-                                            <span className="text-sm font-bold flex items-center gap-2">
+                                            <Label className="text-xs uppercase text-gray-400 font-bold block mb-1">Tarde</Label>
+                                            <span className="text-base font-bold flex items-center gap-2">
                                                 {pluvi?.afternoonStatus === 'Chuvoso' ? '🌧️' : pluvi?.afternoonStatus === 'Impraticável' ? '🛑' : '☀️'} 
                                                 {pluvi?.afternoonStatus || selectedReport.weatherAfternoon}
                                             </span>
                                         </div>
                                         <div className="p-3 bg-blue-50 rounded-lg border border-blue-100">
-                                            <Label className="text-[9px] uppercase text-blue-400 font-bold block mb-1">Chuva (mm)</Label>
-                                            <span className="text-sm font-bold text-blue-700 flex items-center gap-2">
+                                            <Label className="text-xs uppercase text-blue-400 font-bold block mb-1">Chuva (mm)</Label>
+                                            <span className="text-base font-bold text-blue-700 flex items-center gap-2">
                                                 <CloudRain className="w-4 h-4" />
                                                 {pluvi?.rainfallMm || selectedReport.rainfallMm} mm
                                             </span>
@@ -729,66 +729,66 @@ export function DailyReportView({
                       <div className="grid grid-cols-2 gap-6">
                         <Card>
                           <CardHeader className="p-3 border-b bg-gray-50/50">
-                            <CardTitle className="text-xs font-bold flex items-center gap-2">
+                            <CardTitle className="text-sm font-bold flex items-center gap-2">
                               <UserCheck className="w-3 h-3 text-emerald-600" /> Efetivo (Mão de Obra)
                             </CardTitle>
                           </CardHeader>
                           <CardContent className="p-3 space-y-2">
                             {selectedReport.manpower.map((m, idx) => (
                               <div key={idx} className="flex gap-2 items-center">
-                                <span className="text-[11px] flex-1 font-medium">{m.description}</span>
+                                <span className="text-sm flex-1 font-medium">{m.description}</span>
                                 <Badge variant="secondary" className="font-bold">{m.quantity}</Badge>
                               </div>
                             ))}
-                            {selectedReport.manpower.length === 0 && <p className="text-[10px] text-gray-400 italic">Nenhum efetivo listado.</p>}
+                            {selectedReport.manpower.length === 0 && <p className="text-sm text-gray-400 italic">Nenhum efetivo listado.</p>}
                           </CardContent>
                         </Card>
 
                         <Card>
                           <CardHeader className="p-3 border-b bg-gray-50/50">
-                            <CardTitle className="text-xs font-bold flex items-center gap-2">
+                            <CardTitle className="text-sm font-bold flex items-center gap-2">
                               <Construction className="w-3 h-3 text-orange-600" /> Equipamentos
                             </CardTitle>
                           </CardHeader>
                           <CardContent className="p-3 space-y-2">
                             {selectedReport.equipment.map((e, idx) => (
                               <div key={idx} className="flex gap-2 items-center">
-                                <span className="text-[11px] flex-1 font-medium">{e.description}</span>
+                                <span className="text-sm flex-1 font-medium">{e.description}</span>
                                 <Badge variant="outline" className="font-bold border-orange-200 text-orange-700">{e.quantity}</Badge>
                               </div>
                             ))}
-                            {selectedReport.equipment.length === 0 && <p className="text-[10px] text-gray-400 italic">Nenhum equipamento listado.</p>}
+                            {selectedReport.equipment.length === 0 && <p className="text-sm text-gray-400 italic">Nenhum equipamento listado.</p>}
                           </CardContent>
                         </Card>
                       </div>
 
                       <Card>
                         <CardHeader className="p-3 border-b bg-blue-50/20">
-                          <CardTitle className="text-xs font-bold flex items-center gap-2">
+                          <CardTitle className="text-sm font-bold flex items-center gap-2">
                             <HardHat className="w-3 h-3 text-blue-600" /> Atividades do Dia
                           </CardTitle>
                         </CardHeader>
                         <Table>
                           <TableHeader>
                             <TableRow>
-                              <TableHead className="text-[10px] uppercase font-bold">Cód</TableHead>
-                              <TableHead className="text-[10px] uppercase font-bold">Descrição</TableHead>
-                              <TableHead className="text-[10px] uppercase font-bold text-right">Tipo</TableHead>
+                              <TableHead className="text-sm uppercase font-bold">Cód</TableHead>
+                              <TableHead className="text-sm uppercase font-bold">Descrição</TableHead>
+                              <TableHead className="text-sm uppercase font-bold text-right">Tipo</TableHead>
                             </TableRow>
                           </TableHeader>
                           <TableBody>
                             {selectedReport.activities.map(a => (
                               <TableRow key={a.id}>
-                                <TableCell className="py-2 text-[11px] font-mono">{a.code || '-'}</TableCell>
-                                <TableCell className="py-2 text-[11px]">{a.description}</TableCell>
+                                <TableCell className="py-2 text-sm font-mono">{a.code || '-'}</TableCell>
+                                <TableCell className="py-2 text-sm">{a.description}</TableCell>
                                 <TableCell className="py-2 text-right">
-                                  <Badge variant="outline" className="text-[9px]">{a.type}</Badge>
+                                  <Badge variant="outline" className="text-xs">{a.type}</Badge>
                                 </TableCell>
                               </TableRow>
                             ))}
                             {selectedReport.activities.length === 0 && (
                               <TableRow>
-                                <TableCell colSpan={3} className="text-center py-4 text-gray-400 text-[11px]">Sem atividades para este dia.</TableCell>
+                                <TableCell colSpan={3} className="text-center py-4 text-gray-400 text-sm">Sem atividades para este dia.</TableCell>
                               </TableRow>
                             )}
                           </TableBody>
@@ -797,18 +797,18 @@ export function DailyReportView({
 
                       <Card>
                         <CardHeader className="p-3 border-b bg-amber-50/10">
-                          <CardTitle className="text-xs font-bold flex items-center gap-2">
+                          <CardTitle className="text-sm font-bold flex items-center gap-2">
                             <Search className="w-3 h-3 text-amber-600" /> Comentários da Fiscalização
                           </CardTitle>
                         </CardHeader>
                         <CardContent className="p-3">
                           {readonly ? (
-                            <p className="text-[11px] text-gray-600 leading-relaxed whitespace-pre-wrap">
+                            <p className="text-sm text-gray-600 leading-relaxed whitespace-pre-wrap">
                               {selectedReport.fiscalizationComments || "Nenhum comentário registrado."}
                             </p>
                           ) : (
                             <textarea 
-                              className="w-full text-[11px] p-2 border rounded-md min-h-[80px] focus:ring-1 focus:ring-amber-500 outline-none"
+                              className="w-full text-sm p-2 border rounded-md min-h-[80px] focus:ring-1 focus:ring-amber-500 outline-none"
                               placeholder="Insira os comentários ou apontamentos da fiscalização..."
                               value={selectedReport.fiscalizationComments || ""}
                               onChange={e => onUpdate({...selectedReport, fiscalizationComments: e.target.value})}
@@ -819,12 +819,12 @@ export function DailyReportView({
 
                       <Card>
                         <CardHeader className="p-3 border-b bg-red-50/10">
-                          <CardTitle className="text-xs font-bold flex items-center gap-2">
+                          <CardTitle className="text-sm font-bold flex items-center gap-2">
                             <AlertTriangle className="w-3 h-3 text-red-600" /> Ocorrências / Acidentes
                           </CardTitle>
                         </CardHeader>
                         <CardContent className="p-3">
-                          <p className="text-[11px] text-gray-600 leading-relaxed whitespace-pre-wrap">
+                          <p className="text-sm text-gray-600 leading-relaxed whitespace-pre-wrap">
                             {selectedReport.accidents || "Nenhuma ocorrência registrada para este dia."}
                           </p>
                         </CardContent>
@@ -835,8 +835,8 @@ export function DailyReportView({
               ) : (
                 <div className="h-[calc(100vh-360px)] flex flex-col items-center justify-center bg-white border rounded-2xl border-dashed">
                   <Calendar className="w-16 h-16 text-gray-200 mb-4" />
-                  <h3 className="text-gray-400 font-medium text-sm">Nenhum relatório selecionado</h3>
-                  <p className="text-gray-300 text-xs mt-2">Crie um RDO para começar o acompanhamento diário.</p>
+                  <h3 className="text-gray-400 font-medium text-base">Nenhum relatório selecionado</h3>
+                  <p className="text-gray-300 text-sm mt-2">Crie um RDO para começar o acompanhamento diário.</p>
                 </div>
               )}
             </div>
@@ -898,7 +898,7 @@ export function PluviometryView({ contract, records, onAdd, onUpdate, readonly }
         </div>
         <div className="flex gap-2">
             <Select value={currentMonth.toString()} onValueChange={v => setCurrentMonth(parseInt(v))}>
-                <SelectTrigger className="w-32 h-9 text-xs"><SelectValue /></SelectTrigger>
+                <SelectTrigger className="w-32 h-9 text-sm"><SelectValue /></SelectTrigger>
                 <SelectContent>
                     {['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'].map((m, i) => (
                         <SelectItem key={i} value={i.toString()}>{m}</SelectItem>
@@ -906,7 +906,7 @@ export function PluviometryView({ contract, records, onAdd, onUpdate, readonly }
                 </SelectContent>
             </Select>
             <Select value={currentYear.toString()} onValueChange={v => setCurrentYear(parseInt(v))}>
-                <SelectTrigger className="w-24 h-9 text-xs"><SelectValue /></SelectTrigger>
+                <SelectTrigger className="w-24 h-9 text-sm"><SelectValue /></SelectTrigger>
                 <SelectContent>
                     {[2024, 2025, 2026, 2027, 2028].map(y => (
                         <SelectItem key={y} value={y.toString()}>{y}</SelectItem>
@@ -921,12 +921,12 @@ export function PluviometryView({ contract, records, onAdd, onUpdate, readonly }
           <Table>
             <TableHeader className="bg-gray-50">
               <TableRow>
-                <TableHead className="w-20 text-center font-bold text-[10px] uppercase">Dia</TableHead>
-                <TableHead className="text-center font-bold text-[10px] uppercase bg-blue-50/30">Noite Anterior</TableHead>
-                <TableHead className="text-center font-bold text-[10px] uppercase bg-blue-50/50">Manhã</TableHead>
-                <TableHead className="text-center font-bold text-[10px] uppercase bg-blue-50/70">Tarde</TableHead>
-                <TableHead className="w-32 text-center font-bold text-[10px] uppercase">Chuva (mm)</TableHead>
-                <TableHead className="font-bold text-[10px] uppercase">Impacto na Obra</TableHead>
+                <TableHead className="w-20 text-center font-bold text-sm uppercase">Dia</TableHead>
+                <TableHead className="text-center font-bold text-sm uppercase bg-blue-50/30">Noite Anterior</TableHead>
+                <TableHead className="text-center font-bold text-sm uppercase bg-blue-50/50">Manhã</TableHead>
+                <TableHead className="text-center font-bold text-sm uppercase bg-blue-50/70">Tarde</TableHead>
+                <TableHead className="w-32 text-center font-bold text-sm uppercase">Chuva (mm)</TableHead>
+                <TableHead className="font-bold text-sm uppercase">Impacto na Obra</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -939,7 +939,7 @@ export function PluviometryView({ contract, records, onAdd, onUpdate, readonly }
                   <TableRow key={day} className={cn(isImpraticable ? "bg-red-50/30" : isRainy ? "bg-blue-50/20" : "")}>
                     <TableCell className="text-center font-bold text-gray-400">
                       <div className="flex flex-col items-center leading-tight">
-                        <span className="text-[10px] text-gray-300 uppercase leading-none mb-0.5">
+                        <span className="text-sm text-gray-300 uppercase leading-none mb-0.5">
                           {(() => {
                             const date = new Date(currentYear, currentMonth, day, 12);
                             return date.toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.', '');
@@ -954,7 +954,7 @@ export function PluviometryView({ contract, records, onAdd, onUpdate, readonly }
                         value={record?.nightStatus || 'Bom'} 
                         onValueChange={v => handleUpdate(day, 'nightStatus', v)}
                       >
-                        <SelectTrigger className="h-8 text-[11px] w-28 mx-auto"><SelectValue /></SelectTrigger>
+                        <SelectTrigger className="h-8 text-sm w-28 mx-auto"><SelectValue /></SelectTrigger>
                         <SelectContent>
                           <SelectItem value="Bom">☀️ Bom</SelectItem>
                           <SelectItem value="Chuvoso">🌧️ Chuvoso</SelectItem>
@@ -968,7 +968,7 @@ export function PluviometryView({ contract, records, onAdd, onUpdate, readonly }
                         value={record?.morningStatus || 'Bom'} 
                         onValueChange={v => handleUpdate(day, 'morningStatus', v)}
                       >
-                        <SelectTrigger className="h-8 text-[11px] w-28 mx-auto"><SelectValue /></SelectTrigger>
+                        <SelectTrigger className="h-8 text-sm w-28 mx-auto"><SelectValue /></SelectTrigger>
                         <SelectContent>
                           <SelectItem value="Bom">☀️ Bom</SelectItem>
                           <SelectItem value="Chuvoso">🌧️ Chuvoso</SelectItem>
@@ -982,7 +982,7 @@ export function PluviometryView({ contract, records, onAdd, onUpdate, readonly }
                         value={record?.afternoonStatus || 'Bom'} 
                         onValueChange={v => handleUpdate(day, 'afternoonStatus', v)}
                       >
-                        <SelectTrigger className="h-8 text-[11px] w-28 mx-auto"><SelectValue /></SelectTrigger>
+                        <SelectTrigger className="h-8 text-sm w-28 mx-auto"><SelectValue /></SelectTrigger>
                         <SelectContent>
                           <SelectItem value="Bom">☀️ Bom</SelectItem>
                           <SelectItem value="Chuvoso">🌧️ Chuvoso</SelectItem>
@@ -995,7 +995,7 @@ export function PluviometryView({ contract, records, onAdd, onUpdate, readonly }
                         disabled={readonly}
                         type="number" 
                         step="0.1"
-                        className="h-8 text-center text-[11px] w-24 mx-auto font-bold" 
+                        className="h-8 text-center text-sm w-24 mx-auto font-bold" 
                         value={record?.rainfallMm || 0}
                         onChange={e => handleUpdate(day, 'rainfallMm', parseFloat(e.target.value) || 0)}
                       />
@@ -1006,7 +1006,7 @@ export function PluviometryView({ contract, records, onAdd, onUpdate, readonly }
                       ) : isRainy ? (
                         <Badge variant="outline" className="text-blue-600 border-blue-200">Trabalho sob chuva</Badge>
                       ) : (
-                        <span className="text-[10px] text-gray-300">Nenhum impacto</span>
+                        <span className="text-sm text-gray-300">Nenhum impacto</span>
                       )}
                     </TableCell>
                   </TableRow>
@@ -1077,7 +1077,7 @@ const ScheduleCellInput = React.memo(({ value, onChange, disabled, className, pl
       type="text"
       inputMode="decimal"
       placeholder={placeholder}
-      className={cn("h-7 text-right text-[11px] font-mono border-none bg-transparent focus:ring-1 px-2 select-all", className)}
+      className={cn("h-7 text-right text-sm font-mono border-none bg-transparent focus:ring-1 px-2 select-all", className)}
       value={localValue}
       onChange={handleChange}
       onFocus={() => setIsFocused(true)}
@@ -1146,19 +1146,19 @@ const ScheduleServiceRow = React.memo(({
         >
           <TableCell rowSpan={visibleRowsCount} className="sticky left-0 bg-white z-20 shadow-[1px_0_0_0_rgba(0,0,0,0.1)] w-[180px] min-w-[180px] max-w-[180px] align-top py-4 px-3 border-b">
             <div className="flex flex-col gap-1.5 pr-1">
-              <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded w-fit uppercase leading-none border border-blue-100">{service?.code || '---'}</span>
-              <span className="text-[11px] font-bold text-gray-900 leading-tight whitespace-normal" title={service?.name || (bi as any).name}>
+              <span className="text-sm font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded w-fit uppercase leading-none border border-blue-100">{service?.code || '---'}</span>
+              <span className="text-sm font-bold text-gray-900 leading-tight whitespace-normal" title={service?.name || (bi as any).name}>
                 {(service?.name || (bi as any).name || 'Serviço não encontrado').toLowerCase()}
               </span>
-              <span className="text-[10px] text-gray-400 font-medium leading-tight flex items-center gap-1">
-                <Badge variant="outline" className="text-[9px] h-4 px-1 rounded-sm">{service?.unit || '---'}</Badge>
+              <span className="text-sm text-gray-400 font-medium leading-tight flex items-center gap-1">
+                <Badge variant="outline" className="text-xs h-4 px-1 rounded-sm">{service?.unit || '---'}</Badge>
                 <span>•</span>
                 {formatCurrency(unitCost)}
               </span>
             </div>
           </TableCell>
-          <TableCell className="text-[9px] font-bold text-gray-400 uppercase border-r sticky left-[180px] bg-gray-50/20 z-20 shadow-[1px_0_0_0_rgba(0,0,0,0.1)] px-3">Qtd. Prev.</TableCell>
-          <TableCell className="text-right text-[11px] font-mono border-r bg-gray-50/10 px-4 font-bold text-gray-600">{formatNumber(bi.quantity, 3)}</TableCell>
+          <TableCell className="text-xs font-bold text-gray-400 uppercase border-r sticky left-[180px] bg-gray-50/20 z-20 shadow-[1px_0_0_0_rgba(0,0,0,0.1)] px-3">Qtd. Prev.</TableCell>
+          <TableCell className="text-right text-sm font-mono border-r bg-gray-50/10 px-4 font-bold text-gray-600">{formatNumber(bi.quantity, 3)}</TableCell>
           {periods.map(p => (
             <TableCell key={p} className="p-0 border-r w-[80px] min-w-[80px]">
               <ScheduleCellInput 
@@ -1170,12 +1170,12 @@ const ScheduleServiceRow = React.memo(({
             </TableCell>
           ))}
           <TableCell className={cn(
-            "text-right text-[11px] font-mono font-bold bg-blue-50/30 px-4",
+            "text-right text-sm font-mono font-bold bg-blue-50/30 px-4",
             isOverPlanned ? "text-red-600 bg-red-50" : "text-blue-700"
           )}>
             {formatNumber(accumulatedPlanned, 3)}
           </TableCell>
-          <TableCell className="text-right text-[11px] font-mono border-l px-4 text-gray-500 bg-white">
+          <TableCell className="text-right text-sm font-mono border-l px-4 text-gray-500 bg-white">
             {formatNumber(bi.quantity - accumulatedPlanned, 3)}
           </TableCell>
         </TableRow>
@@ -1190,18 +1190,18 @@ const ScheduleServiceRow = React.memo(({
           {!viewOptions.plannedQty && (
             <TableCell rowSpan={visibleRowsCount} className="sticky left-0 bg-white z-20 shadow-[1px_0_0_0_rgba(0,0,0,0.1)] w-[180px] min-w-[180px] max-w-[180px] align-top py-4 px-3 border-b">
               <div className="flex flex-col gap-1.5 pr-1">
-                <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded w-fit uppercase leading-none border border-blue-100">{service?.code}</span>
-                <span className="text-[11px] font-bold text-gray-900 leading-tight whitespace-normal" title={service?.name}>{service?.name}</span>
-                <span className="text-[10px] text-gray-400 font-medium leading-tight flex items-center gap-1">
-                  <Badge variant="outline" className="text-[9px] h-4 px-1 rounded-sm">{service?.unit}</Badge>
+                <span className="text-sm font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded w-fit uppercase leading-none border border-blue-100">{service?.code}</span>
+                <span className="text-sm font-bold text-gray-900 leading-tight whitespace-normal" title={service?.name}>{service?.name}</span>
+                <span className="text-sm text-gray-400 font-medium leading-tight flex items-center gap-1">
+                  <Badge variant="outline" className="text-xs h-4 px-1 rounded-sm">{service?.unit}</Badge>
                   <span>•</span>
                   {formatCurrency(unitCost)}
                 </span>
               </div>
             </TableCell>
           )}
-          <TableCell className="text-[9px] font-bold text-blue-600 uppercase border-r sticky left-[180px] bg-blue-50/10 z-20 shadow-[1px_0_0_0_rgba(0,0,0,0.1)] px-3">Qtd. Exec.</TableCell>
-          <TableCell className="text-right text-[11px] font-mono border-r bg-blue-50/5 text-blue-300 italic px-4">--</TableCell>
+          <TableCell className="text-xs font-bold text-blue-600 uppercase border-r sticky left-[180px] bg-blue-50/10 z-20 shadow-[1px_0_0_0_rgba(0,0,0,0.1)] px-3">Qtd. Exec.</TableCell>
+          <TableCell className="text-right text-sm font-mono border-r bg-blue-50/5 text-blue-300 italic px-4">--</TableCell>
           {periods.map(p => (
             <TableCell key={p} className="p-0 border-r bg-blue-50/5 w-[80px] min-w-[80px]">
               <ScheduleCellInput 
@@ -1213,12 +1213,12 @@ const ScheduleServiceRow = React.memo(({
             </TableCell>
           ))}
           <TableCell className={cn(
-            "text-right text-[11px] font-mono font-bold text-blue-600 bg-blue-50/40 px-4",
+            "text-right text-sm font-mono font-bold text-blue-600 bg-blue-50/40 px-4",
             isOverActual ? "text-red-600 bg-red-50" : "text-blue-800"
           )}>
             {formatNumber(accumulatedActual, 3)}
           </TableCell>
-          <TableCell className="text-right text-[11px] font-mono border-l text-blue-600/60 px-4 bg-white">
+          <TableCell className="text-right text-sm font-mono border-l text-blue-600/60 px-4 bg-white">
             {formatNumber(bi.quantity - accumulatedActual, 3)}
           </TableCell>
         </TableRow>
@@ -1230,14 +1230,14 @@ const ScheduleServiceRow = React.memo(({
           {!viewOptions.plannedQty && !viewOptions.actualQty && (
             <TableCell rowSpan={visibleRowsCount} className="sticky left-0 bg-white z-20 shadow-[1px_0_0_0_rgba(0,0,0,0.1)] w-[180px] min-w-[180px] max-w-[180px] align-top py-4 px-3 border-b">
               <div className="flex flex-col gap-1.5 pr-1">
-                <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded w-fit uppercase leading-none border border-blue-100">{service?.code}</span>
-                <span className="text-[11px] font-bold text-gray-900 leading-tight whitespace-normal" title={service?.name}>{service?.name}</span>
-                <span className="text-[10px] text-gray-400 font-medium leading-tight">{formatCurrency(unitCost)}</span>
+                <span className="text-sm font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded w-fit uppercase leading-none border border-blue-100">{service?.code}</span>
+                <span className="text-sm font-bold text-gray-900 leading-tight whitespace-normal" title={service?.name}>{service?.name}</span>
+                <span className="text-sm text-gray-400 font-medium leading-tight">{formatCurrency(unitCost)}</span>
               </div>
             </TableCell>
           )}
-          <TableCell className="text-[9px] font-bold text-amber-600 uppercase border-r sticky left-[180px] bg-amber-50/10 z-20 shadow-[1px_0_0_0_rgba(0,0,0,0.1)] px-3">Perc. Prev.</TableCell>
-          <TableCell className="text-right text-[11px] font-mono border-r bg-amber-50/5 px-4 text-amber-800 font-medium">{formatPercent(100)}</TableCell>
+          <TableCell className="text-xs font-bold text-amber-600 uppercase border-r sticky left-[180px] bg-amber-50/10 z-20 shadow-[1px_0_0_0_rgba(0,0,0,0.1)] px-3">Perc. Prev.</TableCell>
+          <TableCell className="text-right text-sm font-mono border-r bg-amber-50/5 px-4 text-amber-800 font-medium">{formatPercent(100)}</TableCell>
           {periods.map(p => {
             const qtyVal = getDayValue(p, 'plannedQty');
             const percValue = bi.quantity > 0 ? ((qtyVal / bi.quantity) * 100) : 0;
@@ -1252,10 +1252,10 @@ const ScheduleServiceRow = React.memo(({
               </TableCell>
             );
           })}
-          <TableCell className="text-right text-[11px] font-mono font-bold text-amber-700 bg-amber-50/30 px-4">
+          <TableCell className="text-right text-sm font-mono font-bold text-amber-700 bg-amber-50/30 px-4">
             {formatPercent((accumulatedPlanned / bi.quantity) * 100)}
           </TableCell>
-          <TableCell className="text-right text-[11px] font-mono border-l text-amber-700/50 px-4 bg-white">
+          <TableCell className="text-right text-sm font-mono border-l text-amber-700/50 px-4 bg-white">
             {formatPercent(((bi.quantity - accumulatedPlanned) / bi.quantity) * 100)}
           </TableCell>
         </TableRow>
@@ -1267,14 +1267,14 @@ const ScheduleServiceRow = React.memo(({
           {!viewOptions.plannedQty && !viewOptions.actualQty && !viewOptions.plannedPerc && (
             <TableCell rowSpan={visibleRowsCount} className="sticky left-0 bg-white z-20 shadow-[1px_0_0_0_rgba(0,0,0,0.1)] w-[180px] min-w-[180px] max-w-[180px] align-top py-4 px-3 border-b">
               <div className="flex flex-col gap-1.5 pr-1">
-                <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded w-fit uppercase leading-none border border-blue-100">{service?.code}</span>
-                <span className="text-[11px] font-bold text-gray-900 leading-tight whitespace-normal" title={service?.name}>{service?.name}</span>
-                <span className="text-[10px] text-gray-400 font-medium leading-tight">{formatCurrency(unitCost)}</span>
+                <span className="text-sm font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded w-fit uppercase leading-none border border-blue-100">{service?.code}</span>
+                <span className="text-sm font-bold text-gray-900 leading-tight whitespace-normal" title={service?.name}>{service?.name}</span>
+                <span className="text-sm text-gray-400 font-medium leading-tight">{formatCurrency(unitCost)}</span>
               </div>
             </TableCell>
           )}
-          <TableCell className="text-[9px] font-bold text-amber-800 uppercase border-r sticky left-[180px] bg-amber-100/20 z-20 shadow-[1px_0_0_0_rgba(0,0,0,0.1)] px-3">Perc. Exec.</TableCell>
-          <TableCell className="text-right text-[11px] font-mono border-r bg-amber-100/10 text-amber-400 italic px-4">--</TableCell>
+          <TableCell className="text-xs font-bold text-amber-800 uppercase border-r sticky left-[180px] bg-amber-100/20 z-20 shadow-[1px_0_0_0_rgba(0,0,0,0.1)] px-3">Perc. Exec.</TableCell>
+          <TableCell className="text-right text-sm font-mono border-r bg-amber-100/10 text-amber-400 italic px-4">--</TableCell>
           {periods.map(p => {
             const qtyVal = getDayValue(p, 'actualQty');
             const percValue = bi.quantity > 0 ? ((qtyVal / bi.quantity) * 100) : 0;
@@ -1289,10 +1289,10 @@ const ScheduleServiceRow = React.memo(({
               </TableCell>
             );
           })}
-          <TableCell className="text-right text-[11px] font-mono font-bold text-amber-900 bg-amber-100/30 px-4">
+          <TableCell className="text-right text-sm font-mono font-bold text-amber-900 bg-amber-100/30 px-4">
             {formatPercent((accumulatedActual / bi.quantity) * 100)}
           </TableCell>
-          <TableCell className="text-right text-[11px] font-mono border-l text-amber-900/60 font-bold px-4 bg-white">
+          <TableCell className="text-right text-sm font-mono border-l text-amber-900/60 font-bold px-4 bg-white">
             {formatPercent(((bi.quantity - accumulatedActual) / bi.quantity) * 100)}
           </TableCell>
         </TableRow>
@@ -1304,23 +1304,23 @@ const ScheduleServiceRow = React.memo(({
           {!viewOptions.plannedQty && !viewOptions.actualQty && !viewOptions.plannedPerc && !viewOptions.actualPerc && (
             <TableCell rowSpan={visibleRowsCount} className="sticky left-0 bg-white z-20 shadow-[1px_0_0_0_rgba(0,0,0,0.1)] w-[180px] min-w-[180px] max-w-[180px] align-top py-4 px-3 border-b">
               <div className="flex flex-col gap-1.5 pr-1">
-                <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded w-fit uppercase leading-none border border-blue-100">{service?.code}</span>
-                <span className="text-[11px] font-bold text-gray-900 leading-tight whitespace-normal" title={service?.name}>{service?.name}</span>
-                <span className="text-[10px] text-gray-400 font-medium leading-tight">{formatCurrency(unitCost)}</span>
+                <span className="text-sm font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded w-fit uppercase leading-none border border-blue-100">{service?.code}</span>
+                <span className="text-sm font-bold text-gray-900 leading-tight whitespace-normal" title={service?.name}>{service?.name}</span>
+                <span className="text-sm text-gray-400 font-medium leading-tight">{formatCurrency(unitCost)}</span>
               </div>
             </TableCell>
           )}
-          <TableCell className="text-[9px] font-bold text-emerald-600 uppercase border-r sticky left-[180px] bg-emerald-50/10 z-20 shadow-[1px_0_0_0_rgba(0,0,0,0.1)] px-3">Val. Prev.</TableCell>
-          <TableCell className="text-right text-[11px] font-mono border-r bg-emerald-50/5 px-4 text-emerald-800 font-medium">{formatCurrency(bi.quantity * unitCost)}</TableCell>
+          <TableCell className="text-xs font-bold text-emerald-600 uppercase border-r sticky left-[180px] bg-emerald-50/10 z-20 shadow-[1px_0_0_0_rgba(0,0,0,0.1)] px-3">Val. Prev.</TableCell>
+          <TableCell className="text-right text-sm font-mono border-r bg-emerald-50/5 px-4 text-emerald-800 font-medium">{formatCurrency(bi.quantity * unitCost)}</TableCell>
           {periods.map(p => (
-            <TableCell key={p} className="px-3 py-1.5 border-r text-right text-[10px] font-mono text-emerald-700/70 bg-emerald-50/5">
+            <TableCell key={p} className="px-3 py-1.5 border-r text-right text-sm font-mono text-emerald-700/70 bg-emerald-50/5">
               {formatCurrency(getDayValue(p, 'plannedValue'))}
             </TableCell>
           ))}
-          <TableCell className="text-right text-[11px] font-mono font-bold text-emerald-700 bg-emerald-50/30 px-4">
+          <TableCell className="text-right text-sm font-mono font-bold text-emerald-700 bg-emerald-50/30 px-4">
             {formatCurrency(getServiceAccumulated('plannedValue'))}
           </TableCell>
-          <TableCell className="text-right text-[11px] font-mono border-l text-emerald-700/50 px-4 bg-white">
+          <TableCell className="text-right text-sm font-mono border-l text-emerald-700/50 px-4 bg-white">
             {formatCurrency((bi.quantity * unitCost) - getServiceAccumulated('plannedValue'))}
           </TableCell>
         </TableRow>
@@ -1332,23 +1332,23 @@ const ScheduleServiceRow = React.memo(({
           {!viewOptions.plannedQty && !viewOptions.actualQty && !viewOptions.plannedPerc && !viewOptions.actualPerc && !viewOptions.plannedValue && (
             <TableCell rowSpan={visibleRowsCount} className="sticky left-0 bg-white z-20 shadow-[1px_0_0_0_rgba(0,0,0,0.1)] w-[180px] min-w-[180px] max-w-[180px] align-top py-4 px-3 border-b">
               <div className="flex flex-col gap-1.5 pr-1">
-                <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded w-fit uppercase leading-none border border-blue-100">{service?.code}</span>
-                <span className="text-[11px] font-bold text-gray-900 leading-tight whitespace-normal" title={service?.name}>{service?.name}</span>
-                <span className="text-[10px] text-gray-400 font-medium leading-tight">{formatCurrency(unitCost)}</span>
+                <span className="text-sm font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded w-fit uppercase leading-none border border-blue-100">{service?.code}</span>
+                <span className="text-sm font-bold text-gray-900 leading-tight whitespace-normal" title={service?.name}>{service?.name}</span>
+                <span className="text-sm text-gray-400 font-medium leading-tight">{formatCurrency(unitCost)}</span>
               </div>
             </TableCell>
           )}
-          <TableCell className="text-[9px] font-bold text-emerald-800 uppercase border-r sticky left-[180px] bg-emerald-100/20 z-20 shadow-[1px_0_0_0_rgba(0,0,0,0.1)] px-3">Val. Exec.</TableCell>
-          <TableCell className="text-right text-[11px] font-mono border-r bg-emerald-100/10 text-emerald-400 italic px-4">--</TableCell>
+          <TableCell className="text-xs font-bold text-emerald-800 uppercase border-r sticky left-[180px] bg-emerald-100/20 z-20 shadow-[1px_0_0_0_rgba(0,0,0,0.1)] px-3">Val. Exec.</TableCell>
+          <TableCell className="text-right text-sm font-mono border-r bg-emerald-100/10 text-emerald-400 italic px-4">--</TableCell>
           {periods.map(p => (
-            <TableCell key={p} className="px-3 py-1.5 border-r text-right text-[11px] font-mono text-emerald-800 font-bold bg-emerald-100/10">
+            <TableCell key={p} className="px-3 py-1.5 border-r text-right text-sm font-mono text-emerald-800 font-bold bg-emerald-100/10">
               {formatCurrency(getDayValue(p, 'actualValue'))}
             </TableCell>
           ))}
-          <TableCell className="text-right text-[11px] font-mono font-bold text-emerald-900 bg-emerald-100/30 px-4">
+          <TableCell className="text-right text-sm font-mono font-bold text-emerald-900 bg-emerald-100/30 px-4">
             {formatCurrency(getServiceAccumulated('actualValue'))}
           </TableCell>
-          <TableCell className="text-right text-[11px] font-mono border-l text-emerald-900/60 font-bold px-4 bg-white">
+          <TableCell className="text-right text-sm font-mono border-l text-emerald-900/60 font-bold px-4 bg-white">
             {formatCurrency((bi.quantity * unitCost) - getServiceAccumulated('actualValue'))}
           </TableCell>
         </TableRow>
@@ -1385,35 +1385,35 @@ const GlobalFooters = React.memo(({
   return (
     <React.Fragment>
       <TableRow className="bg-slate-900 text-white font-bold border-t-2 border-slate-700 z-30">
-        <TableCell colSpan={2} className="sticky left-0 bg-slate-900 z-20 shadow-[1px_0_0_0_rgba(255,255,255,0.1)] w-[180px] min-w-[180px] max-w-[180px] uppercase text-[11px] py-4 px-4 tracking-wider">Total Planejado (R$)</TableCell>
-        <TableCell className="text-right text-xs border-r px-4">
+        <TableCell colSpan={2} className="sticky left-0 bg-slate-900 z-20 shadow-[1px_0_0_0_rgba(255,255,255,0.1)] w-[180px] min-w-[180px] max-w-[180px] uppercase text-sm py-4 px-4 tracking-wider">Total Planejado (R$)</TableCell>
+        <TableCell className="text-right text-sm border-r px-4">
           {formatCurrency(budgetTotalSum)}
         </TableCell>
         {periods.map(p => (
-          <TableCell key={p} className="text-right text-[10px] border-r text-slate-300 px-3">
+          <TableCell key={p} className="text-right text-sm border-r text-slate-300 px-3">
             {formatCurrency(periodPlannedTotals[p] || 0)}
           </TableCell>
         ))}
-        <TableCell className="text-right text-xs bg-slate-800 px-4">
+        <TableCell className="text-right text-sm bg-slate-800 px-4">
           {formatCurrency(totalPlannedSum)}
         </TableCell>
-        <TableCell className="text-right text-xs border-l px-4 text-slate-400 bg-slate-900">
+        <TableCell className="text-right text-sm border-l px-4 text-slate-400 bg-slate-900">
           {formatCurrency(budgetTotalSum - totalPlannedSum)}
         </TableCell>
       </TableRow>
 
       <TableRow className="bg-blue-900 text-white font-bold">
-        <TableCell colSpan={2} className="sticky left-0 bg-blue-900 z-10 shadow-[1px_0_0_0_rgba(255,255,255,0.1)] w-[150px] min-w-[150px] max-w-[150px] uppercase text-xs px-4 py-4">Total Executado (R$)</TableCell>
-        <TableCell className="text-right text-xs border-r text-blue-300 italic px-4">--</TableCell>
+        <TableCell colSpan={2} className="sticky left-0 bg-blue-900 z-10 shadow-[1px_0_0_0_rgba(255,255,255,0.1)] w-[150px] min-w-[150px] max-w-[150px] uppercase text-sm px-4 py-4">Total Executado (R$)</TableCell>
+        <TableCell className="text-right text-sm border-r text-blue-300 italic px-4">--</TableCell>
         {periods.map(p => (
-          <TableCell key={p} className="text-right text-[10px] border-r text-blue-200 font-extrabold italic px-3">
+          <TableCell key={p} className="text-right text-sm border-r text-blue-200 font-extrabold italic px-3">
             {formatCurrency(periodActualTotals[p] || 0)}
           </TableCell>
         ))}
-        <TableCell className="text-right text-xs bg-blue-800 font-black px-4">
+        <TableCell className="text-right text-sm bg-blue-800 font-black px-4">
           {formatCurrency(totalActualSum)}
         </TableCell>
-        <TableCell className="text-right text-xs border-l text-blue-200 px-4 bg-blue-800">
+        <TableCell className="text-right text-sm border-l text-blue-200 px-4 bg-blue-800">
           {formatCurrency(budgetTotalSum - totalActualSum)}
         </TableCell>
       </TableRow>
@@ -1784,8 +1784,8 @@ export function TechnicalScheduleView({
       const dayMonth = current.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
       return (
         <div className="flex flex-col items-center leading-tight">
-          <span className="capitalize text-[10px] font-bold text-blue-600">{weekday}</span>
-          <span className="text-[10px] text-gray-500">{dayMonth}</span>
+          <span className="capitalize text-sm font-bold text-blue-600">{weekday}</span>
+          <span className="text-sm text-gray-500">{dayMonth}</span>
         </div>
       );
     }
@@ -1799,8 +1799,8 @@ export function TechnicalScheduleView({
       const format = (d: Date) => d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit' });
       return (
         <div className="flex flex-col items-center leading-tight">
-          <span className="text-[10px] font-bold text-blue-600">Sem. {index + 1}</span>
-          <span className="text-[9px] text-gray-500 whitespace-nowrap">{format(weekStart)} a {format(weekEnd)}</span>
+          <span className="text-sm font-bold text-blue-600">Sem. {index + 1}</span>
+          <span className="text-xs text-gray-500 whitespace-nowrap">{format(weekStart)} a {format(weekEnd)}</span>
         </div>
       );
     }
@@ -1811,8 +1811,8 @@ export function TechnicalScheduleView({
       const monthYear = current.toLocaleDateString('pt-BR', { month: 'short', year: 'numeric' });
       return (
         <div className="flex flex-col items-center leading-tight">
-          <span className="capitalize text-[10px] font-bold text-blue-600">{monthYear.replace('.', '')}</span>
-          <span className="text-[9px] text-gray-500">Mês {index + 1}</span>
+          <span className="capitalize text-sm font-bold text-blue-600">{monthYear.replace('.', '')}</span>
+          <span className="text-xs text-gray-500">Mês {index + 1}</span>
         </div>
       );
     }
@@ -1905,7 +1905,7 @@ export function TechnicalScheduleView({
         <div className="flex items-center justify-between shrink-0 mb-4">
           <div>
             <h2 className="text-2xl font-bold text-gray-900">Cronograma Físico-Financeiro</h2>
-            <p className="text-sm text-gray-500">Acompanhamento temporal de planejamento vs. execução.</p>
+            <p className="text-base text-gray-500">Acompanhamento temporal de planejamento vs. execução.</p>
           </div>
           <div className="flex items-center gap-2">
             <Button variant="outline" size="sm" onClick={handleExportPDF} className="text-red-600 border-red-200 hover:bg-red-50 h-8">
@@ -1927,17 +1927,17 @@ export function TechnicalScheduleView({
                 {isSaving ? (
                   <div className="flex items-center gap-2 px-3 py-1 bg-amber-50 text-amber-700 border border-amber-200 rounded-full animate-pulse h-8">
                     <Clock className="w-3.5 h-3.5" />
-                    <span className="text-[10px] font-bold uppercase">Salvando...</span>
+                    <span className="text-sm font-bold uppercase">Salvando...</span>
                   </div>
                 ) : hasUnsavedChanges ? (
                   <div className="flex items-center gap-2 px-3 py-1 bg-blue-50 text-blue-700 border border-blue-200 rounded-full h-8">
                     <Clock className="w-3.5 h-3.5" />
-                    <span className="text-[10px] font-bold uppercase">Alterações não salvas</span>
+                    <span className="text-sm font-bold uppercase">Alterações não salvas</span>
                   </div>
                 ) : (
                   <div className="flex items-center gap-2 px-3 py-1 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full h-8">
                     <Save className="w-3.5 h-3.5" />
-                    <span className="text-[10px] font-bold uppercase">Sincronizado</span>
+                    <span className="text-sm font-bold uppercase">Sincronizado</span>
                   </div>
                 )}
                 <Button size="sm" onClick={handleSave} disabled={!hasUnsavedChanges || isSaving} className="bg-blue-600 hover:bg-blue-700 h-8">
@@ -1955,7 +1955,7 @@ export function TechnicalScheduleView({
               >
                 <ZoomOut className="w-4 h-4" />
               </Button>
-              <span className="text-xs font-mono font-medium text-gray-600 w-10 text-center">
+              <span className="text-sm font-mono font-medium text-gray-600 w-10 text-center">
                 {Math.round(zoomLevel * 100)}%
               </span>
               <Button
@@ -1984,7 +1984,7 @@ export function TechnicalScheduleView({
           <div className="absolute inset-0 overflow-auto border rounded-xl shadow-md bg-white scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent">
             {/* Using arbitrary type cast as React typings sometimes omit zoom, but it's supported by most browsers */}
             <div style={{ zoom: zoomLevel } as React.CSSProperties}>
-              <table className="w-full border-separate border-spacing-0 text-sm table-fixed">
+              <table className="w-full border-separate border-spacing-0 text-base table-fixed">
                 <thead className="bg-gray-50 border-b sticky top-0 z-40 shadow-sm">
                       {monthGroups.length > 0 && (
                         <TableRow className="bg-gray-50/80 backdrop-blur-sm hover:bg-transparent">
@@ -1992,7 +1992,7 @@ export function TechnicalScheduleView({
                           <TableHead className="w-[80px] bg-gray-50/90 border-b shadow-[1px_0_0_0_rgba(0,0,0,0.1)]" />
                           <TableHead className="w-[100px] bg-gray-50/90 border-b shadow-[1px_0_0_0_rgba(0,0,0,0.1)]" />
                           {monthGroups.map((group, gIdx) => (
-                            <TableHead key={gIdx} colSpan={group.duration} className="text-center font-bold text-[10px] uppercase text-blue-800 bg-blue-50/40 border-r border-b py-2 sticky top-0 shadow-sm">
+                            <TableHead key={gIdx} colSpan={group.duration} className="text-center font-bold text-sm uppercase text-blue-800 bg-blue-50/40 border-r border-b py-2 sticky top-0 shadow-sm">
                                <div className="flex items-center justify-center gap-2">
                                  <Calendar className="w-3 h-3" />
                                  {group.monthYear}
@@ -2029,8 +2029,8 @@ export function TechnicalScheduleView({
                       <TableRow className="bg-slate-200 hover:bg-slate-200 border-y-2 border-slate-300">
                         <TableCell colSpan={3} className="sticky left-0 bg-slate-200 z-20 py-3 px-4 shadow-[1px_0_0_0_rgba(0,0,0,0.1)]">
                           <div className="flex items-center gap-3">
-                            <Badge variant="secondary" className="bg-slate-900 text-white hover:bg-slate-900 text-[10px] font-black uppercase px-2 py-0.5 shadow-sm">GRUPO</Badge>
-                            <span className="font-black text-[12px] text-slate-900 uppercase tracking-tight">{group.name}</span>
+                            <Badge variant="secondary" className="bg-slate-900 text-white hover:bg-slate-900 text-sm font-black uppercase px-2 py-0.5 shadow-sm">GRUPO</Badge>
+                            <span className="font-black text-sm text-slate-900 uppercase tracking-tight">{group.name}</span>
                           </div>
                         </TableCell>
                         <TableCell colSpan={periods.length + 2} className="bg-slate-200/50" />
@@ -2059,42 +2059,42 @@ export function TechnicalScheduleView({
 
                       {/* Group Financial Total Row (Planned) */}
                       <TableRow className="bg-slate-50 font-black border-t-2 border-slate-200">
-                        <TableCell className="sticky left-0 bg-slate-50 z-20 py-2.5 px-4 shadow-[1px_0_0_0_rgba(0,0,0,0.1)] text-[10px] uppercase text-slate-500 font-extrabold tracking-tighter">
+                        <TableCell className="sticky left-0 bg-slate-50 z-20 py-2.5 px-4 shadow-[1px_0_0_0_rgba(0,0,0,0.1)] text-sm uppercase text-slate-500 font-extrabold tracking-tighter">
                           TOTAL PLANEJADO R$
                         </TableCell>
-                        <TableCell className="sticky left-[180px] bg-slate-50 z-20 shadow-[1px_0_0_0_rgba(0,0,0,0.1)] text-[8px] font-black text-slate-400 uppercase px-3">VALOR</TableCell>
-                        <TableCell className="text-right text-[11px] font-mono px-4 text-slate-800">
+                        <TableCell className="sticky left-[180px] bg-slate-50 z-20 shadow-[1px_0_0_0_rgba(0,0,0,0.1)] text-[10px] font-black text-slate-400 uppercase px-3">VALOR</TableCell>
+                        <TableCell className="text-right text-sm font-mono px-4 text-slate-800">
                           {formatCurrency(groupTotals[group.id]?.budgetSum || 0)}
                         </TableCell>
                         {periods.map(p => (
-                          <TableCell key={p} className="text-right text-[10px] font-mono border-r px-3 text-slate-700 bg-slate-100/50">
+                          <TableCell key={p} className="text-right text-sm font-mono border-r px-3 text-slate-700 bg-slate-100/50">
                             {formatCurrency(groupTotals[group.id]?.planned[p] || 0)}
                           </TableCell>
                         ))}
-                        <TableCell className="text-right text-[11px] font-mono bg-slate-100 px-4 text-slate-900">
+                        <TableCell className="text-right text-sm font-mono bg-slate-100 px-4 text-slate-900">
                           {formatCurrency(groupTotals[group.id]?.totalPlanned || 0)}
                         </TableCell>
-                        <TableCell className="text-right text-[11px] font-mono px-4 text-slate-700 bg-slate-50">
+                        <TableCell className="text-right text-sm font-mono px-4 text-slate-700 bg-slate-50">
                           {formatCurrency((groupTotals[group.id]?.budgetSum || 0) - (groupTotals[group.id]?.totalPlanned || 0))}
                         </TableCell>
                       </TableRow>
 
                       {/* Group Financial Total Row (Executed) */}
                       <TableRow className="bg-blue-50 font-black border-b-2 border-blue-200">
-                        <TableCell className="sticky left-0 bg-blue-50 z-20 py-2 top-auto shadow-[1px_0_0_0_rgba(0,0,0,0.1)] text-[10px] uppercase text-blue-600 font-extrabold tracking-tighter">
+                        <TableCell className="sticky left-0 bg-blue-50 z-20 py-2 top-auto shadow-[1px_0_0_0_rgba(0,0,0,0.1)] text-sm uppercase text-blue-600 font-extrabold tracking-tighter">
                           TOTAL PREVISTO R$
                         </TableCell>
-                        <TableCell className="sticky left-[180px] bg-blue-50 z-20 shadow-[1px_0_0_0_rgba(0,0,0,0.1)] text-[8px] font-black text-blue-400 uppercase px-3">VALOR</TableCell>
-                        <TableCell className="text-right text-[11px] font-mono px-4 text-blue-400 italic">--</TableCell>
+                        <TableCell className="sticky left-[180px] bg-blue-50 z-20 shadow-[1px_0_0_0_rgba(0,0,0,0.1)] text-[10px] font-black text-blue-400 uppercase px-3">VALOR</TableCell>
+                        <TableCell className="text-right text-sm font-mono px-4 text-blue-400 italic">--</TableCell>
                         {periods.map(p => (
-                          <TableCell key={p} className="text-right text-[10px] font-mono border-r px-3 text-blue-700 bg-blue-100/30">
+                          <TableCell key={p} className="text-right text-sm font-mono border-r px-3 text-blue-700 bg-blue-100/30">
                             {formatCurrency(groupTotals[group.id]?.actual[p] || 0)}
                           </TableCell>
                         ))}
-                        <TableCell className="text-right text-[11px] font-mono bg-blue-100 px-4 text-blue-900">
+                        <TableCell className="text-right text-sm font-mono bg-blue-100 px-4 text-blue-900">
                           {formatCurrency(groupTotals[group.id]?.totalActual || 0)}
                         </TableCell>
-                        <TableCell className="text-right text-[11px] font-mono px-4 text-blue-700 bg-blue-50">
+                        <TableCell className="text-right text-sm font-mono px-4 text-blue-700 bg-blue-50">
                           {formatCurrency((groupTotals[group.id]?.budgetSum || 0) - (groupTotals[group.id]?.totalActual || 0))}
                         </TableCell>
                       </TableRow>
@@ -2122,26 +2122,26 @@ export function TechnicalScheduleView({
         <aside className="w-80 shrink-0 border-l bg-gray-50/50 flex flex-col h-full overflow-y-auto">
           <div className="p-4 space-y-6">
             <div>
-            <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest mb-4">Configurações Gerais</h3>
+            <h3 className="text-sm font-black text-gray-400 uppercase tracking-widest mb-4">Configurações Gerais</h3>
             <div className="space-y-4">
               <div className="space-y-1.5">
-                <Label className="text-[10px] font-bold uppercase text-gray-500">Data de Início</Label>
+                <Label className="text-sm font-bold uppercase text-gray-500">Data de Início</Label>
                 <Input 
                   type="date" 
-                  className="h-8 text-[11px] bg-white"
+                  className="h-8 text-sm bg-white"
                   value={localSchedule.startDate} 
                   onChange={(e) => updateLocalSchedule({ startDate: e.target.value })}
                   disabled={readonly}
                 />
               </div>
               <div className="space-y-1.5">
-                <Label className="text-[10px] font-bold uppercase text-gray-500">Unidade de Tempo</Label>
+                <Label className="text-sm font-bold uppercase text-gray-500">Unidade de Tempo</Label>
                 <Select 
                   value={localSchedule.timeUnit} 
                   onValueChange={(v: TimeUnit) => updateLocalSchedule({ timeUnit: v })}
                   disabled={readonly}
                 >
-                  <SelectTrigger className="h-8 text-[11px] bg-white">
+                  <SelectTrigger className="h-8 text-sm bg-white">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -2152,11 +2152,11 @@ export function TechnicalScheduleView({
                 </Select>
               </div>
               <div className="space-y-1.5">
-                <Label className="text-[10px] font-bold uppercase text-gray-500">Duração ({localSchedule.timeUnit === 'months' ? 'Meses' : localSchedule.timeUnit === 'weeks' ? 'Semanas' : 'Dias'})</Label>
+                <Label className="text-sm font-bold uppercase text-gray-500">Duração ({localSchedule.timeUnit === 'months' ? 'Meses' : localSchedule.timeUnit === 'weeks' ? 'Semanas' : 'Dias'})</Label>
                 <Input 
                   type="number" 
                   min={1}
-                  className="h-8 text-[11px] bg-white font-mono"
+                  className="h-8 text-sm bg-white font-mono"
                   value={localSchedule.duration} 
                   onChange={(e) => updateLocalSchedule({ duration: parseInt(e.target.value) || 1 })}
                   disabled={readonly}
@@ -2164,7 +2164,7 @@ export function TechnicalScheduleView({
               </div>
               <Button 
                 variant="outline" 
-                className="w-full text-blue-600 border-blue-100 hover:bg-blue-50 font-bold uppercase text-[10px] h-10 shadow-sm"
+                className="w-full text-blue-600 border-blue-100 hover:bg-blue-50 font-bold uppercase text-sm h-10 shadow-sm"
                 onClick={() => setIsChartModalOpen(true)}
               >
                 <BarChart3 className="w-3.5 h-3.5 mr-2" /> Gráfico Previsto x Executado
@@ -2173,7 +2173,7 @@ export function TechnicalScheduleView({
           </div>
 
           <div>
-            <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest mb-4">Opções de Visualização</h3>
+            <h3 className="text-sm font-black text-gray-400 uppercase tracking-widest mb-4">Opções de Visualização</h3>
             <div className="space-y-2">
               {[
                 { key: 'plannedQty', label: 'Qtd. Prevista', color: 'text-gray-600', dot: 'bg-gray-400' },
@@ -2186,7 +2186,7 @@ export function TechnicalScheduleView({
                 <label key={opt.key} className="flex items-center justify-between p-2 rounded-lg bg-white border border-gray-100 hover:border-blue-200 cursor-pointer group transition-all">
                   <div className="flex items-center gap-2">
                     <div className={cn("w-1.5 h-1.5 rounded-full", opt.dot)} />
-                    <span className={cn("text-[10px] font-bold uppercase", opt.color)}>{opt.label}</span>
+                    <span className={cn("text-sm font-bold uppercase", opt.color)}>{opt.label}</span>
                   </div>
                   <input 
                     type="checkbox" 
@@ -2201,24 +2201,24 @@ export function TechnicalScheduleView({
 
           <div className="pt-4 border-t border-gray-200">
              <div className="bg-blue-50 p-3 rounded-lg border border-blue-100">
-               <h4 className="text-[10px] font-black text-blue-800 uppercase mb-2">Resumo Financeiro</h4>
+               <h4 className="text-sm font-black text-blue-800 uppercase mb-2">Resumo Financeiro</h4>
                <div className="space-y-2">
                  <div className="flex justify-between items-center">
-                   <span className="text-[9px] text-blue-600 font-bold uppercase">Total Contrato</span>
-                   <span className="text-[11px] font-mono font-bold text-blue-900">
+                   <span className="text-xs text-blue-600 font-bold uppercase">Total Contrato</span>
+                   <span className="text-sm font-mono font-bold text-blue-900">
                      {formatCurrency(budgetTotalSum)}
                    </span>
                  </div>
                  <div className="flex justify-between items-center">
-                   <span className="text-[9px] text-blue-600 font-bold uppercase">Acumulado</span>
-                   <span className="text-[11px] font-mono font-bold text-amber-700">
+                   <span className="text-xs text-blue-600 font-bold uppercase">Acumulado</span>
+                   <span className="text-sm font-mono font-bold text-amber-700">
                      {formatCurrency(totalActualSum)}
                    </span>
                  </div>
                  <div className="h-px bg-blue-200 my-1" />
                  <div className="flex justify-between items-center">
-                   <span className="text-[9px] text-blue-800 font-black uppercase">Saldo</span>
-                   <span className="text-xs font-mono font-black text-blue-900">
+                   <span className="text-xs text-blue-800 font-black uppercase">Saldo</span>
+                   <span className="text-sm font-mono font-black text-blue-900">
                      {formatCurrency(budgetTotalSum - totalActualSum)}
                    </span>
                  </div>
@@ -2238,7 +2238,7 @@ export function TechnicalScheduleView({
                 <Edit className="w-5 h-5" />
               </div>
               <div>
-                <p className="text-xs text-gray-400 uppercase font-bold tracking-wider">Edição Rápida de Distribuição</p>
+                <p className="text-sm text-gray-400 uppercase font-bold tracking-wider">Edição Rápida de Distribuição</p>
                 <p className="text-base font-bold text-gray-900 leading-tight">
                   {(editingServiceId ? globalServicesMap.idMap[editingServiceId] : undefined)?.name}
                 </p>
@@ -2249,13 +2249,13 @@ export function TechnicalScheduleView({
           <ScrollArea className="flex-1 mt-4 pr-3">
             <div className="space-y-4">
               <div className="grid grid-cols-[1fr_repeat(6,120px)] gap-4 p-2 bg-gray-50 rounded-lg sticky top-0 z-10 border border-gray-100 items-center">
-                <div className="text-[10px] font-bold uppercase text-gray-400">Período</div>
-                <div className="text-[10px] font-bold uppercase text-blue-600 text-center">Qtd. Prev.</div>
-                <div className="text-[10px] font-bold uppercase text-amber-600 text-center">% Prev.</div>
-                <div className="text-[10px] font-bold uppercase text-blue-800 text-center">Qtd. Exec.</div>
-                <div className="text-[10px] font-bold uppercase text-amber-800 text-center">% Exec.</div>
-                <div className="text-[10px] font-bold uppercase text-emerald-600 text-right pr-4">Vlr. Prev.</div>
-                <div className="text-[10px] font-bold uppercase text-emerald-800 text-right pr-4">Vlr. Exec.</div>
+                <div className="text-sm font-bold uppercase text-gray-400">Período</div>
+                <div className="text-sm font-bold uppercase text-blue-600 text-center">Qtd. Prev.</div>
+                <div className="text-sm font-bold uppercase text-amber-600 text-center">% Prev.</div>
+                <div className="text-sm font-bold uppercase text-blue-800 text-center">Qtd. Exec.</div>
+                <div className="text-sm font-bold uppercase text-amber-800 text-center">% Exec.</div>
+                <div className="text-sm font-bold uppercase text-emerald-600 text-right pr-4">Vlr. Prev.</div>
+                <div className="text-sm font-bold uppercase text-emerald-800 text-right pr-4">Vlr. Exec.</div>
               </div>
               
               {periods.map(p => {
@@ -2266,12 +2266,12 @@ export function TechnicalScheduleView({
                 
                 return (
                   <div key={p} className="grid grid-cols-[1fr_repeat(6,120px)] gap-4 items-center p-2 rounded-lg hover:bg-gray-50/50 transition-colors border-b border-gray-50">
-                    <div className="text-xs font-bold text-gray-700">{getPeriodLabel(p)}</div>
+                    <div className="text-sm font-bold text-gray-700">{getPeriodLabel(p)}</div>
                     <div className="flex justify-center">
                       <Input 
                         type="number"
                         step="0.001"
-                        className="h-10 text-center text-sm font-mono w-full"
+                        className="h-10 text-center text-base font-mono w-full"
                         value={getDayValue(editingServiceId!, p, 'plannedQty') ?? ''}
                         onChange={(e) => {
                           const val = e.target.value;
@@ -2284,7 +2284,7 @@ export function TechnicalScheduleView({
                       <Input 
                         type="number"
                         step="0.1"
-                        className="h-10 text-center text-sm font-mono w-full text-amber-600"
+                        className="h-10 text-center text-base font-mono w-full text-amber-600"
                         value={totalQty > 0 ? ((getDayValue(editingServiceId!, p, 'plannedQty') / totalQty) * 100).toFixed(1) : 0}
                         onChange={(e) => {
                           const val = e.target.value;
@@ -2297,7 +2297,7 @@ export function TechnicalScheduleView({
                       <Input 
                         type="number"
                         step="0.001"
-                        className="h-10 text-center text-sm font-mono font-bold text-blue-700 w-full"
+                        className="h-10 text-center text-base font-mono font-bold text-blue-700 w-full"
                         value={getDayValue(editingServiceId!, p, 'actualQty') ?? ''}
                         onChange={(e) => {
                           const val = e.target.value;
@@ -2310,7 +2310,7 @@ export function TechnicalScheduleView({
                       <Input 
                         type="number"
                         step="0.1"
-                        className="h-10 text-center text-sm font-mono font-bold text-amber-800 w-full"
+                        className="h-10 text-center text-base font-mono font-bold text-amber-800 w-full"
                         value={totalQty > 0 ? ((getDayValue(editingServiceId!, p, 'actualQty') / totalQty) * 100).toFixed(1) : 0}
                         onChange={(e) => {
                           const val = e.target.value;
@@ -2319,10 +2319,10 @@ export function TechnicalScheduleView({
                         disabled={readonly}
                       />
                     </div>
-                    <div className="text-right text-xs font-mono text-emerald-600 pr-4">
+                    <div className="text-right text-sm font-mono text-emerald-600 pr-4">
                       {formatCurrency(getDayValue(editingServiceId!, p, 'plannedValue'))}
                     </div>
-                    <div className="text-right text-xs font-mono text-emerald-800 font-bold pr-4">
+                    <div className="text-right text-sm font-mono text-emerald-800 font-bold pr-4">
                       {formatCurrency(getDayValue(editingServiceId!, p, 'actualValue'))}
                     </div>
                   </div>
@@ -2332,14 +2332,14 @@ export function TechnicalScheduleView({
           </ScrollArea>
 
           <DialogFooter className="mt-4 pt-4 border-t border-gray-100">
-            <div className="flex flex-1 justify-between items-center text-xs">
+            <div className="flex flex-1 justify-between items-center text-sm">
               <div className="flex gap-4">
                 <div className="flex flex-col">
-                  <span className="text-gray-400 uppercase font-bold text-[9px]">Total Contrato</span>
+                  <span className="text-gray-400 uppercase font-bold text-xs">Total Contrato</span>
                   <span className="font-bold">{formatNumber(budgetItems.find(i => i.serviceId === editingServiceId)?.quantity || 0, 3)}</span>
                 </div>
                 <div className="flex flex-col">
-                  <span className="text-blue-600 uppercase font-bold text-[9px]">Acumulado Prev.</span>
+                  <span className="text-blue-600 uppercase font-bold text-xs">Acumulado Prev.</span>
                   <span className={cn(
                     "font-bold",
                     getServiceAccumulated(editingServiceId!, 'plannedQty') > (budgetItems.find(i => i.serviceId === editingServiceId)?.quantity || 0) + 0.001 && "text-red-600"
@@ -2348,7 +2348,7 @@ export function TechnicalScheduleView({
                   </span>
                 </div>
                 <div className="flex flex-col">
-                  <span className="text-blue-800 uppercase font-bold text-[9px]">Acumulado Exec.</span>
+                  <span className="text-blue-800 uppercase font-bold text-xs">Acumulado Exec.</span>
                   <span className={cn(
                     "font-bold",
                     getServiceAccumulated(editingServiceId!, 'actualQty') > (budgetItems.find(i => i.serviceId === editingServiceId)?.quantity || 0) + 0.001 && "text-red-600"
@@ -2386,11 +2386,11 @@ export function TechnicalScheduleView({
                 <div>
                   <DialogTitle className="text-2xl font-black text-gray-900 tracking-tight">Análise de Desempenho</DialogTitle>
                   <div className="flex items-center gap-2 mt-1">
-                    <p className="text-xs uppercase font-bold text-gray-400 tracking-wider">Acompanhamento Financeiro Previsto vs. Executado</p>
+                    <p className="text-sm uppercase font-bold text-gray-400 tracking-wider">Acompanhamento Financeiro Previsto vs. Executado</p>
                     {chartPeriodFilter !== null && (
                       <div className="flex items-center gap-2 animate-in fade-in slide-in-from-left-2">
                         <ChevronRight className="w-4 h-4 text-gray-300" />
-                        <span className="px-3 py-1 bg-blue-50 text-blue-700 rounded-full text-[10px] font-black uppercase shadow-sm border border-blue-100 flex items-center gap-2">
+                        <span className="px-3 py-1 bg-blue-50 text-blue-700 rounded-full text-sm font-black uppercase shadow-sm border border-blue-100 flex items-center gap-2">
                           <Calendar className="w-3 h-3" />
                           {(() => {
                             const start = new Date(localSchedule.startDate + 'T12:00:00');
@@ -2413,7 +2413,7 @@ export function TechnicalScheduleView({
                     {chartGroupFilter !== 'all' && (
                       <div className="flex items-center gap-2 animate-in fade-in slide-in-from-left-2">
                         <ChevronRight className="w-4 h-4 text-gray-300" />
-                        <span className="px-3 py-1 bg-slate-100 text-slate-700 rounded-full text-[10px] font-black uppercase shadow-sm border border-slate-200 flex items-center gap-2">
+                        <span className="px-3 py-1 bg-slate-100 text-slate-700 rounded-full text-sm font-black uppercase shadow-sm border border-slate-200 flex items-center gap-2">
                           <Layers className="w-3 h-3" />
                           {groupsToRender.find(g => g.id === chartGroupFilter)?.name || 'Grupo'}
                         </span>
@@ -2431,9 +2431,9 @@ export function TechnicalScheduleView({
               </div>
               <div className="flex items-center gap-4">
                 <div className="flex items-center gap-4 bg-gray-50 p-1.5 rounded-2xl border border-gray-100">
-                  <Label className="pl-4 text-[10px] font-black uppercase text-gray-400">Filtrar por:</Label>
+                  <Label className="pl-4 text-sm font-black uppercase text-gray-400">Filtrar por:</Label>
                   <Select value={chartGroupFilter} onValueChange={setChartGroupFilter}>
-                    <SelectTrigger className="w-[400px] h-10 border-none bg-transparent font-bold text-xs shadow-none ring-0 focus:ring-0">
+                    <SelectTrigger className="w-[400px] h-10 border-none bg-transparent font-bold text-sm shadow-none ring-0 focus:ring-0">
                       <div className="flex items-center gap-2 truncate">
                         {chartGroupFilter === 'all' ? (
                           <span className="font-bold">Total do Contrato</span>
@@ -2445,9 +2445,9 @@ export function TechnicalScheduleView({
                       </div>
                     </SelectTrigger>
                     <SelectContent className="rounded-2xl border-none shadow-2xl min-w-[400px]">
-                      <SelectItem value="all" className="font-bold text-xs uppercase tracking-tight">Total do Contrato</SelectItem>
+                      <SelectItem value="all" className="font-bold text-sm uppercase tracking-tight">Total do Contrato</SelectItem>
                       {groupsToRender.map(g => (
-                        <SelectItem key={g.id} value={g.id} className="font-bold text-xs uppercase tracking-tight">{g.name}</SelectItem>
+                        <SelectItem key={g.id} value={g.id} className="font-bold text-sm uppercase tracking-tight">{g.name}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
@@ -2494,19 +2494,19 @@ export function TechnicalScheduleView({
                  return (
                    <>
                     <div className="p-4 bg-blue-50/50 rounded-2xl border border-blue-100">
-                      <p className="text-[9px] font-black text-blue-600 uppercase mb-1">Total Planejado</p>
+                      <p className="text-xs font-black text-blue-600 uppercase mb-1">Total Planejado</p>
                       <p className="text-xl font-black text-blue-900">{formatCurrency(totalPlanned)}</p>
                     </div>
                     <div className="p-4 bg-emerald-50/50 rounded-2xl border border-emerald-100">
-                      <p className="text-[9px] font-black text-emerald-600 uppercase mb-1">Total Executado</p>
+                      <p className="text-xs font-black text-emerald-600 uppercase mb-1">Total Executado</p>
                       <p className="text-xl font-black text-emerald-900">{formatCurrency(totalActual)}</p>
                     </div>
                     <div className={cn("p-4 rounded-2xl border transition-all", deviation >= 0 ? "bg-emerald-100/30 border-emerald-200" : "bg-red-50/50 border-red-100")}>
-                      <p className={cn("text-[9px] font-black uppercase mb-1", deviation >= 0 ? "text-emerald-700" : "text-gray-500")}>Desvio Financeiro</p>
+                      <p className={cn("text-xs font-black uppercase mb-1", deviation >= 0 ? "text-emerald-700" : "text-gray-500")}>Desvio Financeiro</p>
                       <p className={cn("text-xl font-black", deviation >= 0 ? "text-emerald-900" : "text-gray-900")}>{formatCurrency(deviation)}</p>
                     </div>
                     <div className="p-4 bg-slate-900 rounded-2xl border border-slate-800 shadow-xl shadow-slate-100 text-right">
-                      <p className="text-[9px] font-black text-slate-400 uppercase mb-1">Performance (IDC)</p>
+                      <p className="text-xs font-black text-slate-400 uppercase mb-1">Performance (IDC)</p>
                       <p className={cn("text-xl font-black", performance >= 100 ? "text-emerald-400" : performance >= 80 ? "text-amber-400" : "text-red-400")}>
                         {performance.toFixed(1)}%
                       </p>
@@ -2522,14 +2522,14 @@ export function TechnicalScheduleView({
               <div className="flex-1 flex flex-col items-center justify-center p-20 bg-gray-50 rounded-3xl border-2 border-dashed border-gray-100">
                 <BarChart3 className="w-12 h-12 text-gray-200 mb-4" />
                 <h3 className="text-lg font-bold text-gray-900">Cronograma Vazio</h3>
-                <p className="text-sm text-gray-500 text-center max-w-xs">Defina a duração e distribua os valores no cronograma para gerar os gráficos de acompanhamento.</p>
+                <p className="text-base text-gray-500 text-center max-w-xs">Defina a duração e distribua os valores no cronograma para gerar os gráficos de acompanhamento.</p>
               </div>
             ) : (
               <Tabs defaultValue="evolution" className="flex-1 flex flex-col">
                 <div className="px-0 mb-6">
                   <TabsList className="bg-slate-100 p-1 rounded-2xl h-12 inline-flex">
-                    <TabsTrigger value="evolution" className="rounded-xl px-8 font-black text-[10px] uppercase tracking-wider data-[state=active]:bg-white data-[state=active]:shadow-sm">Curva de Evolução</TabsTrigger>
-                    <TabsTrigger value="comparison" className="rounded-xl px-8 font-black text-[10px] uppercase tracking-wider data-[state=active]:bg-white data-[state=active]:shadow-sm">Comparativo por Grupo</TabsTrigger>
+                    <TabsTrigger value="evolution" className="rounded-xl px-8 font-black text-sm uppercase tracking-wider data-[state=active]:bg-white data-[state=active]:shadow-sm">Curva de Evolução</TabsTrigger>
+                    <TabsTrigger value="comparison" className="rounded-xl px-8 font-black text-sm uppercase tracking-wider data-[state=active]:bg-white data-[state=active]:shadow-sm">Comparativo por Grupo</TabsTrigger>
                   </TabsList>
                 </div>
 
@@ -2910,8 +2910,8 @@ export function TechnicalScheduleView({
           </div>
 
           <DialogFooter className="p-8 pt-0 bg-white items-center justify-between">
-            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest italic">Fonte: Cronograma Físico-Financeiro - Sala Técnica</p>
-            <Button onClick={() => setIsChartModalOpen(false)} className="rounded-2xl px-12 font-black uppercase text-xs h-12 bg-slate-900 shadow-2xl shadow-slate-300 hover:bg-slate-800 transition-all">Fechar Dashboard</Button>
+            <p className="text-sm font-bold text-gray-400 uppercase tracking-widest italic">Fonte: Cronograma Físico-Financeiro - Sala Técnica</p>
+            <Button onClick={() => setIsChartModalOpen(false)} className="rounded-2xl px-12 font-black uppercase text-sm h-12 bg-slate-900 shadow-2xl shadow-slate-300 hover:bg-slate-800 transition-all">Fechar Dashboard</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

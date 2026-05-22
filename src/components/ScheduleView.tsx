@@ -64,12 +64,12 @@ const ScheduleServiceRow = React.memo(({
     <TableRow className="h-9 contain-content group">
       <TableCell className="sticky left-0 bg-white z-10 shadow-[1px_0_0_0_rgba(0,0,0,0.1)] w-[130px] min-w-[130px] max-w-[130px] py-0.5 px-1.5 group-hover:bg-gray-50 transition-colors will-change-transform">
         <div className="flex flex-col gap-0 pointer-events-none">
-          <span className="text-[7px] font-bold text-blue-600 leading-none">{service.code}</span>
-          <span className="text-[9px] font-semibold whitespace-normal leading-tight text-gray-800 line-clamp-1">{service.name}</span>
-          <span className="text-[7px] text-gray-400 leading-none">{service.unit}</span>
+          <span className="text-[10px] font-bold text-blue-600 leading-none">{service.code}</span>
+          <span className="text-xs font-semibold whitespace-normal leading-tight text-gray-800 line-clamp-1">{service.name}</span>
+          <span className="text-[10px] text-gray-400 leading-none">{service.unit}</span>
         </div>
       </TableCell>
-      <TableCell className="text-right text-[9px] font-mono p-1">
+      <TableCell className="text-right text-xs font-mono p-1">
         <div className="flex flex-col gap-0">
           {(viewMode === 'qty' || viewMode === 'all') && (
             <div className="font-bold text-gray-600">
@@ -100,7 +100,7 @@ const ScheduleServiceRow = React.memo(({
                   type="number"
                   step="0.001"
                   className={cn(
-                    "h-5 text-right text-[9px] font-mono border-none focus:ring-1 focus:ring-blue-500 bg-transparent px-1",
+                    "h-5 text-right text-xs font-mono border-none focus:ring-1 focus:ring-blue-500 bg-transparent px-1",
                     isOverLimit && "text-red-600 font-bold"
                   )}
                   defaultValue={periodQty || ''}
@@ -117,14 +117,14 @@ const ScheduleServiceRow = React.memo(({
               )}
               {(viewMode === 'val' || viewMode === 'all') && periodFinancial > 0 && (
                 <div className={cn(
-                  "text-[8px] font-mono text-right pr-1 leading-none",
-                  (viewMode === 'all') ? "text-blue-600 font-medium" : "text-gray-900 text-[9px] font-bold"
+                  "text-[10px] font-mono text-right pr-1 leading-none",
+                  (viewMode === 'all') ? "text-blue-600 font-medium" : "text-gray-900 text-xs font-bold"
                 )}>
                   {formatCurrency(periodFinancial)}
                 </div>
               )}
               {(viewMode === 'perc' || viewMode === 'all') && (
-                <div className="text-[7px] font-mono text-right text-gray-400 pr-1 leading-none">
+                <div className="text-[10px] font-mono text-right text-gray-400 pr-1 leading-none">
                   {formatNumber(isPercentage ? periodQty : (periodQty / item.quantity * 100), 1)}%
                 </div>
               )}
@@ -133,7 +133,7 @@ const ScheduleServiceRow = React.memo(({
         );
       })}
       <TableCell className={cn(
-        "text-right text-[9px] font-mono font-bold border-l bg-blue-50/10",
+        "text-right text-xs font-mono font-bold border-l bg-blue-50/10",
         Math.abs(balance) < 0.01 ? "text-green-600" : balance < 0 ? "text-red-600" : "text-blue-600"
       )}>
          <div className="flex flex-col gap-0">
@@ -141,12 +141,12 @@ const ScheduleServiceRow = React.memo(({
              <div>{isPercentage ? `${formatNumber(totalDist, 1)}%` : formatNumber(totalDist, 2)}</div>
            )}
            {(viewMode === 'val' || viewMode === 'all') && (
-             <div className="text-[8px]">{formatCurrency(isPercentage ? (totalDist/100 * item.quantity * unitCost) : (totalDist * unitCost))}</div>
+             <div className="text-[10px]">{formatCurrency(isPercentage ? (totalDist/100 * item.quantity * unitCost) : (totalDist * unitCost))}</div>
            )}
          </div>
       </TableCell>
       <TableCell className={cn(
-        "text-right text-[9px] font-mono border-l",
+        "text-right text-xs font-mono border-l",
         Math.abs(balance) < 0.01 ? "text-green-600" : balance < 0 ? "text-red-600" : "text-gray-500"
       )}>
         <div className="flex flex-col gap-0">
@@ -154,7 +154,7 @@ const ScheduleServiceRow = React.memo(({
              <div>{isPercentage ? `${formatNumber(balance, 1)}%` : formatNumber(balance, 2)}</div>
            )}
            {(viewMode === 'val' || viewMode === 'all') && (
-             <div className="text-[8px]">{formatCurrency(isPercentage ? (balance/100 * item.quantity * unitCost) : (balance * unitCost))}</div>
+             <div className="text-[10px]">{formatCurrency(isPercentage ? (balance/100 * item.quantity * unitCost) : (balance * unitCost))}</div>
            )}
          </div>
       </TableCell>
@@ -508,8 +508,8 @@ export function ScheduleView({ services, resources, quotations, schedules, setSc
       const dayMonth = current.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
       return (
         <div className="flex flex-col items-center leading-tight">
-          <span className="capitalize text-[10px] font-bold text-blue-600">{weekday}</span>
-          <span className="text-[10px] text-gray-500">{dayMonth}</span>
+          <span className="capitalize text-sm font-bold text-blue-600">{weekday}</span>
+          <span className="text-sm text-gray-500">{dayMonth}</span>
         </div>
       );
     }
@@ -523,8 +523,8 @@ export function ScheduleView({ services, resources, quotations, schedules, setSc
       const format = (d: Date) => d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit' });
       return (
         <div className="flex flex-col items-center leading-tight">
-          <span className="text-[10px] font-bold text-blue-600">Sem. {index + 1}</span>
-          <span className="text-[9px] text-gray-500 whitespace-nowrap">{format(weekStart)} a {format(weekEnd)}</span>
+          <span className="text-sm font-bold text-blue-600">Sem. {index + 1}</span>
+          <span className="text-xs text-gray-500 whitespace-nowrap">{format(weekStart)} a {format(weekEnd)}</span>
         </div>
       );
     }
@@ -535,8 +535,8 @@ export function ScheduleView({ services, resources, quotations, schedules, setSc
       const monthYear = current.toLocaleDateString('pt-BR', { month: 'short', year: 'numeric' });
       return (
         <div className="flex flex-col items-center leading-tight">
-          <span className="capitalize text-[10px] font-bold text-blue-600">{monthYear.replace('.', '')}</span>
-          <span className="text-[9px] text-gray-500">Mês {index + 1}</span>
+          <span className="capitalize text-sm font-bold text-blue-600">{monthYear.replace('.', '')}</span>
+          <span className="text-xs text-gray-500">Mês {index + 1}</span>
         </div>
       );
     }
@@ -569,7 +569,7 @@ export function ScheduleView({ services, resources, quotations, schedules, setSc
             </Button>
           </div>
           <div className="flex items-center gap-2">
-            <Label className="text-xs font-bold text-gray-400 uppercase">Planilha:</Label>
+            <Label className="text-sm font-bold text-gray-400 uppercase">Planilha:</Label>
             <Select value={selectedQuotationId} onValueChange={setSelectedQuotationId}>
               <SelectTrigger className="w-[250px] bg-white">
                 <SelectValue>
@@ -597,7 +597,7 @@ export function ScheduleView({ services, resources, quotations, schedules, setSc
 
       <Card className="shadow-sm">
         <CardHeader className="py-2 px-4 border-b">
-          <CardTitle className="text-sm flex items-center gap-2 font-bold uppercase text-gray-600">
+          <CardTitle className="text-base flex items-center gap-2 font-bold uppercase text-gray-600">
             <Settings className="w-4 h-4 text-blue-600" />
             Configuração
           </CardTitle>
@@ -605,37 +605,37 @@ export function ScheduleView({ services, resources, quotations, schedules, setSc
         <CardContent className="p-3">
           <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
             <div className="space-y-1">
-              <Label className="text-[10px] uppercase font-bold text-gray-400">Data de Início</Label>
+              <Label className="text-sm uppercase font-bold text-gray-400">Data de Início</Label>
               <Input 
                 type="date" 
-                className="h-8 text-xs"
+                className="h-8 text-sm"
                 value={currentSchedule.startDate} 
                 onChange={(e) => updateSchedule({ startDate: e.target.value })}
                 readOnly={readonly}
               />
             </div>
             <div className="space-y-1">
-              <Label className="text-[10px] uppercase font-bold text-gray-400">Unidade</Label>
+              <Label className="text-sm uppercase font-bold text-gray-400">Unidade</Label>
               <Select 
                 value={currentSchedule.timeUnit} 
                 onValueChange={(v: TimeUnit) => handleTimeUnitChange(v)}
                 disabled={readonly}
               >
-                <SelectTrigger className="h-8 text-xs">
+                <SelectTrigger className="h-8 text-sm">
                   <SelectValue placeholder="Selecione" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="days" className="text-xs">Dias</SelectItem>
-                  <SelectItem value="weeks" className="text-xs">Semanas</SelectItem>
-                  <SelectItem value="months" className="text-xs">Meses</SelectItem>
+                  <SelectItem value="days" className="text-sm">Dias</SelectItem>
+                  <SelectItem value="weeks" className="text-sm">Semanas</SelectItem>
+                  <SelectItem value="months" className="text-sm">Meses</SelectItem>
                 </SelectContent>
               </Select>
             </div>
             <div className="space-y-1">
-              <Label className="text-[10px] uppercase font-bold text-gray-400">Duração</Label>
+              <Label className="text-sm uppercase font-bold text-gray-400">Duração</Label>
               <Input 
                 type="number" 
-                className="h-8 text-xs"
+                className="h-8 text-sm"
                 min={1} 
                 max={60}
                 value={currentSchedule.duration} 
@@ -644,57 +644,57 @@ export function ScheduleView({ services, resources, quotations, schedules, setSc
               />
             </div>
             <div className="space-y-1">
-              <Label className="text-[10px] uppercase font-bold text-gray-400">Distribuição</Label>
+              <Label className="text-sm uppercase font-bold text-gray-400">Distribuição</Label>
               <Select 
                 value={currentSchedule.distributionType} 
                 onValueChange={(v: 'quantity' | 'percentage') => updateSchedule({ distributionType: v })}
                 disabled={readonly}
               >
-                <SelectTrigger className="h-8 text-xs">
+                <SelectTrigger className="h-8 text-sm">
                   <SelectValue placeholder="Tipo" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="quantity" className="text-xs">Quantidade</SelectItem>
-                  <SelectItem value="percentage" className="text-xs">Percentual (%)</SelectItem>
+                  <SelectItem value="quantity" className="text-sm">Quantidade</SelectItem>
+                  <SelectItem value="percentage" className="text-sm">Percentual (%)</SelectItem>
                 </SelectContent>
               </Select>
             </div>
             <div className="space-y-1">
-              <Label className="text-[10px] uppercase font-bold text-gray-400">Visualizar</Label>
+              <Label className="text-sm uppercase font-bold text-gray-400">Visualizar</Label>
               <Select 
                 value={viewMode} 
                 onValueChange={(v: 'qty' | 'val' | 'perc' | 'all') => setViewMode(v)}
               >
-                <SelectTrigger className="h-8 text-xs">
+                <SelectTrigger className="h-8 text-sm">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="qty" className="text-xs">Quantidade</SelectItem>
-                  <SelectItem value="val" className="text-xs">Valores</SelectItem>
-                  <SelectItem value="perc" className="text-xs">Percentuais</SelectItem>
-                  <SelectItem value="all" className="text-xs">Tudo</SelectItem>
+                  <SelectItem value="qty" className="text-sm">Quantidade</SelectItem>
+                  <SelectItem value="val" className="text-sm">Valores</SelectItem>
+                  <SelectItem value="perc" className="text-sm">Percentuais</SelectItem>
+                  <SelectItem value="all" className="text-sm">Tudo</SelectItem>
                 </SelectContent>
               </Select>
             </div>
             <div className="space-y-1">
-              <Label className="text-[10px] uppercase font-bold text-gray-400">Zoom</Label>
+              <Label className="text-sm uppercase font-bold text-gray-400">Zoom</Label>
               <Select 
                 value={zoomLevel.toString()} 
                 onValueChange={(v) => setZoomLevel(parseFloat(v))}
               >
-                <SelectTrigger className="h-8 text-xs">
+                <SelectTrigger className="h-8 text-sm">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="0.5" className="text-xs">0.5x</SelectItem>
-                  <SelectItem value="1" className="text-xs">1x</SelectItem>
-                  <SelectItem value="2" className="text-xs">2x</SelectItem>
+                  <SelectItem value="0.5" className="text-sm">0.5x</SelectItem>
+                  <SelectItem value="1" className="text-sm">1x</SelectItem>
+                  <SelectItem value="2" className="text-sm">2x</SelectItem>
                 </SelectContent>
               </Select>
             </div>
             <div className="flex items-end">
               {!readonly && (
-                <Button variant="outline" size="sm" className="w-full h-8 text-[10px] uppercase font-bold border-red-100 text-red-600 hover:bg-red-50" onClick={() => {
+                <Button variant="outline" size="sm" className="w-full h-8 text-sm uppercase font-bold border-red-100 text-red-600 hover:bg-red-50" onClick={() => {
                   const confirmClear = window.confirm("Deseja limpar toda a distribuição deste cronograma?");
                   if (confirmClear) updateSchedule({ services: [] });
                 }}>
@@ -708,13 +708,13 @@ export function ScheduleView({ services, resources, quotations, schedules, setSc
 
       <Card className="overflow-hidden border-none shadow-none">
         <div className="max-h-[600px] overflow-auto relative border rounded-xl shadow-sm bg-white scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent">
-          <table className="w-full border-separate border-spacing-0 text-sm">
+          <table className="w-full border-separate border-spacing-0 text-base">
             <thead className="bg-gray-50 sticky top-0 z-40 border-b">
               {monthGroups.length > 0 && (
                 <TableRow className="bg-gray-50/80 backdrop-blur-sm hover:bg-transparent">
                   <TableHead colSpan={2} className="sticky left-0 top-0 bg-gray-50/90 backdrop-blur-sm z-50 shadow-[1px_0_0_0_rgba(0,0,0,0.1)] h-10 border-b" />
                   {monthGroups.map((group, gIdx) => (
-                    <TableHead key={gIdx} colSpan={group.duration} className="text-center font-bold text-[10px] uppercase text-blue-800 bg-blue-50/40 border-r border-b py-2 sticky top-0 shadow-sm">
+                    <TableHead key={gIdx} colSpan={group.duration} className="text-center font-bold text-sm uppercase text-blue-800 bg-blue-50/40 border-r border-b py-2 sticky top-0 shadow-sm">
                       {group.monthYear}
                     </TableHead>
                   ))}
@@ -722,13 +722,13 @@ export function ScheduleView({ services, resources, quotations, schedules, setSc
                 </TableRow>
               )}
               <TableRow className="bg-gray-50/90 backdrop-blur-sm h-10">
-                <TableHead className="w-[130px] min-w-[130px] max-w-[130px] sticky left-0 bg-gray-50/95 backdrop-blur-md z-50 shadow-[1px_0_0_0_rgba(0,0,0,0.1)] border-b py-1 font-bold text-gray-700 text-[10px]">Serviço</TableHead>
-                <TableHead className="min-w-[80px] text-right border-b sticky top-0 bg-gray-50 z-30 font-bold text-gray-600 px-2 text-[10px]">Total Planilha</TableHead>
+                <TableHead className="w-[130px] min-w-[130px] max-w-[130px] sticky left-0 bg-gray-50/95 backdrop-blur-md z-50 shadow-[1px_0_0_0_rgba(0,0,0,0.1)] border-b py-1 font-bold text-gray-700 text-sm">Serviço</TableHead>
+                <TableHead className="min-w-[80px] text-right border-b sticky top-0 bg-gray-50 z-30 font-bold text-gray-600 px-2 text-sm">Total Planilha</TableHead>
                 {periods.map(p => (
                   <TableHead key={p} className={cn("text-center border-l bg-gray-50/50 border-b sticky top-0 z-30 font-bold text-gray-600 px-1", zoomClasses)}>
                     <div className="flex flex-col gap-0.5">
                       {getPeriodLabel(p)}
-                      <div className="flex justify-center gap-1 text-[6px] uppercase text-blue-400 font-mono tracking-tighter">
+                      <div className="flex justify-center gap-1 text-[8px] uppercase text-blue-400 font-mono tracking-tighter">
                         {(viewMode === 'qty' || viewMode === 'all') && <span>Qtd</span>}
                         {viewMode === 'all' && <span>|</span>}
                         {(viewMode === 'val' || viewMode === 'all') && <span>Val</span>}
@@ -738,8 +738,8 @@ export function ScheduleView({ services, resources, quotations, schedules, setSc
                     </div>
                   </TableHead>
                 ))}
-                <TableHead className="min-w-[80px] text-right border-l bg-blue-50/50 border-b sticky top-0 z-30 font-bold text-blue-800 px-2 text-[10px]">Total Dist.</TableHead>
-                <TableHead className="min-w-[80px] text-right border-l border-b sticky top-0 bg-gray-50 z-30 font-bold text-gray-600 px-2 text-[10px]">Saldo</TableHead>
+                <TableHead className="min-w-[80px] text-right border-l bg-blue-50/50 border-b sticky top-0 z-30 font-bold text-blue-800 px-2 text-sm">Total Dist.</TableHead>
+                <TableHead className="min-w-[80px] text-right border-l border-b sticky top-0 bg-gray-50 z-30 font-bold text-gray-600 px-2 text-sm">Saldo</TableHead>
               </TableRow>
             </thead>
               <TableBody>
@@ -754,7 +754,7 @@ export function ScheduleView({ services, resources, quotations, schedules, setSc
                   <React.Fragment key={group.id}>
                     {/* Group Header */}
                     <TableRow className="bg-gray-100 hover:bg-gray-100 h-6">
-                      <TableCell colSpan={periods.length + 4} className="py-0.5 px-3 font-bold text-gray-700 text-[9px] uppercase tracking-wider">
+                      <TableCell colSpan={periods.length + 4} className="py-0.5 px-3 font-bold text-gray-700 text-xs uppercase tracking-wider">
                         {group.name}
                       </TableCell>
                     </TableRow>
@@ -776,7 +776,7 @@ export function ScheduleView({ services, resources, quotations, schedules, setSc
                     ))}
 
                     {/* Group Footer Totals */}
-                    <TableRow className="bg-slate-50 border-t font-semibold h-8 text-[9px]">
+                    <TableRow className="bg-slate-50 border-t font-semibold h-8 text-xs">
                       <TableCell className="sticky left-0 bg-slate-50 z-10 shadow-[1px_0_0_0_rgba(0,0,0,0.1)] uppercase py-1 font-bold">
                         TOTAL: {group.name}
                       </TableCell>
@@ -810,7 +810,7 @@ export function ScheduleView({ services, resources, quotations, schedules, setSc
                 ))}
                 
                 {/* Global Footer */}
-                <TableRow className="bg-slate-900 text-white font-bold h-9 text-[9px]">
+                <TableRow className="bg-slate-900 text-white font-bold h-9 text-xs">
                   <TableCell className="sticky left-0 bg-slate-900 z-10 shadow-[1px_0_0_0_rgba(255,255,255,0.1)] py-1 uppercase">TOTAL GERAL (FINANCEIRO)</TableCell>
                   <TableCell className="text-right font-mono px-2">
                     {formatCurrency(activeItems.reduce((acc, item) => {

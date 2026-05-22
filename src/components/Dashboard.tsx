@@ -93,7 +93,7 @@ export function Dashboard({
         </div>
         <div>
           <CardTitle className="text-xl font-black tracking-tight">{title}</CardTitle>
-          <CardDescription className="text-white/70 text-[10px] uppercase font-bold tracking-widest">Resumo do Setor</CardDescription>
+          <CardDescription className="text-white/70 text-sm uppercase font-bold tracking-widest">Resumo do Setor</CardDescription>
         </div>
       </CardHeader>
       <CardContent className="p-6">
@@ -112,7 +112,7 @@ export function Dashboard({
                 }
               }}
             >
-              <span className="text-sm font-bold text-gray-400 group-hover/item:text-gray-600 transition-colors uppercase tracking-tight">
+              <span className="text-base font-bold text-gray-400 group-hover/item:text-gray-600 transition-colors uppercase tracking-tight">
                 {m.label}
               </span>
               <span className={cn(
@@ -124,7 +124,7 @@ export function Dashboard({
             </div>
           ))}
         </div>
-        <div className="mt-8 pt-4 border-t border-gray-50 flex items-center justify-between text-xs font-bold text-gray-400 uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-all duration-500 transform translate-y-2 group-hover:translate-y-0 text-blue-600">
+        <div className="mt-8 pt-4 border-t border-gray-50 flex items-center justify-between text-sm font-bold text-gray-400 uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-all duration-500 transform translate-y-2 group-hover:translate-y-0 text-blue-600">
           Ver detalhes <ChevronRight className="w-4 h-4" />
         </div>
       </CardContent>

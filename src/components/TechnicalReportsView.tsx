@@ -302,7 +302,7 @@ export function TechnicalReportsView({
           </div>
           <div>
             <CardTitle className="text-2xl font-black">Central de Relatórios Técnicos</CardTitle>
-            <p className="text-blue-100 text-sm">Geração de documentos oficiais e planilhas de controle</p>
+            <p className="text-blue-100 text-base">Geração de documentos oficiais e planilhas de controle</p>
           </div>
         </div>
       </CardHeader>
@@ -310,7 +310,7 @@ export function TechnicalReportsView({
       <CardContent className="p-8">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
           <div className="space-y-2">
-            <Label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest pl-1">Seleção de Mês/Referência</Label>
+            <Label className="text-sm font-bold text-gray-400 uppercase tracking-widest pl-1">Seleção de Mês/Referência</Label>
             <Select value={selectedMonth} onValueChange={setSelectedMonth}>
               <SelectTrigger className="h-12 rounded-xl">
                 <SelectValue placeholder="Selecione o mês" />
@@ -324,7 +324,7 @@ export function TechnicalReportsView({
           </div>
           
           <div className="space-y-2">
-            <Label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest pl-1">Seleção de Medição</Label>
+            <Label className="text-sm font-bold text-gray-400 uppercase tracking-widest pl-1">Seleção de Medição</Label>
             <Select value={selectedMeasurementId} onValueChange={setSelectedMeasurementId}>
               <SelectTrigger className="h-12 rounded-xl">
                 <SelectValue placeholder="Selecione a medição" />
@@ -458,16 +458,16 @@ function ReportCard({ icon, title, description, onPdf, onExcel, accent }: {
         {icon}
       </div>
       <h4 className="font-bold text-gray-900 group-hover:text-blue-700 transition-colors">{title}</h4>
-      <p className="text-[11px] text-gray-500 mt-1 mb-6 flex-1 leading-relaxed">{description}</p>
+      <p className="text-sm text-gray-500 mt-1 mb-6 flex-1 leading-relaxed">{description}</p>
       
       <div className="flex gap-2">
         {onPdf && (
-          <Button size="sm" variant="outline" className="flex-1 rounded-lg h-9 text-xs gap-1.5" onClick={onPdf}>
+          <Button size="sm" variant="outline" className="flex-1 rounded-lg h-9 text-sm gap-1.5" onClick={onPdf}>
             <Download className="w-3.5 h-3.5" /> PDF
           </Button>
         )}
         {onExcel && (
-          <Button size="sm" variant="outline" className="flex-1 border-green-200 text-green-600 hover:bg-green-50 rounded-lg h-9 text-xs gap-1.5" onClick={onExcel}>
+          <Button size="sm" variant="outline" className="flex-1 border-green-200 text-green-600 hover:bg-green-50 rounded-lg h-9 text-sm gap-1.5" onClick={onExcel}>
             <FileSpreadsheet className="w-3.5 h-3.5" /> Excel
           </Button>
         )}

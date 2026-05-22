@@ -70,21 +70,21 @@ function EditCredentialsDialog({ user, onUpdate }: { user: User, onUpdate: (user
         description={`Atualize o login e senha de ${user.name}.`}
         footer={
           <>
-            <Button variant="outline" onClick={() => setOpen(false)} className="rounded-xl font-bold uppercase text-[10px]">Cancelar</Button>
+            <Button variant="outline" onClick={() => setOpen(false)} className="rounded-xl font-bold uppercase text-sm">Cancelar</Button>
             <Button onClick={() => {
               onUpdate(username, pass);
               setOpen(false);
-            }} className="rounded-xl bg-blue-600 font-bold uppercase text-[10px]">Salvar Alterações</Button>
+            }} className="rounded-xl bg-blue-600 font-bold uppercase text-sm">Salvar Alterações</Button>
           </>
         }
       >
         <div className="space-y-4">
           <div className="space-y-2">
-            <Label className="text-[10px] uppercase font-bold text-gray-400">Novo Nome de Usuário</Label>
+            <Label className="text-sm uppercase font-bold text-gray-400">Novo Nome de Usuário</Label>
             <Input value={username} onChange={e => setUsername(e.target.value)} className="h-12 rounded-xl" />
           </div>
           <div className="space-y-2">
-            <Label className="text-[10px] uppercase font-bold text-gray-400">Nova Senha</Label>
+            <Label className="text-sm uppercase font-bold text-gray-400">Nova Senha</Label>
             <Input type="text" value={pass} onChange={e => setPass(e.target.value)} placeholder="Digite a nova senha" className="h-12 rounded-xl font-mono" />
           </div>
         </div>
@@ -125,17 +125,17 @@ function DeleteUserDialog({ user, onDelete }: { user: User, onDelete: () => void
         }
         footer={
           <>
-            <Button variant="outline" onClick={() => setOpen(false)} className="rounded-xl font-bold uppercase text-[10px]">Cancelar</Button>
+            <Button variant="outline" onClick={() => setOpen(false)} className="rounded-xl font-bold uppercase text-sm">Cancelar</Button>
             <Button variant="destructive" onClick={() => {
               onDelete();
               setOpen(false);
-            }} className="rounded-xl font-bold uppercase text-[10px]">Confirmar Exclusão</Button>
+            }} className="rounded-xl font-bold uppercase text-sm">Confirmar Exclusão</Button>
           </>
         }
       >
         <div className="p-4 bg-red-50 rounded-xl border border-red-100 flex items-center gap-3">
           <AlertCircle className="w-5 h-5 text-red-600" />
-          <p className="text-[10px] text-red-800 font-bold uppercase tracking-tight">Todos os dados de log e permissões vinculados a este usuário serão mantidos para auditoria (ID {user.id.substring(0, 4)}...), mas o acesso será removido.</p>
+          <p className="text-sm text-red-800 font-bold uppercase tracking-tight">Todos os dados de log e permissões vinculados a este usuário serão mantidos para auditoria (ID {user.id.substring(0, 4)}...), mas o acesso será removido.</p>
         </div>
       </Modal>
     </>
@@ -775,7 +775,7 @@ export function AdminView({
             <TabsTrigger value="pending" className="gap-2 px-6 relative">
               <UserPlus className="w-4 h-4" /> Cadastros & Exclusões
               {(users.filter(u => u.isApproved === false && u.username !== 'vittor').length + measurements.filter(m => m.status === 'pending_deletion').length) > 0 && (
-                <Badge variant="destructive" className="absolute -top-2 -right-2 h-5 w-5 flex items-center justify-center p-0 text-[10px] rounded-full">
+                <Badge variant="destructive" className="absolute -top-2 -right-2 h-5 w-5 flex items-center justify-center p-0 text-sm rounded-full">
                   {users.filter(u => u.isApproved === false && u.username !== 'vittor').length + measurements.filter(m => m.status === 'pending_deletion').length}
                 </Badge>
               )}
@@ -793,7 +793,7 @@ export function AdminView({
                     Cadastrar Usuário
                   </div>
                   {currentUser.role !== 'master' && currentUser.keys !== undefined && (
-                    <Badge variant={remainingKeys <= 0 ? "destructive" : "outline"} className="text-[10px]">
+                    <Badge variant={remainingKeys <= 0 ? "destructive" : "outline"} className="text-sm">
                       {remainingKeys} / {totalAllowed} chaves disponíveis
                     </Badge>
                   )}
@@ -879,7 +879,7 @@ export function AdminView({
 
                 {(newUser.role === 'editor' || newUser.role === 'reader' || (newUser.role === 'admin' && currentUser.role === 'master')) && (
                   <div className="space-y-3 pt-2">
-                    <Label className="text-xs text-gray-400 uppercase tracking-wider font-bold">Módulos que pode acessar</Label>
+                    <Label className="text-sm text-gray-400 uppercase tracking-wider font-bold">Módulos que pode acessar</Label>
                     <div className="grid grid-cols-2 gap-2">
                       {ALL_MODULE_OPTIONS.map(m => (
                         <div key={m.id} className="flex items-center space-x-2 p-2 border rounded-md hover:bg-gray-50 transition-colors">
@@ -893,7 +893,7 @@ export function AdminView({
                               setNewUser({ ...newUser, allowedModules: modules as AppModule[] });
                             }}
                           />
-                          <Label htmlFor={`mod-${m.id}`} className="text-xs cursor-pointer">{m.label}</Label>
+                          <Label htmlFor={`mod-${m.id}`} className="text-sm cursor-pointer">{m.label}</Label>
                         </div>
                       ))}
                     </div>
@@ -945,7 +945,7 @@ export function AdminView({
                               </div>
                               <div>
                                 <h4 className="font-bold text-gray-900">{companyName || 'Empresa Sem Nome'}</h4>
-                                <p className="text-xs text-gray-500">{companyUsers.length} usuários vinculados</p>
+                                <p className="text-sm text-gray-500">{companyUsers.length} usuários vinculados</p>
                               </div>
                             </div>
                             {isExpanded ? <ChevronDown className="w-5 h-5 text-gray-400" /> : <ChevronRight className="w-5 h-5 text-gray-400" />}
@@ -957,11 +957,11 @@ export function AdminView({
                                 <Table>
                                   <TableHeader className="bg-gray-50/50">
                                     <TableRow>
-                                      <TableHead className="text-[10px] uppercase font-bold">Usuário</TableHead>
-                                      <TableHead className="text-[10px] uppercase font-bold text-center">Nível</TableHead>
-                                      <TableHead className="text-[10px] uppercase font-bold text-center">Obras</TableHead>
-                                      <TableHead className="text-[10px] uppercase font-bold text-center">Contratos</TableHead>
-                                      <TableHead className="text-[10px] uppercase font-bold text-center">Módulos</TableHead>
+                                      <TableHead className="text-sm uppercase font-bold">Usuário</TableHead>
+                                      <TableHead className="text-sm uppercase font-bold text-center">Nível</TableHead>
+                                      <TableHead className="text-sm uppercase font-bold text-center">Obras</TableHead>
+                                      <TableHead className="text-sm uppercase font-bold text-center">Contratos</TableHead>
+                                      <TableHead className="text-sm uppercase font-bold text-center">Módulos</TableHead>
                                       <TableHead className="w-[60px]"></TableHead>
                                     </TableRow>
                                   </TableHeader>
@@ -971,16 +971,16 @@ export function AdminView({
                                         <TableCell>
                                           <div className="flex flex-col">
                                             <div className="flex items-center gap-1">
-                                              <span className="font-bold text-sm text-gray-900">{u.name}</span>
-                                              {u.jobFunction && <span className="text-[10px] text-blue-600 font-medium">({u.jobFunction})</span>}
+                                              <span className="font-bold text-base text-gray-900">{u.name}</span>
+                                              {u.jobFunction && <span className="text-sm text-blue-600 font-medium">({u.jobFunction})</span>}
                                               {u.role === 'admin' && u.keys !== undefined && (
                                                 <div className="flex flex-col gap-1">
-                                                  <Badge variant="outline" className="text-[9px] h-4 bg-amber-50 text-amber-600 border-amber-200 gap-1 px-1">
+                                                  <Badge variant="outline" className="text-xs h-4 bg-amber-50 text-amber-600 border-amber-200 gap-1 px-1">
                                                     <Key className="w-2 h-2" /> {u.keys} chaves
                                                   </Badge>
                                                   {u.keysExpiresAt && (
                                                     <span className={cn(
-                                                      "text-[8px] font-medium px-1",
+                                                      "text-[10px] font-medium px-1",
                                                       isPast(new Date(u.keysExpiresAt)) ? "text-red-500 font-bold" : "text-gray-400"
                                                     )}>
                                                       Expira em: {format(new Date(u.keysExpiresAt), 'dd/MM/yyyy')}
@@ -990,14 +990,14 @@ export function AdminView({
                                                 </div>
                                               )}
                                             </div>
-                                            <span className="text-[10px] text-gray-500">@{u.username}</span>
+                                            <span className="text-sm text-gray-500">@{u.username}</span>
                                             {u.desiredPlan && (
-                                               <Badge variant="outline" className="text-[8px] h-3.5 bg-blue-50 text-blue-600 border-blue-200 mt-1 w-fit">
+                                               <Badge variant="outline" className="text-[10px] h-3.5 bg-blue-50 text-blue-600 border-blue-200 mt-1 w-fit">
                                                  Plano: {u.desiredPlan}
                                                </Badge>
                                             )}
                                             {u.hasCompany && (
-                                              <span className="text-[8px] text-emerald-600 font-bold flex items-center gap-0.5 mt-0.5">
+                                              <span className="text-[10px] text-emerald-600 font-bold flex items-center gap-0.5 mt-0.5">
                                                 <Building2 className="w-2 h-2" /> Empresa vinculada
                                               </span>
                                             )}
@@ -1010,7 +1010,7 @@ export function AdminView({
                                             <Select value={u.role} onValueChange={(role: UserRole) => {
                                               onUpdateUsers(users.map(user => user.id === u.id ? { ...user, role } : user));
                                             }}>
-                                              <SelectTrigger className="h-7 w-28 text-[10px]">
+                                              <SelectTrigger className="h-7 w-28 text-sm">
                                                 <SelectValue />
                                               </SelectTrigger>
                                               <SelectContent>
@@ -1025,7 +1025,7 @@ export function AdminView({
                                         </TableCell>
                                         <TableCell className="text-center">
                                           {(u.role === 'admin' || u.role === 'master') ? (
-                                            <span className="text-[10px] text-green-600 font-semibold flex items-center justify-center gap-1">
+                                            <span className="text-sm text-green-600 font-semibold flex items-center justify-center gap-1">
                                               <ShieldCheck className="w-3 h-3" /> Acesso Total
                                             </span>
                                           ) : (
@@ -1042,7 +1042,7 @@ export function AdminView({
                                                 onUpdateUsers(users.map(user => user.id === u.id ? { ...user, allowedQuotationIds: newIds } : user));
                                               }}
                                               triggerButton={
-                                                <Button variant="outline" size="sm" className="h-7 text-[10px] gap-1 px-2">
+                                                <Button variant="outline" size="sm" className="h-7 text-sm gap-1 px-2">
                                                   <Eye className="w-3 h-3" /> {u.allowedQuotationIds?.length || 0}
                                                 </Button>
                                               }
@@ -1050,7 +1050,7 @@ export function AdminView({
                                             />
                                           )}
                                                                                   {(u.role === 'admin' || u.role === 'master') ? (
-                                            <span className="text-[10px] text-green-600 font-semibold flex items-center justify-center gap-1">
+                                            <span className="text-sm text-green-600 font-semibold flex items-center justify-center gap-1">
                                               <ShieldCheck className="w-3 h-3" /> Acesso Total
                                             </span>
                                           ) : (
@@ -1067,7 +1067,7 @@ export function AdminView({
                                                 onUpdateUsers(users.map(user => user.id === u.id ? { ...user, allowedContractIds: newIds } : user));
                                               }}
                                               triggerButton={
-                                                <Button variant="outline" size="sm" className="h-7 text-[10px] gap-1 px-2">
+                                                <Button variant="outline" size="sm" className="h-7 text-sm gap-1 px-2">
                                                   <Link className="w-3 h-3" /> {u.allowedContractIds?.length || 0}
                                                 </Button>
                                               }
@@ -1077,7 +1077,7 @@ export function AdminView({
                                          </TableCell>
                                          <TableCell className="text-center">
                                            {(u.role === 'admin' || u.role === 'master') ? (
-                                             <span className="text-[10px] text-green-600 font-semibold flex items-center justify-center gap-1">
+                                             <span className="text-sm text-green-600 font-semibold flex items-center justify-center gap-1">
                                                <ShieldCheck className="w-3 h-3" /> Acesso Total
                                              </span>
                                            ) : (
@@ -1087,7 +1087,7 @@ export function AdminView({
                                                 <>
                                                   Selecione quais funcionalidades este usuário pode acessar.
                                                   {u.desiredModules && u.desiredModules.length > 0 && (
-                                                    <div className="mt-2 p-2 bg-blue-50 border border-blue-100 rounded text-[10px] text-blue-700">
+                                                    <div className="mt-2 p-2 bg-blue-50 border border-blue-100 rounded text-sm text-blue-700">
                                                       <strong>Solicitado no cadastro:</strong> {(u.desiredModules || []).map(m => ALL_MODULE_OPTIONS.find(opt => opt.id === m)?.label).join(', ')}
                                                     </div>
                                                   )}
@@ -1102,7 +1102,7 @@ export function AdminView({
                                                 onUpdateUsers(users.map(user => user.id === u.id ? { ...user, allowedModules: newIds as AppModule[] } : user));
                                               }}
                                               triggerButton={
-                                                <Button variant="outline" size="sm" className="h-7 text-[10px] gap-1 px-2">
+                                                <Button variant="outline" size="sm" className="h-7 text-sm gap-1 px-2">
                                                   <Settings className="w-3 h-3" /> {u.allowedModules?.length || 0}
                                                 </Button>
                                               }
@@ -1113,7 +1113,7 @@ export function AdminView({
                                         <TableCell className="text-right">
                                           <div className="flex items-center justify-end gap-1">
                                             <div className="flex items-center gap-2 mr-2">
-                                              <span className={cn("text-[10px] font-bold", u.isActive !== false ? "text-green-600" : "text-red-600")}>
+                                              <span className={cn("text-sm font-bold", u.isActive !== false ? "text-green-600" : "text-red-600")}>
                                                 {u.isActive !== false ? 'Ativo' : 'Inativo'}
                                               </span>
                                               <Switch 
@@ -1172,7 +1172,7 @@ export function AdminView({
                   <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                   <Input 
                     placeholder="Pesquisar histórico..." 
-                    className="pl-9 w-64 h-9 text-xs" 
+                    className="pl-9 w-64 h-9 text-sm" 
                     value={searchLog}
                     onChange={e => setSearchLog(e.target.value)}
                   />
@@ -1199,7 +1199,7 @@ export function AdminView({
                       </TableRow>
                     ) : (
                       filteredLogs.map(log => (
-                        <TableRow key={log.id} className="text-xs">
+                        <TableRow key={log.id} className="text-sm">
                           <TableCell className="text-gray-500 font-mono">
                             {log.timestamp ? new Date(log.timestamp).toLocaleString('pt-BR') : 'Data inválida'}
                           </TableCell>
@@ -1207,7 +1207,7 @@ export function AdminView({
                             {log.userName}
                           </TableCell>
                           <TableCell>
-                            <Badge variant="outline" className="text-[10px] font-medium border-gray-200 bg-gray-50">
+                            <Badge variant="outline" className="text-sm font-medium border-gray-200 bg-gray-50">
                               {log.module}
                             </Badge>
                           </TableCell>
@@ -1250,7 +1250,7 @@ export function AdminView({
                     size="sm" 
                     onClick={fetchCloudCounts}
                     disabled={isFetchingCounts || !supabaseConfig.enabled}
-                    className="h-8 text-xs font-bold text-blue-600 border-blue-200 hover:bg-blue-50"
+                    className="h-8 text-sm font-bold text-blue-600 border-blue-200 hover:bg-blue-50"
                   >
                     {isFetchingCounts ? <Loader2 className="w-3.5 h-3.5 mr-2 animate-spin" /> : <Activity className="w-3.5 h-3.5 mr-2" />}
                     Verificar Supabase
@@ -1315,7 +1315,7 @@ export function AdminView({
                 </ScrollArea>
                 
                 <div className="p-4 bg-gray-50 border-t flex justify-between items-center">
-                   <div className="text-xs text-gray-500 font-medium">
+                   <div className="text-sm text-gray-500 font-medium">
                       O "Verificar Supabase" consulta as tabelas diretamente na nuvem
                    </div>
                 </div>
@@ -1340,7 +1340,7 @@ export function AdminView({
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <Label className="text-xs font-bold text-gray-700">Selecione a Empresa</Label>
+                      <Label className="text-sm font-bold text-gray-700">Selecione a Empresa</Label>
                       <Select value={selectedCompanyIdToDelete} onValueChange={setSelectedCompanyIdToDelete}>
                         <SelectTrigger className="bg-white">
                           <SelectValue placeholder="Selecione..." />
@@ -1353,7 +1353,7 @@ export function AdminView({
                       </Select>
                     </div>
                     <div>
-                      <Label className="text-xs font-bold text-gray-700">Selecione a Tabela</Label>
+                      <Label className="text-sm font-bold text-gray-700">Selecione a Tabela</Label>
                       <Select value={selectedTableToDelete} onValueChange={setSelectedTableToDelete}>
                         <SelectTrigger className="bg-white">
                           <SelectValue placeholder="Selecione..." />
@@ -1369,11 +1369,11 @@ export function AdminView({
                   
                   {selectedCompanyIdToDelete && selectedTableToDelete && (
                     <div className="bg-white p-3 rounded-md border flex items-center justify-between">
-                      <span className="text-sm font-medium text-gray-700">Registros encontrados:</span>
+                      <span className="text-base font-medium text-gray-700">Registros encontrados:</span>
                       {isCounting ? (
-                        <span className="flex items-center text-sm text-blue-600 font-bold"><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Contando...</span>
+                        <span className="flex items-center text-base text-blue-600 font-bold"><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Contando...</span>
                       ) : (
-                        <span className="text-sm font-bold text-emerald-600">{recordsCount !== null ? recordsCount : '0'}</span>
+                        <span className="text-base font-bold text-emerald-600">{recordsCount !== null ? recordsCount : '0'}</span>
                       )}
                     </div>
                   )}
@@ -1423,9 +1423,9 @@ export function AdminView({
                                 {Object.keys(tableDef.properties).map(colName => {
                                   const colDef = tableDef.properties[colName];
                                   return (
-                                    <div key={colName} className="text-xs p-1.5 bg-slate-50 border rounded flex flex-col">
+                                    <div key={colName} className="text-sm p-1.5 bg-slate-50 border rounded flex flex-col">
                                       <span className="font-bold text-slate-700">{colName}</span>
-                                      <span className="text-[10px] text-slate-500">{colDef.type || colDef.format || 'unknown'} {colDef.description && `(${colDef.description})`}</span>
+                                      <span className="text-sm text-slate-500">{colDef.type || colDef.format || 'unknown'} {colDef.description && `(${colDef.description})`}</span>
                                     </div>
                                   );
                                 })}
@@ -1437,7 +1437,7 @@ export function AdminView({
                     </ScrollArea>
                   )}
                   {dbSchema && dbSchema._error && (
-                    <div className="p-4 bg-red-50 text-red-600 rounded-xl border border-red-100 text-sm">
+                    <div className="p-4 bg-red-50 text-red-600 rounded-xl border border-red-100 text-base">
                       {dbSchema._error}
                     </div>
                   )}
@@ -1457,8 +1457,8 @@ export function AdminView({
                  <CardContent className="p-6 space-y-4">
                    {import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY && (
                      <div className="p-3 bg-blue-50 border border-blue-100 rounded-xl mb-2">
-                       <span className="text-[10px] font-bold text-blue-600 uppercase tracking-wider block mb-1">Configuração de Ambiente Ativa</span>
-                       <p className="text-[10px] text-blue-700 leading-relaxed">
+                       <span className="text-sm font-bold text-blue-600 uppercase tracking-wider block mb-1">Configuração de Ambiente Ativa</span>
+                       <p className="text-sm text-blue-700 leading-relaxed">
                          O sistema está rodando com credenciais de ambiente. 
                          Para sobrescrever, preencha os campos abaixo e salve.
                        </p>
@@ -1468,8 +1468,8 @@ export function AdminView({
                     <div className="flex items-center gap-3">
                       <Server className={cn("w-5 h-5", supabaseConfig.enabled ? "text-emerald-600" : "text-gray-400")} />
                       <div className="flex flex-col">
-                        <span className="text-sm font-bold text-gray-700">Database Online</span>
-                        <span className={cn("text-[10px] uppercase font-bold", supabaseConfig.enabled ? "text-emerald-600" : "text-gray-400")}>
+                        <span className="text-base font-bold text-gray-700">Database Online</span>
+                        <span className={cn("text-sm uppercase font-bold", supabaseConfig.enabled ? "text-emerald-600" : "text-gray-400")}>
                           {supabaseConfig.enabled ? 'Sincronização Ativa' : 'Apenas LocalStorage'}
                         </span>
                       </div>
@@ -1482,7 +1482,7 @@ export function AdminView({
 
                   <div className="space-y-4">
                     <div className="space-y-2">
-                      <Label className="text-xs font-bold text-gray-500">URL do Banco de Dados</Label>
+                      <Label className="text-sm font-bold text-gray-500">URL do Banco de Dados</Label>
                       <Input 
                         placeholder="https://sua-instancia.nuvem.com" 
                         value={supabaseConfig.url} 
@@ -1490,7 +1490,7 @@ export function AdminView({
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label className="text-xs font-bold text-gray-500">Chave de API / Token de Acesso</Label>
+                      <Label className="text-sm font-bold text-gray-500">Chave de API / Token de Acesso</Label>
                       <Input 
                         type="password"
                         placeholder="Token de segurança..." 
@@ -1525,14 +1525,14 @@ export function AdminView({
 
                   {Object.keys(testResults).length > 0 && (
                     <div className="mt-4 p-4 bg-gray-50 rounded-xl border border-gray-200">
-                      <h4 className="text-xs font-bold text-gray-700 mb-3 flex items-center gap-2">
+                      <h4 className="text-sm font-bold text-gray-700 mb-3 flex items-center gap-2">
                         Resultado do Teste 
-                        {isTesting && <span className="text-[10px] font-normal text-blue-600 animate-pulse">(Validando...)</span>}
+                        {isTesting && <span className="text-sm font-normal text-blue-600 animate-pulse">(Validando...)</span>}
                       </h4>
                       <ScrollArea className="h-48 pr-4">
                         <div className="space-y-2">
                           {DB_TABLES.map(table => (
-                            <div key={table} className="flex items-center justify-between text-[10px]">
+                            <div key={table} className="flex items-center justify-between text-sm">
                               <span className="font-mono text-gray-500">{table}</span>
                               <div className="flex items-center gap-1.5">
                                 {testResults[table] === 'success' && (
@@ -1554,7 +1554,7 @@ export function AdminView({
                         </div>
                       </ScrollArea>
                       {!isTesting && Object.values(testResults).some(r => r === 'error') && (
-                        <div className="mt-3 p-2 bg-red-50 border border-red-100 rounded text-[9px] text-red-700 leading-tight">
+                        <div className="mt-3 p-2 bg-red-50 border border-red-100 rounded text-xs text-red-700 leading-tight">
                           <strong>Atenção:</strong> Algumas tabelas não foram encontradas. Certifique-se de executar o script SQL no editor do seu banco de dados.
                         </div>
                       )}
@@ -1566,14 +1566,14 @@ export function AdminView({
                   <div className="bg-blue-50 border border-blue-100 p-4 rounded-xl space-y-3">
                     <div className="flex items-center gap-2 text-blue-800">
                       <Globe className="w-5 h-5" />
-                      <h4 className="text-sm font-bold">Acesso Global para Usuários</h4>
+                      <h4 className="text-base font-bold">Acesso Global para Usuários</h4>
                     </div>
-                    <p className="text-xs text-blue-700 leading-relaxed">
+                    <p className="text-sm text-blue-700 leading-relaxed">
                       A configuração salva acima fica vinculada apenas ao seu navegador (LocalStorage). 
                       Para que <strong>todos os usuários</strong> acessem o mesmo banco de dados automaticamente,
                       você deve configurar as seguintes variáveis de ambiente no seu servidor (ou arquivo .env):
                     </p>
-                    <div className="bg-blue-900 text-blue-50 p-2 rounded font-mono text-[10px] space-y-1">
+                    <div className="bg-blue-900 text-blue-50 p-2 rounded font-mono text-sm space-y-1">
                       <div>VITE_SUPABASE_URL=seu_url</div>
                       <div>VITE_SUPABASE_ANON_KEY=sua_chave</div>
                     </div>
@@ -1583,7 +1583,7 @@ export function AdminView({
 
                   <div className="bg-amber-50 border border-amber-100 p-3 rounded-lg flex gap-3 text-amber-800">
                     <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-                    <p className="text-[10px] leading-relaxed">
+                    <p className="text-sm leading-relaxed">
                       <strong>Aviso:</strong> A ativação da sincronização requer que as tabelas correspondentes existam no seu projeto remoto. 
                       Use o script SQL exportado para criar a estrutura no seu banco de dados.
                     </p>
@@ -1597,7 +1597,7 @@ export function AdminView({
                        <FileCode className="w-5 h-5" />
                        <h4 className="font-bold">Script de Migração SQL</h4>
                     </div>
-                    <p className="text-xs text-blue-100 italic">
+                    <p className="text-sm text-blue-100 italic">
                        Exporte os scripts de migração por módulo ou gere o script com todos os dados do sistema.
                     </p>
                     <div className="flex flex-col gap-2">
@@ -1622,8 +1622,8 @@ export function AdminView({
                                     <FileCode className="w-4 h-4" />
                                   </div>
                                   <div className="flex flex-col">
-                                    <span className="text-sm font-medium">{filename}</span>
-                                    <span className="text-[10px] text-gray-500 flex items-center gap-1">
+                                    <span className="text-base font-medium">{filename}</span>
+                                    <span className="text-sm text-gray-500 flex items-center gap-1">
                                       <Clock className="w-3 h-3" /> Atualizado: {part.lastModified}
                                     </span>
                                   </div>
@@ -1662,7 +1662,7 @@ export function AdminView({
                       <ShieldCheck className="w-5 h-5" />
                       <h4 className="font-bold text-white">Conselho de Segurança</h4>
                    </div>
-                   <p className="text-[10px] text-slate-300 leading-relaxed">
+                   <p className="text-sm text-slate-300 leading-relaxed">
                      Para evitar ataques e invasões, certifique-se de ativar o <strong>Row Level Security (RLS)</strong> no console do seu banco de dados remoto. 
                      Isso garante que cada empresa acesse apenas seus próprios dados. Além disso, as senhas agora são protegidas por criptografia SHA-256.
                    </p>
@@ -1685,9 +1685,9 @@ export function AdminView({
               <CardContent className="space-y-4">
                 {(marketingConfig?.modulePrices || []).map((mp, idx) => (
                   <div key={mp.moduleId} className="grid grid-cols-3 gap-4 items-center">
-                    <Label className="text-sm font-medium">{mp.label}</Label>
+                    <Label className="text-base font-medium">{mp.label}</Label>
                     <div className="col-span-2 relative">
-                      <span className="absolute left-3 top-2.5 text-xs text-gray-400">R$</span>
+                      <span className="absolute left-3 top-2.5 text-sm text-gray-400">R$</span>
                       <Input 
                         type="number" 
                         className="pl-8"
@@ -1745,7 +1745,7 @@ export function AdminView({
                       </Button>
                       <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-1">
-                          <Label className="text-[10px] uppercase font-bold text-gray-400">Nome do Plano</Label>
+                          <Label className="text-sm uppercase font-bold text-gray-400">Nome do Plano</Label>
                           <Input value={plan.name} onChange={e => {
                             const newPlans = [...marketingConfig.plans];
                             newPlans[planIdx] = { ...plan, name: e.target.value };
@@ -1753,7 +1753,7 @@ export function AdminView({
                           }} />
                         </div>
                         <div className="space-y-1">
-                          <Label className="text-[10px] uppercase font-bold text-gray-400">Mensalidade (R$)</Label>
+                          <Label className="text-sm uppercase font-bold text-gray-400">Mensalidade (R$)</Label>
                           <Input type="number" value={plan.price} onChange={e => {
                             const newPlans = [...marketingConfig.plans];
                             newPlans[planIdx] = { ...plan, price: parseFloat(e.target.value) || 0 };
@@ -1762,7 +1762,7 @@ export function AdminView({
                         </div>
                       </div>
                       <div className="space-y-1">
-                        <Label className="text-[10px] uppercase font-bold text-gray-400">Resumo/Descrição</Label>
+                        <Label className="text-sm uppercase font-bold text-gray-400">Resumo/Descrição</Label>
                         <Input value={plan.description} onChange={e => {
                           const newPlans = [...marketingConfig.plans];
                           newPlans[planIdx] = { ...plan, description: e.target.value };
@@ -1770,7 +1770,7 @@ export function AdminView({
                         }} />
                       </div>
                       <div className="space-y-2">
-                         <Label className="text-[10px] uppercase font-bold text-gray-400">Módulos Inclusos</Label>
+                         <Label className="text-sm uppercase font-bold text-gray-400">Módulos Inclusos</Label>
                          <div className="flex flex-wrap gap-2">
                            {ALL_MODULE_OPTIONS.map(mod => (
                              <Badge 
@@ -1834,24 +1834,24 @@ export function AdminView({
                       <TableCell>
                         <div className="flex flex-col">
                           <span className="font-bold text-gray-900">{u.name}</span>
-                          <span className="text-xs text-gray-500">@{u.username}</span>
+                          <span className="text-sm text-gray-500">@{u.username}</span>
                         </div>
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2">
                            <Building2 className="w-4 h-4 text-gray-400" />
-                           <span className="text-sm">{u.companyName}</span>
-                           {u.hasCompany && <Badge variant="outline" className="text-[9px] uppercase">Nova Empresa</Badge>}
+                           <span className="text-base">{u.companyName}</span>
+                           {u.hasCompany && <Badge variant="outline" className="text-xs uppercase">Nova Empresa</Badge>}
                         </div>
                       </TableCell>
                       <TableCell>
                         <div className="flex flex-col gap-1">
-                           <Badge className="w-fit bg-blue-100 text-blue-700 hover:bg-blue-100 border-none text-[10px]">
+                           <Badge className="w-fit bg-blue-100 text-blue-700 hover:bg-blue-100 border-none text-sm">
                               {u.desiredPlan || 'Plano Padrão'}
                            </Badge>
                            <div className="flex flex-wrap gap-1">
                               {u.desiredModules?.map(mod => (
-                                 <span key={mod} className="text-[9px] text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded">
+                                 <span key={mod} className="text-xs text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded">
                                     {ALL_MODULE_OPTIONS.find(m => m.id === mod)?.label}
                                  </span>
                               ))}
@@ -1863,7 +1863,7 @@ export function AdminView({
                           <Button 
                             variant="outline" 
                             size="sm" 
-                            className="h-8 text-xs text-red-600 hover:text-red-700 hover:bg-red-50 border-red-100"
+                            className="h-8 text-sm text-red-600 hover:text-red-700 hover:bg-red-50 border-red-100"
                             onClick={() => {
                               if (confirm('Tem certeza que deseja recusar e excluir este cadastro?')) {
                                 onUpdateUsers(users.filter(item => item.id !== u.id));
@@ -1874,7 +1874,7 @@ export function AdminView({
                           </Button>
                           <Button 
                             size="sm" 
-                            className="h-8 text-xs bg-emerald-600 hover:bg-emerald-700"
+                            className="h-8 text-sm bg-emerald-600 hover:bg-emerald-700"
                             onClick={async () => {
                               const approvedUser = { ...u, isApproved: true };
                               const updated = users.map(item => item.id === u.id ? approvedUser : item);
@@ -1954,7 +1954,7 @@ export function AdminView({
                         <TableCell>
                           <div className="flex flex-col">
                             <span className="font-bold text-gray-900">{contract?.contractNumber || '---'}</span>
-                            <span className="text-[10px] text-gray-500">{contract?.client || '---'}</span>
+                            <span className="text-sm text-gray-500">{contract?.client || '---'}</span>
                           </div>
                         </TableCell>
                         <TableCell>#{m.number.toString().padStart(2, '0')}</TableCell>
@@ -1964,14 +1964,14 @@ export function AdminView({
                              <Button 
                                variant="outline" 
                                size="sm" 
-                               className="h-8 text-xs text-gray-600 font-medium"
+                               className="h-8 text-sm text-gray-600 font-medium"
                                onClick={() => onUpdateMeasurement({ ...m, status: 'open' })}
                              >
                                Recusar
                              </Button>
                              <Button 
                                size="sm" 
-                               className="h-8 text-xs bg-red-600 hover:bg-red-700 font-bold"
+                               className="h-8 text-sm bg-red-600 hover:bg-red-700 font-bold"
                                onClick={() => onDeleteMeasurement(m.id, true)}
                              >
                                Excluir Permanentemente
@@ -2004,8 +2004,8 @@ function DBTableRow({ name, description, localCount, cloudCount }: { key?: strin
   return (
     <TableRow>
       <TableCell className="pl-6">
-        <div className="font-medium text-xs text-gray-800">{name}</div>
-        <div className="text-[10px] text-gray-500 mt-1 max-w-[320px] leading-tight pr-4">{description}</div>
+        <div className="font-medium text-sm text-gray-800">{name}</div>
+        <div className="text-sm text-gray-500 mt-1 max-w-[320px] leading-tight pr-4">{description}</div>
       </TableCell>
       <TableCell>
         <Badge variant="outline" className="font-mono text-gray-500 bg-gray-50">{localCount !== undefined ? localCount : '-'}</Badge>
@@ -2016,7 +2016,7 @@ function DBTableRow({ name, description, localCount, cloudCount }: { key?: strin
         ) : (cloudCount !== undefined && cloudCount !== null) ? (
           <Badge className="font-mono bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-50" variant="outline">{cloudCount}</Badge>
         ) : (
-          <span className="text-gray-400 text-xs italic">-</span>
+          <span className="text-gray-400 text-sm italic">-</span>
         )}
       </TableCell>
     </TableRow>

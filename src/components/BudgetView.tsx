@@ -156,7 +156,7 @@ export function BudgetView({
           <h3 className="text-2xl font-bold tracking-tight">Planilha de Orçamento</h3>
           <div className="grid grid-cols-2 gap-4 mt-4">
             <div className="space-y-1">
-              <Label className="text-xs uppercase text-gray-400">Nome da Planilha</Label>
+              <Label className="text-sm uppercase text-gray-400">Nome da Planilha</Label>
               <Input 
                 placeholder="Ex: Obra de Pavimentação - Lote 1" 
                 value={budgetName}
@@ -165,7 +165,7 @@ export function BudgetView({
               />
             </div>
             <div className="space-y-1">
-              <Label className="text-xs uppercase text-gray-400">Órgão / Cliente</Label>
+              <Label className="text-sm uppercase text-gray-400">Órgão / Cliente</Label>
               <Input 
                 placeholder="Ex: Prefeitura Municipal" 
                 value={organization}
@@ -208,13 +208,13 @@ export function BudgetView({
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="p-3 bg-gray-50 rounded-lg border border-dashed border-gray-300">
-                <Label className="text-xs font-bold uppercase text-gray-500 mb-2 block">Criar Novo Grupo</Label>
+                <Label className="text-sm font-bold uppercase text-gray-500 mb-2 block">Criar Novo Grupo</Label>
                 <div className="flex gap-2">
                   <Input 
                     placeholder="Nome do grupo (ex: Drenagem)" 
                     value={newGroupName}
                     onChange={e => setNewGroupName(e.target.value)}
-                    className="h-8 text-xs"
+                    className="h-8 text-sm"
                   />
                   <Button size="sm" className="h-8" onClick={addGroup}>
                     <Plus className="w-3 h-3" />
@@ -239,18 +239,18 @@ export function BudgetView({
                       >
                         <div className="flex justify-between items-start">
                           <div className="overflow-hidden">
-                            <p className="text-xs font-bold text-blue-600">{s.code}</p>
-                            <p className="text-sm font-medium truncate">{s.name}</p>
-                            <p className="text-xs text-gray-400">{s.unit}</p>
+                            <p className="text-sm font-bold text-blue-600">{s.code}</p>
+                            <p className="text-base font-medium truncate">{s.name}</p>
+                            <p className="text-sm text-gray-400">{s.unit}</p>
                           </div>
-                          {isAdded && <Badge variant="secondary" className="bg-blue-100 text-blue-700 text-[10px]">Adicionado</Badge>}
+                          {isAdded && <Badge variant="secondary" className="bg-blue-100 text-blue-700 text-sm">Adicionado</Badge>}
                         </div>
                         
                         <div className="flex flex-wrap gap-1 mt-1">
                           <Button 
                             size="sm" 
                             variant="outline" 
-                            className="h-6 text-[10px] px-2"
+                            className="h-6 text-sm px-2"
                             onClick={() => addServiceToGroup(s.id, null)}
                             disabled={isInMain}
                           >
@@ -261,7 +261,7 @@ export function BudgetView({
                               key={g.id}
                               size="sm" 
                               variant="outline" 
-                              className="h-6 text-[10px] px-2"
+                              className="h-6 text-sm px-2"
                               onClick={() => addServiceToGroup(s.id, g.id)}
                               disabled={g.services.some(item => item.serviceId === s.id)}
                             >
@@ -287,7 +287,7 @@ export function BudgetView({
                 <CardDescription>Informe as quantidades para cada serviço.</CardDescription>
               </div>
               <div className="text-right">
-                <p className="text-xs text-gray-500 uppercase font-bold tracking-wider">Total Estimado</p>
+                <p className="text-sm text-gray-500 uppercase font-bold tracking-wider">Total Estimado</p>
                 <p className="text-2xl font-bold text-blue-600">{formatCurrency(totalBudget)}</p>
               </div>
             </div>
@@ -297,7 +297,7 @@ export function BudgetView({
               {/* Main Items (No Group) */}
               {budgetItems.length > 0 && (
                 <div className="rounded-lg border border-gray-100 overflow-hidden">
-                  <div className="bg-gray-100 px-4 py-2 text-xs font-bold text-gray-600 uppercase">Itens Gerais</div>
+                  <div className="bg-gray-100 px-4 py-2 text-sm font-bold text-gray-600 uppercase">Itens Gerais</div>
                   <Table>
                     <TableHeader className="bg-gray-50/50">
                       <TableRow>
@@ -317,21 +317,21 @@ export function BudgetView({
                         const unitCost = calculateServiceUnitCost(s, resources, services, bdi);
                         return (
                           <TableRow key={`${item.serviceId}-${idx}`}>
-                            <TableCell className="font-bold text-xs text-blue-600 py-1">{s.code}</TableCell>
-                            <TableCell className="text-sm py-1 max-w-[200px] truncate" title={s.name}>{s.name}</TableCell>
-                            <TableCell className="text-xs text-gray-500 py-1">{s.unit}</TableCell>
+                            <TableCell className="font-bold text-sm text-blue-600 py-1">{s.code}</TableCell>
+                            <TableCell className="text-base py-1 max-w-[200px] truncate" title={s.name}>{s.name}</TableCell>
+                            <TableCell className="text-sm text-gray-500 py-1">{s.unit}</TableCell>
                             <TableCell className="text-right py-1">
                               <Input 
                                 type="number" 
                                 step="0.001"
-                                className="h-7 text-right font-mono text-xs" 
+                                className="h-7 text-right font-mono text-sm" 
                                 value={item.quantity ?? ''} 
                                 onChange={e => updateQuantityInGroup(item.serviceId, parseFloat(e.target.value) || 0, null)}
                                 readOnly={readonly}
                               />
                             </TableCell>
-                            <TableCell className="text-right text-xs font-mono py-1">{formatCurrency(unitCost)}</TableCell>
-                            <TableCell className="text-right text-xs font-mono font-bold py-1">{formatCurrency(unitCost * item.quantity)}</TableCell>
+                            <TableCell className="text-right text-sm font-mono py-1">{formatCurrency(unitCost)}</TableCell>
+                            <TableCell className="text-right text-sm font-mono font-bold py-1">{formatCurrency(unitCost * item.quantity)}</TableCell>
                             {!readonly && (
                               <TableCell className="py-1">
                                 <Button 
@@ -356,11 +356,11 @@ export function BudgetView({
               {budgetGroups.map(group => (
                 <div key={group.id} className="rounded-lg border border-blue-100 overflow-hidden">
                   <div className="bg-blue-50 px-4 py-2 flex justify-between items-center">
-                    <span className="text-xs font-bold text-blue-700 uppercase flex items-center gap-2">
+                    <span className="text-sm font-bold text-blue-700 uppercase flex items-center gap-2">
                       <Package className="w-3 h-3" /> {group.name}
                     </span>
                     <div className="flex items-center gap-4">
-                      <span className="text-xs font-bold text-blue-800">
+                      <span className="text-sm font-bold text-blue-800">
                         Subtotal: {formatCurrency(group.services.reduce((acc, item) => {
                           const s = services.find(serv => serv.id === item.serviceId);
                           return acc + (s ? calculateServiceUnitCost(s, resources, services) * item.quantity : 0);
@@ -382,7 +382,7 @@ export function BudgetView({
                     <TableBody>
                       {group.services.length === 0 ? (
                         <TableRow>
-                          <TableCell colSpan={7} className="text-center py-4 text-xs text-gray-400 italic">
+                          <TableCell colSpan={7} className="text-center py-4 text-sm text-gray-400 italic">
                             Nenhum serviço neste grupo. Adicione serviços usando os botões ao lado.
                           </TableCell>
                         </TableRow>
@@ -393,21 +393,21 @@ export function BudgetView({
                           const unitCost = calculateServiceUnitCost(s, resources, services, bdi);
                           return (
                             <TableRow key={`${item.serviceId}-${idx}`}>
-                              <TableCell className="w-[100px] font-bold text-xs text-blue-600 py-1">{s.code}</TableCell>
-                              <TableCell className="text-sm py-1 max-w-[200px] truncate" title={s.name}>{s.name}</TableCell>
-                              <TableCell className="w-[60px] text-xs text-gray-500 py-1">{s.unit}</TableCell>
+                              <TableCell className="w-[100px] font-bold text-sm text-blue-600 py-1">{s.code}</TableCell>
+                              <TableCell className="text-base py-1 max-w-[200px] truncate" title={s.name}>{s.name}</TableCell>
+                              <TableCell className="w-[60px] text-sm text-gray-500 py-1">{s.unit}</TableCell>
                               <TableCell className="w-[100px] text-right py-1">
                                 <Input 
                                   type="number" 
                                   step="0.001"
-                                  className="h-7 text-right font-mono text-xs" 
+                                  className="h-7 text-right font-mono text-sm" 
                                   value={item.quantity ?? ''} 
                                   onChange={e => updateQuantityInGroup(item.serviceId, parseFloat(e.target.value) || 0, group.id)}
                                   readOnly={readonly}
                                 />
                               </TableCell>
-                              <TableCell className="w-[100px] text-right text-xs font-mono py-1">{formatCurrency(unitCost)}</TableCell>
-                              <TableCell className="w-[100px] text-right text-xs font-mono font-bold py-1">{formatCurrency(unitCost * item.quantity)}</TableCell>
+                              <TableCell className="w-[100px] text-right text-sm font-mono py-1">{formatCurrency(unitCost)}</TableCell>
+                              <TableCell className="w-[100px] text-right text-sm font-mono font-bold py-1">{formatCurrency(unitCost * item.quantity)}</TableCell>
                               {!readonly && (
                                 <TableCell className="w-[40px] py-1">
                                   <Button 
@@ -433,7 +433,7 @@ export function BudgetView({
                 <div className="text-center py-12 text-gray-400 border rounded-lg border-dashed">
                   <FileSpreadsheet className="w-12 h-12 mx-auto mb-4 opacity-20" />
                   <p>Sua planilha está vazia.</p>
-                  <p className="text-xs">Crie grupos ou adicione serviços diretamente para começar.</p>
+                  <p className="text-sm">Crie grupos ou adicione serviços diretamente para começar.</p>
                 </div>
               )}
             </div>
