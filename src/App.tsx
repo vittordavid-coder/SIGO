@@ -2429,6 +2429,16 @@ export default function App() {
       if (supabase && teams.length >= 0) {
         try {
           const mapped = teams.map(t => ({ ...mapToSnake(t), company_id: compId }));
+
+          // Sync Deletions
+          const { data: dbItems } = await supabase.from('controller_teams').select('id').eq('company_id', compId);
+          const dbIds = dbItems?.map(d => d.id) || [];
+          const currentIds = teams.map(t => t.id);
+          const toDelete = dbIds.filter(id => !currentIds.includes(id));
+          if (toDelete.length > 0) {
+            await supabase.from('controller_teams').delete().in('id', toDelete);
+          }
+
           if (mapped.length > 0) {
             await supabase.from('controller_teams').upsert(mapped);
           }
@@ -2665,27 +2675,74 @@ export default function App() {
   };
 
   const updateTeamAssignments = async (assignments: TeamAssignment[]) => {
-    setTeamAssignments(assignments);
+    const uniqueAssignments = (assignments || []).reduce((acc: TeamAssignment[], curr) => {
+      if (curr && curr.id && !acc.some(x => x.id === curr.id)) {
+        acc.push(curr);
+      }
+      return acc;
+    }, []);
+
+    setTeamAssignments(uniqueAssignments);
     const config = getSupabaseConfig();
     if (config.enabled && compId) {
       const supabase = createSupabaseClient(config.url, config.key);
       if (supabase) {
         try {
-          const mapped = assignments.map(a => ({ ...mapToSnake(a), company_id: compId }));
+          const mapped = uniqueAssignments.map(a => ({ ...mapToSnake(a), company_id: compId }));
 
           // Sync Deletions
           const { data: dbItems } = await supabase.from('team_assignments').select('id').eq('company_id', compId);
           const dbIds = dbItems?.map(d => d.id) || [];
-          const currentIds = assignments.map(a => a.id);
+          const currentIds = uniqueAssignments.map(a => a.id);
           const toDelete = dbIds.filter(id => !currentIds.includes(id));
           if (toDelete.length > 0) {
             await supabase.from('team_assignments').delete().in('id', toDelete);
           }
 
           if (mapped.length > 0) {
-            await supabase.from('team_assignments').upsert(mapped, { onConflict: 'team_id,member_id,month' });
+            const { error: upsertError } = await supabase
+              .from('team_assignments')
+              .upsert(mapped, { onConflict: 'id' });
+
+            if (upsertError) {
+              console.warn('[Sync] Assignments standard upsert failed, retrying with safer subset...', upsertError);
+              
+              const saferMapped = mapped.map(({ contract_id, ...rest }) => rest);
+              const { error: retryError1 } = await supabase
+                .from('team_assignments')
+                .upsert(saferMapped, { onConflict: 'id' });
+
+              if (retryError1) {
+                console.warn('[Sync] Safer subset upsert with onConflict "id" failed, trying with "team_id,member_id,month"...', retryError1);
+                
+                const { error: retryError2 } = await supabase
+                  .from('team_assignments')
+                  .upsert(mapped, { onConflict: 'team_id,member_id,month' });
+
+                if (retryError2) {
+                  console.warn('[Sync] Fallback 2 failed, trying safer subset with "team_id,member_id,month"...', retryError2);
+                  const { error: retryError3 } = await supabase
+                    .from('team_assignments')
+                    .upsert(saferMapped, { onConflict: 'team_id,member_id,month' });
+
+                  if (retryError3) {
+                    console.error('[Sync] All fallbacks for assignments persist failed:', retryError3);
+                  } else {
+                    console.log('[Sync] Assignments saved successfully after fallback 3.');
+                  }
+                } else {
+                  console.log('[Sync] Assignments saved successfully after fallback 2.');
+                }
+              } else {
+                console.log('[Sync] Assignments saved successfully after fallback 1.');
+              }
+            } else {
+              console.log('[Sync] Assignments saved successfully on primary path.');
+            }
           }
-        } catch (err) { console.warn('[Sync] Assignments persist failed', err); }
+        } catch (err) { 
+          console.error('[Sync] Exception during assignments persist:', err); 
+        }
       }
     }
   };

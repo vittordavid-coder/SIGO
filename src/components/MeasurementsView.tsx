@@ -13,7 +13,7 @@ import {
   CloudRain, Calendar, BookOpen, UserCheck, HardHat,
   Construction, Map, Clock, ArrowRightLeft, Briefcase,
   Users2, ChevronDown, ChevronUp, FileDown, RefreshCw,
-  Activity
+  Activity, Check, X
 } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 import { 
@@ -66,6 +66,131 @@ import {
   ReferenceLine,
   Label as RechartsLabel
 } from 'recharts';
+
+export function calculateAssignmentCosts(
+  assignment: { memberId: string; type: 'manpower' | 'equipment' },
+  month: string,
+  manpowerMonthly: ManpowerMonthlyData[] = [],
+  equipmentMonthly: EquipmentMonthlyData[] = [],
+  employees: Employee[] = [],
+  controllerManpower: ControllerManpower[] = [],
+  controllerEquipments: ControllerEquipment[] = [],
+  chargesPerc: number = 0,
+  otPerc: number = 0,
+  daysInMonth: number = 30
+): { daily: number; monthly: number } {
+  if (assignment.type === 'manpower') {
+    // 1. Check if there is monthly data first
+    const data = manpowerMonthly.find(d => d.manpowerId === assignment.memberId && d.month === month);
+    if (data) {
+      const salary = data.salary || 0;
+      const otHours = data.overtimeRate || 0;
+      const daily = data.dailyRate || 0;
+      
+      const hourly = salary / 220;
+      const otValue = hourly * (1 + (otPerc / 100)) * otHours;
+      const charges = (salary + otValue) * (chargesPerc / 100);
+      
+      const monthlyCost = salary + otValue + (daily * daysInMonth) + charges;
+      const dailyCost = (salary + otValue + charges) / daysInMonth + daily;
+      return { daily: dailyCost, monthly: monthlyCost };
+    }
+
+    // 2. Fallback to Employee (from RH)
+    const emp = employees.find(e => e.id === assignment.memberId);
+    if (emp) {
+      const salary = emp.salary || 0;
+      const charges = salary * (chargesPerc / 100);
+      if (emp.paymentType === 'day') {
+        const dailyCost = salary;
+        const monthlyCost = salary * daysInMonth;
+        return { daily: dailyCost, monthly: monthlyCost };
+      } else {
+        const monthlyCost = salary + charges;
+        const dailyCost = monthlyCost / daysInMonth;
+        return { daily: dailyCost, monthly: monthlyCost };
+      }
+    }
+
+    // 3. Fallback to ControllerManpower (from Technical Room)
+    const fallbackMan = controllerManpower.find(m => m.id === assignment.memberId);
+    if (fallbackMan) {
+      // If employee is not in employees, but is in controllerManpower, maybe search for employee by name?
+      const empByName = employees.find(e => e.name.toLowerCase() === fallbackMan.name.toLowerCase());
+      if (empByName) {
+        const salary = empByName.salary || 0;
+        const charges = salary * (chargesPerc / 100);
+        if (empByName.paymentType === 'day') {
+          return { daily: salary, monthly: salary * daysInMonth };
+        } else {
+          const mCost = salary + charges;
+          return { daily: mCost / daysInMonth, monthly: mCost };
+        }
+      }
+    }
+
+    return { daily: 0, monthly: 0 };
+  } else {
+    // Equipment
+    // 1. Check if there is monthly data first
+    const data = equipmentMonthly.find(d => d.equipmentId === assignment.memberId && d.month === month);
+    if (data && data.cost) {
+      const monthlyCost = data.cost;
+      const dailyCost = monthlyCost / daysInMonth;
+      return { daily: dailyCost, monthly: monthlyCost };
+    }
+
+    // 2. Fallback to ControllerEquipment
+    const eq = controllerEquipments.find(e => e.id === assignment.memberId);
+    if (eq) {
+      let eqCost = eq.monthlyPrice || 0;
+      if (!eqCost && eq.contractedPrice && eq.measurementUnit === 'Mensal') {
+         eqCost = eq.contractedPrice;
+      }
+      if (!eqCost) {
+        // Look into attributes or customFields
+        const atts = eq.customFields ? Object.values(eq.customFields) : [];
+        const monthlyCostStr = atts.find((att: any) => 
+          typeof att.name === 'string' && att.name.toLowerCase().includes('mensal')
+        )?.value;
+        if (monthlyCostStr) {
+           eqCost = parseFloat(monthlyCostStr) || 0;
+        }
+      }
+
+      // Check if equipment has a daily rate instead
+      let dailyCost = 0;
+      if (eq.measurementUnit === 'Diária' && eq.contractedPrice) {
+        dailyCost = eq.contractedPrice;
+        eqCost = dailyCost * daysInMonth;
+      } else if (eqCost > 0) {
+        dailyCost = eqCost / daysInMonth;
+      } else {
+        // Fallback check standard attributes (e.g. from attributes array if it exists)
+        const eqAttrs = (eq as any).attributes || [];
+        const dailyCostStr = eqAttrs.find((att: any) =>
+          typeof att.name === 'string' && (att.name.toLowerCase().includes('diária') || att.name.toLowerCase().includes('diaria'))
+        )?.value;
+        if (dailyCostStr) {
+          dailyCost = parseFloat(dailyCostStr) || 0;
+          eqCost = dailyCost * daysInMonth;
+        } else {
+          const monthlyCostStr2 = eqAttrs.find((att: any) =>
+            typeof att.name === 'string' && att.name.toLowerCase().includes('mensal')
+          )?.value;
+          if (monthlyCostStr2) {
+            eqCost = parseFloat(monthlyCostStr2) || 0;
+            dailyCost = eqCost / daysInMonth;
+          }
+        }
+      }
+
+      return { daily: dailyCost, monthly: eqCost };
+    }
+
+    return { daily: 0, monthly: 0 };
+  }
+}
 
 interface MeasurementsViewProps {
   contracts: Contract[];
@@ -182,6 +307,9 @@ export function MeasurementsView({
   const [isAddTeamOpen, setIsAddTeamOpen] = useState(false);
   const [newTeam, setNewTeam] = useState<{name: string; supervisorId: string}>({ name: '', supervisorId: '' });
   const [draggedItem, setDraggedItem] = useState<{ id: string, type: 'manpower' | 'equipment' } | null>(null);
+  const [resourceSearchInput, setResourceSearchInput] = useState('');
+  const [supervisorSearch, setSupervisorSearch] = useState('');
+  const [isSupDropdownOpen, setIsSupDropdownOpen] = useState(false);
   const [teamsSortField, setTeamsSortField] = useState<'name' | 'supervisor' | 'manCount' | 'manValue' | 'equipCount' | 'equipValue' | 'total'>('name');
   const [teamsSortOrder, setTeamsSortOrder] = useState<'asc' | 'desc'>('asc');
 
@@ -214,6 +342,7 @@ export function MeasurementsView({
     }]);
     setIsAddTeamOpen(false);
     setNewTeam({ name: '', supervisorId: '' });
+    setSupervisorSearch('');
     setSelectedTeamId(teamId);
   };
 
@@ -231,8 +360,16 @@ export function MeasurementsView({
     const filteredEquipments = controllerEquipments.filter(e => !selectedContractId || !e.contractId || e.contractId === selectedContractId);
     const filteredTeams = controllerTeams.filter(t => !selectedContractId || !t.contractId || t.contractId === selectedContractId);
 
-    const poolManpower = filteredManpower.filter(m => !m.exitDate);
-    const poolEquipments = filteredEquipments.filter(e => !e.exitDate);
+    const allPoolManpower = filteredManpower.filter(m => !m.exitDate);
+    const allPoolEquipments = filteredEquipments.filter(e => !e.exitDate);
+
+    const poolManpower = resourceSearchInput.trim() 
+      ? allPoolManpower.filter(m => m.name.toLowerCase().includes(resourceSearchInput.toLowerCase()) || m.role.toLowerCase().includes(resourceSearchInput.toLowerCase()))
+      : allPoolManpower;
+
+    const poolEquipments = resourceSearchInput.trim()
+      ? allPoolEquipments.filter(e => e.name.toLowerCase().includes(resourceSearchInput.toLowerCase()) || e.tag?.toLowerCase().includes(resourceSearchInput.toLowerCase()))
+      : allPoolEquipments;
 
     const getTeamMembers = (teamId: string) => {
       return teamAssignments.filter(a => a.teamId === teamId && a.month === selectedMonth);
@@ -257,25 +394,41 @@ export function MeasurementsView({
       });
 
       let manCost = 0;
+      let manDailyCost = 0;
       activeManAssignments.forEach(assignment => {
-        const data = currentManpowerMonthly.find(d => d.manpowerId === assignment.memberId);
-        if (data) {
-          const salary = data.salary || 0;
-          const otHours = data.overtimeRate || 0;
-          const daily = data.dailyRate || 0;
-          
-          const hourly = salary / 220;
-          const otValue = hourly * (1 + (otPerc / 100)) * otHours;
-          const charges = (salary + otValue) * (chargesPerc / 100);
-          
-          manCost += salary + otValue + daily + charges;
-        }
+        const costs = calculateAssignmentCosts(
+          assignment,
+          selectedMonth,
+          manpowerMonthly,
+          equipmentMonthly,
+          employees,
+          controllerManpower,
+          controllerEquipments,
+          chargesPerc,
+          otPerc,
+          30
+        );
+        manCost += costs.monthly;
+        manDailyCost += costs.daily;
       });
 
       let equipCost = 0;
+      let equipDailyCost = 0;
       activeEquipAssignments.forEach(assignment => {
-        const data = currentEquipmentMonthly.find(d => d.equipmentId === assignment.memberId);
-        if (data) equipCost += data.cost;
+        const costs = calculateAssignmentCosts(
+          assignment,
+          selectedMonth,
+          manpowerMonthly,
+          equipmentMonthly,
+          employees,
+          controllerManpower,
+          controllerEquipments,
+          chargesPerc,
+          otPerc,
+          30
+        );
+        equipCost += costs.monthly;
+        equipDailyCost += costs.daily;
       });
 
       const supervisor = controllerManpower.find(m => m.id === team.supervisorId);
@@ -286,9 +439,12 @@ export function MeasurementsView({
         supervisor: supervisor?.name || 'N/A',
         manCount: activeManAssignments.length,
         manValue: manCost,
+        manDailyValue: manDailyCost,
         equipCount: activeEquipAssignments.length,
         equipValue: equipCost,
-        total: manCost + equipCost
+        equipDailyValue: equipDailyCost,
+        total: manCost + equipCost,
+        totalDaily: manDailyCost + equipDailyCost
       };
     }).sort((a, b) => {
       let comparison = 0;
@@ -365,7 +521,7 @@ export function MeasurementsView({
                     onClick={() => handleTeamsSort('manValue')}
                   >
                     <div className="flex items-center justify-end gap-1">
-                      Valor M.O.
+                      Valor M.O. (Dia / Mês)
                       {teamsSortField === 'manValue' && (
                         teamsSortOrder === 'asc' ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />
                       )}
@@ -387,7 +543,7 @@ export function MeasurementsView({
                     onClick={() => handleTeamsSort('equipValue')}
                   >
                     <div className="flex items-center justify-end gap-1">
-                      Valor Equip.
+                      Valor Equip. (Dia / Mês)
                       {teamsSortField === 'equipValue' && (
                         teamsSortOrder === 'asc' ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />
                       )}
@@ -398,7 +554,7 @@ export function MeasurementsView({
                     onClick={() => handleTeamsSort('total')}
                   >
                     <div className="flex items-center justify-end gap-1">
-                      Total
+                      Total (Dia / Mês)
                       {teamsSortField === 'total' && (
                         teamsSortOrder === 'asc' ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />
                       )}
@@ -416,10 +572,31 @@ export function MeasurementsView({
                     <TableCell className="font-black text-gray-900">{row.name}</TableCell>
                     <TableCell className="text-gray-600 font-medium">{row.supervisor}</TableCell>
                     <TableCell className="text-center font-bold text-gray-900">{row.manCount}</TableCell>
-                    <TableCell className="text-right font-mono text-sm text-gray-600">R$ {row.manValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</TableCell>
+                    <TableCell className="text-right">
+                      <div className="font-mono text-sm font-semibold text-gray-900">
+                        R$ {row.manDailyValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} <span className="text-gray-400 text-xs font-normal">/dia</span>
+                      </div>
+                      <div className="font-mono text-xs text-gray-400">
+                        R$ {row.manValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} <span className="text-xs font-normal">/mês</span>
+                      </div>
+                    </TableCell>
                     <TableCell className="text-center font-bold text-gray-900">{row.equipCount}</TableCell>
-                    <TableCell className="text-right font-mono text-sm text-gray-600">R$ {row.equipValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</TableCell>
-                    <TableCell className="text-right font-black text-blue-700 bg-blue-50/20">R$ {row.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</TableCell>
+                    <TableCell className="text-right">
+                      <div className="font-mono text-sm font-semibold text-gray-900">
+                        R$ {row.equipDailyValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} <span className="text-gray-400 text-xs font-normal">/dia</span>
+                      </div>
+                      <div className="font-mono text-xs text-gray-400">
+                        R$ {row.equipValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} <span className="text-xs font-normal">/mês</span>
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-right bg-blue-50/10">
+                      <div className="font-mono text-sm font-black text-blue-700">
+                        R$ {row.totalDaily.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} <span className="text-blue-400 text-xs font-normal">/dia</span>
+                      </div>
+                      <div className="font-mono text-xs text-blue-500 font-bold">
+                        R$ {row.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} <span className="text-xs font-normal">/mês</span>
+                      </div>
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -431,8 +608,8 @@ export function MeasurementsView({
           {/* Resource Pool */}
         <div className="lg:col-span-4 space-y-6">
           <Card className="border-[10px] border-gray-100 shadow-xl bg-white/80 backdrop-blur-md rounded-3xl overflow-hidden sticky top-8">
-            <CardHeader className="border-b border-gray-100 bg-gray-50/50 pb-6">
-              <div className="flex items-center gap-3 mb-2">
+            <CardHeader className="border-b border-gray-100 bg-gray-50/50 pb-6 space-y-4">
+              <div className="flex items-center gap-3">
                 <div className="bg-blue-600 p-2 rounded-xl shadow-lg shadow-blue-200">
                   <Briefcase className="w-5 h-5 text-white" />
                 </div>
@@ -440,6 +617,15 @@ export function MeasurementsView({
                   <CardTitle className="text-xl font-black text-gray-900 tracking-tight">Recursos Disponíveis</CardTitle>
                   <p className="text-sm uppercase font-bold text-gray-400 tracking-widest">Arraste para as equipes</p>
                 </div>
+              </div>
+              <div className="relative">
+                <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                <Input
+                  className="pl-9 h-10 bg-white border-gray-200"
+                  placeholder="Buscar recursos..."
+                  value={resourceSearchInput}
+                  onChange={(e) => setResourceSearchInput(e.target.value)}
+                />
               </div>
             </CardHeader>
             <CardContent className="p-0">
@@ -573,7 +759,13 @@ export function MeasurementsView({
                   onChange={(e) => setSelectedMonth(e.target.value)}
                   className="w-[160px] h-12 rounded-2xl border-gray-200 bg-gray-50/50 font-bold text-sm"
                 />
-                <Dialog open={isAddTeamOpen} onOpenChange={setIsAddTeamOpen}>
+                <Dialog open={isAddTeamOpen} onOpenChange={(open) => {
+                    setIsAddTeamOpen(open);
+                    if (!open) {
+                      setSupervisorSearch('');
+                      setIsSupDropdownOpen(false);
+                    }
+                }}>
                     <DialogTrigger asChild>
                       <Button className="rounded-2xl h-12 px-6 font-black uppercase tracking-widest text-sm gap-3 shadow-lg shadow-blue-100 bg-blue-600 hover:bg-blue-700 hover:shadow-blue-200 transition-all active:scale-95">
                         <Plus className="w-5 h-5" /> Nova Equipe
@@ -594,20 +786,83 @@ export function MeasurementsView({
                             onChange={e => setNewTeam({...newTeam, name: e.target.value})} 
                           />
                         </div>
-                        <div className="space-y-2">
+                        <div className="space-y-2 relative">
                           <Label className="text-sm font-black uppercase tracking-widest text-gray-400">Encarregado</Label>
-                          <Select value={newTeam.supervisorId || ''} onValueChange={val => setNewTeam({...newTeam, supervisorId: val})}>
-                            <SelectTrigger className="h-12 rounded-xl border-gray-200">
-                              <SelectValue placeholder="Selecione o encarregado">
-                                {newTeam.supervisorId && controllerManpower.find(m => m.id === newTeam.supervisorId)?.name || "Selecione o encarregado"}
-                              </SelectValue>
-                            </SelectTrigger>
-                            <SelectContent className="rounded-2xl">
-                              {poolManpower.map(m => (
-                                <SelectItem key={m.id} value={m.id} className="rounded-lg text-base">{m.name}</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                          <div className="relative">
+                            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                            <Input
+                              className="pl-9 pr-10 h-12 bg-white border-gray-200 text-sm rounded-xl focus:ring-blue-500 font-medium"
+                              placeholder="Digite ou selecione o encarregado..."
+                              value={supervisorSearch}
+                              onChange={(e) => {
+                                setSupervisorSearch(e.target.value);
+                                setIsSupDropdownOpen(true);
+                                const match = allPoolManpower.find(m => m.name.toLowerCase() === e.target.value.toLowerCase());
+                                if (match) {
+                                  setNewTeam(prev => ({ ...prev, supervisorId: match.id }));
+                                } else {
+                                  setNewTeam(prev => ({ ...prev, supervisorId: '' }));
+                                }
+                              }}
+                              onFocus={() => {
+                                setIsSupDropdownOpen(true);
+                                if (newTeam.supervisorId) {
+                                  const sName = allPoolManpower.find(m => m.id === newTeam.supervisorId)?.name || '';
+                                  setSupervisorSearch(sName);
+                                }
+                              }}
+                              onBlur={() => {
+                                setTimeout(() => setIsSupDropdownOpen(false), 200);
+                              }}
+                            />
+                            {newTeam.supervisorId && (
+                              <button 
+                                type="button"
+                                onClick={() => {
+                                  setNewTeam(prev => ({ ...prev, supervisorId: '' }));
+                                  setSupervisorSearch('');
+                                }}
+                                className="absolute right-10 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600 rounded-full"
+                              >
+                                <X className="w-4 h-4" />
+                              </button>
+                            )}
+                            <div className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">
+                              <ChevronDown className="w-4 h-4" />
+                            </div>
+                          </div>
+
+                          {isSupDropdownOpen && (
+                            <div className="absolute z-[100] left-0 right-0 top-full mt-1 bg-white border border-gray-200 rounded-xl shadow-xl max-h-[220px] overflow-y-auto py-1">
+                              {allPoolManpower
+                                .filter(m => m.name.toLowerCase().includes(supervisorSearch.toLowerCase()))
+                                .map(m => (
+                                  <button
+                                    key={m.id}
+                                    type="button"
+                                    className={cn(
+                                      "w-full text-left px-4 py-2.5 text-sm hover:bg-gray-50 flex items-center justify-between border-b border-gray-50 last:border-0 transition-colors",
+                                      newTeam.supervisorId === m.id ? "bg-blue-50/50 text-blue-600 font-bold" : "text-gray-700"
+                                    )}
+                                    onMouseDown={(e) => {
+                                      e.preventDefault();
+                                      setNewTeam(prev => ({ ...prev, supervisorId: m.id }));
+                                      setSupervisorSearch(m.name);
+                                      setIsSupDropdownOpen(false);
+                                    }}
+                                  >
+                                    <div className="flex flex-col">
+                                      <span className="font-semibold text-gray-900">{m.name}</span>
+                                      <span className="text-xs text-gray-400 font-medium">{m.role}</span>
+                                    </div>
+                                    {newTeam.supervisorId === m.id && <Check className="w-4 h-4 text-blue-600 stroke-[3px]" />}
+                                  </button>
+                                ))}
+                              {allPoolManpower.filter(m => m.name.toLowerCase().includes(supervisorSearch.toLowerCase())).length === 0 && (
+                                <div className="p-4 text-center text-sm text-gray-400 italic">Nenhum colaborador encontrado</div>
+                              )}
+                            </div>
+                          )}
                         </div>
                       </div>
                       <DialogFooter>

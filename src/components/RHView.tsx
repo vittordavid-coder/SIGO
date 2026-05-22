@@ -303,8 +303,8 @@ export default function RHView({
   const handleDownloadTemplate = () => {
     try {
       const data = [
-        ['Nome Completo', 'CPF', 'Função', 'Tipo de Pagamento', 'Salário Bruto', 'Data de Admissão', 'Nº de Cadastro/Vínculo/RG', 'Órgão Emissor do RG', 'UF do RG', 'Data de Nascimento', 'Local de Nascimento', 'UF de Nascimento', 'Nº da CTPS', 'Série da CTPS', 'PIS', 'Telefone', 'Celular', 'Email', 'Status', 'Data de Demissão', 'Nº Título de Eleitor', 'Zona Eleitoral', 'Seção Eleitoral', 'Nome do Pai', 'Nome da Mãe', 'Nome do Cônjuge', 'Logradouro', 'Número', 'Complemento', 'Bairro', 'Cidade', 'CEP', 'UF', 'VT - Necessita', 'VT - Valor 1', 'VT - Cidade 1', 'VT - Valor 2', 'VT - Cidade 2'],
-        ['João da Silva', '123.456.789-00', 'Pedreiro', 'Mensalista', 2500, '2023-01-15', '12345678', 'SSP', 'SP', '1990-01-01', 'São Paulo', 'SP', '1234567', '12345', '12345678901', '(11) 98765-4321', '(11) 98765-4321', 'joao@email.com', 'Ativo', '', '123456789012', '123', '456', 'José da Silva', 'Maria da Silva', 'Ana da Silva', 'Rua das Flores', '123', 'Apto 1', 'Centro', 'São Paulo', '01000-000', 'SP', 'Não', 0, '', 0, '']
+        ['Contrato', 'Nome Completo', 'CPF', 'Função', 'Tipo de Pagamento', 'Salário Bruto', 'Data de Admissão', 'Nº de Cadastro/Vínculo/RG', 'Órgão Emissor do RG', 'UF do RG', 'Data de Nascimento', 'Local de Nascimento', 'UF de Nascimento', 'Nº da CTPS', 'Série da CTPS', 'PIS', 'Telefone', 'Celular', 'Email', 'Status', 'Data de Demissão', 'Nº Título de Eleitor', 'Zona Eleitoral', 'Seção Eleitoral', 'Nome do Pai', 'Nome da Mãe', 'Nome do Cônjuge', 'Logradouro', 'Número', 'Complemento', 'Bairro', 'Cidade', 'CEP', 'UF', 'VT - Necessita', 'VT - Valor 1', 'VT - Cidade 1', 'VT - Valor 2', 'VT - Cidade 2'],
+        ['CTR-123', 'João da Silva', '123.456.789-00', 'Pedreiro', 'Mensalista', 2500, '2023-01-15', '12345678', 'SSP', 'SP', '1990-01-01', 'São Paulo', 'SP', '1234567', '12345', '12345678901', '(11) 98765-4321', '(11) 98765-4321', 'joao@email.com', 'Ativo', '', '123456789012', '123', '456', 'José da Silva', 'Maria da Silva', 'Ana da Silva', 'Rua das Flores', '123', 'Apto 1', 'Centro', 'São Paulo', '01000-000', 'SP', 'Não', 0, '', 0, '']
       ];
       
       const ws = XLSX.utils.aoa_to_sheet(data);
@@ -338,11 +338,6 @@ export default function RHView({
   const [isImporting, setIsImporting] = useState(false);
 
   const handleImportData = (event: React.ChangeEvent<HTMLInputElement>) => {
-    if (!selectedContractId) {
-      alert('⚠️ Por favor, selecione uma obra (contrato) antes de importar os colaboradores.');
-      if (event.target) event.target.value = '';
-      return;
-    }
     const file = event.target.files?.[0];
     if (!file) return;
 
@@ -389,53 +384,69 @@ export default function RHView({
               return (val === undefined || val === null || String(val).trim() === '') ? null : val;
             };
 
-            const rawName = getVal(['nome', 'nome completo']);
+            const rawName = getVal(['nome', 'nome completo', 'colaborador', 'funcionario', 'funcionário']);
             if (!rawName) {
               console.warn(`[RH Import] Skipping row ${i+1} because Name is empty.`);
               continue;
             }
 
             const name = String(rawName);
-            const cpfRaw = getVal(['cpf']);
+            const cpfRaw = getVal(['cpf', 'documento']);
             const cpf = cpfRaw ? String(cpfRaw).replace(/[^0-9]/g, '') : '';
-            const role = String(getVal(['função', 'funcao', 'cargo']) || 'Ajudante');
+            const role = String(getVal(['função', 'funcao', 'cargo', 'atividade']) || 'Ajudante');
             
-            let paymentTypeStr = String(getVal(['tipo de pagamento', 'tipo pagamento', 'tipo']) || 'Mensalista').toLowerCase();
+            let paymentTypeStr = String(getVal(['tipo de pagamento', 'tipo pagamento', 'tipo', 'forma_pagamento']) || 'Mensalista').toLowerCase();
             let paymentType: 'hour' | 'day' | 'month' = 'month';
             if (paymentTypeStr.includes('hora') || paymentTypeStr.includes('horista')) paymentType = 'hour';
             if (paymentTypeStr.includes('dia') || paymentTypeStr.includes('diarista')) paymentType = 'day';
 
-            const salaryVal = getVal(['salário', 'salario', 'salário bruto', 'salario bruto', 'valor']);
+            const salaryVal = getVal(['salário', 'salario', 'salário bruto', 'salario bruto', 'valor', 'remuneracao', 'remuneração']);
             let salary = 0;
             if (salaryVal !== null) {
               salary = typeof salaryVal === 'number' ? salaryVal : parseFloat(String(salaryVal).replace(/[^0-9,-]+/g,"").replace(",", "."));
             }
             if (isNaN(salary)) salary = 0;
 
-            const admissionDateRaw = getVal(['data de admissão', 'data admissão', 'data de admissao', 'admissao']);
+            const admissionDateRaw = getVal(['data de admissão', 'data admissão', 'data de admissao', 'admissao', 'admissão', 'entrada']);
             const admissionDate = parseDateFromExcel(admissionDateRaw) || new Date().toISOString().split('T')[0];
 
-            const dismissalDateRaw = getVal(['data de demissão', 'data demissão', 'demissao', 'demissão']);
+            const dismissalDateRaw = getVal(['data de demissão', 'data demissão', 'demissao', 'demissão', 'saida', 'saída']);
             const dismissalDate = parseDateFromExcel(dismissalDateRaw) || null;
 
-            const statusRaw = getVal(['status', 'situação', 'situacao']);
+            const statusRaw = getVal(['status', 'situação', 'situacao', 'estado']);
             let status: 'active' | 'dismissed' = 'active';
             if (statusRaw) {
               const s = String(statusRaw).toLowerCase();
-              if (s.includes('demitido') || s.includes('inativo')) status = 'dismissed';
+              if (s.includes('demitido') || s.includes('inativo') || s.includes('desligado')) status = 'dismissed';
             }
             if (dismissalDate) status = 'dismissed';
 
-            const rgNumberRaw = getVal(['nº de cadastro/vínculo/rg', 'rg', 'vínculo', 'cadastro']);
-            const pisRaw = getVal(['pis', 'nis']);
-            const phoneRaw = getVal(['telefone', 'contato']);
-            const mobileRaw = getVal(['celular', 'mobile']) || phoneRaw;
+            const rgNumberRaw = getVal(['nº de cadastro/vínculo/rg', 'rg', 'vínculo', 'cadastro', 'numero_rg', 'rg_numero']);
+            const rgAgencyRaw = getVal(['órgão emissor do rg', 'orgao emissor', 'orgao_emissor', 'emissor', 'rg_emissor']);
+            const pisRaw = getVal(['pis', 'nis', 'pasep']);
+            const phoneRaw = getVal(['telefone', 'contato', 'tel']);
+            const mobileRaw = getVal(['celular', 'mobile', 'cel']) || phoneRaw;
             const emailRaw = getVal(['email', 'e-mail']);
 
+            // Find matching contract inside the sheet
+            const contractVal = getVal(['contrato', 'obra', 'contrato_numero', 'numero_contrato', 'codigo_contrato', 'contrato_id']);
+            let matchedContractId = selectedContractId || '';
+            if (contractVal) {
+              const cleanedVal = String(contractVal).toLowerCase().trim();
+              const foundC = contracts.find(c => 
+                (c.contractNumber && c.contractNumber.toLowerCase().trim() === cleanedVal) ||
+                (c.workName && c.workName.toLowerCase().trim() === cleanedVal) ||
+                (c.id && c.id.toLowerCase().trim() === cleanedVal)
+              );
+              if (foundC) {
+                matchedContractId = foundC.id;
+              }
+            }
+
             const employee: Employee = {
-              id: generateUUID(),
+              id: String(getVal(['id', 'id_colaborador', 'codigo', 'código']) || generateUUID()),
               companyId: currentUser.companyId,
-              contractId: selectedContractId || '',
+              contractId: matchedContractId,
               name,
               role,
               admissionDate: admissionDate,
@@ -443,11 +454,11 @@ export default function RHView({
               paymentType,
               cpf,
               rgNumber: rgNumberRaw ? String(rgNumberRaw) : '',
-              rgAgency: String(getVal(['órgão emissor do rg', 'orgao emissor']) || ''),
-              rgIssuer: '',
-              rgState: String(getVal(['uf do rg', 'rg uf', 'estado do rg']) || ''),
-              birthDate: parseDateFromExcel(getVal(['data de nascimento', 'nascimento'])) || null,
-              birthPlace: String(getVal(['local de nascimento', 'naturalidade']) || ''),
+              rgAgency: rgAgencyRaw ? String(rgAgencyRaw) : '',
+              rgIssuer: rgAgencyRaw ? String(rgAgencyRaw) : '',
+              rgState: String(getVal(['uf do rg', 'rg uf', 'estado do rg', 'uf_rg']) || ''),
+              birthDate: parseDateFromExcel(getVal(['data de nascimento', 'nascimento', 'data_nascimento'])) || null as any,
+              birthPlace: String(getVal(['local de nascimento', 'naturalidade', 'cidade_nascimento']) || String(getVal(['local de nascimento', 'naturalidade']) || '')),
               birthState: String(getVal(['uf de nascimento', 'nascimento uf']) || ''),
               workBookletNumber: String(getVal(['nº da ctps', 'ctps']) || ''),
               workBookletSeries: String(getVal(['série da ctps', 'serie ctps']) || ''),

@@ -250,10 +250,51 @@ export default function ControlView({
   }, [contracts, currentUser]);
 
   const downloadTemplate = () => {
-    const headers = [['CONTRATO_NUMERO', 'NOME', 'CATEGORIA', 'MODELO', 'PLACA', 'ORIGEM', 'MEDICAO_POR', 'DATA_ENTRADA', 'DATA_SAIDA', 'CUSTO_MENSAL']];
-    const ws = XLSX.utils.aoa_to_sheet(headers);
+    const headers = [[
+      'CONTRATO_NUMERO',
+      'CODIGO',
+      'NOME',
+      'TIPO',
+      'CATEGORIA',
+      'MARCA',
+      'MODELO',
+      'ANO',
+      'SITUACAO',
+      'PLACA',
+      'ORIGEM',
+      'PROPRIETARIO',
+      'CNPJ_PROPRIETARIO',
+      'MEDICAO_POR',
+      'VALOR_CONTRATADO',
+      'CUSTO_MENSAL',
+      'DATA_ENTRADA',
+      'DATA_SAIDA',
+      'OBSERVACOES'
+    ]];
+    const exampleRow = [
+      'CTR-123',
+      'EQP-001',
+      'Caminhão Basculante 14m³',
+      'Caminhão Transp.',
+      'Pesado',
+      'Mercedes-Benz',
+      'Atego 2730',
+      '2022',
+      'Ativo',
+      'ABC-1234',
+      'Próprio',
+      '',
+      '',
+      'Mensal',
+      '0',
+      '8500',
+      '2024-01-01',
+      '',
+      'Equipamento em excelentes condições de uso'
+    ];
+    const ws = XLSX.utils.aoa_to_sheet([headers[0], exampleRow]);
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Modelo");
+    XLSX.utils.book_append_sheet(wb, ws, "Modelo_Equipamentos");
     const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
     saveAs(new Blob([wbout], { type: 'application/octet-stream' }), `modelo_importacao_equipamentos.xlsx`);
   };
@@ -278,27 +319,87 @@ export default function ControlView({
 
       data.forEach((item: any) => {
         const id = crypto.randomUUID();
-        const targetContract = availableContracts.find(c => c.contractNumber === item.CONTRATO_NUMERO);
+        const keys = Object.keys(item);
+        const getVal = (possibleKeys: string[]) => {
+          const foundKey = keys.find(k => possibleKeys.includes(String(k).toLowerCase().trim()));
+          if (!foundKey) return null;
+          const val = item[foundKey];
+          return (val === undefined || val === null || String(val).trim() === '') ? null : val;
+        };
+
+        const contratoNo = getVal(['contrato_numero', 'contrato', 'numero_contrato', 'obra']);
+        const targetContract = availableContracts.find(c => c.contractNumber === contratoNo);
+
+        const codeVal = getVal(['codigo', 'código', 'id_patrimonio', 'cod_patrimonial', 'cod']);
+        const nameVal = getVal(['nome', 'equipamento', 'descricao']);
+        const typeVal = getVal(['tipo', 'tipo_equipamento', 'grupo']);
+        const categoryVal = getVal(['categoria', 'porte', 'capacidade']);
+        const brandVal = getVal(['marca', 'fabricante']);
+        const modelVal = getVal(['modelo']);
+        const yearVal = getVal(['ano', 'ano_fabricacao', 'ano_modelo']);
+        const situationVal = getVal(['situacao', 'situação', 'status', 'estado']);
+        const plateVal = getVal(['placa', 'prefixo', 'chassi']);
+        const originVal = getVal(['origem', 'tipo_propriedade']);
+        const ownerNameVal = getVal(['proprietario', 'proprietário', 'locador', 'empresa_aluguel']);
+        const ownerCnpjVal = getVal(['cnpj_proprietario', 'cnpj_proprietário', 'cnpj_locador']);
+        
+        let unitVal = String(getVal(['medicao_por', 'unidade_medicao', 'medicao', 'unidade']) || 'Mensal');
+        if (unitVal.toLowerCase().includes('hor') || unitVal.toLowerCase().includes('hr')) unitVal = 'Horímetro';
+        else if (unitVal.toLowerCase().includes('km') || unitVal.toLowerCase().includes('kmtragem') || unitVal.toLowerCase().includes('quilom')) unitVal = 'Quilometragem';
+        else unitVal = 'Mensal';
+
+        const contractedPriceVal = getVal(['valor_contratado', 'preco_contratado', 'valor_hora', 'valor_km', 'tarifa', 'valor_diaria', 'valor_diaria_equip']);
+        let contractedPrice = 0;
+        if (contractedPriceVal !== null) {
+          contractedPrice = typeof contractedPriceVal === 'number' ? contractedPriceVal : parseFloat(String(contractedPriceVal).replace(/[^0-9,-]+/g,"").replace(",", "."));
+        }
+        if (isNaN(contractedPrice)) contractedPrice = 0;
+
+        const monthlyCostVal = getVal(['custo_mensal', 'valor_mensal', 'mensalidade', 'preco_mensal', 'mensal']);
+        let monthlyPrice = 0;
+        if (monthlyCostVal !== null) {
+          monthlyPrice = typeof monthlyCostVal === 'number' ? monthlyCostVal : parseFloat(String(monthlyCostVal).replace(/[^0-9,-]+/g,"").replace(",", "."));
+        }
+        if (isNaN(monthlyPrice)) monthlyPrice = 0;
+
+        const entryDateRaw = getVal(['data_entrada', 'data_admissao', 'admissao', 'entrada']);
+        const entryDate = parseExcelDate(entryDateRaw) || new Date().toISOString().split('T')[0];
+
+        const exitDateRaw = getVal(['data_saida', 'data_demissao', 'demissao', 'saida']);
+        const exitDate = parseExcelDate(exitDateRaw);
+
+        const obsVal = getVal(['observacoes', 'observação', 'observacao', 'obs']);
+
         newEquips.push({
           id,
-          name: item.NOME || '',
-          type: item.TIPO || 'Geral',
-          category: item.CATEGORIA || '',
-          model: item.MODELO || '',
-          plate: item.PLACA || '',
-          origin: item.ORIGEM || 'Próprio',
-          measurementUnit: item.MEDICAO_POR || item.UNIDADE_MEDICAO || 'Horímetro',
-          entryDate: parseExcelDate(item.DATA_ENTRADA) || new Date().toISOString().split('T')[0],
-          exitDate: parseExcelDate(item.DATA_SAIDA),
+          code: codeVal ? String(codeVal) : '',
+          name: nameVal ? String(nameVal) : 'Sem Nome',
+          type: typeVal ? String(typeVal) : 'Geral',
+          brand: brandVal ? String(brandVal) : '',
+          model: modelVal ? String(modelVal) : '',
+          year: yearVal ? Number(yearVal) : new Date().getFullYear(),
+          situation: (situationVal ? String(situationVal) : 'Ativo') as any,
+          plate: plateVal ? String(plateVal) : '',
+          origin: originVal ? String(originVal) : 'Próprio',
+          category: categoryVal ? String(categoryVal) : '',
+          ownerName: ownerNameVal ? String(ownerNameVal) : undefined,
+          ownerCnpj: ownerCnpjVal ? String(ownerCnpjVal) : undefined,
+          measurementUnit: unitVal as any,
+          contractedPrice,
+          monthlyPrice,
+          entryDate,
+          exitDate,
+          observations: obsVal ? String(obsVal) : '',
           companyId: currentUser?.companyId,
           contractId: importContractId || targetContract?.id
         });
-        if (item.CUSTO_MENSAL) {
+
+        if (monthlyPrice > 0) {
           newMonthly.push({
             id: crypto.randomUUID(),
             equipmentId: id,
             month: selectedMonth,
-            cost: Number(item.CUSTO_MENSAL),
+            cost: monthlyPrice,
             companyId: currentUser?.companyId,
             contractId: importContractId || targetContract?.id
           });
