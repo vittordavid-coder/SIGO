@@ -25,7 +25,7 @@ import {
   DailyReport, DailyReportActivity, PluviometryRecord, TechnicalSchedule,
   BudgetGroup,
   ControllerTeam, ControllerEquipment, ControllerManpower, TeamAssignment, User,
-  EquipmentMonthlyData, ManpowerMonthlyData
+  EquipmentMonthlyData, ManpowerMonthlyData, Employee
 } from '../types';
 import { formatCurrency, formatNumber, cn } from '../lib/utils';
 import { calculateServiceUnitCost } from '../lib/calculations';
@@ -125,6 +125,7 @@ interface MeasurementsViewProps {
   onUpdateEquipments: (equips: ControllerEquipment[]) => void;
   controllerManpower: ControllerManpower[];
   onUpdateManpower: (man: ControllerManpower[]) => void;
+  employees: Employee[];
   equipmentMonthly: EquipmentMonthlyData[];
   manpowerMonthly: ManpowerMonthlyData[];
   teamAssignments: TeamAssignment[];
@@ -156,6 +157,7 @@ export function MeasurementsView({
   controllerTeams, onUpdateTeams,
   controllerEquipments, onUpdateEquipments,
   controllerManpower, onUpdateManpower,
+  employees,
   equipmentMonthly, manpowerMonthly,
   teamAssignments, onUpdateAssignments,
   chargesPerc, otPerc,
@@ -887,6 +889,13 @@ export function MeasurementsView({
                     companyLogo={companyLogo}
                     companyLogoRight={companyLogoRight}
                     logoMode={logoMode}
+                    controllerTeams={controllerTeams}
+                    controllerEquipments={controllerEquipments}
+                    controllerManpower={controllerManpower}
+                    teamAssignments={teamAssignments}
+                    manpowerMonthly={manpowerMonthly}
+                    equipmentMonthly={equipmentMonthly}
+                    employees={employees}
                 />
             )}
 
@@ -4987,12 +4996,21 @@ function TransportView({ contract, measurement, locations, transportData, onUpda
 
 function ProductionControlView({ 
   contract, services, serviceProductions, onUpdateProduction, onDeleteProduction, readonly,
-  companyLogo, companyLogoRight, logoMode
+  companyLogo, companyLogoRight, logoMode,
+  controllerTeams, controllerEquipments, controllerManpower, teamAssignments,
+  manpowerMonthly, equipmentMonthly, employees
 }: { 
   contract: Contract, services: ServiceComposition[], serviceProductions: ServiceProduction[], 
   onUpdateProduction: (p: ServiceProduction) => void, onDeleteProduction: (id: string) => void,
   readonly: boolean,
-  companyLogo?: string, companyLogoRight?: string, logoMode?: 'left' | 'right' | 'both' | 'none'
+  companyLogo?: string, companyLogoRight?: string, logoMode?: 'left' | 'right' | 'both' | 'none',
+  controllerTeams?: ControllerTeam[],
+  controllerEquipments?: ControllerEquipment[],
+  controllerManpower?: ControllerManpower[],
+  teamAssignments?: TeamAssignment[],
+  manpowerMonthly?: ManpowerMonthlyData[],
+  equipmentMonthly?: EquipmentMonthlyData[],
+  employees?: Employee[]
 }) {
   const [selectedServiceId, setSelectedServiceId] = useState<string | null>(null);
   const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7)); // YYYY-MM
@@ -5680,6 +5698,88 @@ function ProductionControlView({
                             disabled={readonly}
                           />
                           <p className="text-xs text-gray-400 italic">Se preenchido, este título substituirá o nome original do serviço.</p>
+                       </div>
+                       <div className="space-y-2 pb-2">
+                          <Label className="text-sm font-bold text-gray-400 uppercase tracking-widest">Equipe Vinculada</Label>
+                          <div className="flex gap-2">
+                            <Select 
+                              value={production.teamId || "none"} 
+                              onValueChange={(val) => handleUpdate({ teamId: val === "none" ? undefined : val })} 
+                              disabled={readonly}
+                            >
+                              <SelectTrigger className="h-9">
+                                <SelectValue placeholder="Sem equipe" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="none">Sem equipe</SelectItem>
+                                {controllerTeams?.map(t => (
+                                  <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            {production.teamId && production.teamId !== 'none' && (
+                              <Button 
+                                variant="outline" 
+                                size="icon" 
+                                className="h-9 w-9 shrink-0 group relative text-blue-600 hover:text-blue-700" 
+                                title="Ver Custo Mensal da Equipe"
+                                onClick={() => {
+                                  const t = controllerTeams?.find(x => x.id === production.teamId);
+                                  if (!t) return;
+                                  
+                                  const teamAssigns = (teamAssignments || []).filter(a => a.teamId === t.id);
+                                  let totalMonthlyCost = 0;
+                                  
+                                  teamAssigns.forEach(a => {
+                                     if (a.type === 'manpower') {
+                                        const monthlyData = manpowerMonthly?.find(m => m.manpowerId === a.memberId && m.month === production.month);
+                                        if (monthlyData && monthlyData.salary) {
+                                           totalMonthlyCost += monthlyData.salary;
+                                        } else {
+                                           // Fallback
+                                           const emp = employees?.find(e => e.id === a.memberId);
+                                           if (emp && emp.salary) {
+                                              totalMonthlyCost += emp.salary;
+                                           }
+                                        }
+                                     } else if (a.type === 'equipment') {
+                                        const monthlyData = equipmentMonthly?.find(m => m.equipmentId === a.memberId && m.month === production.month);
+                                        if (monthlyData && monthlyData.cost) {
+                                           totalMonthlyCost += monthlyData.cost;
+                                        } else {
+                                           // Fallback
+                                           const eq = controllerEquipments?.find(eq => eq.id === a.memberId);
+                                           if (eq) {
+                                              let eqCost = eq.monthlyPrice;
+                                              if (!eqCost && eq.contractedPrice && eq.measurementUnit === 'Mensal') {
+                                                 eqCost = eq.contractedPrice;
+                                              }
+                                              if (eqCost) {
+                                                 totalMonthlyCost += eqCost;
+                                              } else {
+                                                // Check customFields just in case
+                                                const atts = eq.customFields ? Object.values(eq.customFields) : [];
+                                                const monthlyCostStr = atts.find((att: any) => 
+                                                  typeof att.name === 'string' && att.name.toLowerCase().includes('mensal')
+                                                )?.value;
+                                                if (monthlyCostStr) {
+                                                   totalMonthlyCost += parseFloat(monthlyCostStr) || 0;
+                                                }
+                                              }
+                                           }
+                                        }
+                                     }
+                                  });
+                                  
+                                  const days = production.workDays || 30;
+                                  const dailyCost = totalMonthlyCost / days;
+                                  
+                                  alert(`Custo da Equipe (Mês): R$ ${totalMonthlyCost.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}\nCusto por Dia (${days} dias): R$ ${dailyCost.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`);
+                                }}>
+                                 <Calculator className="w-4 h-4" />
+                              </Button>
+                            )}
+                          </div>
                        </div>
                        <div className="grid grid-cols-2 gap-4">
                           <div className="space-y-1">

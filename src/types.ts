@@ -472,6 +472,7 @@ export interface ServiceProduction {
   startDate: string;
   endDate: string;
   order?: number;
+  teamId?: string;
   prevMonthAccumulated?: number;
   dailyData: Record<string, { actual: number; planned?: number }>; // Date string -> values
 }

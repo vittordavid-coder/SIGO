@@ -3681,6 +3681,7 @@ export default function App() {
                   onUpdateEquipments={updateTechnicalEquipments}
                   controllerManpower={filteredControllerManpower}
                   onUpdateManpower={updateTechnicalManpower}
+                  employees={filteredEmployees}
                   equipmentMonthly={equipmentMonthlyData}
                   manpowerMonthly={manpowerMonthlyData}
                   teamAssignments={teamAssignments}
