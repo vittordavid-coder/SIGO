@@ -62,7 +62,7 @@ function EditCredentialsDialog({ user, onUpdate }: { user: User, onUpdate: (user
         <Key className="w-3.5 h-3.5" />
       </Button>
 
-      <Modal
+      <Modal hideCancel={true}
         isOpen={open}
         onClose={() => setOpen(false)}
         maxWidth="sm"
@@ -107,7 +107,7 @@ function DeleteUserDialog({ user, onDelete }: { user: User, onDelete: () => void
         <Trash2 className="w-3.5 h-3.5" />
       </Button>
 
-      <Modal
+      <Modal hideCancel={true}
         isOpen={open}
         onClose={() => setOpen(false)}
         maxWidth="sm"

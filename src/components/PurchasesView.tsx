@@ -627,7 +627,7 @@ function RequestsTab({
         </Table>
 
         {/* New/Edit Request Dialog */}
-        <Modal
+        <Modal hideCancel={true}
           isOpen={isRequestDialogOpen}
           onClose={() => setIsRequestDialogOpen(false)}
           hideCancel={true}
@@ -835,7 +835,7 @@ function RequestsTab({
         </Modal>
 
         {/* Quotation Dialog */}
-        <Modal
+        <Modal hideCancel={true}
           isOpen={isQuotationDialogOpen}
           onClose={() => setIsQuotationDialogOpen(false)}
           maxWidth="custom"
@@ -1080,7 +1080,7 @@ function SuppliersTab({ suppliers, setSuppliers, compId, contracts }: { supplier
         </div>
       )}
 
-      <Modal
+      <Modal hideCancel={true}
         isOpen={isDialogOpen}
         onClose={() => setIsDialogOpen(false)}
         maxWidth="custom"
@@ -1648,7 +1648,7 @@ function OrdersTab({
         )}
 
         {/* Print Dialog */}
-        <Modal
+        <Modal hideCancel={true}
           isOpen={isPrintDialogOpen}
           onClose={() => setIsPrintDialogOpen(false)}
           maxWidth="custom"
@@ -1815,7 +1815,7 @@ function OrdersTab({
           </div>
         </Modal>
 
-        <Modal
+        <Modal hideCancel={true}
           isOpen={isDialogOpen}
           onClose={() => setIsDialogOpen(false)}
           maxWidth="custom"
@@ -2487,7 +2487,7 @@ function QuotationsTab({
           </TableBody>
         </Table>
 
-        <Modal
+        <Modal hideCancel={true}
           isOpen={isDetailsOpen}
           onClose={() => setIsDetailsOpen(false)}
           maxWidth="custom"

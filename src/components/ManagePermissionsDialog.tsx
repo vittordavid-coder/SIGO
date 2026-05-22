@@ -36,7 +36,7 @@ export function ManagePermissionsDialog({
         {triggerButton}
       </div>
 
-      <Modal
+      <Modal hideCancel={true}
         isOpen={open}
         onClose={() => setOpen(false)}
         maxWidth="md"

@@ -1474,7 +1474,7 @@ export default function ControlView({
 
       <input type="file" ref={fileInputRef} className="hidden" accept=".xlsx, .xls" onChange={handleFileChange} />
 
-      <Modal
+      <Modal hideCancel={true}
         isOpen={isImportModalOpen}
         onClose={() => setIsImportModalOpen(false)} maxWidth="custom" className="sm:max-w-[800px] h-[600px] flex flex-col overflow-hidden"
         title="Importar Equipamentos"
@@ -1500,7 +1500,7 @@ export default function ControlView({
         </div>
       </Modal>
 
-      <Modal
+      <Modal hideCancel={true}
         isOpen={isMaintenanceModalOpen}
         onClose={() => setIsMaintenanceModalOpen(false)} maxWidth="custom" className="sm:max-w-[800px] h-[600px] flex flex-col overflow-hidden"
         
@@ -1636,7 +1636,7 @@ export default function ControlView({
         </div>
       </Modal>
 
-      <Modal
+      <Modal hideCancel={true}
         isOpen={isExitMaintenanceModalOpen}
         onClose={() => setIsExitMaintenanceModalOpen(false)} maxWidth="custom" className="sm:max-w-[800px] h-[600px] flex flex-col overflow-hidden"
         
@@ -1848,7 +1848,7 @@ export default function ControlView({
                   });
                   setIsAddOpen(true);
                 }} className="rounded-xl bg-blue-600 gap-2 font-bold text-base"><Plus className="w-4 h-4 mr-2" /> Novo</Button>
-                <Modal
+                <Modal hideCancel={true}
                   isOpen={isAddOpen}
                   onClose={() => setIsAddOpen(false)}
                   hideCancel={true}
@@ -3158,7 +3158,7 @@ export default function ControlView({
         </TabsContent>
       </Tabs>
 
-      <Modal
+      <Modal hideCancel={true}
         isOpen={isEditOpen}
         onClose={() => setIsEditOpen(false)}
         hideCancel={true}
@@ -3699,7 +3699,7 @@ export default function ControlView({
           </Tabs>
       </Modal>
 
-      <Modal 
+      <Modal hideCancel={true} 
         isOpen={isPeriodSelectionOpen} 
         onClose={() => setIsPeriodSelectionOpen(false)} maxWidth="custom" className="sm:max-w-[800px] h-[600px] flex flex-col overflow-hidden"
         title="Novo Período de Medição"
@@ -3735,7 +3735,7 @@ export default function ControlView({
         </div>
       </Modal>
 
-      <Modal 
+      <Modal hideCancel={true} 
         isOpen={isNewMeasurementModalOpen} 
         onClose={() => setIsNewMeasurementModalOpen(false)} maxWidth="custom" className="sm:max-w-[800px] h-[600px] flex flex-col overflow-hidden"
         title={
@@ -3890,7 +3890,7 @@ export default function ControlView({
         </div>
       </Modal>
 
-      <Modal
+      <Modal hideCancel={true}
         isOpen={isTransferOpen}
         onClose={() => setIsTransferOpen(false)} maxWidth="custom" className="sm:max-w-[800px] h-[600px] flex flex-col overflow-hidden"
         
@@ -3973,7 +3973,7 @@ export default function ControlView({
         </div>
       </Modal>
 
-      <Modal
+      <Modal hideCancel={true}
         isOpen={isDeleteOpen}
         onClose={() => setIsDeleteOpen(false)} maxWidth="custom" className="sm:max-w-[800px] h-[600px] flex flex-col overflow-hidden"
         
@@ -4024,7 +4024,7 @@ export default function ControlView({
         </div>
       </Modal>
 
-      <Modal
+      <Modal hideCancel={true}
         isOpen={isTankModalOpen}
         onClose={() => setIsTankModalOpen(false)} maxWidth="custom" className="sm:max-w-[800px] h-[600px] flex flex-col overflow-hidden"
         
@@ -4122,7 +4122,7 @@ export default function ControlView({
         </div>
       </Modal>
 
-      <Modal
+      <Modal hideCancel={true}
         isOpen={isFuelLogModalOpen}
         onClose={() => setIsFuelLogModalOpen(false)} maxWidth="custom" className="sm:max-w-[800px] h-[600px] flex flex-col overflow-hidden"
         
@@ -4306,7 +4306,7 @@ export default function ControlView({
         </div>
       </Modal>
 
-      <Modal
+      <Modal hideCancel={true}
         isOpen={isMaterialRequestModalOpen}
         onClose={() => setIsMaterialRequestModalOpen(false)} maxWidth="custom" className="sm:max-w-[800px] h-[600px] flex flex-col overflow-hidden"
         
@@ -4538,7 +4538,7 @@ export default function ControlView({
         </div>
       </Modal>
 
-      <Modal
+      <Modal hideCancel={true}
         isOpen={isDetailOpen}
         onClose={() => setIsDetailOpen(false)} maxWidth="custom" className="sm:max-w-[800px] h-[600px] flex flex-col overflow-hidden"
         
@@ -4638,7 +4638,7 @@ export default function ControlView({
           </Button>
         </DialogFooter>
       </Modal>
-      <Modal
+      <Modal hideCancel={true}
         isOpen={!!exportData}
         onClose={() => setExportData(null)} maxWidth="custom" className="sm:max-w-[800px] h-[600px] flex flex-col overflow-hidden"
         title="Exportar Relatório"
@@ -4669,7 +4669,7 @@ export default function ControlView({
         </div>
       </Modal>
 
-      <Modal
+      <Modal hideCancel={true}
         isOpen={isMaintenanceDiscountModalOpen}
         onClose={() => {
            setIsMaintenanceDiscountModalOpen(false);
