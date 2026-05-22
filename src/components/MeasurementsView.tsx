@@ -333,10 +333,17 @@ export function MeasurementsView({
   const handleCreateTeam = () => {
     if (!newTeam.name) return;
     const teamId = uuidv4();
+    
+    let resolvedSupervisorId = newTeam.supervisorId;
+    if (!resolvedSupervisorId && supervisorSearch) {
+      const match = allPoolManpower.find(m => m.name.toLowerCase() === supervisorSearch.trim().toLowerCase());
+      resolvedSupervisorId = match ? match.id : supervisorSearch.trim();
+    }
+
     onUpdateTeams([...controllerTeams, {
       id: teamId,
       name: newTeam.name,
-      supervisorId: newTeam.supervisorId || undefined,
+      supervisorId: resolvedSupervisorId || undefined,
       companyId: currentUser?.companyId || 'default',
       contractId: selectedContractId || undefined
     }]);
@@ -807,7 +814,7 @@ export function MeasurementsView({
                               onFocus={() => {
                                 setIsSupDropdownOpen(true);
                                 if (newTeam.supervisorId) {
-                                  const sName = allPoolManpower.find(m => m.id === newTeam.supervisorId)?.name || '';
+                                  const sName = allPoolManpower.find(m => m.id === newTeam.supervisorId)?.name || newTeam.supervisorId || '';
                                   setSupervisorSearch(sName);
                                 }
                               }}
@@ -914,7 +921,7 @@ export function MeasurementsView({
                             <h4 className="font-black text-gray-900 tracking-tight">{team.name}</h4>
                             <div className="flex items-center gap-2">
                               <HardHat className="w-3 h-3 text-gray-400" />
-                              <p className="text-sm text-gray-500 uppercase tracking-widest font-black">{supervisor?.name || 'Não definido'}</p>
+                              <p className="text-sm text-gray-500 uppercase tracking-widest font-black">{supervisor?.name || team.supervisorId || 'Não definido'}</p>
                             </div>
                           </div>
                         </div>

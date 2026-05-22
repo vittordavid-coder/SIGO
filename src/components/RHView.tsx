@@ -303,8 +303,8 @@ export default function RHView({
   const handleDownloadTemplate = () => {
     try {
       const data = [
-        ['Contrato', 'Nome Completo', 'CPF', 'Função', 'Tipo de Pagamento', 'Salário Bruto', 'Data de Admissão', 'Nº de Cadastro/Vínculo/RG', 'Órgão Emissor do RG', 'UF do RG', 'Data de Nascimento', 'Local de Nascimento', 'UF de Nascimento', 'Nº da CTPS', 'Série da CTPS', 'PIS', 'Telefone', 'Celular', 'Email', 'Status', 'Data de Demissão', 'Nº Título de Eleitor', 'Zona Eleitoral', 'Seção Eleitoral', 'Nome do Pai', 'Nome da Mãe', 'Nome do Cônjuge', 'Logradouro', 'Número', 'Complemento', 'Bairro', 'Cidade', 'CEP', 'UF', 'VT - Necessita', 'VT - Valor 1', 'VT - Cidade 1', 'VT - Valor 2', 'VT - Cidade 2'],
-        ['CTR-123', 'João da Silva', '123.456.789-00', 'Pedreiro', 'Mensalista', 2500, '2023-01-15', '12345678', 'SSP', 'SP', '1990-01-01', 'São Paulo', 'SP', '1234567', '12345', '12345678901', '(11) 98765-4321', '(11) 98765-4321', 'joao@email.com', 'Ativo', '', '123456789012', '123', '456', 'José da Silva', 'Maria da Silva', 'Ana da Silva', 'Rua das Flores', '123', 'Apto 1', 'Centro', 'São Paulo', '01000-000', 'SP', 'Não', 0, '', 0, '']
+        ['Contrato', 'Nome Completo', 'CPF', 'Função', 'Tipo de Pagamento', 'Salário Bruto', 'Data de Admissão', 'Nº de Cadastro/Vínculo/RG', 'Órgão Emissor do RG', 'UF do RG', 'Data de Nascimento', 'Local de Nascimento', 'UF de Nascimento', 'Nº da CTPS', 'Série da CTPS', 'PIS', 'Telefone', 'Celular', 'Email', 'Status', 'Data de Demissão', 'Nº Título de Eleitor', 'Zona Eleitoral', 'Seção Eleitoral', 'Nome do Pai', 'Nome da Mãe', 'Nome do Cônjuge', 'Logradouro', 'Número', 'Complemento', 'Bairro', 'Cidade', 'CEP', 'UF', 'VT - Necessita', 'VT - Valor 1', 'VT - Cidade 1', 'VT - Valor 2', 'VT - Cidade 2', 'Encargos Percentual', 'Horas Extras Percentual'],
+        ['CTR-123', 'João da Silva', '123.456.789-00', 'Pedreiro', 'Mensalista', 2500, '2023-01-15', '12345678', 'SSP', 'SP', '1990-01-01', 'São Paulo', 'SP', '1234567', '12345', '12345678901', '(11) 98765-4321', '(11) 98765-4321', 'joao@email.com', 'Ativo', '', '123456789012', '123', '456', 'José da Silva', 'Maria da Silva', 'Ana da Silva', 'Rua das Flores', '123', 'Apto 1', 'Centro', 'São Paulo', '01000-000', 'SP', 'Não', 0, '', 0, '', '84.15', '50']
       ];
       
       const ws = XLSX.utils.aoa_to_sheet(data);
@@ -487,6 +487,8 @@ export default function RHView({
               commuterCity1: String(getVal(['vt - cidade 1']) || ''),
               commuterValue2: parseFloat(String(getVal(['vt - valor 2']) || '0').replace(/[^0-9,-]+/g,"").replace(",", ".")) || 0,
               commuterCity2: String(getVal(['vt - cidade 2']) || ''),
+              chargesPercentage: parseFloat(String(getVal(['encargos percentual', 'encargos_percentual', 'charges_percentage', 'encargos']) || '0').replace(/[^0-9,-]+/g,"").replace(",", ".")) || 0,
+              overtimePercentage: parseFloat(String(getVal(['horas extras percentual', 'he_percentual', 'overtime_percentage', 'he']) || '0').replace(/[^0-9,-]+/g,"").replace(",", ".")) || 0,
             };
             importedEmployees.push(employee);
           } catch (rowErr) {

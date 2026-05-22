@@ -249,7 +249,7 @@ export default function ControlView({
     return result;
   }, [contracts, currentUser]);
 
-  const downloadTemplate = () => {
+   const downloadTemplate = () => {
     const headers = [[
       'CONTRATO_NUMERO',
       'CODIGO',
@@ -269,6 +269,9 @@ export default function ControlView({
       'CUSTO_MENSAL',
       'DATA_ENTRADA',
       'DATA_SAIDA',
+      'LEITURA_ATUAL',
+      'ENCARGOS_PERCENTUAL',
+      'HE_PERCENTUAL',
       'OBSERVACOES'
     ]];
     const exampleRow = [
@@ -290,6 +293,9 @@ export default function ControlView({
       '8500',
       '2024-01-01',
       '',
+      '1500',
+      '84.15',
+      '50',
       'Equipamento em excelentes condições de uso'
     ];
     const ws = XLSX.utils.aoa_to_sheet([headers[0], exampleRow]);
@@ -370,6 +376,27 @@ export default function ControlView({
 
         const obsVal = getVal(['observacoes', 'observação', 'observacao', 'obs']);
 
+        const chargesPercVal = getVal(['encargos_percentual', 'charges_percentage', 'encargos', 'percentual_encargos']);
+        let chargesPercentage = 0;
+        if (chargesPercVal !== null) {
+          chargesPercentage = typeof chargesPercVal === 'number' ? chargesPercVal : parseFloat(String(chargesPercVal).replace(/[^0-9,-]+/g,"").replace(",", "."));
+        }
+        if (isNaN(chargesPercentage)) chargesPercentage = 0;
+
+        const otPercVal = getVal(['he_percentual', 'overtime_percentage', 'horas_extras', 'percentual_he']);
+        let overtimePercentage = 0;
+        if (otPercVal !== null) {
+          overtimePercentage = typeof otPercVal === 'number' ? otPercVal : parseFloat(String(otPercVal).replace(/[^0-9,-]+/g,"").replace(",", "."));
+        }
+        if (isNaN(overtimePercentage)) overtimePercentage = 0;
+
+        const currentReadingVal = getVal(['leitura_atual', 'current_reading', 'leitura', 'horimetro_atual', 'odometro_atual']);
+        let currentReading = 0;
+        if (currentReadingVal !== null) {
+          currentReading = typeof currentReadingVal === 'number' ? currentReadingVal : parseFloat(String(currentReadingVal).replace(/[^0-9,-]+/g,"").replace(",", "."));
+        }
+        if (isNaN(currentReading)) currentReading = 0;
+
         newEquips.push({
           id,
           code: codeVal ? String(codeVal) : '',
@@ -389,6 +416,9 @@ export default function ControlView({
           monthlyPrice,
           entryDate,
           exitDate,
+          chargesPercentage,
+          overtimePercentage,
+          currentReading,
           observations: obsVal ? String(obsVal) : '',
           companyId: currentUser?.companyId,
           contractId: importContractId || targetContract?.id

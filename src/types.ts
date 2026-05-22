@@ -128,6 +128,10 @@ export interface Employee {
   commuterCity1?: string;
   commuterValue2?: number;
   commuterCity2?: string;
+
+  // Custom fields
+  chargesPercentage?: number;
+  overtimePercentage?: number;
 }
 
 export interface TimeRecord {
