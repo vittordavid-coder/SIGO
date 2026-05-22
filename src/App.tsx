@@ -3485,7 +3485,7 @@ export default function App() {
 
           <div className={cn(
             "flex-1 custom-scrollbar",
-            mainTab === 'measurements' ? "overflow-hidden flex flex-col" : "overflow-y-auto p-8"
+            (mainTab === 'measurements' || (mainTab === 'quotations' && activeTab === 'schedule')) ? "overflow-hidden flex flex-col" : "overflow-y-auto p-8"
           )}>
             <AnimatePresence mode="wait">
               {mainTab === 'home' && (
@@ -3593,7 +3593,7 @@ export default function App() {
               )}
 
               {mainTab === 'quotations' && activeTab === 'schedule' && (
-                <ScheduleView 
+                <div className="flex-1 flex overflow-hidden bg-gray-50/30"><div className="flex-1 flex flex-col p-6 min-w-0"><ScheduleView 
                   key="schedule"
                   services={filteredServices} 
                   resources={filteredResources} 
@@ -3603,7 +3603,7 @@ export default function App() {
                   budgetItems={budgetItems}
                   budgetGroups={budgetGroups}
                   readonly={currentUser?.role === 'reader'}
-                />
+                /></div></div>
               )}
 
               {mainTab === 'quotations' && activeTab === 'reports' && (

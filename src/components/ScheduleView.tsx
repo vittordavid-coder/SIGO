@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion } from 'motion/react';
-import { Settings, FileSpreadsheet, Download } from 'lucide-react';
+import { Settings, FileSpreadsheet, Download, ZoomIn, ZoomOut, PanelRight, PanelRightClose, Save } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 import { ServiceComposition, Resource, Quotation, Schedule, TimeUnit, BudgetGroup } from '../types';
 import { formatCurrency, formatNumber, cn } from '../lib/utils';
@@ -164,6 +164,7 @@ const ScheduleServiceRow = React.memo(({
 
 export function ScheduleView({ services, resources, quotations, schedules, setSchedules, budgetItems, budgetGroups, readonly }: ScheduleViewProps) {
   const isCurrentPopulated = budgetItems.length > 0 || budgetGroups.length > 0;
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [selectedQuotationId, setSelectedQuotationId] = useState<string>(isCurrentPopulated ? 'current' : (quotations[0]?.id || ''));
   const [viewMode, setViewMode] = useState<'qty' | 'val' | 'perc' | 'all'>('qty');
   const [hasChanges, setHasChanges] = useState(false);
@@ -545,169 +546,66 @@ export function ScheduleView({ services, resources, quotations, schedules, setSc
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <div>
-          <h3 className="text-2xl font-bold text-gray-900">Cronograma Físico-Financeiro</h3>
-          <p className="text-gray-500">Distribuição da execução dos serviços no tempo</p>
-        </div>
-        <div className="flex items-center gap-4">
-          {!readonly && hasChanges && (
-            <Button 
-              className="bg-green-600 hover:bg-green-700 text-white font-bold shadow-lg animate-pulse"
-              onClick={handleSave}
-            >
-              Salvar Cronograma
-            </Button>
-          )}
-          <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={() => exportScheduleToExcel(currentSchedule, services, resources, activeQuotation?.budgetName || 'Cronograma')}>
-              <FileSpreadsheet className="w-4 h-4 mr-2" /> Excel
-            </Button>
-            <Button variant="outline" size="sm" onClick={() => exportScheduleToPDF(currentSchedule, services, resources, activeQuotation?.budgetName || 'Cronograma')}>
-              <Download className="w-4 h-4 mr-2" /> PDF
-            </Button>
+    <div className="flex h-full min-h-0 overflow-hidden relative">
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden h-full">
+        <div className="flex justify-between items-center shrink-0 mb-4 pr-1">
+          <div>
+            <h3 className="text-2xl font-bold text-gray-900">Cronograma Físico-Financeiro</h3>
+            <p className="text-gray-500">Distribuição da execução dos serviços no tempo</p>
           </div>
           <div className="flex items-center gap-2">
-            <Label className="text-sm font-bold text-gray-400 uppercase">Planilha:</Label>
-            <Select value={selectedQuotationId} onValueChange={setSelectedQuotationId}>
-              <SelectTrigger className="w-[250px] bg-white">
-                <SelectValue>
-                  {selectedQuotationId === 'current' 
-                    ? 'Planilha Atual (Em edição)' 
-                    : quotations.find(q => q.id === selectedQuotationId)?.budgetName || 'Selecionar Planilha'}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                {isCurrentPopulated && (
-                  <SelectItem value="current" textValue="Planilha Atual (Em edição)">
-                    Planilha Atual (Em edição)
-                  </SelectItem>
-                )}
-                {quotations.map(q => (
-                  <SelectItem key={q.id} value={q.id} textValue={q.budgetName}>
-                    {q.budgetName}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            {!readonly && hasChanges && (
+              <Button 
+                size="sm"
+                className="bg-green-600 hover:bg-green-700 text-white font-bold h-8"
+                onClick={handleSave}
+              >
+                <Save className="w-4 h-4 mr-2" /> Salvar Alterações
+              </Button>
+            )}
+            <Button variant="outline" size="sm" onClick={() => exportScheduleToExcel(currentSchedule, services, resources, activeQuotation?.budgetName || 'Cronograma')} className="text-green-600 border-green-200 hover:bg-green-50 h-8">
+              <FileSpreadsheet className="w-4 h-4 mr-2" /> Excel
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => exportScheduleToPDF(currentSchedule, services, resources, activeQuotation?.budgetName || 'Cronograma')} className="text-red-600 border-red-200 hover:bg-red-50 h-8">
+              <Download className="w-4 h-4 mr-2" /> PDF
+            </Button>
+
+            <div className="flex items-center gap-1 bg-white border rounded-md shadow-sm ml-1">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 text-gray-500 hover:text-gray-900"
+                onClick={() => setZoomLevel(prev => Math.max(0.5, prev - 0.1))}
+                title="Diminuir Zoom"
+              >
+                <ZoomOut className="w-4 h-4" />
+              </Button>
+              <span className="text-xs font-mono font-medium text-gray-600 w-10 text-center">
+                {Math.round(zoomLevel * 100)}%
+              </span>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 text-gray-500 hover:text-gray-900"
+                onClick={() => setZoomLevel(prev => Math.min(2, prev + 0.1))}
+                title="Aumentar Zoom"
+              >
+                <ZoomIn className="w-4 h-4" />
+              </Button>
+            </div>
+            <Button 
+              size="sm" 
+              variant={isSidebarOpen ? "secondary" : "outline"}
+              onClick={() => setIsSidebarOpen(prev => !prev)} 
+              className={cn("h-8 px-2 ml-1", isSidebarOpen ? "bg-slate-200 text-slate-700" : "text-slate-600")}
+              title={isSidebarOpen ? "Ocultar painel" : "Mostrar painel"}
+            >
+              {isSidebarOpen ? <PanelRightClose className="w-4 h-4" /> : <PanelRight className="w-4 h-4" />}
+            </Button>
           </div>
         </div>
-      </div>
 
-      <Card className="shadow-sm">
-        <CardHeader className="py-2 px-4 border-b">
-          <CardTitle className="text-base flex items-center gap-2 font-bold uppercase text-gray-600">
-            <Settings className="w-4 h-4 text-blue-600" />
-            Configuração
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="p-3">
-          <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
-            <div className="space-y-1">
-              <Label className="text-sm uppercase font-bold text-gray-400">Data de Início</Label>
-              <Input 
-                type="date" 
-                className="h-8 text-sm"
-                value={currentSchedule.startDate} 
-                onChange={(e) => updateSchedule({ startDate: e.target.value })}
-                readOnly={readonly}
-              />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-sm uppercase font-bold text-gray-400">Unidade</Label>
-              <Select 
-                value={currentSchedule.timeUnit} 
-                onValueChange={(v: TimeUnit) => handleTimeUnitChange(v)}
-                disabled={readonly}
-              >
-                <SelectTrigger className="h-8 text-sm">
-                  <SelectValue placeholder="Selecione" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="days" className="text-sm">Dias</SelectItem>
-                  <SelectItem value="weeks" className="text-sm">Semanas</SelectItem>
-                  <SelectItem value="months" className="text-sm">Meses</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1">
-              <Label className="text-sm uppercase font-bold text-gray-400">Duração</Label>
-              <Input 
-                type="number" 
-                className="h-8 text-sm"
-                min={1} 
-                max={60}
-                value={currentSchedule.duration} 
-                onChange={(e) => updateSchedule({ duration: parseInt(e.target.value) || 1 })}
-                readOnly={readonly}
-              />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-sm uppercase font-bold text-gray-400">Distribuição</Label>
-              <Select 
-                value={currentSchedule.distributionType} 
-                onValueChange={(v: 'quantity' | 'percentage') => updateSchedule({ distributionType: v })}
-                disabled={readonly}
-              >
-                <SelectTrigger className="h-8 text-sm">
-                  <SelectValue placeholder="Tipo" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="quantity" className="text-sm">Quantidade</SelectItem>
-                  <SelectItem value="percentage" className="text-sm">Percentual (%)</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1">
-              <Label className="text-sm uppercase font-bold text-gray-400">Visualizar</Label>
-              <Select 
-                value={viewMode} 
-                onValueChange={(v: 'qty' | 'val' | 'perc' | 'all') => setViewMode(v)}
-              >
-                <SelectTrigger className="h-8 text-sm">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="qty" className="text-sm">Quantidade</SelectItem>
-                  <SelectItem value="val" className="text-sm">Valores</SelectItem>
-                  <SelectItem value="perc" className="text-sm">Percentuais</SelectItem>
-                  <SelectItem value="all" className="text-sm">Tudo</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1">
-              <Label className="text-sm uppercase font-bold text-gray-400">Zoom</Label>
-              <Select 
-                value={zoomLevel.toString()} 
-                onValueChange={(v) => setZoomLevel(parseFloat(v))}
-              >
-                <SelectTrigger className="h-8 text-sm">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="0.5" className="text-sm">0.5x</SelectItem>
-                  <SelectItem value="1" className="text-sm">1x</SelectItem>
-                  <SelectItem value="2" className="text-sm">2x</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="flex items-end">
-              {!readonly && (
-                <Button variant="outline" size="sm" className="w-full h-8 text-sm uppercase font-bold border-red-100 text-red-600 hover:bg-red-50" onClick={() => {
-                  const confirmClear = window.confirm("Deseja limpar toda a distribuição deste cronograma?");
-                  if (confirmClear) updateSchedule({ services: [] });
-                }}>
-                  Limpar
-                </Button>
-              )}
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card className="overflow-hidden border-none shadow-none">
-        <div className="max-h-[600px] overflow-auto relative border rounded-xl shadow-sm bg-white scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent">
+        <div className="flex-1 overflow-auto bg-white border rounded-lg shadow-sm scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent">
           <table className="w-full border-separate border-spacing-0 text-base">
             <thead className="bg-gray-50 sticky top-0 z-40 border-b">
               {monthGroups.length > 0 && (
@@ -837,8 +735,139 @@ export function ScheduleView({ services, resources, quotations, schedules, setSc
                 </TableRow>
               </TableBody>
             </table>
+         </div>
+      </div>
+
+      {isSidebarOpen && (
+        <div className="w-64 shrink-0 border-l pl-4 ml-4 flex flex-col gap-5 overflow-y-auto custom-scrollbar">
+          <div className="space-y-4">
+            <div className="space-y-1">
+              <Label className="text-xs font-bold text-gray-400 uppercase">Planilha Selecionada</Label>
+              <Select value={selectedQuotationId} onValueChange={setSelectedQuotationId}>
+                <SelectTrigger className="w-full bg-white h-8 text-xs">
+                  <SelectValue>
+                    {selectedQuotationId === 'current' 
+                      ? 'Planilha Atual' 
+                      : quotations.find(q => q.id === selectedQuotationId)?.budgetName || 'Selecione'}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  {isCurrentPopulated && (
+                    <SelectItem value="current" textValue="Planilha Atual (Em edição)">
+                      Planilha Atual (Em edição)
+                    </SelectItem>
+                  )}
+                  {quotations.map(q => (
+                    <SelectItem key={q.id} value={q.id} textValue={q.budgetName}>
+                      {q.budgetName}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          
+          <div className="bg-gray-50 p-3 rounded-lg border border-gray-100 space-y-4">
+            <h4 className="text-xs font-bold uppercase text-gray-600 flex items-center gap-1.5 border-b pb-2">
+              <Settings className="w-3.5 h-3.5" />
+              Configuração do Eixo
+            </h4>
+            
+            <div className="space-y-1">
+              <Label className="text-[10px] uppercase font-bold text-gray-400">Data de Início</Label>
+              <Input 
+                type="date" 
+                className="h-8 text-xs"
+                value={currentSchedule.startDate} 
+                onChange={(e) => updateSchedule({ startDate: e.target.value })}
+                readOnly={readonly}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-[10px] uppercase font-bold text-gray-400">Unidade de Tempo</Label>
+              <Select 
+                value={currentSchedule.timeUnit} 
+                onValueChange={(v: any) => handleTimeUnitChange(v)}
+                disabled={readonly}
+              >
+                <SelectTrigger className="h-8 text-xs">
+                  <SelectValue placeholder="Selecione" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="days" className="text-xs">Dias</SelectItem>
+                  <SelectItem value="weeks" className="text-xs">Semanas</SelectItem>
+                  <SelectItem value="months" className="text-xs">Meses</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-[10px] uppercase font-bold text-gray-400">Duração</Label>
+              <Input 
+                type="number" 
+                className="h-8 text-xs"
+                min={1} 
+                max={60}
+                value={currentSchedule.duration} 
+                onChange={(e) => updateSchedule({ duration: parseInt(e.target.value) || 1 })}
+                readOnly={readonly}
+              />
+            </div>
+          </div>
+
+          <div className="bg-blue-50/50 p-3 rounded-lg border border-blue-100 space-y-4">
+            <h4 className="text-xs font-bold uppercase text-blue-800 flex items-center gap-1.5 border-b border-blue-100 pb-2">
+              <Settings className="w-3.5 h-3.5" />
+              Exibição
+            </h4>
+            
+            <div className="space-y-1">
+              <Label className="text-[10px] uppercase font-bold text-gray-400">Distribuição</Label>
+              <Select 
+                value={currentSchedule.distributionType} 
+                onValueChange={(v: any) => updateSchedule({ distributionType: v })}
+                disabled={readonly}
+              >
+                <SelectTrigger className="h-8 text-xs bg-white">
+                  <SelectValue placeholder="Tipo" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="quantity" className="text-xs">Quantidade</SelectItem>
+                  <SelectItem value="percentage" className="text-xs">Percentual (%)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-[10px] uppercase font-bold text-gray-400">Colunas a Exibir</Label>
+              <Select 
+                value={viewMode} 
+                onValueChange={(v: any) => setViewMode(v)}
+              >
+                <SelectTrigger className="h-8 text-xs bg-white">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="qty" className="text-xs">Quantidade</SelectItem>
+                  <SelectItem value="val" className="text-xs">Valores</SelectItem>
+                  <SelectItem value="perc" className="text-xs">Percentuais</SelectItem>
+                  <SelectItem value="all" className="text-xs">Tudo</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+            
+          <div className="mt-auto">
+            {!readonly && (
+              <Button variant="outline" size="sm" className="w-full h-8 text-[10px] uppercase font-bold border-red-100 text-red-600 hover:bg-red-50" onClick={() => {
+                const confirmClear = window.confirm("Deseja limpar toda a distribuição deste cronograma?");
+                if (confirmClear) updateSchedule({ services: [] });
+              }}>
+                Limpar Cronograma
+              </Button>
+            )}
+          </div>
         </div>
-      </Card>
+      )}
     </div>
   );
 }
