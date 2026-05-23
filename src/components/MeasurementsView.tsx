@@ -13,7 +13,7 @@ import {
   CloudRain, Calendar, BookOpen, UserCheck, HardHat,
   Construction, Map, Clock, ArrowRightLeft, Briefcase,
   Users2, ChevronDown, ChevronUp, FileDown, RefreshCw,
-  Activity, Check, X
+  Activity, Check, X, DollarSign, TrendingUp
 } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 import { 
@@ -5279,6 +5279,7 @@ function ProductionControlView({
   const [listMonthFilter, setListMonthFilter] = useState<string>('');
   const [serviceFilter, setServiceFilter] = useState('');
   const [showDropdown, setShowDropdown] = useState(false);
+  const [viewMode, setViewMode] = useState<'quantity' | 'financial'>('quantity');
   const chartRef = useRef<HTMLDivElement>(null);
 
   const contractServices = useMemo(() => {
@@ -5441,6 +5442,122 @@ function ProductionControlView({
 
   const selectedService = services.find(s => s.id === selectedServiceId);
 
+  const serviceUnitPrice = useMemo(() => {
+    if (!selectedServiceId) return 0;
+    const cs = (contract.services || []).find(x => x.serviceId === selectedServiceId);
+    let csPrice = cs?.price || 0;
+    if (!csPrice && contract.groups) {
+      contract.groups.forEach(group => {
+         const gs = group.services.find(sub => sub.serviceId === selectedServiceId);
+         if (gs && gs.price) csPrice = gs.price;
+      });
+    }
+    return csPrice;
+  }, [contract, selectedServiceId]);
+
+  const teamInfo = useMemo(() => {
+    if (!production || !production.teamId || production.teamId === 'none') {
+      return { totalMonthlyCost: 0, dailyCost: 0 };
+    }
+    const t = (controllerTeams || []).find(x => x.id === production.teamId);
+    if (!t) return { totalMonthlyCost: 0, dailyCost: 0 };
+    
+    const teamAssigns = (teamAssignments || []).filter(a => a.teamId === t.id);
+    let totalCostVal = 0;
+    
+    teamAssigns.forEach(a => {
+      if (a.type === 'manpower') {
+        const monthlyData = (manpowerMonthly || []).find(m => m.manpowerId === a.memberId && m.month === selectedMonth);
+        if (monthlyData && monthlyData.salary) {
+          totalCostVal += monthlyData.salary;
+        } else {
+          const emp = (employees || []).find(e => e.id === a.memberId);
+          if (emp && emp.salary) {
+            totalCostVal += emp.salary;
+          }
+        }
+      } else if (a.type === 'equipment') {
+        const monthlyData = (equipmentMonthly || []).find(m => m.equipmentId === a.memberId && m.month === selectedMonth);
+        if (monthlyData && monthlyData.cost) {
+          totalCostVal += monthlyData.cost;
+        } else {
+          const eq = (controllerEquipments || []).find(eq => eq.id === a.memberId);
+          if (eq) {
+            let eqCost = eq.monthlyPrice;
+            if (!eqCost && eq.contractedPrice && eq.measurementUnit === 'Mensal') {
+               eqCost = eq.contractedPrice;
+            }
+            if (eqCost) {
+              totalCostVal += eqCost;
+            } else {
+              const atts = eq.customFields ? Object.values(eq.customFields) : [];
+              const monthlyCostStr = atts.find((att: any) => 
+                typeof att.name === 'string' && att.name.toLowerCase().includes('mensal')
+              )?.value;
+              if (monthlyCostStr) {
+                totalCostVal += parseFloat(monthlyCostStr) || 0;
+              }
+            }
+          }
+        }
+      }
+    });
+    
+    const days = production.workDays || 30;
+    const dailyCostVal = totalCostVal / days;
+    return { totalMonthlyCost: totalCostVal, dailyCost: dailyCostVal };
+  }, [production, selectedMonth, controllerTeams, teamAssignments, manpowerMonthly, equipmentMonthly, employees, controllerEquipments]);
+
+  const renderData = useMemo(() => {
+     if (viewMode === 'quantity') {
+        return dailyProcessedData.map(d => ({
+           ...d,
+           displayPlanned: d.planned,
+           displayPlannedAccumulated: d.plannedAccumulated,
+           displayActual: d.actual,
+           displayActualAccumulated: d.actualAccumulated,
+           displayProjected: d.projected,
+           displayProjectedAccumulated: d.projectedAccumulated,
+           displayCostAccumulated: 0,
+           displayCostDaily: 0,
+           unitLabel: selectedService?.unit || ''
+        }));
+     } else {
+        const { dailyCost } = teamInfo;
+        const price = serviceUnitPrice;
+        
+        let pValAcc = 0;
+        let aValAcc = 0;
+        let prValAcc = 0;
+        let costAcc = 0;
+        
+        return dailyProcessedData.map(d => {
+           // Value
+           pValAcc += d.planned * price;
+           aValAcc += d.actual * price;
+           prValAcc += d.projected * price;
+           
+           // Cost
+           const isActualWorkDay = d.actual > 0;
+           const aCost = isActualWorkDay ? dailyCost : 0;
+           costAcc += aCost;
+           
+           return {
+              ...d,
+              displayPlanned: d.planned * price,
+              displayPlannedAccumulated: pValAcc,
+              displayActual: d.actual * price,
+              displayActualAccumulated: aValAcc,
+              displayProjected: d.projected * price,
+              displayProjectedAccumulated: prValAcc,
+              displayCostDaily: aCost,
+              displayCostAccumulated: costAcc,
+              unitLabel: 'R$'
+           };
+        });
+     }
+  }, [viewMode, dailyProcessedData, teamInfo, serviceUnitPrice, selectedService]);
+
   const exportToExcel = async (type: 'active' | 'all') => {
     const ExcelJS = await import('exceljs');
     const { saveAs } = await import('file-saver');
@@ -5473,17 +5590,33 @@ function ProductionControlView({
       sheet.addRow([]);
 
       // Table Header
-      const tableHeader = ['DIA', 'PLAN. DIA', 'PLAN. ACUM', 'EXEC. DIA', 'EXEC. ACUM', 'PROJ. DIA', 'PROJ. ACUM'];
+      const tableHeader = [
+        'DIA', 
+        'PLAN. DIA', 'PLAN. ACUM', 
+        'EXEC. DIA', 'EXEC. ACUM', 
+        'PROJ. DIA', 'PROJ. ACUM',
+        'CUSTO EQUIPE DIA (R$)', 'CUSTO EQUIPE ACUM (R$)',
+        'VALOR PRODUCAO DIA (R$)', 'VALOR PRODUCAO ACUM (R$)'
+      ];
       sheet.addRow(tableHeader);
       const headerRow = sheet.getRow(sheet.lastRow!.number);
       headerRow.eachCell(cell => {
         cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF3B82F6' } };
         cell.font = { color: { argb: 'FFFFFFFF' }, bold: true, size: 9 };
-        cell.alignment = { horizontal: 'center' };
+        cell.alignment = { horizontal: 'center', vertical: 'middle' };
       });
 
       // Table Data
+      let teamCostAcc = 0;
+      let prodCostAcc = 0;
+      
       dailyProcessedData.forEach((day, idx) => {
+        const teamCostDay = day.actual > 0 ? teamInfo.dailyCost : 0;
+        const prodCostDay = day.actual * serviceUnitPrice;
+        
+        teamCostAcc += teamCostDay;
+        prodCostAcc += prodCostDay;
+
         sheet.addRow([
           idx + 1,
           day.planned,
@@ -5491,8 +5624,19 @@ function ProductionControlView({
           day.actual,
           day.actualAccumulated,
           day.projected,
-          day.projectedAccumulated
+          day.projectedAccumulated,
+          teamCostDay,
+          teamCostAcc,
+          prodCostDay,
+          prodCostAcc
         ]);
+        
+        // Format cost columns as currency
+        const currentRow = sheet.getRow(sheet.lastRow!.number);
+        currentRow.getCell(8).numFmt = '"R$"#,##0.00';
+        currentRow.getCell(9).numFmt = '"R$"#,##0.00';
+        currentRow.getCell(10).numFmt = '"R$"#,##0.00';
+        currentRow.getCell(11).numFmt = '"R$"#,##0.00';
       });
 
       // Chart Image
@@ -5571,7 +5715,13 @@ function ProductionControlView({
         services,
         companyLogo,
         companyLogoRight,
-        logoMode
+        logoMode,
+        controllerTeams,
+        teamAssignments,
+        manpowerMonthly,
+        equipmentMonthly,
+        employees,
+        controllerEquipments
       });
     } else if (type === 'all') {
       // Group active productions by month
@@ -5598,7 +5748,13 @@ function ProductionControlView({
           services,
           companyLogo,
           companyLogoRight,
-          logoMode
+          logoMode,
+          controllerTeams,
+          teamAssignments,
+          manpowerMonthly,
+          equipmentMonthly,
+          employees,
+          controllerEquipments
         });
       }
     }
@@ -5905,9 +6061,31 @@ function ProductionControlView({
            <Button variant="ghost" size="icon" onClick={() => setSelectedServiceId(null)} className="h-8 w-8 text-gray-500 hover:text-blue-600">
               <ChevronRight className="w-5 h-5 rotate-180" />
            </Button>
-           <div>
+           <div className="flex flex-col gap-1">
               <h3 className="text-2xl font-bold">Produção Detalhada</h3>
               <p className="text-gray-500">Gestão operacional do serviço {selectedService?.code}</p>
+              {production && (
+                <div className="flex bg-gray-100 p-1 rounded-xl w-fit mt-2 border border-gray-200">
+                   <button
+                     className={cn("px-3 py-1 flex items-center gap-1.5 text-xs font-bold rounded-lg transition-all", 
+                       viewMode === 'quantity' ? "bg-white text-blue-600 shadow-sm" : "text-gray-600 hover:text-gray-900"
+                     )}
+                     onClick={() => setViewMode('quantity')}
+                   >
+                     <BarChart3 className="w-3.5 h-3.5" />
+                     Qtd. Produzida ({selectedService?.unit})
+                   </button>
+                   <button
+                     className={cn("px-3 py-1 flex items-center gap-1.5 text-xs font-bold rounded-lg transition-all", 
+                       viewMode === 'financial' ? "bg-white text-blue-600 shadow-sm" : "text-gray-600 hover:text-gray-900"
+                     )}
+                     onClick={() => setViewMode('financial')}
+                   >
+                     <TrendingUp className="w-3.5 h-3.5" />
+                     Comparativo Financeiro (R$)
+                   </button>
+                </div>
+              )}
            </div>
         </div>
         <div className="flex items-center gap-2">
@@ -6139,17 +6317,31 @@ function ProductionControlView({
                     <CardHeader className="bg-blue-600 text-white py-6">
                        <div className="flex justify-between items-end">
                           <div>
-                             <p className="text-blue-100 text-sm font-bold uppercase tracking-[0.2em] mb-1">Acompanhamento Físico</p>
+                             <p className="text-blue-100 text-sm font-bold uppercase tracking-[0.2em] mb-1">
+                                {viewMode === 'quantity' && 'Acompanhamento Físico'}
+                                {viewMode === 'financial' && 'Comparativo Financeiro: Produção vs Custo (R$)'}
+                             </p>
                              <CardTitle className="text-2xl uppercase font-black">{production.customTitle || selectedService.name}</CardTitle>
                              <div className="flex items-center gap-3 mt-2">
                                 <span className="bg-white/10 px-2 py-0.5 rounded text-sm font-bold uppercase tracking-widest">{selectedService.code}</span>
-                                <span className="text-blue-200 text-sm">Unidade: {selectedService.unit} | Mês: {selectedMonth}</span>
+                                                                 <span className="text-blue-200 text-sm">
+                                    {viewMode === 'quantity' ? `Unidade: ${selectedService.unit}` : 'Unidade: R$ (Financeiro)'} | Mês: {selectedMonth}
+                                 </span>
                              </div>
                           </div>
                           <div className="text-right">
-                             <p className="text-sm font-bold opacity-70 uppercase tracking-widest mb-1">Projeção Final do Mês</p>
-                             <p className="text-4xl font-black leading-none">{formatNumber(dailyProcessedData[dailyProcessedData.length-1]?.projectedAccumulated || 0, 2)}</p>
-                             <p className="text-sm opacity-70 mt-1 uppercase font-bold tracking-widest">{selectedService.unit} Estimados</p>
+                                                           <p className="text-sm font-bold opacity-70 uppercase tracking-widest mb-1">
+                                 {viewMode === 'quantity' ? 'Projeção Final do Mês' : 'Saldo Projetado (Prod - Custo)'}
+                              </p>
+                                                           <p className="text-4xl font-black leading-none font-mono">
+                                 {viewMode === 'quantity' 
+                                    ? formatNumber(renderData[renderData.length - 1]?.displayProjectedAccumulated || 0, 2)
+                                    : `R$ ${formatNumber((renderData[renderData.length - 1]?.displayProjectedAccumulated || 0) - (renderData[renderData.length - 1]?.displayCostAccumulated || 0), 2)}`
+                                 }
+                              </p>
+                                                           <p className="text-sm opacity-70 mt-1 uppercase font-bold tracking-widest">
+                                 {viewMode === 'quantity' ? `${selectedService.unit} Estimados` : 'Estimados'}
+                              </p>
                           </div>
                        </div>
                     </CardHeader>
@@ -6159,16 +6351,19 @@ function ProductionControlView({
                       <div className="grid grid-cols-1 gap-8">
                         <div ref={chartRef} className="h-96 xl:h-[400px]" style={{ backgroundColor: '#ffffff' }}>
                            <div className="flex justify-between items-center mb-6">
-                              <p className="text-[10px] font-bold uppercase tracking-widest" style={{ color: '#94a3b8' }}>Acompanhamento de Produção: Diário vs Acumulado</p>
+                                                             <p className="text-[10px] font-bold uppercase tracking-widest" style={{ color: '#94a3b8' }}>Acompanhamento de Produção: Diário vs Acumulado ({viewMode === 'quantity' ? selectedService.unit : 'R$'})</p>
                               <div className="flex items-center gap-4 text-xs font-bold uppercase tracking-wider">
                                  <div className="flex items-center gap-1"><div className="w-3 h-1 rounded" style={{ backgroundColor: '#3b82f6' }} /> Previsto</div>
                                  <div className="flex items-center gap-1"><div className="w-3 h-3 rounded-sm" style={{ backgroundColor: '#10b981' }} /> Executado (Dia)</div>
                                  <div className="flex items-center gap-1"><div className="w-3 h-1 rounded" style={{ backgroundColor: '#10b981' }} /> Executado (Acum)</div>
                                  <div className="flex items-center gap-1"><div className="w-3 h-3 border border-dashed rounded-sm" style={{ backgroundColor: 'rgba(245, 158, 11, 0.1)', borderColor: '#F59E0B' }} /> Projeção</div>
+                                 {viewMode === 'financial' && (
+                                   <div className="flex items-center gap-1"><div className="w-3 h-1 rounded text-red-500" style={{ backgroundColor: '#ef4444' }} /> Custo Equipe (Acum)</div>
+                                 )}
                               </div>
                            </div>
                            <ResponsiveContainer width="100%" height="100%">
-                             <ComposedChart data={dailyProcessedData} margin={{ top: 10, right: 60, left: 60, bottom: 35 }}>
+                                                           <ComposedChart data={renderData} margin={{ top: 10, right: 60, left: 60, bottom: 35 }}>
                                <defs>
                                  <linearGradient id="colorProj" x1="0" y1="0" x2="0" y2="1">
                                     <stop offset="5%" stopColor="#F59E0B" stopOpacity={0.1}/>
@@ -6189,7 +6384,15 @@ function ProductionControlView({
                                  tick={{ fontSize: 9, fill: '#64748b' }} 
                                  axisLine={false}
                                  tickLine={false}
-                                 label={{ value: 'Acumulado (' + selectedService.unit + ')', angle: -90, position: 'insideLeft', offset: 10, fontSize: 9, fill: '#64748b', fontWeight: 'bold' }}
+                                 label={{ 
+                                    value: viewMode === 'quantity' ? `Acumulado (${selectedService.unit})` : 'Acumulado (R$)', 
+                                    angle: -90, 
+                                    position: 'insideLeft', 
+                                    offset: 10, 
+                                    fontSize: 9, 
+                                    fill: '#64748b', 
+                                    fontWeight: 'bold' 
+                                 }}
                                />
                                <YAxis 
                                  yAxisId="right"
@@ -6200,40 +6403,54 @@ function ProductionControlView({
                                  contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 25px rgba(0,0,0,0.1)', fontSize: '11px', fontWeight: 'bold' }}
                                  labelFormatter={(v) => `Data: ${v.split('-')[2]}/${v.split('-')[1]}/${v.split('-')[0]}`}
                                />
-                               <Area yAxisId="left" type="monotone" dataKey="projectedAccumulated" name="Projeção" stroke="#F59E0B" fill="url(#colorProj)" strokeWidth={1} strokeDasharray="4 4" />
-                               <Line yAxisId="left" type="monotone" dataKey="plannedAccumulated" name="Previsto (Acum)" stroke="#3b82f6" strokeWidth={2} dot={false} />
-                               <Line yAxisId="left" type="monotone" dataKey="actualAccumulated" name="Executado (Acum)" stroke="#10b981" strokeWidth={3} dot={{ r: 3, fill: '#10b981', strokeWidth: 2, stroke: '#fff' }} />
-                               <Bar yAxisId="right" dataKey="actual" name="Executado (Dia)" fill="#10b981" radius={[2, 2, 0, 0]} barSize={12} opacity={0.6}>
+                                <Area yAxisId="left" type="monotone" dataKey="displayProjectedAccumulated" name="Projeção" stroke="#F59E0B" fill="url(#colorProj)" strokeWidth={1} strokeDasharray="4 4" />
+                               <Line yAxisId="left" type="monotone" dataKey="displayPlannedAccumulated" name="Previsto (Acum)" stroke="#3b82f6" strokeWidth={2} dot={false} />
+                               <Line yAxisId="left" type="monotone" dataKey="displayActualAccumulated" name="Executado (Acum)" stroke="#10b981" strokeWidth={3} dot={{ r: 3, fill: '#10b981', strokeWidth: 2, stroke: '#fff' }} />
+                               {viewMode === 'financial' && (
+                                 <Line yAxisId="left" type="monotone" dataKey="displayCostAccumulated" name="Custo Equipe (Acum)" stroke="#ef4444" strokeWidth={3} dot={false} />
+                               )}
+                               <Bar yAxisId="right" dataKey="displayActual" name="Executado (Dia)" fill="#10b981" radius={[2, 2, 0, 0]} barSize={12} opacity={0.6}>
                                   <LabelList 
-                                    dataKey="actual" 
+                                    dataKey="displayActual" 
                                     position="insideTop" 
                                     angle={-90} 
                                     offset={10}
                                     fill="#000000" 
                                     fontSize={9} 
                                     fontWeight="bold" 
-                                    formatter={(v: any) => v > 0 ? formatNumber(v, 1) : ''} 
+                                    formatter={(v: any) => v > 0 ? (viewMode === 'quantity' ? formatNumber(v, 1) : 'R$ ' + formatNumber(v, 0)) : ''} 
                                   />
                                </Bar>
                                {(() => {
                                  const targetDaily = production.workDays > 0 ? (production.unitHour * production.hoursDay * production.numEquip * (production.efficiency / 100)) : 0;
                                  const actualValsChart = dailyProcessedData.map(d => d.actual).filter(v => typeof v === 'number' && v > 0) as number[];
                                  const avgActualChart = actualValsChart.length ? actualValsChart.reduce((a,b) => a+b, 0) / actualValsChart.length : 0;
+
+                                 const targetDailyValue = viewMode === 'quantity' 
+                                   ? targetDaily 
+                                   : targetDaily * serviceUnitPrice;
+
+                                 const avgActualValue = viewMode === 'quantity'
+                                   ? avgActualChart
+                                   : avgActualChart * serviceUnitPrice;
+
+                                 const projectedAccumValue = renderData.length > 0 ? renderData[renderData.length - 1].displayProjectedAccumulated : 0;
+
                                  return (
                                    <>
-                                     {targetDaily > 0 && (
-                                       <ReferenceLine yAxisId="right" y={targetDaily} stroke="#3b82f6" strokeDasharray="3 3">
-                                          <RechartsLabel position="right" fill="#3b82f6" fontSize={10} fontWeight="bold" value={`Média Prv: ${formatNumber(targetDaily, 1)}`} />
+                                     {targetDailyValue > 0 && (
+                                       <ReferenceLine yAxisId="right" y={targetDailyValue} stroke="#3b82f6" strokeDasharray="3 3">
+                                          <RechartsLabel position="right" fill="#3b82f6" fontSize={10} fontWeight="bold" value={`Média Prv: ${viewMode === 'quantity' ? formatNumber(targetDailyValue, 1) : 'R$ ' + formatNumber(targetDailyValue, 0)}`} />
                                        </ReferenceLine>
                                      )}
-                                     {avgActualChart > 0 && (
-                                       <ReferenceLine yAxisId="right" y={avgActualChart} stroke="#10b981" strokeDasharray="3 3">
-                                          <RechartsLabel position="right" fill="#10b981" fontSize={10} fontWeight="bold" value={`Média Exe: ${formatNumber(avgActualChart, 1)}`} />
+                                     {avgActualValue > 0 && (
+                                       <ReferenceLine yAxisId="right" y={avgActualValue} stroke="#10b981" strokeDasharray="3 3">
+                                          <RechartsLabel position="right" fill="#10b981" fontSize={10} fontWeight="bold" value={`Média Exe: ${viewMode === 'quantity' ? formatNumber(avgActualValue, 1) : 'R$ ' + formatNumber(avgActualValue, 0)}`} />
                                        </ReferenceLine>
                                      )}
-                                     {dailyProcessedData.length > 0 && (
-                                       <ReferenceLine yAxisId="left" y={dailyProcessedData[dailyProcessedData.length - 1].projectedAccumulated} stroke="#F59E0B" strokeDasharray="3 3" opacity={0.5}>
-                                          <RechartsLabel position="right" fill="#F59E0B" fontSize={10} fontWeight="bold" value={`Proj. Final: ${formatNumber(dailyProcessedData[dailyProcessedData.length - 1].projectedAccumulated, 0)}`} />
+                                     {projectedAccumValue > 0 && (
+                                       <ReferenceLine yAxisId="left" y={projectedAccumValue} stroke="#F59E0B" strokeDasharray="3 3" opacity={0.5}>
+                                          <RechartsLabel position="right" fill="#F59E0B" fontSize={10} fontWeight="bold" value={`Proj. Final: ${viewMode === 'quantity' ? formatNumber(projectedAccumValue, 0) : 'R$ ' + formatNumber(projectedAccumValue, 0)}`} />
                                        </ReferenceLine>
                                      )}
                                    </>
@@ -6263,6 +6480,7 @@ function ProductionControlView({
                                    <TableHead rowSpan={2} className="border-r font-bold w-20">DATA/DIA</TableHead>
                                    <TableHead colSpan={2} className="text-center border-r text-blue-600 font-bold bg-blue-50/30">PREVISTO</TableHead>
                                    <TableHead colSpan={2} className="text-center border-r text-emerald-600 font-bold bg-emerald-50/30">EXECUTADO</TableHead>
+                                   <TableHead className="text-center text-red-600 font-bold bg-red-50/30">CUSTO</TableHead>
                                    <TableHead colSpan={2} className="text-center text-amber-600 font-bold bg-amber-50/30">PROJEÇÃO</TableHead>
                                 </TableRow>
                                 <TableRow className="text-xs uppercase tracking-wider">
@@ -6270,12 +6488,13 @@ function ProductionControlView({
                                    <TableHead className="text-right font-bold border-r w-32">ACUMULADO</TableHead>
                                    <TableHead className="text-right font-bold w-24">NO DIA</TableHead>
                                    <TableHead className="text-right font-bold border-r w-32">ACUMULADO</TableHead>
+                                   <TableHead className="text-right font-bold border-r w-24">CUSTO ACUM.</TableHead>
                                    <TableHead className="text-right font-bold w-24">NO DIA</TableHead>
                                    <TableHead className="text-right font-bold w-32">ACUMULADO</TableHead>
                                 </TableRow>
                              </TableHeader>
                              <TableBody>
-                                {dailyProcessedData.map((day, idx) => {
+                                                                {renderData.map((day, idx) => {
                                    const dayNum = idx + 1;
                                    const isWeekend = new Date(day.date + 'T12:00:00').getDay() === 0;
                                    return (
@@ -6284,10 +6503,16 @@ function ProductionControlView({
                                             {dayNum.toString().padStart(2, '0')}/{selectedMonth.split('-')[1]}
                                          </TableCell>
                                          
-                                         <TableCell className="text-right text-gray-500 font-medium">{formatNumber(day.planned, 2)}</TableCell>
-                                         <TableCell className="text-right border-r font-bold text-blue-600 bg-blue-50/10">{formatNumber(day.plannedAccumulated, 2)}</TableCell>
+                                                                                   <TableCell className="text-right text-gray-500 font-medium">{formatNumber(day.displayPlanned, 2)}</TableCell>
+                                                                                   <TableCell className="text-right border-r font-bold text-blue-600 bg-blue-50/10">{formatNumber(day.displayPlannedAccumulated, 2)}</TableCell>
                                          
-                                         <TableCell className="text-right p-1 bg-emerald-50/5">
+                                                                                   <TableCell className="text-right p-1 bg-emerald-50/5">
+                                             {viewMode !== 'quantity' && (
+                                                <span className="text-[#10b981] font-bold text-xs py-1 px-2.5 block text-right font-mono">
+                                                   R$ {formatNumber(day.displayActual, 2)}
+                                                </span>
+                                             )}
+                                             <div className={viewMode === 'quantity' ? "" : "hidden"}>
                                             <Input 
                                                type="number" 
                                                className="h-8 text-sm text-right font-bold bg-transparent border-transparent focus:border-emerald-200 focus:bg-white transition-all" 
@@ -6301,24 +6526,43 @@ function ProductionControlView({
                                                disabled={readonly}
                                                placeholder="0,00"
                                             />
+                                            </div>
                                          </TableCell>
-                                         <TableCell className="text-right border-r font-bold text-emerald-600 bg-emerald-50/10">{formatNumber(day.actualAccumulated, 2)}</TableCell>
                                          
-                                         <TableCell className={cn("text-right", day.actual > 0 ? "text-gray-300 font-normal" : "font-bold text-amber-600")}>
-                                            {formatNumber(day.projected, 2)}
+                                                                                    <TableCell className="text-right border-r font-bold text-emerald-600 bg-emerald-50/10">{formatNumber(day.displayActualAccumulated, 2)}</TableCell>
+                                         
+                                         <TableCell className="text-right border-r font-bold text-red-600 bg-red-50/10">
+                                            {viewMode !== 'quantity' ? `R$ ${formatNumber(day.displayCostAccumulated, 2)}` : "-"}
                                          </TableCell>
-                                         <TableCell className="text-right font-bold text-amber-700 bg-amber-50/10">{formatNumber(day.projectedAccumulated, 2)}</TableCell>
+                                         
+                                                                                  <TableCell className={cn("text-right", day.actual > 0 ? "text-gray-300 font-normal" : "font-bold text-amber-600")}>
+                                            {formatNumber(day.displayProjected, 2)}
+                                         </TableCell>
+                                                                                  <TableCell className="text-right font-bold text-amber-700 bg-amber-50/10">{formatNumber(day.displayProjectedAccumulated, 2)}</TableCell>
                                       </TableRow>
                                    );
                                 })}
                                 <TableRow className="bg-gray-900 h-10">
                                    <TableCell className="border-r font-black text-white text-sm text-center">TOTAIS</TableCell>
                                    <TableCell className="text-right text-blue-200/50 text-sm">-</TableCell>
-                                   <TableCell className="text-right border-r text-white font-black">{formatNumber(dailyProcessedData[dailyProcessedData.length-1]?.plannedAccumulated || 0, 2)}</TableCell>
+                                                                       <TableCell className="text-right border-r text-white font-black font-mono">
+                                       {viewMode !== 'quantity' ? 'R$ ' : ''}
+                                       {formatNumber(renderData[renderData.length-1]?.displayPlannedAccumulated || 0, 2)}
+                                    </TableCell>
                                    <TableCell className="text-right text-emerald-200/50 text-sm">-</TableCell>
-                                   <TableCell className="text-right border-r text-emerald-400 font-black">{formatNumber(dailyProcessedData[dailyProcessedData.length-1]?.actualAccumulated || 0, 2)}</TableCell>
+                                                                       <TableCell className="text-right border-r text-[#10b981] font-black font-mono">
+                                       {viewMode !== 'quantity' ? 'R$ ' : ''}
+                                       {formatNumber(renderData[renderData.length-1]?.displayActualAccumulated || 0, 2)}
+                                    </TableCell>
+                                   <TableCell className="text-right border-r text-red-500 font-black font-mono">
+                                       {viewMode !== 'quantity' ? 'R$ ' : ''}
+                                       {formatNumber(renderData[renderData.length-1]?.displayCostAccumulated || 0, 2)}
+                                    </TableCell>
                                    <TableCell className="text-right text-amber-200/50 text-sm">-</TableCell>
-                                   <TableCell className="text-right text-amber-400 font-black">{formatNumber(dailyProcessedData[dailyProcessedData.length-1]?.projectedAccumulated || 0, 2)}</TableCell>
+                                                                       <TableCell className="text-right text-[#f59e0b] font-black font-mono">
+                                       {viewMode !== 'quantity' ? 'R$ ' : ''}
+                                       {formatNumber(renderData[renderData.length-1]?.displayProjectedAccumulated || 0, 2)}
+                                    </TableCell>
                                 </TableRow>
                              </TableBody>
                           </Table>

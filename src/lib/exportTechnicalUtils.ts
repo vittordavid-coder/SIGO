@@ -7,7 +7,8 @@ import {
   TechnicalSchedule, ControllerTeam, ControllerEquipment, 
   ControllerManpower, TeamAssignment, ServiceProduction,
   ServiceComposition, Resource, CalculationMemory,
-  CubationData, TransportData, StationGroup, HighwayLocation
+  CubationData, TransportData, StationGroup, HighwayLocation,
+  Employee, ManpowerMonthlyData, EquipmentMonthlyData
 } from '../types';
 import { formatCurrency, formatNumber } from './utils';
 
@@ -737,6 +738,23 @@ export function exportTeamsReportPDF(options: {
   doc.save(`Relatorio_Equipes_${options.month}.pdf`);
 }
 
+function loadStateFromLocalStorage<T>(key: string, companyId?: string, defaultValue: T): T {
+  try {
+    const storeKey = companyId ? `${companyId}_${key}` : key;
+    const item = window.localStorage.getItem(storeKey);
+    if (item) {
+      return JSON.parse(item);
+    }
+    const fallbackItem = window.localStorage.getItem(key);
+    if (fallbackItem) {
+      return JSON.parse(fallbackItem);
+    }
+  } catch (e) {
+    console.error(e);
+  }
+  return defaultValue;
+}
+
 // 8. Controles (Monitoramento Mensal)
 export function exportMonthlyControlReportPDF(options: {
   contract: Contract,
@@ -745,14 +763,27 @@ export function exportMonthlyControlReportPDF(options: {
   services: ServiceComposition[],
   companyLogo?: string,
   companyLogoRight?: string,
-  logoMode?: 'left' | 'right' | 'both' | 'none'
+  logoMode?: 'left' | 'right' | 'both' | 'none',
+  controllerTeams?: ControllerTeam[],
+  teamAssignments?: TeamAssignment[],
+  manpowerMonthly?: ManpowerMonthlyData[],
+  equipmentMonthly?: EquipmentMonthlyData[],
+  employees?: Employee[],
+  controllerEquipments?: ControllerEquipment[]
 }) {
   const doc = new jsPDF({ orientation: 'portrait' });
   const [year, month] = options.month.split('-').map(Number);
   const monthName = new Date(year, month - 1, 1).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
   const daysInMonth = new Date(year, month, 0).getDate();
 
-  
+  const companyId = options.contract.id;
+  const controllerTeams = options.controllerTeams || loadStateFromLocalStorage('sigo_controller_teams', companyId, []);
+  const teamAssignments = options.teamAssignments || loadStateFromLocalStorage('sigo_team_assignments', companyId, []);
+  const employees = options.employees || loadStateFromLocalStorage('sigo_employees', companyId, []);
+  const manpowerMonthly = options.manpowerMonthly || loadStateFromLocalStorage('sigo_manpower_monthly', companyId, []);
+  const equipmentMonthly = options.equipmentMonthly || loadStateFromLocalStorage('sigo_equipment_monthly', companyId, []);
+  const controllerEquipments = options.controllerEquipments || loadStateFromLocalStorage('sigo_controller_equipments', companyId, []);
+
   if (options.productions.length === 0) {
     addTechnicalHeader(doc, `Monitoramento de Produção - ${monthName}`, options);
     doc.text('Nenhum monitoramento registrado para este período.', 14, 50);
@@ -822,12 +853,12 @@ export function exportMonthlyControlReportPDF(options: {
       
       // Blue Header (UI CardHeader style)
       doc.setFillColor(30, 58, 138); // Blue 900
-      doc.rect(14, 45, 182, 25, 'F');
+      doc.rect(14, 38, 182, 22, 'F');
       
       doc.setFontSize(8);
       doc.setTextColor(191, 219, 254); // Blue 200
       doc.setFont('helvetica', 'bold');
-      doc.text('ACOMPANHAMENTO FÍSICO', 18, 51);
+      doc.text('ACOMPANHAMENTO FÍSICO E FINANCEIRO', 18, 44);
       
       doc.setFontSize(11); // Diminuído o tamanho da fonte para não sobrepor
       doc.setTextColor(255, 255, 255);
@@ -836,49 +867,150 @@ export function exportMonthlyControlReportPDF(options: {
       const splitServiceTitle = doc.splitTextToSize(serviceTitle, 130);
       // Limitar e garantir que o título não desça demais
       const displayedTitle = splitServiceTitle.slice(0, 2); 
-      doc.text(displayedTitle, 18, 58);
+      doc.text(displayedTitle, 18, 51);
       
       doc.setFontSize(8);
       doc.setTextColor(191, 219, 254);
-      doc.text(`${s?.code} | Unidade: ${s?.unit} | Mês: ${options.month}`, 18, 68);
+      doc.text(`${s?.code} | Unidade: ${s?.unit} | Mês: ${options.month}`, 18, 57);
 
       // Final Projection (Top Right of Blue Header)
       const finalProj = projectedAcc;
       doc.setFontSize(7);
       doc.setTextColor(191, 219, 254);
-      doc.text('PROJEÇÃO FINAL DO MÊS', 155, 51);
+      doc.text('PROJEÇÃO FINAL DO MÊS', 155, 44);
       doc.setFontSize(18);
       doc.setTextColor(255, 255, 255);
-      doc.text(formatNumber(finalProj, 1), 155, 60);
+      doc.text(formatNumber(finalProj, 1), 155, 52);
       doc.setFontSize(7);
-      doc.text(`${s?.unit} Estimados`, 155, 66);
+      doc.text(`${s?.unit} Estimados`, 155, 57);
 
       // Operational Parameters Summary
       const totalAccFinal = (p.prevMonthAccumulated || 0) + actualAcc;
 
       autoTable(doc, {
-        startY: 75,
+        startY: 63,
         body: [
-          ['Parâmetros Operacionais', '', 'Metas e Previsões', ''],
-          ['Nº Equipamentos', p.numEquip, 'Meta Diária', `${formatNumber(targetDaily, 2)} ${s?.unit}`],
-          ['Dias/Mês', p.workDays, 'Previsão Mensal', `${formatNumber(targetDaily * p.workDays, 2)} ${s?.unit}`],
-          ['Horas/Dia', p.hoursDay, 'Acumulado Ant.', `${formatNumber(p.prevMonthAccumulated || 0, 2)} ${s?.unit}`],
-          ['Data Início', p.startDate ? `${p.startDate.split('-')[2]}/${p.startDate.split('-')[1]}/${p.startDate.split('-')[0]}` : '-', 'Acumul. Total', `${formatNumber(totalAccFinal, 2)} ${s?.unit}`],
+          [{ content: 'Parâmetros Operacionais', colSpan: 2 }, { content: 'Metas e Previsões', colSpan: 2 }],
+          ['Nº Equipes', p.numEquip, 'Meta Diária', { content: `${formatNumber(targetDaily, 2)} ${s?.unit}`, halign: 'right' }],
+          ['Dias/Mês', p.workDays, 'Previsão Mensal', { content: `${formatNumber(targetDaily * p.workDays, 2)} ${s?.unit}`, halign: 'right' }],
+          ['Horas/Dia', p.hoursDay, 'Acumulado Ant.', { content: `${formatNumber(p.prevMonthAccumulated || 0, 2)} ${s?.unit}`, halign: 'right' }],
+          ['Data Início', p.startDate ? `${p.startDate.split('-')[2]}/${p.startDate.split('-')[1]}/${p.startDate.split('-')[0]}` : '-', 'Acumul. Total', { content: `${formatNumber(totalAccFinal, 2)} ${s?.unit}`, halign: 'right' }],
         ],
         theme: 'grid',
-        styles: { fontSize: 7, cellPadding: 1 },
-        headStyles: { fillColor: [51, 65, 85], textColor: 255 },
+        styles: { fontSize: 7.5, cellPadding: 1.5 },
         columnStyles: {
-          0: { fontStyle: 'bold', fillColor: [241, 245, 249], cellWidth: 35 },
-          1: { cellWidth: 20, halign: 'center' },
-          2: { fontStyle: 'bold', fillColor: [241, 245, 249], cellWidth: 35 },
-          3: { halign: 'right' }
+          0: { fontStyle: 'bold', fillColor: [241, 245, 249], cellWidth: 45 },
+          1: { cellWidth: 46, halign: 'center' },
+          2: { fontStyle: 'bold', fillColor: [241, 245, 249], cellWidth: 45 },
+          3: { cellWidth: 46 }
         },
         didParseCell: (data) => {
           if (data.row.index === 0) {
             data.cell.styles.fontStyle = 'bold';
             data.cell.styles.fillColor = [30, 58, 138];
             data.cell.styles.textColor = 255;
+            data.cell.styles.halign = 'left';
+          }
+        }
+      });
+
+      // Cost Calculation
+      const calculateTeamCostsLocal = () => {
+        if (!p.teamId || p.teamId === 'none') return { totalMonthlyCost: 0, dailyCost: 0 };
+        const t = (controllerTeams || []).find(x => x.id === p.teamId);
+        if (!t) return { totalMonthlyCost: 0, dailyCost: 0 };
+        
+        const teamAssigns = (teamAssignments || []).filter(a => a.teamId === t.id);
+        let totalCostVal = 0;
+        
+        teamAssigns.forEach(a => {
+          if (a.type === 'manpower') {
+            const monthlyData = (manpowerMonthly || []).find(m => m.manpowerId === a.memberId && m.month === p.month);
+            if (monthlyData && monthlyData.salary) {
+              totalCostVal += monthlyData.salary;
+            } else {
+              const emp = (employees || []).find(e => e.id === a.memberId);
+              if (emp && emp.salary) {
+                totalCostVal += emp.salary;
+              }
+            }
+          } else if (a.type === 'equipment') {
+            const monthlyData = (equipmentMonthly || []).find(m => m.equipmentId === a.memberId && m.month === p.month);
+            if (monthlyData && monthlyData.cost) {
+              totalCostVal += monthlyData.cost;
+            } else {
+              const eq = (controllerEquipments || []).find(eq => eq.id === a.memberId);
+              if (eq) {
+                let eqCost = eq.monthlyPrice;
+                if (!eqCost && eq.contractedPrice && eq.measurementUnit === 'Mensal') {
+                   eqCost = eq.contractedPrice;
+                }
+                if (eqCost) {
+                  totalCostVal += eqCost;
+                } else {
+                  const atts = eq.customFields ? Object.values(eq.customFields) : [];
+                  const monthlyCostStr = atts.find((att: any) => 
+                    typeof att.name === 'string' && att.name.toLowerCase().includes('mensal')
+                  )?.value;
+                  if (monthlyCostStr) {
+                    totalCostVal += parseFloat(monthlyCostStr) || 0;
+                  }
+                }
+              }
+            }
+          }
+        });
+        
+        const days = p.workDays || 30;
+        const dailyCostVal = totalCostVal / days;
+        return { totalMonthlyCost: totalCostVal, dailyCost: dailyCostVal };
+      };
+
+      const cs = (options.contract.services || []).find(x => x.serviceId === p.serviceId);
+      let csPrice = cs?.price || 0;
+      if (!csPrice && options.contract.groups) {
+        options.contract.groups.forEach(group => {
+          const gs = group.services.find(sub => sub.serviceId === p.serviceId);
+          if (gs && gs.price) csPrice = gs.price;
+        });
+      }
+
+      const { totalMonthlyCost, dailyCost } = calculateTeamCostsLocal();
+      const workDaysActualCount = rows.filter(r => r.actual > 0).length;
+      const actualTeamCostIncurred = workDaysActualCount * dailyCost;
+      const valorProducaoExecutado = actualAcc * csPrice;
+      const valorProducaoProjetado = projectedAcc * csPrice;
+      const saldoFinanceiro = valorProducaoExecutado - actualTeamCostIncurred;
+
+      autoTable(doc, {
+        startY: (doc as any).lastAutoTable.finalY + 2,
+        body: [
+          [{ content: 'Controle e Acompanhamento Financeiro (R$)', colSpan: 2 }, { content: 'Rentabilidade do Período', colSpan: 2 }],
+          ['Preço de Venda do Serviço', { content: `R$ ${formatNumber(csPrice, 2)}`, halign: 'right' }, 'Valor Executado', { content: `R$ ${formatNumber(valorProducaoExecutado, 2)}`, halign: 'right' }],
+          [ 'Custo da Equipe (Mês)', { content: `R$ ${formatNumber(totalMonthlyCost, 2)}`, halign: 'right', fontStyle: 'bold' },'Custo de Equipe (Dias Trab.)', { content: `R$ ${formatNumber(actualTeamCostIncurred, 2)}`, halign: 'right', fontStyle: 'bold' }],
+          ['Valor Produzido Projetado', { content: `R$ ${formatNumber(valorProducaoProjetado, 2)}`, halign: 'right' }, 'Resultado Operacional Estimado', { content: `R$ ${formatNumber(saldoFinanceiro, 2)}`, halign: 'right', fontStyle: 'bold' }],
+        ],
+        theme: 'grid',
+        styles: { fontSize: 7.5, cellPadding: 1.5 },
+        columnStyles: {
+          0: { fontStyle: 'bold', fillColor: [241, 245, 249], cellWidth: 45 },
+          1: { cellWidth: 46, halign: 'right' },
+          2: { fontStyle: 'bold', fillColor: [241, 245, 249], cellWidth: 45 },
+          3: { cellWidth: 46, halign: 'right', fontStyle: 'bold' }
+        },
+        didParseCell: (data) => {
+          if (data.row.index === 0) {
+            data.cell.styles.fontStyle = 'bold';
+            data.cell.styles.fillColor = [104, 196, 142]; // Emerald light based on the image
+            data.cell.styles.textColor = 255;
+            data.cell.styles.halign = 'left';
+          }
+          if (data.row.index === 3 && data.column.index === 3) {
+            if (saldoFinanceiro < 0) {
+              data.cell.styles.textColor = [185, 28, 28]; // Red
+            } else {
+              data.cell.styles.textColor = [4, 120, 87]; // Green
+            }
           }
         }
       });
@@ -906,7 +1038,7 @@ export function exportMonthlyControlReportPDF(options: {
       ]);
 
       autoTable(doc, {
-        startY: (doc as any).lastAutoTable.finalY + 10,
+        startY: (doc as any).lastAutoTable.finalY + 4,
         head: [
           [
             { content: 'DIA', rowSpan: 2, styles: { halign: 'center', valign: 'middle' } },
@@ -926,7 +1058,7 @@ export function exportMonthlyControlReportPDF(options: {
         body: tableBody,
         ...tableStyles,
         theme: 'grid',
-        styles: { fontSize: 7, cellPadding: 1 },
+        styles: { fontSize: 6.5, cellPadding: 0.8 },
         headStyles: { fillColor: [51, 65, 85], textColor: 255, fontStyle: 'bold' },
         didParseCell: (data) => {
           if (data.row.index >= 0) {
@@ -1558,6 +1690,12 @@ export async function exportMonthlyControlReportExcel(options: {
   month: string,
   productions: ServiceProduction[],
   services: ServiceComposition[],
+  controllerTeams?: ControllerTeam[],
+  teamAssignments?: TeamAssignment[],
+  manpowerMonthly?: ManpowerMonthlyData[],
+  equipmentMonthly?: EquipmentMonthlyData[],
+  employees?: Employee[],
+  controllerEquipments?: ControllerEquipment[]
 }) {
   const workbook = new ExcelJS.Workbook();
   const [yearStr, monthStr] = options.month.split('-'); const monthName = new Date(parseInt(yearStr), parseInt(monthStr) - 1, 1).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
@@ -1565,6 +1703,14 @@ export async function exportMonthlyControlReportExcel(options: {
   const daysInMonth = new Date(year, month, 0).getDate();
   const today = new Date();
   today.setHours(12, 0, 0, 0);
+
+  const companyId = options.contract.id;
+  const controllerTeams = options.controllerTeams || loadStateFromLocalStorage('sigo_controller_teams', companyId, []);
+  const teamAssignments = options.teamAssignments || loadStateFromLocalStorage('sigo_team_assignments', companyId, []);
+  const employees = options.employees || loadStateFromLocalStorage('sigo_employees', companyId, []);
+  const manpowerMonthly = options.manpowerMonthly || loadStateFromLocalStorage('sigo_manpower_monthly', companyId, []);
+  const equipmentMonthly = options.equipmentMonthly || loadStateFromLocalStorage('sigo_equipment_monthly', companyId, []);
+  const controllerEquipments = options.controllerEquipments || loadStateFromLocalStorage('sigo_controller_equipments', companyId, []);
 
   const worksheet = workbook.addWorksheet('Controle de Produção');
 
@@ -1614,6 +1760,80 @@ export async function exportMonthlyControlReportExcel(options: {
     worksheet.addRow(['Dias/Mês', p.workDays, '', 'Previsão Mensal', targetDaily * p.workDays]);
     worksheet.addRow(['Horas/Dia', p.hoursDay, '', 'Acumulado Ant.', p.prevMonthAccumulated || 0]);
     worksheet.addRow(['Data Início', p.startDate ? `${p.startDate.split('-')[2]}/${p.startDate.split('-')[1]}/${p.startDate.split('-')[0]}` : '-', '', 'Acumul. Total', totalAccFinal]);
+    worksheet.addRow([]);
+
+    // Calculate Costs for Excel Worksheets
+    const calculateTeamCostsExcel = () => {
+      if (!p.teamId || p.teamId === 'none') return { totalMonthlyCost: 0, dailyCost: 0 };
+      const t = (controllerTeams || []).find(x => x.id === p.teamId);
+      if (!t) return { totalMonthlyCost: 0, dailyCost: 0 };
+      
+      const teamAssigns = (teamAssignments || []).filter(a => a.teamId === t.id);
+      let totalCostVal = 0;
+      
+      teamAssigns.forEach(a => {
+        if (a.type === 'manpower') {
+          const monthlyData = (manpowerMonthly || []).find(m => m.manpowerId === a.memberId && m.month === p.month);
+          if (monthlyData && monthlyData.salary) {
+            totalCostVal += monthlyData.salary;
+          } else {
+            const emp = (employees || []).find(e => e.id === a.memberId);
+            if (emp && emp.salary) {
+              totalCostVal += emp.salary;
+            }
+          }
+        } else if (a.type === 'equipment') {
+          const monthlyData = (equipmentMonthly || []).find(m => m.equipmentId === a.memberId && m.month === p.month);
+          if (monthlyData && monthlyData.cost) {
+            totalCostVal += monthlyData.cost;
+          } else {
+            const eq = (controllerEquipments || []).find(eq => eq.id === a.memberId);
+            if (eq) {
+              let eqCost = eq.monthlyPrice;
+              if (!eqCost && eq.contractedPrice && eq.measurementUnit === 'Mensal') {
+                 eqCost = eq.contractedPrice;
+              }
+              if (eqCost) {
+                totalCostVal += eqCost;
+              } else {
+                const atts = eq.customFields ? Object.values(eq.customFields) : [];
+                const monthlyCostStr = atts.find((att: any) => 
+                  typeof att.name === 'string' && att.name.toLowerCase().includes('mensal')
+                )?.value;
+                if (monthlyCostStr) {
+                  totalCostVal += parseFloat(monthlyCostStr) || 0;
+                }
+              }
+            }
+          }
+        }
+      });
+      
+      const days = p.workDays || 30;
+      const dailyCostVal = totalCostVal / days;
+      return { totalMonthlyCost: totalCostVal, dailyCost: dailyCostVal };
+    };
+
+    const cs = (options.contract.services || []).find(x => x.serviceId === p.serviceId);
+    let csPrice = cs?.price || 0;
+    if (!csPrice && options.contract.groups) {
+      options.contract.groups.forEach(group => {
+        const gs = group.services.find(sub => sub.serviceId === p.serviceId);
+        if (gs && gs.price) csPrice = gs.price;
+      });
+    }
+
+    const teamCosts = calculateTeamCostsExcel();
+    const countWorkDaysActual = Object.values(p.dailyData).map((d: any) => d.actual || 0).filter(v => v > 0).length;
+    const actualTeamCostIncurred = countWorkDaysActual * teamCosts.dailyCost;
+    const valorProducaoExecutado = actualAcc * csPrice;
+    const valorProducaoProjetado = totalAccFinal * csPrice; // uses total cumulative projection or final monthly actuals
+    const saldoFinanceiro = valorProducaoExecutado - actualTeamCostIncurred;
+
+    worksheet.addRow(['ANÁLISE FINANCEIRA E VALORES (R$)']).font = { bold: true };
+    worksheet.addRow(['Preço Unitário do Serviço', csPrice, '', 'Custo Mensal da Equipe', teamCosts.totalMonthlyCost]);
+    worksheet.addRow(['Custo Incorrido da Equipe', actualTeamCostIncurred, '', 'Valor Produzido Executado', valorProducaoExecutado]);
+    worksheet.addRow(['Resultado Operacional Estimado', saldoFinanceiro]);
     worksheet.addRow([]);
 
     // Table Header with groupings
