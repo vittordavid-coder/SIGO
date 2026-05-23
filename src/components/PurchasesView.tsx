@@ -627,7 +627,7 @@ function RequestsTab({
         </Table>
 
         {/* New/Edit Request Dialog */}
-        <Modal hideCancel={true}
+        <Modal
           isOpen={isRequestDialogOpen}
           onClose={() => setIsRequestDialogOpen(false)}
           hideCancel={true}

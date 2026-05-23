@@ -1605,10 +1605,11 @@ export default function ControlView({
 
       <input type="file" ref={fileInputRef} className="hidden" accept=".xlsx, .xls" onChange={handleFileChange} />
 
-      <Modal hideCancel={true}
-        isOpen={isImportModalOpen}
-        onClose={() => setIsImportModalOpen(false)} maxWidth="custom" className="sm:max-w-[800px] h-[600px] flex flex-col overflow-hidden"
-        title="Importar Equipamentos"
+        <Modal hideCancel={true}
+          isOpen={isImportModalOpen}
+          onClose={() => setIsImportModalOpen(false)}
+          className="sm:max-w-[800px] h-[600px] flex flex-col overflow-hidden"
+          title="Importar Equipamentos"
         
         footer={
           <Button onClick={() => fileInputRef.current?.click()} className="gap-2 w-full sm:w-auto"><Upload className="w-4 h-4" /> Selecionar Arquivo</Button>
@@ -1633,9 +1634,9 @@ export default function ControlView({
 
       <Modal hideCancel={true}
         isOpen={isMaintenanceModalOpen}
-        onClose={() => setIsMaintenanceModalOpen(false)} maxWidth="custom" className="sm:max-w-[800px] h-[600px] flex flex-col overflow-hidden"
-        
-        className="p-0 border-none"
+        onClose={() => setIsMaintenanceModalOpen(false)} 
+        maxWidth="custom"
+        className="p-0 border-none sm:max-w-[800px] h-[600px] flex flex-col overflow-hidden"
         headerClassName="hidden"
       >
         <div className="bg-emerald-600 p-6 text-white relative overflow-hidden">
@@ -1769,9 +1770,9 @@ export default function ControlView({
 
       <Modal hideCancel={true}
         isOpen={isExitMaintenanceModalOpen}
-        onClose={() => setIsExitMaintenanceModalOpen(false)} maxWidth="custom" className="sm:max-w-[800px] h-[600px] flex flex-col overflow-hidden"
-        
-        className="p-0 border-none"
+        onClose={() => setIsExitMaintenanceModalOpen(false)} 
+        maxWidth="custom"
+        className="p-0 border-none sm:max-w-[800px] h-[600px] flex flex-col overflow-hidden"
         headerClassName="hidden"
       >
         <div className="bg-red-600 p-6 text-white relative overflow-hidden">
@@ -1979,7 +1980,7 @@ export default function ControlView({
                   });
                   setIsAddOpen(true);
                 }} className="rounded-xl bg-blue-600 gap-2 font-bold text-base"><Plus className="w-4 h-4 mr-2" /> Novo</Button>
-                <Modal hideCancel={true}
+                <Modal
                   isOpen={isAddOpen}
                   onClose={() => setIsAddOpen(false)}
                   hideCancel={true}
@@ -3289,7 +3290,7 @@ export default function ControlView({
         </TabsContent>
       </Tabs>
 
-      <Modal hideCancel={true}
+      <Modal
         isOpen={isEditOpen}
         onClose={() => setIsEditOpen(false)}
         hideCancel={true}
@@ -3832,7 +3833,8 @@ export default function ControlView({
 
       <Modal hideCancel={true} 
         isOpen={isPeriodSelectionOpen} 
-        onClose={() => setIsPeriodSelectionOpen(false)} maxWidth="custom" className="sm:max-w-[800px] h-[600px] flex flex-col overflow-hidden"
+        onClose={() => setIsPeriodSelectionOpen(false)}
+        className="sm:max-w-[800px] h-[600px] flex flex-col overflow-hidden"
         title="Novo Período de Medição"
         description="Selecione o período para iniciar a medição"
       >
@@ -3866,9 +3868,9 @@ export default function ControlView({
         </div>
       </Modal>
 
-      <Modal hideCancel={true} 
+        <Modal hideCancel={true} 
         isOpen={isNewMeasurementModalOpen} 
-        onClose={() => setIsNewMeasurementModalOpen(false)} maxWidth="custom" className="sm:max-w-[800px] h-[600px] flex flex-col overflow-hidden"
+        onClose={() => setIsNewMeasurementModalOpen(false)}
         title={
           <div className="flex items-center justify-between w-full">
             <span>{`Lançamento de Medição - ${measurementMonth}`}</span>
@@ -4023,9 +4025,9 @@ export default function ControlView({
 
       <Modal hideCancel={true}
         isOpen={isTransferOpen}
-        onClose={() => setIsTransferOpen(false)} maxWidth="custom" className="sm:max-w-[800px] h-[600px] flex flex-col overflow-hidden"
-        
-        className="p-0 border-none"
+        onClose={() => setIsTransferOpen(false)} 
+        maxWidth="custom"
+        className="p-0 border-none sm:max-w-[800px] h-[600px] flex flex-col overflow-hidden"
         headerClassName="hidden"
       >
         <div className="bg-emerald-600 p-8 text-white relative overflow-hidden">
@@ -4106,9 +4108,9 @@ export default function ControlView({
 
       <Modal hideCancel={true}
         isOpen={isDeleteOpen}
-        onClose={() => setIsDeleteOpen(false)} maxWidth="custom" className="sm:max-w-[800px] h-[600px] flex flex-col overflow-hidden"
-        
-        className="p-0 border-none"
+        onClose={() => setIsDeleteOpen(false)}
+        maxWidth="custom"
+        className="p-0 border-none sm:max-w-[800px] h-[600px] flex flex-col overflow-hidden"
         headerClassName="hidden"
       >
         <div className="bg-orange-600 p-8 text-white relative overflow-hidden">
@@ -4157,9 +4159,9 @@ export default function ControlView({
 
       <Modal hideCancel={true}
         isOpen={isTankModalOpen}
-        onClose={() => setIsTankModalOpen(false)} maxWidth="custom" className="sm:max-w-[800px] h-[600px] flex flex-col overflow-hidden"
-        
-        className="p-0 border-none"
+        onClose={() => setIsTankModalOpen(false)}
+        maxWidth="custom"
+        className="p-0 border-none sm:max-w-[800px] h-[600px] flex flex-col overflow-hidden"
         headerClassName="hidden"
       >
         <div className="bg-blue-600 p-8 text-white relative overflow-hidden">
@@ -4255,9 +4257,9 @@ export default function ControlView({
 
       <Modal hideCancel={true}
         isOpen={isFuelLogModalOpen}
-        onClose={() => setIsFuelLogModalOpen(false)} maxWidth="custom" className="sm:max-w-[800px] h-[600px] flex flex-col overflow-hidden"
-        
-        className="p-0 border-none"
+        onClose={() => setIsFuelLogModalOpen(false)}
+        maxWidth="custom"
+        className="p-0 border-none sm:max-w-[800px] h-[600px] flex flex-col overflow-hidden"
         headerClassName="hidden"
       >
         <div className={cn("p-8 text-white relative overflow-hidden", newFuelLog.type === 'entrada' ? 'bg-emerald-600' : 'bg-orange-600')}>
@@ -4439,9 +4441,9 @@ export default function ControlView({
 
       <Modal hideCancel={true}
         isOpen={isMaterialRequestModalOpen}
-        onClose={() => setIsMaterialRequestModalOpen(false)} maxWidth="custom" className="sm:max-w-[800px] h-[600px] flex flex-col overflow-hidden"
-        
-        className="p-0 border-none"
+        onClose={() => setIsMaterialRequestModalOpen(false)}
+        maxWidth="custom"
+        className="p-0 border-none sm:max-w-[800px] h-[600px] flex flex-col overflow-hidden"
         headerClassName="hidden"
       >
         <div className="bg-blue-600 p-8 text-white relative overflow-hidden rounded-t-2xl">
@@ -4671,9 +4673,9 @@ export default function ControlView({
 
       <Modal hideCancel={true}
         isOpen={isDetailOpen}
-        onClose={() => setIsDetailOpen(false)} maxWidth="custom" className="sm:max-w-[800px] h-[600px] flex flex-col overflow-hidden"
-        
-        className="p-0"
+        onClose={() => setIsDetailOpen(false)}
+        maxWidth="custom"
+        className="p-0 sm:max-w-[800px] h-[600px] flex flex-col overflow-hidden"
         headerClassName="hidden"
       >
         <div className="bg-blue-600 p-8 text-white relative overflow-hidden">
@@ -4771,7 +4773,8 @@ export default function ControlView({
       </Modal>
       <Modal hideCancel={true}
         isOpen={!!exportData}
-        onClose={() => setExportData(null)} maxWidth="custom" className="sm:max-w-[800px] h-[600px] flex flex-col overflow-hidden"
+        onClose={() => setExportData(null)}
+        className="sm:max-w-[800px] h-[600px] flex flex-col overflow-hidden"
         title="Exportar Relatório"
         description="Escolha o formato para exportar a medição"
         
@@ -4805,10 +4808,10 @@ export default function ControlView({
         onClose={() => {
            setIsMaintenanceDiscountModalOpen(false);
            setSelectedMaintenanceToDiscount([]);
-        }} maxWidth="custom" className="sm:max-w-[800px] h-[600px] flex flex-col overflow-hidden"
+        }}
+        className="sm:max-w-[800px] h-[600px] flex flex-col overflow-hidden"
         title="Descontos de Manutenção"
         description="Selecione as manutenções para descontar desta medição"
-        maxWidth="lg"
       >
         {selectedMeasurementForDiscount && (() => {
            const { m, e } = selectedMeasurementForDiscount;

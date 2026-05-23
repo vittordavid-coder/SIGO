@@ -2231,7 +2231,7 @@ export function TechnicalScheduleView({
 
       {/* Quick Edit Dialog for a specific service */}
       <Dialog open={!!editingServiceId} onOpenChange={(open) => !open && setEditingServiceId(null)}>
-        <DialogContent className="w-screen max-w-none max-h-[90vh] flex flex-col">
+        <DialogContent className="sm:max-w-[800px] sm:h-[600px] w-[95vw] h-[90vh] flex flex-col">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <div className="bg-blue-600 text-white p-1.5 rounded">
@@ -2247,8 +2247,9 @@ export function TechnicalScheduleView({
           </DialogHeader>
           
           <ScrollArea className="flex-1 mt-4 pr-3">
-            <div className="space-y-4">
-              <div className="grid grid-cols-[1fr_repeat(6,120px)] gap-4 p-2 bg-gray-50 rounded-lg sticky top-0 z-10 border border-gray-100 items-center">
+            <div className="overflow-x-auto pb-4">
+              <div className="min-w-[700px] space-y-4">
+                <div className="grid grid-cols-[1fr_repeat(6,120px)] gap-4 p-2 bg-gray-50 rounded-lg sticky top-0 z-10 border border-gray-100 items-center">
                 <div className="text-sm font-bold uppercase text-gray-400">Período</div>
                 <div className="text-sm font-bold uppercase text-blue-600 text-center">Qtd. Prev.</div>
                 <div className="text-sm font-bold uppercase text-amber-600 text-center">% Prev.</div>
@@ -2328,6 +2329,7 @@ export function TechnicalScheduleView({
                   </div>
                 );
               })}
+            </div>
             </div>
           </ScrollArea>
 

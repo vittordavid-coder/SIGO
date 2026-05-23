@@ -528,7 +528,7 @@ export function MeasurementsView({
                     onClick={() => handleTeamsSort('manValue')}
                   >
                     <div className="flex items-center justify-end gap-1">
-                      Valor M.O. (Dia / Mês)
+                      Valor M.O. (Mês / Dia)
                       {teamsSortField === 'manValue' && (
                         teamsSortOrder === 'asc' ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />
                       )}
@@ -550,7 +550,7 @@ export function MeasurementsView({
                     onClick={() => handleTeamsSort('equipValue')}
                   >
                     <div className="flex items-center justify-end gap-1">
-                      Valor Equip. (Dia / Mês)
+                      Valor Equip. (Mês / Dia)
                       {teamsSortField === 'equipValue' && (
                         teamsSortOrder === 'asc' ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />
                       )}
@@ -561,7 +561,7 @@ export function MeasurementsView({
                     onClick={() => handleTeamsSort('total')}
                   >
                     <div className="flex items-center justify-end gap-1">
-                      Total (Dia / Mês)
+                      Total (Mês / Dia)
                       {teamsSortField === 'total' && (
                         teamsSortOrder === 'asc' ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />
                       )}
@@ -581,27 +581,27 @@ export function MeasurementsView({
                     <TableCell className="text-center font-bold text-gray-900">{row.manCount}</TableCell>
                     <TableCell className="text-right">
                       <div className="font-mono text-sm font-semibold text-gray-900">
-                        R$ {row.manDailyValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} <span className="text-gray-400 text-xs font-normal">/dia</span>
+                        R$ {row.manValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} <span className="text-gray-400 text-xs font-normal">/mês</span>
                       </div>
                       <div className="font-mono text-xs text-gray-400">
-                        R$ {row.manValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} <span className="text-xs font-normal">/mês</span>
+                        R$ {row.manDailyValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} <span className="text-xs font-normal">/dia</span>
                       </div>
                     </TableCell>
                     <TableCell className="text-center font-bold text-gray-900">{row.equipCount}</TableCell>
                     <TableCell className="text-right">
                       <div className="font-mono text-sm font-semibold text-gray-900">
-                        R$ {row.equipDailyValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} <span className="text-gray-400 text-xs font-normal">/dia</span>
+                        R$ {row.equipValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} <span className="text-gray-400 text-xs font-normal">/mês</span>
                       </div>
                       <div className="font-mono text-xs text-gray-400">
-                        R$ {row.equipValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} <span className="text-xs font-normal">/mês</span>
+                        R$ {row.equipDailyValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} <span className="text-xs font-normal">/dia</span>
                       </div>
                     </TableCell>
                     <TableCell className="text-right bg-blue-50/10">
                       <div className="font-mono text-sm font-black text-blue-700">
-                        R$ {row.totalDaily.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} <span className="text-blue-400 text-xs font-normal">/dia</span>
+                        R$ {row.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} <span className="text-blue-400 text-xs font-normal">/mês</span>
                       </div>
                       <div className="font-mono text-xs text-blue-500 font-bold">
-                        R$ {row.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} <span className="text-xs font-normal">/mês</span>
+                        R$ {row.totalDaily.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} <span className="text-xs font-normal">/dia</span>
                       </div>
                     </TableCell>
                   </TableRow>
@@ -6402,6 +6402,12 @@ function ProductionControlView({
                                <Tooltip 
                                  contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 25px rgba(0,0,0,0.1)', fontSize: '11px', fontWeight: 'bold' }}
                                  labelFormatter={(v) => `Data: ${v.split('-')[2]}/${v.split('-')[1]}/${v.split('-')[0]}`}
+                                 formatter={(value: any, name: any) => [
+                                   typeof value === 'number' 
+                                     ? (viewMode === 'quantity' ? formatNumber(value, 2) : 'R$ ' + formatNumber(value, 2))
+                                     : value,
+                                   name
+                                 ]}
                                />
                                 <Area yAxisId="left" type="monotone" dataKey="displayProjectedAccumulated" name="Projeção" stroke="#F59E0B" fill="url(#colorProj)" strokeWidth={1} strokeDasharray="4 4" />
                                <Line yAxisId="left" type="monotone" dataKey="displayPlannedAccumulated" name="Previsto (Acum)" stroke="#3b82f6" strokeWidth={2} dot={false} />

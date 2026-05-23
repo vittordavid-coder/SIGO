@@ -60,7 +60,7 @@ import { getSupabaseConfig, createSupabaseClient } from '../lib/supabaseClient';
 import { v4 as generateUUID } from 'uuid';
 
 const EMPLOYEE_DB_COLUMNS = [
-  'id', 'company_id', 'name', 'role', 'admission_date', 'salary', 'payment_type',
+  'id', 'company_id', 'name', 'role', 'status', 'admission_date', 'dismissal_date', 'salary', 'payment_type',
   'cpf', 'rg_number', 'rg_agency', 'rg_issuer', 'rg_state', 'birth_date', 'birth_place',
   'birth_state', 'work_booklet_number', 'work_booklet_series', 'pis', 'phone', 'mobile',
   'email', 'voter_id_number', 'voter_zone', 'voter_section', 'father_name', 'mother_name',
@@ -95,6 +95,8 @@ import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
+
+import { RHDocuments } from './RHDocuments';
 
 interface RHViewProps {
   currentUser: User;
@@ -465,6 +467,8 @@ export default function RHView({
               admissionDate: admissionDate,
               salary,
               paymentType,
+              status,
+              dismissalDate,
               cpf,
               rgNumber: rgNumberRaw ? String(rgNumberRaw) : '',
               rgAgency: rgAgencyRaw ? String(rgAgencyRaw) : '',
@@ -479,8 +483,6 @@ export default function RHView({
               phone: phoneRaw ? String(phoneRaw) : '',
               mobile: mobileRaw ? String(mobileRaw) : '',
               email: emailRaw ? String(emailRaw) : '',
-              status,
-              dismissalDate,
               voterIdNumber: String(getVal(['nº título de eleitor', 'título de eleitor', 'titulo eleitor']) || ''),
               voterZone: String(getVal(['zona eleitoral', 'zona']) || ''),
               voterSection: String(getVal(['seção eleitoral', 'secao']) || ''),
@@ -806,9 +808,6 @@ export default function RHView({
         <TabsList className="bg-gray-100/50 p-1">
           <TabsTrigger value="employees" className="gap-2">
             <Users className="w-4 h-4" /> Colaboradores
-          </TabsTrigger>
-          <TabsTrigger value="timekeeping" className="gap-2">
-            <Calendar className="w-4 h-4" /> Ponto Diário
           </TabsTrigger>
           <TabsTrigger value="documents" className="gap-2">
             <FileText className="w-4 h-4" /> Documentos
@@ -1602,121 +1601,8 @@ export default function RHView({
           </Card>
         </TabsContent>
 
-        <TabsContent value="timekeeping">
-          <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-            <Card className="lg:col-span-1 border-none shadow-sm">
-              <CardHeader>
-                <CardTitle>Configuração</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <Label>Mês de Referência</Label>
-                  <Input 
-                    type="month" 
-                    value={selectedMonth} 
-                    onChange={e => setSelectedMonth(e.target.value)} 
-                  />
-                </div>
-                <div className="p-4 bg-amber-50 rounded-lg border border-amber-100 flex gap-3">
-                  <AlertCircle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
-                  <p className="text-sm text-amber-900 leading-relaxed">
-                    O preenchimento do ponto diário é fundamental para o cálculo automático de horas extras conforme convenção coletiva.
-                  </p>
-                </div>
-                  <Button variant="outline" className="w-full gap-2 text-sm" onClick={exportAllEmployeesToExcel}>
-                    <Download className="w-3.5 h-3.5" /> Exportar Planilha (XLSX)
-                  </Button>
-              </CardContent>
-            </Card>
-
-            <Card className="lg:col-span-3 border-none shadow-sm overflow-hidden">
-              <CardHeader className="flex flex-row items-center justify-between">
-                <div>
-                  <CardTitle>Folha de Ponto</CardTitle>
-                  <CardDescription>Preencha os horários para {selectedMonth}</CardDescription>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Select value={selectedEmployeeId || ''} onValueChange={setSelectedEmployeeId}>
-                    <SelectTrigger className="w-[200px]">
-                      <SelectValue placeholder="Selecione o Colaborador" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {filteredEmployees.map(e => (
-                        <SelectItem key={e.id} value={e.id}>{e.name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </CardHeader>
-              <CardContent className="p-0">
-                <ScrollArea className="h-[600px]">
-                  <Table>
-                    <TableHeader className="bg-gray-50/50 sticky top-0 z-10">
-                      <TableRow>
-                        <TableHead className="w-[100px] font-bold">Data</TableHead>
-                        <TableHead className="font-bold text-center">Entrada</TableHead>
-                        <TableHead className="font-bold text-center">Saída</TableHead>
-                        <TableHead className="font-bold text-center">Extra (Hrs)</TableHead>
-                        <TableHead className="font-bold text-center">Status</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {Array.from({ length: getDaysInMonth(selectedMonth) }).map((_, i) => (
-                        <TableRow key={i} className="hover:bg-gray-50/50">
-                          <TableCell className="font-medium text-sm">
-                            {String(i + 1).padStart(2, '0')}/{selectedMonth.split('-')[1]}
-                          </TableCell>
-                          <TableCell className="text-center p-2">
-                            <Input className="h-8 text-center text-sm" type="time" placeholder="08:00" />
-                          </TableCell>
-                          <TableCell className="text-center p-2">
-                            <Input className="h-8 text-center text-sm" type="time" placeholder="17:00" />
-                          </TableCell>
-                          <TableCell className="text-center p-2">
-                            <Input className="h-8 text-center text-sm" type="number" placeholder="0.0" />
-                          </TableCell>
-                          <TableCell className="text-center">
-                            <Badge variant="outline" className="text-xs uppercase font-bold text-gray-400">Pendente</Badge>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </ScrollArea>
-              </CardContent>
-            </Card>
-          </div>
-        </TabsContent>
-
         <TabsContent value="documents">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {[
-              { title: 'Declaração de Trabalho', icon: <FileText /> },
-              { title: 'Aviso Prévio', icon: <AlertCircle /> },
-              { title: 'Aviso de Dispensa', icon: <LogOut /> },
-              { title: 'Recibo de Pagamento', icon: <DollarSign /> },
-              { title: 'Contrato de Experiência', icon: <FileCode /> },
-              { title: 'Férias', icon: <Sun /> }
-            ].map((doc, idx) => (
-              <Card key={idx} className="border-none shadow-sm hover:ring-2 hover:ring-blue-500 transition-all cursor-pointer group">
-                <CardHeader>
-                  <div className="bg-blue-50 p-3 rounded-xl w-fit group-hover:bg-blue-600 group-hover:text-white transition-colors">
-                    {React.cloneElement(doc.icon as React.ReactElement<any>, { className: 'w-6 h-6' })}
-                  </div>
-                  <div className="pt-4">
-                    <CardTitle className="text-lg">{doc.title}</CardTitle>
-                    <CardDescription>Gere o documento em PDF ou Word com dados do funcionário.</CardDescription>
-                  </div>
-                </CardHeader>
-                <CardContent className="flex justify-between items-center">
-                   <Badge variant="secondary" className="bg-blue-50 text-blue-700 text-sm">EM DESENVOLVIMENTO</Badge>
-                   <Button variant="ghost" size="sm" className="gap-2 text-sm">
-                     <FileDown className="w-3.5 h-3.5" /> Gerar
-                   </Button>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+          <RHDocuments employees={filteredEmployees} currentUser={currentUser} />
         </TabsContent>
       </Tabs>
     </div>

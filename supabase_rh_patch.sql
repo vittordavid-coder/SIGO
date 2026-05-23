@@ -1,0 +1,3 @@
+ALTER TABLE employees 
+ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'active',
+ADD COLUMN IF NOT EXISTS dismissal_date DATE;
