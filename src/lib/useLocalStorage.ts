@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { getSupabaseConfig, createSupabaseClient } from './supabaseClient';
+import { SUPABASE_TABLE_DEFS } from './sqlFormat';
 
 export function useLocalStorage<T>(key: string, initialValue: T, companyId?: string): [T, (value: T | ((prev: T) => T)) => void] {
   // Use a ref to store the latest value for the interval timer
@@ -172,13 +173,29 @@ export function useLocalStorage<T>(key: string, initialValue: T, companyId?: str
             }
 
             if (value.length > 0) {
+              const getTableColumns = (tableName: string): string[] => {
+                const def = SUPABASE_TABLE_DEFS[tableName];
+                if (!def) return [];
+                return def.split(',').map(part => {
+                  const trimmed = part.trim();
+                  const match = trimmed.match(/^([a-z0-9_]+)/i);
+                  return match ? match[1] : '';
+                }).filter(col => col !== '');
+              };
+
+              const validColumns = getTableColumns(targetTable);
+
               const mapToSnake = (obj: any) => {
                 const newObj: any = {};
                 for (const k in obj) {
                   const snakeKey = k.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);
-                  newObj[snakeKey] = obj[k];
+                  if (validColumns.length === 0 || validColumns.includes(snakeKey)) {
+                    newObj[snakeKey] = obj[k] === undefined ? null : obj[k];
+                  }
                 }
-                if (!isGlobal && activeCompId && !newObj.company_id) newObj.company_id = activeCompId;
+                if (!isGlobal && activeCompId && (validColumns.length === 0 || validColumns.includes('company_id')) && !newObj.company_id) {
+                  newObj.company_id = activeCompId;
+                }
                 return newObj;
               };
               const mappedData = value.map(mapToSnake);

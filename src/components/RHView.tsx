@@ -59,12 +59,25 @@ import { getSupabaseConfig, createSupabaseClient } from '../lib/supabaseClient';
 
 import { v4 as generateUUID } from 'uuid';
 
+const EMPLOYEE_DB_COLUMNS = [
+  'id', 'company_id', 'name', 'role', 'admission_date', 'salary', 'payment_type',
+  'cpf', 'rg_number', 'rg_agency', 'rg_issuer', 'rg_state', 'birth_date', 'birth_place',
+  'birth_state', 'work_booklet_number', 'work_booklet_series', 'pis', 'phone', 'mobile',
+  'email', 'voter_id_number', 'voter_zone', 'voter_section', 'father_name', 'mother_name',
+  'spouse_name', 'dependents', 'address_logradouro', 'address_number', 'address_complement',
+  'address_neighborhood', 'address_city', 'address_zip_code', 'address_state', 'contract_id',
+  'commuter_benefits', 'commuter_value1', 'commuter_city1', 'commuter_value2', 'commuter_city2',
+  'created_at', 'updated_at'
+];
+
 const mapToSnake = (obj: any) => {
   if (!obj) return obj;
   const result: any = {};
   for (const key in obj) {
     const snakeKey = key.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);
-    result[snakeKey] = obj[key] === undefined ? null : obj[key];
+    if (EMPLOYEE_DB_COLUMNS.includes(snakeKey)) {
+      result[snakeKey] = obj[key] === undefined ? null : obj[key];
+    }
   }
   return result;
 };
