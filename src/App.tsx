@@ -1016,13 +1016,34 @@ export default function App() {
         if (!supabase) return;
 
         console.log(`[Supabase] Buscando colaboradores para o contrato: ${selectedContractId}`);
-        const { data, error } = await supabase
-          .from('employees')
-          .select('*')
-          .eq('contract_id', selectedContractId);
+        
+        let allEmployees: any[] = [];
+        let empFrom = 0;
+        const pageSize = 1000;
+        let keepFetchingEmp = true;
+        let empError = null;
 
-        if (!error && data) {
-          const camelData = data.map(mapToCamel);
+        while (keepFetchingEmp) {
+          const { data, error } = await supabase
+            .from('employees')
+            .select('*')
+            .eq('contract_id', selectedContractId)
+            .range(empFrom, empFrom + pageSize - 1);
+          
+          if (error) {
+            empError = error;
+            keepFetchingEmp = false;
+          } else if (data) {
+            allEmployees = [...allEmployees, ...data];
+            if (data.length < pageSize) keepFetchingEmp = false;
+            else empFrom += pageSize;
+          } else {
+            keepFetchingEmp = false;
+          }
+        }
+
+        if (!empError && allEmployees.length >= 0) {
+          const camelData = allEmployees.map(mapToCamel);
           setEmployees(prev => {
             // Unify: replace items for this contract with fresh ones, keep others
             const others = prev.filter(e => e.contractId !== selectedContractId);
@@ -1033,13 +1054,32 @@ export default function App() {
           // Also fetch time records for these employees if possible
           const employeeIds = camelData.map(e => e.id);
           if (employeeIds.length > 0) {
-            const { data: recordsData, error: recordsError } = await supabase
-              .from('time_records')
-              .select('*')
-              .in('employee_id', employeeIds);
+            let allRecords: any[] = [];
+            let recFrom = 0;
+            let keepFetchingRec = true;
+            let recError = null;
+
+            while (keepFetchingRec) {
+              const { data: recordsData, error: recordsError } = await supabase
+                .from('time_records')
+                .select('*')
+                .in('employee_id', employeeIds)
+                .range(recFrom, recFrom + pageSize - 1);
+              
+              if (recordsError) {
+                recError = recordsError;
+                keepFetchingRec = false;
+              } else if (recordsData) {
+                allRecords = [...allRecords, ...recordsData];
+                if (recordsData.length < pageSize) keepFetchingRec = false;
+                else recFrom += pageSize;
+              } else {
+                keepFetchingRec = false;
+              }
+            }
             
-            if (!recordsError && recordsData) {
-              const camelRecords = recordsData.map(mapToCamel);
+            if (!recError && allRecords) {
+              const camelRecords = allRecords.map(mapToCamel);
               setTimeRecords(prev => {
                 const others = prev.filter(r => !employeeIds.includes(r.employeeId));
                 const newList = [...others, ...camelRecords];
@@ -1176,7 +1216,31 @@ export default function App() {
           
           if (targetTable && Array.isArray(item.content)) {
             // Identify and delete orphans 
-            const { data: dbItems, error: fetchError } = await supabase.from(targetTable).select('id').eq('company_id', compId);
+            let dbItems: any[] = [];
+            let from = 0;
+            const pageSize = 1000;
+            let keepFetching = true;
+            let fetchError = null;
+
+            while (keepFetching) {
+              const { data, error } = await supabase
+                .from(targetTable)
+                .select('id')
+                .eq('company_id', compId)
+                .range(from, from + pageSize - 1);
+              
+              if (error) {
+                fetchError = error;
+                keepFetching = false;
+              } else if (data) {
+                dbItems = [...dbItems, ...data];
+                if (data.length < pageSize) keepFetching = false;
+                else from += pageSize;
+              } else {
+                keepFetching = false;
+              }
+            }
+
             if (fetchError) {
               console.error(`Erro ao buscar órfãos em ${targetTable}:`, fetchError);
             } else {

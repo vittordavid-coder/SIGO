@@ -160,10 +160,23 @@ export function useLocalStorage<T>(key: string, initialValue: T, companyId?: str
             // Cleanup orphans 
             // We run this every time to ensure if items were deleted locally (even if the array is now empty), 
             // they are also deleted in Supabase.
-            let query = supabase.from(targetTable).select('id');
-            if (!isGlobal && activeCompId) query = query.eq('company_id', activeCompId);
-            
-            const { data: dbItems } = await query;
+            let dbItems: any[] = [];
+            let from = 0;
+            const pageSize = 1000;
+            let keepFetching = true;
+            while (keepFetching) {
+              let query = supabase.from(targetTable).select('id').range(from, from + pageSize - 1);
+              if (!isGlobal && activeCompId) query = query.eq('company_id', activeCompId);
+              
+              const { data, error } = await query;
+              if (error || !data) {
+                keepFetching = false;
+              } else {
+                dbItems = [...dbItems, ...data];
+                if (data.length < pageSize) keepFetching = false;
+                else from += pageSize;
+              }
+            }
             const dbIds = dbItems?.map((d: any) => d.id) || [];
             const currentIds = (value as any[]).map(c => c.id);
             const toDeleteIds = dbIds.filter(id => !currentIds.includes(id));

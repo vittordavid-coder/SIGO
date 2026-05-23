@@ -290,9 +290,13 @@ export function AdminView({
       try {
         const supabase = createSupabaseClient(supabaseConfig.url, supabaseConfig.key);
         if (supabase) {
-          const { count, error } = await supabase.from(selectedTableToDelete)
-            .select('*', { count: 'exact', head: true })
-            .eq('company_id', selectedCompanyIdToDelete);
+          let query = supabase.from(selectedTableToDelete).select('*', { count: 'exact', head: true });
+          if (selectedTableToDelete === 'app_state') {
+            query = query.like('id', `${selectedCompanyIdToDelete}_%`);
+          } else {
+            query = query.eq('company_id', selectedCompanyIdToDelete);
+          }
+          const { count, error } = await query;
           if (!error && count !== null) {
             setRecordsCount(count);
           } else {
@@ -380,10 +384,68 @@ export function AdminView({
     
     setIsDeletingCompanyData(true);
     const supabase = createSupabaseClient(supabaseConfig.url, supabaseConfig.key);
-    if (!supabase) return;
+    if (!supabase) {
+      setIsDeletingCompanyData(false);
+      return;
+    }
 
     try {
-       const { error } = await supabase.from(selectedTableToDelete).delete().eq('company_id', selectedCompanyIdToDelete);
+       let error;
+       if (selectedTableToDelete === 'app_state') {
+         // app_state table has no company_id column, delete using namespaced key prefix
+         const { error: err } = await supabase.from('app_state').delete().like('id', `${selectedCompanyIdToDelete}_%`);
+         error = err;
+       } else {
+         // Delete from the selected table
+         const { error: err } = await supabase.from(selectedTableToDelete).delete().eq('company_id', selectedCompanyIdToDelete);
+         error = err;
+
+         if (!error) {
+           // To maintain database integrity, we MUST also delete corresponding app_state keys,
+           // otherwise subsequent client syncs will load stale JSON fallback data and restore the deleted records.
+           const tableToAppStateKey: Record<string, string[]> = {
+             'resources': ['sconet_resources'],
+             'service_compositions': ['sconet_services'],
+             'quotations': ['sconet_quotations'],
+             'contracts': ['sconet_contracts'],
+             'measurements': ['sconet_measurements'],
+             'audit_logs': ['sigo_audit_logs'],
+             'highway_locations': ['sigo_highway_locations'],
+             'station_groups': ['sigo_station_groups'],
+             'cubation_data': ['sigo_cubation_data'],
+             'transport_data': ['sigo_transport_data'],
+             'calculation_memories': ['sigo_calc_memories'],
+             'service_productions': ['sigo_service_productions'],
+             'daily_reports': ['sigo_daily_reports'],
+             'pluviometry_records': ['sigo_pluviometry_records'],
+             'technical_schedules': ['sigo_technical_schedules'],
+             'employees': ['sigo_employees'],
+             'time_records': ['sigo_time_records'],
+             'measurement_templates': ['sigo_measurement_templates'],
+             'budget_schedules': ['sconet_schedules'],
+             'controller_equipments': ['sigo_controller_equipments'],
+             'equipments': ['sigo_controller_equipments'],
+             'equipment_maintenance': ['sigo_equipment_maintenance'],
+             'equipment_monthly_data': ['sigo_equipment_monthly'],
+             'controller_manpower': ['sigo_controller_manpower'],
+             'manpower_monthly_data': ['sigo_manpower_monthly'],
+             'equipment_transfers': ['sigo_equipment_transfers'],
+             'suppliers': ['sigo_suppliers'],
+             'purchase_requests': ['sigo_purchase_requests'],
+             'purchase_quotations': ['sigo_purchase_quotations'],
+             'purchase_orders': ['sigo_purchase_orders'],
+             'fuel_reservoirs': ['sigo_fuel_tanks'],
+             'fuel_logs': ['sigo_fuel_logs'],
+           };
+
+           const keysToDelete = tableToAppStateKey[selectedTableToDelete] || [];
+           for (const key of keysToDelete) {
+             const namespacedKey = `${selectedCompanyIdToDelete}_${key}`;
+             await supabase.from('app_state').delete().eq('id', namespacedKey);
+           }
+         }
+       }
+
        if (error) {
          alert('Erro ao excluir dados: ' + error.message);
        } else {
