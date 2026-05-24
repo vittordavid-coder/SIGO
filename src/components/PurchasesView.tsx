@@ -1689,7 +1689,7 @@ function OrdersTab({
                      <h2 className="text-lg font-black text-blue-600 mb-0.5 uppercase tracking-tight print-compact-header">Ordem de Compra</h2>
                      <div className="font-black text-slate-900 text-sm mb-0.5">{defaultOrganization || "CONSTRUTORA MASTER"}</div>
                      <div>Logística Integrada e Suprimentos</div>
-                     <div>Documento Gerado pelo Sistema SIGO</div>
+                     <div>Documento Gerado pelo Sistema SYNERA</div>
                    </div>
                    {(logoMode === 'right' || logoMode === 'both') && companyLogoRight && (
                      <div className="w-14 h-14 bg-white rounded-lg shadow-sm flex items-center justify-center border border-blue-600 p-1 overflow-hidden print:border-none print:shadow-none">

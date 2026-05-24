@@ -167,7 +167,7 @@ export function SettingsView({
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `backup_sigo_${new Date().toISOString().split('T')[0]}.json`;
+    a.download = `backup_synera_${new Date().toISOString().split('T')[0]}.json`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -410,7 +410,7 @@ export function SettingsView({
                     id="default-org" 
                     value={defaultOrg} 
                     onChange={e => onDefaultOrgChange(e.target.value)} 
-                    placeholder="Ex: SIGO Engenharia"
+                    placeholder="Ex: SYNERA Engenharia"
                   />
                 </div>
               </CardContent>

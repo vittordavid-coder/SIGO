@@ -58,11 +58,12 @@ export function RHDocuments({ employees, currentUser }: RHDocumentsProps) {
       if (error) throw error;
       
       if (data) {
+        // Fetch URLs for each template
         setTemplates(data.map(t => ({
           id: t.id,
           name: t.name,
           type: t.type as 'word' | 'excel',
-          fileData: t.file_data,
+          fileData: t.file_data, // this will now hold the storage URL instead of base64
           createdAt: t.created_at
         })));
       }
@@ -85,23 +86,44 @@ export function RHDocuments({ employees, currentUser }: RHDocumentsProps) {
     }
   }, [supabase]);
 
-  const saveTemplates = async (newTemplates: RHTemplate[], newInserted?: RHTemplate) => {
+  const saveTemplates = async (newTemplates: RHTemplate[], newInserted?: { template: RHTemplate, file: File }) => {
     setTemplates(newTemplates);
     if (supabase) {
       if (newInserted) {
         setLoading(true);
         try {
+          const { template, file } = newInserted;
+          // 1. Upload to Supabase Storage Bucket 'RH'
+          const filePath = `${currentUser.companyId}/${template.id}_${template.name}`;
+          const { data: uploadData, error: uploadError } = await supabase.storage.from('RH').upload(filePath, file);
+          
+          if (uploadError) {
+             console.error("Storage upload error:", uploadError);
+             alert(`Erro ao fazer upload para o bucket RH: ${uploadError.message}. Verifique se o bucket 'RH' existe.`);
+             return;
+          }
+
+          // 2. Get Public URL
+          const { data: { publicUrl } } = supabase.storage.from('RH').getPublicUrl(filePath);
+
+          // 3. Save reference in the database table
+          const updatedTemplate = { ...template, fileData: publicUrl };
+          
           await supabase.from('rh_templates').insert({
-            id: newInserted.id,
+            id: template.id,
             company_id: currentUser.companyId,
-            name: newInserted.name,
-            type: newInserted.type,
-            file_data: newInserted.fileData,
-            created_at: newInserted.createdAt
+            name: template.name,
+            type: template.type,
+            file_data: publicUrl, // Save URL instead of base64
+            created_at: template.createdAt
           });
+          
+          // Update local state with the URL version
+          setTemplates(prev => prev.map(t => t.id === template.id ? updatedTemplate : t));
+
         } catch (e) {
            console.error("Error saving on supabase:", e);
-           alert("Erro ao salvar documento em nuvem devido ao limite de tamanho ou conexão.");
+           alert("Erro ao salvar documento em nuvem.");
         } finally {
           setLoading(false);
         }
@@ -130,15 +152,15 @@ export function RHDocuments({ employees, currentUser }: RHDocumentsProps) {
 
     const reader = new FileReader();
     reader.onload = (event) => {
-      const base64Data = event.target?.result as string; // Will read as data URL
+      const base64Data = event.target?.result as string; 
       const newTemplate: RHTemplate = {
         id: crypto.randomUUID(),
         name: file.name,
         type: isWord ? 'word' : 'excel',
-        fileData: base64Data,
+        fileData: base64Data, // Fallback base64 for local storage, will be replaced by URL in Supabase mode
         createdAt: new Date().toISOString()
       };
-      saveTemplates([...templates, newTemplate], newTemplate);
+      saveTemplates([...templates, newTemplate], { template: newTemplate, file: file });
       setSelectedTemplateId(newTemplate.id);
     };
     reader.readAsDataURL(file);
@@ -147,13 +169,23 @@ export function RHDocuments({ employees, currentUser }: RHDocumentsProps) {
   const handleDeleteTemplate = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
     if (confirm('Tem certeza que deseja remover este modelo?')) {
+      const templateToDelete = templates.find(t => t.id === id);
       const newT = templates.filter(t => t.id !== id);
       setTemplates(newT);
       if (selectedTemplateId === id) setSelectedTemplateId('');
       
-      if (supabase) {
+      if (supabase && templateToDelete) {
         try {
+           // Delete from DB
            await supabase.from('rh_templates').delete().eq('id', id);
+           
+           // Extract file path from URL if it's a supabase URL
+           if (templateToDelete.fileData.includes('/storage/v1/object/public/RH/')) {
+              const filePath = templateToDelete.fileData.split('/storage/v1/object/public/RH/')[1];
+              if (filePath) {
+                 await supabase.storage.from('RH').remove([filePath]);
+              }
+           }
         } catch (e) {
            console.error('Delete error', e);
         }
@@ -180,18 +212,26 @@ export function RHDocuments({ employees, currentUser }: RHDocumentsProps) {
     };
   };
 
-  const dataURLtoBlob = (dataurl: string) => {
-    var arr = dataurl.split(','), mime = arr[0].match(/:(.*?);/)?.[1],
-        bstr = atob(arr[1]), n = bstr.length, u8arr = new Uint8Array(n);
+  const getBlobFromData = async (data: string): Promise<Blob> => {
+    if (data.startsWith('http://') || data.startsWith('https://')) {
+      const response = await fetch(data);
+      if (!response.ok) throw new Error('Failed to fetch file from server');
+      return await response.blob();
+    }
+    const arr = data.split(',');
+    const mime = arr[0].match(/:(.*?);/)?.[1];
+    const bstr = atob(arr[1]);
+    let n = bstr.length;
+    const u8arr = new Uint8Array(n);
     while(n--){
         u8arr[n] = bstr.charCodeAt(n);
     }
-    return new Blob([u8arr], {type:mime});
+    return new Blob([u8arr], {type: mime});
   };
 
   const generateWordDocument = async (template: RHTemplate, context: any, outName: string) => {
     try {
-      const blob = dataURLtoBlob(template.fileData);
+      const blob = await getBlobFromData(template.fileData);
       const arrayBuffer = await blob.arrayBuffer();
       const zip = new PizZip(arrayBuffer);
       const doc = new Docxtemplater(zip, {
@@ -215,7 +255,7 @@ export function RHDocuments({ employees, currentUser }: RHDocumentsProps) {
 
   const generateExcelDocument = async (template: RHTemplate, context: any, outName: string) => {
     try {
-      const blob = dataURLtoBlob(template.fileData);
+      const blob = await getBlobFromData(template.fileData);
       const arrayBuffer = await blob.arrayBuffer();
       
       const workbook = new ExcelJS.Workbook();

@@ -181,7 +181,7 @@ export function generateFullSQLScript(data: {
   passwordResetRequests: PasswordResetRequest[];
   appState?: { id: string, content: any }[];
 }): string {
-  let sql = `-- SIGO System - Supabase Migration Script\n\n`;
+  let sql = `-- SYNERA System - Supabase Migration Script\n\n`;
   sql += `BEGIN;\n\n`;
 
   sql += `-- DANGER: The following lines will drop all existing tables to ensure a clean slate.\n`;
@@ -346,7 +346,7 @@ export function getSupabaseMigrationParts() {
 
   // Part 0: Main
   parts['script00_main.sql'] = {
-    content: `-- SIGO System - Supabase Migration Script 00 (Main & Admin)
+    content: `-- SYNERA System - Supabase Migration Script 00 (Main & Admin)
 
 -- DANGER: The following lines will drop all existing tables to ensure a clean slate.
 DROP TABLE IF EXISTS purchase_order_payments CASCADE;
@@ -474,7 +474,7 @@ END $$;
 
   // Part 1: Chat
   parts['script01_chat.sql'] = {
-    content: `-- SIGO System - Supabase Migration Script 01 (Chat)
+    content: `-- SYNERA System - Supabase Migration Script 01 (Chat)
 
 CREATE TABLE IF NOT EXISTS chat_messages (
   id TEXT PRIMARY KEY,
@@ -517,7 +517,7 @@ END $$;
 
   // Part 2: Quotations
   parts['script02_quotations.sql'] = {
-    content: `-- SIGO System - Supabase Migration Script 02 (Cotações)
+    content: `-- SYNERA System - Supabase Migration Script 02 (Cotações)
 
 CREATE TABLE IF NOT EXISTS resources (
   id TEXT PRIMARY KEY,
@@ -604,7 +604,7 @@ END $$;
 
   // Part 3: Technical Room
   parts['script03_technical_room.sql'] = {
-    content: `-- SIGO System - Supabase Migration Script 03 (Sala Técnica)
+    content: `-- SYNERA System - Supabase Migration Script 03 (Sala Técnica)
 
 CREATE TABLE IF NOT EXISTS contracts (
   id TEXT PRIMARY KEY,
@@ -801,7 +801,7 @@ END $$;
 
   // Part 4: HR
   parts['script04_hr.sql'] = {
-    content: `-- SIGO System - Supabase Migration Script 04 (RH)
+    content: `-- SYNERA System - Supabase Migration Script 04 (RH)
 
 CREATE TABLE IF NOT EXISTS employees (
   id TEXT PRIMARY KEY,
@@ -861,7 +861,7 @@ END $$;
 
   // Part 5: Controller
   parts['script05_controller.sql'] = {
-    content: `-- SIGO System - Supabase Migration Script 05 (Controlador)
+    content: `-- SYNERA System - Supabase Migration Script 05 (Controlador)
 
 CREATE TABLE IF NOT EXISTS daily_reports (
   id TEXT PRIMARY KEY,
@@ -1112,7 +1112,7 @@ END $$;
 
   // Part 6: Purchases
   parts['script06_purchases.sql'] = {
-    content: `-- SIGO System - Supabase Migration Script 06 (Compras)
+    content: `-- SYNERA System - Supabase Migration Script 06 (Compras)
 
 CREATE TABLE IF NOT EXISTS suppliers (
     id TEXT PRIMARY KEY,
@@ -1386,7 +1386,7 @@ COMMENT ON COLUMN users.email_config IS 'Configurações SMTP para envio de e-ma
 
   // Instructions
   parts['INSTRUCOES_SUPABASE.md'] = {
-    content: `# Instruções de Migração Supabase - Sistema SIGO
+    content: `# Instruções de Migração Supabase - Sistema SYNERA
 
 O script foi dividido em 7 partes organizadas por setores para facilitar a execução.
 

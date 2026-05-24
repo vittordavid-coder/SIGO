@@ -172,7 +172,7 @@ export default function RHView({
     doc.setTextColor(255, 255, 255);
     doc.setFontSize(20);
     doc.setFont('helvetica', 'bold');
-    doc.text('SIGO - GESTÃO DE RECURSOS HUMANOS', 105, 15, { align: 'center' });
+    doc.text('SYNERA - GESTÃO DE RECURSOS HUMANOS', 105, 15, { align: 'center' });
     doc.setFontSize(12);
     doc.setFont('helvetica', 'normal');
     doc.text('Sistema Integrado de Gestão Operacional', 105, 22, { align: 'center' });
@@ -244,7 +244,7 @@ export default function RHView({
 
   const exportEmployeeToExcel = (e: Employee) => {
     const mainData = [
-      ['SIGO - GESTÃO DE RECURSOS HUMANOS'],
+      ['SYNERA - GESTÃO DE RECURSOS HUMANOS'],
       ['FICHA DE ADMISSÃO DIGITAL'],
       ['Gerado em:', new Date().toLocaleString('pt-BR')],
       [''],

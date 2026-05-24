@@ -492,11 +492,11 @@ function QuotationReport({ quotation, services, resources, companyLogo }: {
             <img src={companyLogo} alt="Logo" className="h-12 object-contain" />
           ) : (
             <div className="bg-blue-600 text-white px-3 py-2 font-bold text-lg rounded whitespace-nowrap">
-              {quotation.organization || 'SIGO SISTEMA INTEGRADO DE GERENCIAMENTO DE OBRAS'}
+              {quotation.organization || 'SYNERA SISTEMA DE GESTÃO'}
             </div>
           )}
           <div>
-            <h1 className="text-lg font-bold uppercase tracking-tight">SIGO SISTEMA INTEGRADO DE GERENCIAMENTO DE OBRAS</h1>
+            <h1 className="text-lg font-bold uppercase tracking-tight">SYNERA SISTEMA DE GESTÃO</h1>
             <p className="text-base text-gray-600">Planilha Orçamentária</p>
           </div>
         </div>
@@ -609,8 +609,8 @@ function QuotationReport({ quotation, services, resources, companyLogo }: {
 
       {/* Footer */}
       <div className="pt-12 flex justify-between items-center text-sm text-gray-400 uppercase tracking-widest">
-        <span className="font-semibold uppercase text-sm">SIGO SISTEMA INTEGRADO DE GERENCIAMENTO DE OBRAS</span>
-        <span className="font-semibold uppercase text-sm">{quotation.organization || 'SIGO SISTEMA INTEGRADO DE GERENCIAMENTO DE OBRAS'}</span>
+        <span className="font-semibold uppercase text-sm">SYNERA SISTEMA DE GESTÃO</span>
+        <span className="font-semibold uppercase text-sm">{quotation.organization || 'SYNERA SISTEMA DE GESTÃO'}</span>
       </div>
 
       <div className="flex justify-end gap-4 print:hidden">

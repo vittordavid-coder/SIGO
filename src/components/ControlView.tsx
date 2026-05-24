@@ -885,7 +885,7 @@ export default function ControlView({
       doc.setTextColor(150);
       doc.setFontSize(6);
       doc.setFont("helvetica", "italic");
-      doc.text('SIGO - Sistema Integrado de Gerenciamento de Obra', pageWidth / 2, pageHeight - 5, { align: 'center' });
+      doc.text('SYNERA - Sistema Integrado de Gestão', pageWidth / 2, pageHeight - 5, { align: 'center' });
     };
 
     addHeaderFooter();
@@ -1628,7 +1628,7 @@ export default function ControlView({
               </SelectContent>
             </Select>
           </div>
-          <p className="text-base text-gray-500 italic">* Certifique-se de que o arquivo segue o modelo padrão de importação do SIGO.</p>
+          <p className="text-base text-gray-500 italic">* Certifique-se de que o arquivo segue o modelo padrão de importação do SYNERA.</p>
         </div>
       </Modal>
 
@@ -1996,7 +1996,7 @@ export default function ControlView({
                       </div>
                       <div>
                         <h2 className="text-2xl font-black text-white leading-tight">Adicionar Equipamento</h2>
-                        <p className="text-blue-100 text-base font-bold uppercase tracking-widest mt-1 opacity-80">Novo ativo SIGO Controlador</p>
+                        <p className="text-blue-100 text-base font-bold uppercase tracking-widest mt-1 opacity-80">Novo ativo SYNERA Controlador</p>
                       </div>
                     </div>
                   </div>
@@ -2351,7 +2351,7 @@ export default function ControlView({
                       <div className="p-6 bg-gray-50 border-t flex flex-col sm:flex-row gap-3 rounded-b-2xl">
                         <Button variant="ghost" onClick={() => setIsAddOpen(false)} className="rounded-xl font-bold uppercase text-base tracking-widest h-12 px-6">Cancelar</Button>
                         <Button onClick={handleCreateEquip} className="flex-1 h-12 rounded-2xl bg-blue-600 hover:bg-blue-700 shadow-xl shadow-blue-100 font-black uppercase text-base tracking-widest transition-all active:scale-95">
-                          <Check className="w-4 h-4 mr-2" /> Salvar Equipamento no SIGO
+                          <Check className="w-4 h-4 mr-2" /> Salvar Equipamento no SYNERA
                         </Button>
                       </div>
                     </Tabs>
@@ -3306,7 +3306,7 @@ export default function ControlView({
             </div>
             <div>
               <h2 className="text-2xl font-black text-white leading-tight">Editar Equipamento</h2>
-              <p className="text-blue-100 text-base font-bold uppercase tracking-widest mt-1 opacity-80">Alterar dados do ativo SIGO</p>
+              <p className="text-blue-100 text-base font-bold uppercase tracking-widest mt-1 opacity-80">Alterar dados do ativo SYNERA</p>
             </div>
           </div>
           <Badge className="bg-white/20 text-white border-none font-black text-base px-4 py-1.5 uppercase rounded-xl backdrop-blur-md">{equipmentToEdit?.code || 'S/C'}</Badge>
@@ -3763,7 +3763,7 @@ export default function ControlView({
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
                     <h4 className="text-base font-black text-gray-900 uppercase">Galeria de Fotos</h4>
-                    <p className="text-base text-gray-500 font-bold uppercase tracking-tighter shadow-sm">SIGO Bucket: equipments</p>
+                    <p className="text-base text-gray-500 font-bold uppercase tracking-tighter shadow-sm">SYNERA Bucket: equipments</p>
                   </div>
                   
                   <div className="grid grid-cols-4 gap-4">

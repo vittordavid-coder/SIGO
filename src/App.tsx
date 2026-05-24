@@ -223,7 +223,7 @@ export default function App() {
       password: 'a665a45920422f9d417e4867efdc4fb8a04a1f3fff1fa07e998e86f7f7a27ae3', // '123' hashed
       role: 'master',
       companyId: 'root',
-      companyName: 'SIGO Root'
+      companyName: 'SYNERA Root'
     }
   ]);
 
@@ -259,7 +259,7 @@ export default function App() {
   const [chargesPerc, setChargesPerc] = useLocalStorage<number>('sigo_ctrl_charges', 0, compId);
   const [otPerc, setOtPerc] = useLocalStorage<number>('sigo_ctrl_ot', 50, compId);
   const [marketingConfig, setMarketingConfig] = useLocalStorage<MarketingConfig>('sigo_marketing_config', defaultMarketingConfig);
-  const [defaultOrganization, setDefaultOrganization] = useLocalStorage<string>('sigo_default_org', 'SIGO SISTEMA INTEGRADO DE GERENCIAMENTO DE OBRAS', compId);
+  const [defaultOrganization, setDefaultOrganization] = useLocalStorage<string>('sigo_default_org', 'SYNERA SISTEMA DE GESTÃO', compId);
   const [systemConfig, setSystemConfig] = useLocalStorage<any[]>('sigo_system_config', [], compId);
   const [emailConfig, setEmailConfig] = useLocalStorage<EmailConfig>('sigo_email_config', {}, compId);
   
@@ -2919,8 +2919,8 @@ export default function App() {
             <div className="bg-blue-600 w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4">
               <LayoutDashboard className="w-10 h-10 text-white" />
             </div>
-            <h1 className="text-3xl font-bold text-gray-900 leading-tight">SIGO</h1>
-            <p className="text-gray-500 mt-2 font-medium">SISTEMA INTEGRADO DE GERENCIAMENTO DE OBRAS</p>
+            <h1 className="text-3xl font-bold text-gray-900 leading-tight">SYNERA</h1>
+            <p className="text-gray-500 mt-2 font-medium">SISTEMA INTEGRADO DE GESTÃO</p>
           </div>
 
           {!isRegistering && !isResettingPassword ? (
@@ -3187,7 +3187,7 @@ export default function App() {
                   <div className="bg-white/20 p-1.5 rounded-lg">
                     <LayoutDashboard className="w-5 h-5 text-white" />
                   </div>
-                  <span className="font-bold text-xl tracking-tight">SIGO</span>
+                  <span className="font-bold text-xl tracking-tight">SYNERA</span>
                 </div>
                 <p className="text-blue-100 text-sm font-bold uppercase tracking-widest opacity-80">
                   Navegação Principal
@@ -3219,7 +3219,7 @@ export default function App() {
             <div className="bg-blue-600 p-1.5 rounded-lg">
               <LayoutDashboard className="w-5 h-5 text-white" />
             </div>
-            <span className="font-bold text-xl tracking-tight hidden lg:block">SIGO</span>
+            <span className="font-bold text-xl tracking-tight hidden lg:block">SYNERA</span>
           </div>
         </div>
         
