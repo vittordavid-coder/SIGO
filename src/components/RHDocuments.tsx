@@ -109,7 +109,7 @@ export function RHDocuments({ employees, currentUser }: RHDocumentsProps) {
           // 3. Save reference in the database table
           const updatedTemplate = { ...template, fileData: publicUrl };
           
-          await supabase.from('rh_templates').insert({
+          const { error: insertError } = await supabase.from('rh_templates').insert({
             id: template.id,
             company_id: currentUser.companyId,
             name: template.name,
@@ -117,6 +117,12 @@ export function RHDocuments({ employees, currentUser }: RHDocumentsProps) {
             file_data: publicUrl, // Save URL instead of base64
             created_at: template.createdAt
           });
+
+          if (insertError) {
+             console.error("DB insert error:", insertError);
+             alert(`Erro ao salvar no banco de dados: ${insertError.message}. Verifique a tabela rh_templates.`);
+             return;
+          }
           
           // Update local state with the URL version
           setTemplates(prev => prev.map(t => t.id === template.id ? updatedTemplate : t));
@@ -162,6 +168,9 @@ export function RHDocuments({ employees, currentUser }: RHDocumentsProps) {
       };
       saveTemplates([...templates, newTemplate], { template: newTemplate, file: file });
       setSelectedTemplateId(newTemplate.id);
+      
+      // Clear the input value so the same file can be selected again
+      e.target.value = '';
     };
     reader.readAsDataURL(file);
   };
