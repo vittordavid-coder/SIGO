@@ -1602,7 +1602,7 @@ export default function RHView({
         </TabsContent>
 
         <TabsContent value="documents">
-          <RHDocuments employees={filteredEmployees} currentUser={currentUser} />
+          <RHDocuments employees={filteredEmployees} currentUser={currentUser} selectedContractId={selectedContractId} />
         </TabsContent>
       </Tabs>
     </div>

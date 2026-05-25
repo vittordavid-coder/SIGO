@@ -20,16 +20,18 @@ export interface RHTemplate {
   id: string;
   name: string;
   type: 'word' | 'excel';
-  fileData: string; // base64
+  fileData: string; // URL now
   createdAt: string;
+  contractId?: string; // New field
 }
 
 interface RHDocumentsProps {
   employees: Employee[];
   currentUser: User;
+  selectedContractId: string | null;
 }
 
-export function RHDocuments({ employees, currentUser }: RHDocumentsProps) {
+export function RHDocuments({ employees, currentUser, selectedContractId }: RHDocumentsProps) {
   const [templates, setTemplates] = useState<RHTemplate[]>([]);
   const [mode, setMode] = useState<'individual' | 'malote'>('individual');
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>('');
@@ -49,11 +51,16 @@ export function RHDocuments({ employees, currentUser }: RHDocumentsProps) {
   const loadFromSupabase = async () => {
     if (!supabase) return;
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .from('rh_templates')
         .select('*')
-        .eq('company_id', currentUser.companyId)
-        .order('created_at', { ascending: false });
+        .eq('company_id', currentUser.companyId);
+        
+      if (selectedContractId) {
+        query = query.or(`contract_id.eq.${selectedContractId},contract_id.is.null`);
+      }
+      
+      const { data, error } = await query.order('created_at', { ascending: false });
       
       if (error) throw error;
       
@@ -64,7 +71,8 @@ export function RHDocuments({ employees, currentUser }: RHDocumentsProps) {
           name: t.name,
           type: t.type as 'word' | 'excel',
           fileData: t.file_data, // this will now hold the storage URL instead of base64
-          createdAt: t.created_at
+          createdAt: t.created_at,
+          contractId: t.contract_id
         })));
       }
     } catch (e) {
@@ -94,8 +102,8 @@ export function RHDocuments({ employees, currentUser }: RHDocumentsProps) {
         try {
           const { template, file } = newInserted;
           // 1. Upload to Supabase Storage Bucket 'RH'
-          const filePath = `${currentUser.companyId}/${template.id}_${template.name}`;
-          const { data: uploadData, error: uploadError } = await supabase.storage.from('RH').upload(filePath, file);
+          const filePath = `${currentUser.companyId}/${selectedContractId || 'global'}/${file.name}`;
+          const { data: uploadData, error: uploadError } = await supabase.storage.from('RH').upload(filePath, file, { upsert: true });
           
           if (uploadError) {
              console.error("Storage upload error:", uploadError);
@@ -109,9 +117,32 @@ export function RHDocuments({ employees, currentUser }: RHDocumentsProps) {
           // 3. Save reference in the database table
           const updatedTemplate = { ...template, fileData: publicUrl };
           
+          // Check if exists
+          let query = supabase
+             .from('rh_templates')
+             .select('id')
+             .eq('company_id', currentUser.companyId)
+             .eq('name', template.name);
+             
+          if (selectedContractId) {
+             query = query.eq('contract_id', selectedContractId);
+          } else {
+             query = query.is('contract_id', null);
+          }
+          
+          const { data: existing } = await query;
+
+          // We'll just do an upsert or let DB handle it. Actually since ID is new, we will just delete old exact matches.
+          if (existing && existing.length > 0) {
+             for (const ex of existing) {
+                 await supabase.from('rh_templates').delete().eq('id', ex.id);
+             }
+          }
+
           const { error: insertError } = await supabase.from('rh_templates').insert({
             id: template.id,
             company_id: currentUser.companyId,
+            contract_id: selectedContractId || null,
             name: template.name,
             type: template.type,
             file_data: publicUrl, // Save URL instead of base64
@@ -124,8 +155,8 @@ export function RHDocuments({ employees, currentUser }: RHDocumentsProps) {
              return;
           }
           
-          // Update local state with the URL version
-          setTemplates(prev => prev.map(t => t.id === template.id ? updatedTemplate : t));
+          // Update local state with the URL version by reloading
+          await loadFromSupabase();
 
         } catch (e) {
            console.error("Error saving on supabase:", e);
@@ -164,7 +195,8 @@ export function RHDocuments({ employees, currentUser }: RHDocumentsProps) {
         name: file.name,
         type: isWord ? 'word' : 'excel',
         fileData: base64Data, // Fallback base64 for local storage, will be replaced by URL in Supabase mode
-        createdAt: new Date().toISOString()
+        createdAt: new Date().toISOString(),
+        contractId: selectedContractId || undefined
       };
       saveTemplates([...templates, newTemplate], { template: newTemplate, file: file });
       setSelectedTemplateId(newTemplate.id);
