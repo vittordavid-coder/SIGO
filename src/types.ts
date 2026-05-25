@@ -748,7 +748,7 @@ export interface ControllerEquipment {
   maintenance_type?: 'preventive' | 'corrective';
   chargesPercentage?: number;
   overtimePercentage?: number;
-  measurementUnit?: 'Horímetro' | 'Quilometragem' | 'Mensal';
+  measurementUnit?: 'Horímetro' | 'Quilometragem' | 'Mensal' | 'Diária';
   currentReading?: number; // Última leitura de horímetro/odômetro
   contractedPrice?: number; // Preço Contratado
   monthlyPrice?: number; // Preço Mensal

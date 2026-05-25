@@ -21,7 +21,7 @@ export function Modal({
 }: { 
   isOpen: boolean, 
   onClose: () => void, 
-  title?: string, 
+  title?: string | ReactNode, 
   description?: ReactNode, 
   children?: ReactNode, 
   onConfirm?: () => void, 

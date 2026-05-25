@@ -3883,7 +3883,6 @@ export default function ControlView({
         maxWidth="7xl"
         className="h-[95vh] !p-0"
         headerClassName="sticky top-0 z-50 bg-white p-4 border-b"
-        showCloseButton={false}
       >
         <div className="flex flex-col h-full bg-white overflow-hidden">
           <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4 scrollbar-thin-visible bg-white">

@@ -738,7 +738,7 @@ export function exportTeamsReportPDF(options: {
   doc.save(`Relatorio_Equipes_${options.month}.pdf`);
 }
 
-function loadStateFromLocalStorage<T>(key: string, companyId?: string, defaultValue: T): T {
+function loadStateFromLocalStorage<T>(key: string, companyId: string | undefined, defaultValue: T): T {
   try {
     const storeKey = companyId ? `${companyId}_${key}` : key;
     const item = window.localStorage.getItem(storeKey);
@@ -891,10 +891,10 @@ export function exportMonthlyControlReportPDF(options: {
         startY: 63,
         body: [
           [{ content: 'Parâmetros Operacionais', colSpan: 2 }, { content: 'Metas e Previsões', colSpan: 2 }],
-          ['Nº Equipes', p.numEquip, 'Meta Diária', { content: `${formatNumber(targetDaily, 2)} ${s?.unit}`, halign: 'right' }],
-          ['Dias/Mês', p.workDays, 'Previsão Mensal', { content: `${formatNumber(targetDaily * p.workDays, 2)} ${s?.unit}`, halign: 'right' }],
-          ['Horas/Dia', p.hoursDay, 'Acumulado Ant.', { content: `${formatNumber(p.prevMonthAccumulated || 0, 2)} ${s?.unit}`, halign: 'right' }],
-          ['Data Início', p.startDate ? `${p.startDate.split('-')[2]}/${p.startDate.split('-')[1]}/${p.startDate.split('-')[0]}` : '-', 'Acumul. Total', { content: `${formatNumber(totalAccFinal, 2)} ${s?.unit}`, halign: 'right' }],
+          ['Nº Equipes', p.numEquip, 'Meta Diária', { content: `${formatNumber(targetDaily, 2)} ${s?.unit}`, styles: { halign: 'right' } }],
+          ['Dias/Mês', p.workDays, 'Previsão Mensal', { content: `${formatNumber(targetDaily * p.workDays, 2)} ${s?.unit}`, styles: { halign: 'right' } }],
+          ['Horas/Dia', p.hoursDay, 'Acumulado Ant.', { content: `${formatNumber(p.prevMonthAccumulated || 0, 2)} ${s?.unit}`, styles: { halign: 'right' } }],
+          ['Data Início', p.startDate ? `${p.startDate.split('-')[2]}/${p.startDate.split('-')[1]}/${p.startDate.split('-')[0]}` : '-', 'Acumul. Total', { content: `${formatNumber(totalAccFinal, 2)} ${s?.unit}`, styles: { halign: 'right' } }],
         ],
         theme: 'grid',
         styles: { fontSize: 7.5, cellPadding: 1.5 },
@@ -948,7 +948,7 @@ export function exportMonthlyControlReportPDF(options: {
                 if (eqCost) {
                   totalCostVal += eqCost;
                 } else {
-                  const atts = eq.customFields ? Object.values(eq.customFields) : [];
+                  const atts = eq.customFields ? (Object.values(eq.customFields) as any[]) : [];
                   const monthlyCostStr = atts.find((att: any) => 
                     typeof att.name === 'string' && att.name.toLowerCase().includes('mensal')
                   )?.value;
@@ -986,9 +986,9 @@ export function exportMonthlyControlReportPDF(options: {
         startY: (doc as any).lastAutoTable.finalY + 2,
         body: [
           [{ content: 'Controle e Acompanhamento Financeiro (R$)', colSpan: 2 }, { content: 'Rentabilidade do Período', colSpan: 2 }],
-          ['Preço de Venda do Serviço', { content: `R$ ${formatNumber(csPrice, 2)}`, halign: 'right' }, 'Valor Executado', { content: `R$ ${formatNumber(valorProducaoExecutado, 2)}`, halign: 'right' }],
-          [ 'Custo da Equipe (Mês)', { content: `R$ ${formatNumber(totalMonthlyCost, 2)}`, halign: 'right', fontStyle: 'bold' },'Custo de Equipe (Dias Trab.)', { content: `R$ ${formatNumber(actualTeamCostIncurred, 2)}`, halign: 'right', fontStyle: 'bold' }],
-          ['Valor Produzido Projetado', { content: `R$ ${formatNumber(valorProducaoProjetado, 2)}`, halign: 'right' }, 'Resultado Operacional Estimado', { content: `R$ ${formatNumber(saldoFinanceiro, 2)}`, halign: 'right', fontStyle: 'bold' }],
+          ['Preço de Venda do Serviço', { content: `R$ ${formatNumber(csPrice, 2)}`, styles: { halign: 'right' } }, 'Valor Executado', { content: `R$ ${formatNumber(valorProducaoExecutado, 2)}`, styles: { halign: 'right' } }],
+          [ 'Custo da Equipe (Mês)', { content: `R$ ${formatNumber(totalMonthlyCost, 2)}`, styles: { halign: 'right', fontStyle: 'bold' } },'Custo de Equipe (Dias Trab.)', { content: `R$ ${formatNumber(actualTeamCostIncurred, 2)}`, styles: { halign: 'right', fontStyle: 'bold' } }],
+          ['Valor Produzido Projetado', { content: `R$ ${formatNumber(valorProducaoProjetado, 2)}`, styles: { halign: 'right' } }, 'Resultado Operacional Estimado', { content: `R$ ${formatNumber(saldoFinanceiro, 2)}`, styles: { halign: 'right', fontStyle: 'bold' } }],
         ],
         theme: 'grid',
         styles: { fontSize: 7.5, cellPadding: 1.5 },
@@ -1796,7 +1796,7 @@ export async function exportMonthlyControlReportExcel(options: {
               if (eqCost) {
                 totalCostVal += eqCost;
               } else {
-                const atts = eq.customFields ? Object.values(eq.customFields) : [];
+                const atts = eq.customFields ? (Object.values(eq.customFields) as any[]) : [];
                 const monthlyCostStr = atts.find((att: any) => 
                   typeof att.name === 'string' && att.name.toLowerCase().includes('mensal')
                 )?.value;

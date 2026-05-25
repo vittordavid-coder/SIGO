@@ -209,7 +209,9 @@ export function generateFullSQLScript(data: {
 
   sql += `\n-- Storage Buckets\n`;
   sql += `INSERT INTO storage.buckets (id, name, public) VALUES ('chat-attachments', 'chat-attachments', true) ON CONFLICT (id) DO NOTHING;\n`;
-  sql += `DO $$\nBEGIN\n  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Public Access' AND tablename = 'objects' AND schemaname = 'storage') THEN\n    CREATE POLICY "Public Access" ON storage.objects FOR SELECT USING (bucket_id = 'chat-attachments');\n  END IF;\nEND $$;\n`;
+  sql += `INSERT INTO storage.buckets (id, name, public) VALUES ('rh', 'rh', true) ON CONFLICT (id) DO NOTHING;\n`;
+  sql += `INSERT INTO storage.buckets (id, name, public) VALUES ('equipamentos', 'equipamentos', true) ON CONFLICT (id) DO NOTHING;\n`;
+  sql += `DO $$\nBEGIN\n  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Public Access' AND tablename = 'objects' AND schemaname = 'storage') THEN\n    CREATE POLICY "Public Access" ON storage.objects FOR SELECT USING (true);\n    CREATE POLICY "Public Upload" ON storage.objects FOR INSERT WITH CHECK (true);\n    CREATE POLICY "Public Update" ON storage.objects FOR UPDATE USING (true);\n    CREATE POLICY "Public Delete" ON storage.objects FOR DELETE USING (true);\n  END IF;\nEND $$;\n`;
 
   sql += `\n-- Inserção de Dados\n\n`;
 
@@ -466,6 +468,20 @@ DO $$ BEGIN
   END IF;
   IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Allow public access' AND tablename = 'password_reset_requests') THEN
     CREATE POLICY "Allow public access" ON password_reset_requests FOR ALL USING (true) WITH CHECK (true);
+  END IF;
+END $$;
+
+-- Storage Buckets Setup
+INSERT INTO storage.buckets (id, name, public) VALUES ('chat-attachments', 'chat-attachments', true) ON CONFLICT (id) DO NOTHING;
+INSERT INTO storage.buckets (id, name, public) VALUES ('rh', 'rh', true) ON CONFLICT (id) DO NOTHING;
+INSERT INTO storage.buckets (id, name, public) VALUES ('equipamentos', 'equipamentos', true) ON CONFLICT (id) DO NOTHING;
+
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Public Access' AND tablename = 'objects' AND schemaname = 'storage') THEN
+    CREATE POLICY "Public Access" ON storage.objects FOR SELECT USING (true);
+    CREATE POLICY "Public Upload" ON storage.objects FOR INSERT WITH CHECK (true);
+    CREATE POLICY "Public Update" ON storage.objects FOR UPDATE USING (true);
+    CREATE POLICY "Public Delete" ON storage.objects FOR DELETE USING (true);
   END IF;
 END $$;
 `,

@@ -122,11 +122,11 @@ export default function App() {
   const compId = currentUser?.companyId;
 
   const [mainTab, setMainTab] = useState<'home' | 'quotations' | 'measurements' | 'rh' | 'control' | 'purchases' | 'project_admin' | 'settings' | 'admin' | 'profile' | 'gerencia' | 'financeiro'>('home');
-  const [activeTab, setActiveTab] = useState<'resources' | 'services' | 'quotations' | 'budget' | 'bdi' | 'abc' | 'schedule' | 'reports'>('budget');
+  const [activeTab, setActiveTab] = useState<'resources' | 'services' | 'quotations' | 'budget' | 'bdi' | 'abc' | 'schedule' | 'reports'>('resources');
   const [activeMeasureTab, setActiveMeasureTab] = useState<'contracts' | 'measurements' | 'measure' | 'controls' | 'rdo' | 'pluviometria' | 'schedule' | 'teams' | 'reports' | 'summary'>('contracts');
   const [activeRHTab, setActiveRHTab] = useState('employees');
   const [activeControlTab, setActiveControlTab] = useState('list');
-  const [activePurchasesTab, setActivePurchasesTab] = useState<'requests' | 'suppliers' | 'quotations' | 'orders' | 'tracking' | 'estoque' | 'evaluation'>('suppliers');
+  const [activePurchasesTab, setActivePurchasesTab] = useState<'requests' | 'suppliers' | 'quotations' | 'orders' | 'tracking' | 'estoque' | 'evaluation'>('requests');
   const [selectedMeasurementId, setSelectedMeasurementId] = useState<string | null>(null);
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
@@ -270,6 +270,8 @@ export default function App() {
   const handleNavigate = (target: string | { tab: string; subTab?: string; measureTab?: string; rhTab?: string; controlTab?: string; purchasesTab?: string }) => {
     if (typeof target === 'string') {
       setMainTab(target as any);
+      if (target === 'purchases') setActivePurchasesTab('requests');
+      if (target === 'quotations') setActiveTab('resources');
     } else {
       if (target.tab) setMainTab(target.tab as any);
       if (target.subTab) setActiveTab(target.subTab as any);
@@ -1322,8 +1324,9 @@ export default function App() {
     try {
       // Reset all navigation states
       setMainTab('home');
-      setActiveTab('budget');
+      setActiveTab('resources');
       setActiveMeasureTab('contracts');
+      setActivePurchasesTab('requests');
       setSelectedContractId(null);
       setSelectedMeasurementId(null);
 
@@ -3198,7 +3201,7 @@ export default function App() {
                   <button
                     key={item.id}
                     onClick={() => {
-                      setMainTab(item.id as any);
+                      handleNavigate(item.id as any);
                     }}
                     className={cn(
                       "w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all",
@@ -3231,7 +3234,7 @@ export default function App() {
                 icon={item.icon} 
                 label={item.label} 
                 active={mainTab === item.id} 
-                onClick={() => setMainTab(item.id as any)} 
+                onClick={() => handleNavigate(item.id as any)} 
               />
             ))}
           </div>
@@ -3971,6 +3974,7 @@ export default function App() {
                 <ManagementView
                   contracts={finalContracts}
                   measurements={finalMeasurements}
+                  quotations={finalQuotations}
                   controllerEquipments={finalControllerEquipments}
                   controllerTeams={finalControllerTeams}
                   manpowerRecords={filteredControllerManpower}

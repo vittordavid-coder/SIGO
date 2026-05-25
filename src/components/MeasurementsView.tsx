@@ -336,7 +336,7 @@ export function MeasurementsView({
     
     let resolvedSupervisorId = newTeam.supervisorId;
     if (!resolvedSupervisorId && supervisorSearch) {
-      const match = allPoolManpower.find(m => m.name.toLowerCase() === supervisorSearch.trim().toLowerCase());
+      const match = controllerManpower.find(m => m.name.toLowerCase() === supervisorSearch.trim().toLowerCase());
       resolvedSupervisorId = match ? match.id : supervisorSearch.trim();
     }
 
@@ -375,7 +375,7 @@ export function MeasurementsView({
       : allPoolManpower;
 
     const poolEquipments = resourceSearchInput.trim()
-      ? allPoolEquipments.filter(e => e.name.toLowerCase().includes(resourceSearchInput.toLowerCase()) || e.tag?.toLowerCase().includes(resourceSearchInput.toLowerCase()))
+      ? allPoolEquipments.filter(e => e.name.toLowerCase().includes(resourceSearchInput.toLowerCase()) || e.code?.toLowerCase().includes(resourceSearchInput.toLowerCase()))
       : allPoolEquipments;
 
     const getTeamMembers = (teamId: string) => {
@@ -6483,20 +6483,20 @@ function ProductionControlView({
                           <Table>
                              <TableHeader className="bg-gray-100/50">
                                 <TableRow className="text-xs uppercase tracking-wider">
-                                   <TableHead rowSpan={2} className="border-r font-bold w-20">DATA/DIA</TableHead>
+                                   <TableHead rowSpan={2} className="border-r font-bold w-12 align-bottom pb-4"><div className="whitespace-nowrap mx-auto flex items-center justify-center -rotate-180" style={{ writingMode: 'vertical-rl' }}>DATA/DIA</div></TableHead>
                                    <TableHead colSpan={2} className="text-center border-r text-blue-600 font-bold bg-blue-50/30">PREVISTO</TableHead>
                                    <TableHead colSpan={2} className="text-center border-r text-emerald-600 font-bold bg-emerald-50/30">EXECUTADO</TableHead>
                                    <TableHead className="text-center text-red-600 font-bold bg-red-50/30">CUSTO</TableHead>
                                    <TableHead colSpan={2} className="text-center text-amber-600 font-bold bg-amber-50/30">PROJEÇÃO</TableHead>
                                 </TableRow>
-                                <TableRow className="text-xs uppercase tracking-wider">
-                                   <TableHead className="text-right font-bold w-24">NO DIA</TableHead>
-                                   <TableHead className="text-right font-bold border-r w-32">ACUMULADO</TableHead>
-                                   <TableHead className="text-right font-bold w-24">NO DIA</TableHead>
-                                   <TableHead className="text-right font-bold border-r w-32">ACUMULADO</TableHead>
-                                   <TableHead className="text-right font-bold border-r w-24">CUSTO ACUM.</TableHead>
-                                   <TableHead className="text-right font-bold w-24">NO DIA</TableHead>
-                                   <TableHead className="text-right font-bold w-32">ACUMULADO</TableHead>
+                                <TableRow className="text-xs uppercase tracking-wider h-32">
+                                   <TableHead className="font-bold w-10 align-bottom pb-2"><div className="whitespace-nowrap mx-auto flex items-center justify-center -rotate-180 text-blue-600" style={{ writingMode: 'vertical-rl' }}>NO DIA</div></TableHead>
+                                   <TableHead className="font-bold border-r w-10 align-bottom pb-2"><div className="whitespace-nowrap mx-auto flex items-center justify-center -rotate-180 text-blue-600" style={{ writingMode: 'vertical-rl' }}>ACUMULADO</div></TableHead>
+                                   <TableHead className="font-bold w-10 align-bottom pb-2"><div className="whitespace-nowrap mx-auto flex items-center justify-center -rotate-180 text-emerald-600" style={{ writingMode: 'vertical-rl' }}>NO DIA</div></TableHead>
+                                   <TableHead className="font-bold border-r w-10 align-bottom pb-2"><div className="whitespace-nowrap mx-auto flex items-center justify-center -rotate-180 text-emerald-600" style={{ writingMode: 'vertical-rl' }}>ACUMULADO</div></TableHead>
+                                   <TableHead className="font-bold border-r w-10 align-bottom pb-2"><div className="whitespace-nowrap mx-auto flex items-center justify-center -rotate-180 text-red-600" style={{ writingMode: 'vertical-rl' }}>CUSTO ACUM.</div></TableHead>
+                                   <TableHead className="font-bold w-10 align-bottom pb-2"><div className="whitespace-nowrap mx-auto flex items-center justify-center -rotate-180 text-amber-600" style={{ writingMode: 'vertical-rl' }}>NO DIA</div></TableHead>
+                                   <TableHead className="font-bold w-10 align-bottom pb-2"><div className="whitespace-nowrap mx-auto flex items-center justify-center -rotate-180 text-amber-600" style={{ writingMode: 'vertical-rl' }}>ACUMULADO</div></TableHead>
                                 </TableRow>
                              </TableHeader>
                              <TableBody>

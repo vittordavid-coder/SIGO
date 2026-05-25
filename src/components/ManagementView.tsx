@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Landmark } from 'lucide-react';
 
 export const ManagementView = ({ 
-  contracts, measurements, controllerEquipments, controllerTeams, manpowerRecords, employees,
+  contracts, measurements, quotations, controllerEquipments, controllerTeams, manpowerRecords, employees,
   selectedContractId: propSelectedContractId,
   onUpdateContractId
 }: any) => {
@@ -26,28 +26,60 @@ export const ManagementView = ({
 
     const equipments = controllerEquipments || [];
     const rh = employees || [];
-    const revenueItems = filteredMeasurements || [];
 
     const equipmentCost = equipments.reduce((acc: number, e: any) => acc + (e.monthlyCost || 0), 0);
     const rhCost = rh.reduce((acc: number, e: any) => acc + (e.salary || 0), 0);
-    const revenue = revenueItems.reduce((acc: number, m: any) => acc + (m.totalValue || 0), 0);
+    
+    let revenue = 0;
+    const revenueDetails: any[] = [];
+
+    (filteredMeasurements || []).forEach((m: any) => {
+      let mTotal = 0;
+      const contract = (contracts || []).find((c: any) => c.id === m.contractId);
+      const quotation = (quotations || []).find((q: any) => q.id === contract?.quotationId);
+      
+      const priceMap = new Map<string, number>();
+      
+      const addPrices = (items: any[]) => {
+        for (const item of items || []) {
+          if (item.price) priceMap.set(item.serviceId || item.code, item.price);
+        }
+      };
+      
+      addPrices(quotation?.services || []);
+      (quotation?.groups || []).forEach((g: any) => addPrices(g.services || []));
+      addPrices(contract?.services || []);
+      (contract?.groups || []).forEach((g: any) => addPrices(g.services || []));
+
+      (m.items || []).forEach((item: any) => {
+         mTotal += (item.quantity || 0) * (priceMap.get(item.serviceId) || 0);
+      });
+
+      revenue += mTotal;
+      revenueDetails.push({ name: `${contract?.contractNumber || 'Sem Contrato'} - ${m.period}`, value: mTotal });
+    });
+
+    const aporte = Math.max(0, (equipmentCost + rhCost) - revenue);
 
     return { 
       equipmentCost, 
       rhCost, 
       revenue,
+      aporte,
       details: {
         'Equipamentos': equipments.map((e: any) => ({ name: e.name, value: e.monthlyCost })),
         'RH': rh.map((e: any) => ({ name: e.name, value: e.salary })),
-        'Receita': revenueItems.map((m: any) => ({ name: m.contractName, value: m.totalValue }))
+        'Receita': revenueDetails,
+        'Aporte Financeiro': [{ name: 'Valor de Aporte Necessário', value: aporte }]
       }
     };
-  }, [controllerEquipments, employees, measurements, selectedContractId]);
+  }, [controllerEquipments, employees, measurements, contracts, quotations, selectedContractId]);
 
   const data = [
     { name: 'Equipamentos', value: stats.equipmentCost, color: '#3b82f6' },
     { name: 'RH', value: stats.rhCost, color: '#10b981' },
     { name: 'Receita', value: stats.revenue, color: '#f59e0b' },
+    { name: 'Aporte Financeiro', value: stats.aporte, color: '#ef4444' },
   ];
 
   const handleChartClick = (name: string) => {
@@ -60,7 +92,7 @@ export const ManagementView = ({
         <h1 className="text-2xl font-bold">Gestão Global</h1>
       </div>
       
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         {data.map((item) => (
           <motion.div
             key={item.name}

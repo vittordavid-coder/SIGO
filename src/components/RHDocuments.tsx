@@ -95,7 +95,7 @@ export function RHDocuments({ employees, currentUser }: RHDocumentsProps) {
           const { template, file } = newInserted;
           // 1. Upload to Supabase Storage Bucket 'RH'
           const filePath = `${currentUser.companyId}/${template.id}_${template.name}`;
-          const { data: uploadData, error: uploadError } = await supabase.storage.from('RH').upload(filePath, file);
+          const { data: uploadData, error: uploadError } = await supabase.storage.from('rh').upload(filePath, file);
           
           if (uploadError) {
              console.error("Storage upload error:", uploadError);
@@ -104,7 +104,7 @@ export function RHDocuments({ employees, currentUser }: RHDocumentsProps) {
           }
 
           // 2. Get Public URL
-          const { data: { publicUrl } } = supabase.storage.from('RH').getPublicUrl(filePath);
+          const { data: { publicUrl } } = supabase.storage.from('rh').getPublicUrl(filePath);
 
           // 3. Save reference in the database table
           const updatedTemplate = { ...template, fileData: publicUrl };
@@ -180,10 +180,10 @@ export function RHDocuments({ employees, currentUser }: RHDocumentsProps) {
            await supabase.from('rh_templates').delete().eq('id', id);
            
            // Extract file path from URL if it's a supabase URL
-           if (templateToDelete.fileData.includes('/storage/v1/object/public/RH/')) {
-              const filePath = templateToDelete.fileData.split('/storage/v1/object/public/RH/')[1];
+           if (templateToDelete.fileData.includes('/storage/v1/object/public/rh/')) {
+              const filePath = templateToDelete.fileData.split('/storage/v1/object/public/rh/')[1];
               if (filePath) {
-                 await supabase.storage.from('RH').remove([filePath]);
+                 await supabase.storage.from('rh').remove([filePath]);
               }
            }
         } catch (e) {
