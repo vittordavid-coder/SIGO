@@ -1004,7 +1004,7 @@ export default function App() {
     // Poll every 10 seconds to ensure 100% cloud sync
     const interval = setInterval(() => {
       syncFnRef.current(undefined, true);
-    }, 10000);
+    }, 60000);
     return () => clearInterval(interval);
   }, []); // Only on mount
 
