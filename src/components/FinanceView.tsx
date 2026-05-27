@@ -29,6 +29,9 @@ export const FinanceView = ({
 
   const [activeTab, setActiveTab] = useState('aportes');
   const [selectedAporteId, setSelectedAporteId] = useState<string | null>(null);
+  
+  const [itemsSortConfig, setItemsSortConfig] = useState<{ key: string, direction: 'asc' | 'desc' } | null>(null);
+  const [aportesSortConfig, setAportesSortConfig] = useState<{ key: string, direction: 'asc' | 'desc' } | null>(null);
 
   // Aporte Dialog state
   const [isAporteDialogOpen, setIsAporteDialogOpen] = useState(false);
@@ -52,7 +55,84 @@ export const FinanceView = ({
     });
   }, [aportes, currentUser, selectedContractId]);
 
+  React.useEffect(() => {
+    if (aportesCompany.length > 0) {
+      const exists = aportesCompany.some((a: Aporte) => a.id === selectedAporteId);
+      if (!exists) {
+        const sortedByDate = [...aportesCompany].sort((a, b) => {
+          const dateDiff = new Date(b.data).getTime() - new Date(a.data).getTime();
+          if (dateDiff !== 0) return dateDiff;
+          return (b.numero || '').localeCompare(a.numero || '');
+        });
+        setSelectedAporteId(sortedByDate[0].id);
+      }
+    }
+  }, [aportesCompany, selectedAporteId]);
+
   const selectedAporte = aportesCompany.find((a: Aporte) => a.id === selectedAporteId);
+
+  const renderItemsSortIndicator = (key: string) => {
+    if (!itemsSortConfig || itemsSortConfig.key !== key) {
+      return <span className="text-slate-300 ml-1 text-xs">↕</span>;
+    }
+    return itemsSortConfig.direction === 'asc' ? <span className="text-blue-600 ml-1 text-xs">▲</span> : <span className="text-blue-600 ml-1 text-xs">▼</span>;
+  };
+
+  const renderAportesSortIndicator = (key: string) => {
+    if (!aportesSortConfig || aportesSortConfig.key !== key) {
+      return <span className="text-slate-300 ml-1 text-xs">↕</span>;
+    }
+    return aportesSortConfig.direction === 'asc' ? <span className="text-blue-600 ml-1 text-xs">▲</span> : <span className="text-blue-600 ml-1 text-xs">▼</span>;
+  };
+
+  const handleItemsSort = (key: string) => {
+    let direction: 'asc' | 'desc' = 'asc';
+    if (itemsSortConfig && itemsSortConfig.key === key && itemsSortConfig.direction === 'asc') {
+      direction = 'desc';
+    }
+    setItemsSortConfig({ key, direction });
+  };
+
+  const sortedItems = useMemo(() => {
+    if (!selectedAporte || !selectedAporte.items) return [];
+    const sortableItems = [...selectedAporte.items];
+    if (itemsSortConfig !== null) {
+      sortableItems.sort((a: any, b: any) => {
+        let valA = a[itemsSortConfig.key] || '';
+        let valB = b[itemsSortConfig.key] || '';
+        if (valA < valB) return itemsSortConfig.direction === 'asc' ? -1 : 1;
+        if (valA > valB) return itemsSortConfig.direction === 'asc' ? 1 : -1;
+        return 0;
+      });
+    }
+    return sortableItems;
+  }, [selectedAporte, itemsSortConfig]);
+
+  const handleAportesSort = (key: string) => {
+    let direction: 'asc' | 'desc' = 'asc';
+    if (aportesSortConfig && aportesSortConfig.key === key && aportesSortConfig.direction === 'asc') {
+      direction = 'desc';
+    }
+    setAportesSortConfig({ key, direction });
+  };
+
+  const sortedAportes = useMemo(() => {
+    const sortable = [...aportesCompany];
+    if (aportesSortConfig !== null) {
+      sortable.sort((a: any, b: any) => {
+        let valA = a[aportesSortConfig.key] || '';
+        let valB = b[aportesSortConfig.key] || '';
+        if (aportesSortConfig.key === 'valorTotal') {
+          valA = calculateTotal(a);
+          valB = calculateTotal(b);
+        }
+        if (valA < valB) return aportesSortConfig.direction === 'asc' ? -1 : 1;
+        if (valA > valB) return aportesSortConfig.direction === 'asc' ? 1 : -1;
+        return 0;
+      });
+    }
+    return sortable;
+  }, [aportesCompany, aportesSortConfig]);
 
   const allItems = useMemo(() => aportesCompany.flatMap((a: Aporte) => a.items || []), [aportesCompany]);
   const uniqueCategories = useMemo(() => Array.from(new Set(allItems.map((i: AporteItem) => i.categoria).filter(Boolean))), [allItems]);
@@ -359,7 +439,7 @@ export const FinanceView = ({
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
         <TabsList className="bg-white border rounded-xl p-1">
           <TabsTrigger value="aportes" className="px-6 data-[state=active]:bg-blue-600 data-[state=active]:text-white">Aportes</TabsTrigger>
-          <TabsTrigger value="resumo-aportes" className="px-6 data-[state=active]:bg-blue-600 data-[state=active]:text-white">Resumo Aportes</TabsTrigger>
+          <TabsTrigger value="resumo-aportes" className="px-6 data-[state=active]:bg-blue-600 data-[state=active]:text-white">Gestão de Aportes</TabsTrigger>
           <TabsTrigger value="caixa" className="px-6 data-[state=active]:bg-blue-600 data-[state=active]:text-white">Controle de Caixa</TabsTrigger>
         </TabsList>
         
@@ -422,11 +502,11 @@ export const FinanceView = ({
                     <Table>
                       <TableHeader>
                         <TableRow>
-                          <TableHead>Categoria / Subcategoria</TableHead>
-                          <TableHead>Fornecedor</TableHead>
-                          <TableHead>Descrição</TableHead>
-                          <TableHead>Vencimento</TableHead>
-                          <TableHead className="text-right">Valor</TableHead>
+                          <TableHead onClick={() => handleItemsSort('categoria')} className="cursor-pointer hover:bg-slate-50">Categoria / Subcategoria {renderItemsSortIndicator('categoria')}</TableHead>
+                          <TableHead onClick={() => handleItemsSort('fornecedor')} className="cursor-pointer hover:bg-slate-50">Fornecedor {renderItemsSortIndicator('fornecedor')}</TableHead>
+                          <TableHead onClick={() => handleItemsSort('descricao')} className="cursor-pointer hover:bg-slate-50">Descrição {renderItemsSortIndicator('descricao')}</TableHead>
+                          <TableHead onClick={() => handleItemsSort('dataVencimento')} className="cursor-pointer hover:bg-slate-50">Vencimento {renderItemsSortIndicator('dataVencimento')}</TableHead>
+                          <TableHead onClick={() => handleItemsSort('valor')} className="text-right cursor-pointer hover:bg-slate-50">Valor {renderItemsSortIndicator('valor')}</TableHead>
                           <TableHead className="text-center w-[120px]">Ações</TableHead>
                         </TableRow>
                       </TableHeader>
@@ -438,7 +518,7 @@ export const FinanceView = ({
                             </TableCell>
                           </TableRow>
                         ) : (
-                          selectedAporte.items.map((item: AporteItem) => (
+                          sortedItems.map((item: AporteItem) => (
                             <TableRow key={item.id}>
                               <TableCell>
                                 <div className="font-medium text-slate-900">{item.categoria}</div>
@@ -476,7 +556,7 @@ export const FinanceView = ({
         <TabsContent value="resumo-aportes">
           <Card>
             <CardHeader>
-                <CardTitle>Resumo Aportes</CardTitle>
+                <CardTitle>Gestão de Aportes</CardTitle>
             </CardHeader>
             <CardContent>
               {aportesCompany.length === 0 ? (
@@ -488,14 +568,14 @@ export const FinanceView = ({
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>Número do Aporte</TableHead>
-                        <TableHead>Data</TableHead>
-                        <TableHead className="text-right">Valor Total</TableHead>
+                        <TableHead onClick={() => handleAportesSort('numero')} className="cursor-pointer hover:bg-slate-50">Número do Aporte {renderAportesSortIndicator('numero')}</TableHead>
+                        <TableHead onClick={() => handleAportesSort('data')} className="cursor-pointer hover:bg-slate-50">Data {renderAportesSortIndicator('data')}</TableHead>
+                        <TableHead onClick={() => handleAportesSort('valorTotal')} className="text-right cursor-pointer hover:bg-slate-50">Valor Total {renderAportesSortIndicator('valorTotal')}</TableHead>
                         <TableHead className="text-center w-[200px]">Ações</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {aportesCompany.map((aporte: Aporte) => (
+                      {sortedAportes.map((aporte: Aporte) => (
                         <TableRow key={aporte.id}>
                           <TableCell className="font-medium">{aporte.numero}</TableCell>
                           <TableCell>
