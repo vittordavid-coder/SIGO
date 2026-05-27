@@ -91,7 +91,9 @@ const CustomTreemapContent = (props: any) => {
 export const ManagementView = ({ 
   contracts, measurements, quotations, controllerEquipments, controllerTeams, manpowerRecords, employees,
   selectedContractId: propSelectedContractId,
-  onUpdateContractId
+  onUpdateContractId,
+  aportes = [],
+  currentUser
 }: any) => {
   type DetailViewType = 'overview' | 'RC' | 'Equipamentos' | 'RH' | 'Receita' | 'Aporte Financeiro';
   const [activeView, setActiveView] = useState<DetailViewType>('overview');
@@ -143,7 +145,22 @@ export const ManagementView = ({
       revenueDetails.push({ name: `${contract?.contractNumber || 'Sem Contrato'} - ${m.period}`, value: mTotal });
     });
 
-    const aporte = Math.max(0, (equipmentCost + rhCost) - revenue);
+    const aportesCompany = aportes.filter((a: any) => {
+      const matchCompany = !currentUser?.companyId || a.companyId === currentUser.companyId;
+      const matchContract = selectedContractId === 'all' || a.contractId === selectedContractId || !a.contractId;
+      return matchCompany && matchContract;
+    });
+
+    let totalAportes = 0;
+    const aporteDetails: any[] = [];
+    aportesCompany.forEach((a: any) => {
+      let aporteTotal = 0;
+      (a.items || []).forEach((i: any) => aporteTotal += (i.valor || 0));
+      totalAportes += aporteTotal;
+      aporteDetails.push({ name: `Aporte ${a.numero}`, value: aporteTotal, meta: a });
+    });
+
+    const aporte = totalAportes; // Using the real accumulated aportes instead of Math.max(0, (equipmentCost + rhCost) - revenue);
 
     return { 
       equipmentCost, 
@@ -154,10 +171,10 @@ export const ManagementView = ({
         'Equipamentos': equipments.map((e: any) => ({ name: e.name, value: e.monthlyPrice || e.contractedPrice || 0, meta: e })),
         'RH': rh.map((e: any) => ({ name: e.name, value: e.salary, meta: e })),
         'Receita': revenueDetails,
-        'Aporte Financeiro': [{ name: 'Valor de Aporte Necessário', value: aporte }]
+        'Aporte Financeiro': aporteDetails
       }
     };
-  }, [controllerEquipments, employees, measurements, contracts, quotations, selectedContractId]);
+  }, [controllerEquipments, employees, measurements, contracts, quotations, selectedContractId, aportes, currentUser]);
 
   const data = [
     { name: 'Equipamentos', value: stats.equipmentCost, color: '#3b82f6' },
@@ -498,6 +515,7 @@ export const ManagementView = ({
   }
 
   if (activeView === 'Aporte Financeiro') {
+    const aporteData = stats.details['Aporte Financeiro'] || [];
     return (
       <div className="p-6 space-y-6 bg-slate-50 min-h-screen">
           <div className="flex items-center gap-4">
@@ -511,7 +529,7 @@ export const ManagementView = ({
              <Card className="shadow-lg border-t-4 border-red-500">
                 <CardHeader>
                   <CardTitle className="text-base uppercase text-slate-500 flex items-center gap-2">
-                     <TrendingUp className="w-4 h-4" /> Aporte Estimado Necessário
+                     <TrendingUp className="w-4 h-4" /> Total de Aportes Recebidos
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
@@ -519,10 +537,42 @@ export const ManagementView = ({
                     R$ {stats.aporte.toLocaleString()}
                   </div>
                   <p className="mt-4 text-sm text-gray-500">
-                    Fórmula base: Diferença entre os custos fixos (Equipamentos + RH) e a Receita Medida apurada e processada.
+                    Soma total dos aportes financeiros registrados no módulo Financeiro.
                   </p>
                 </CardContent>
              </Card>
+          </div>
+          
+          <div className="mt-6">
+              <Card className="shadow-lg min-h-[400px]">
+                 <CardHeader>
+                   <CardTitle>Histórico de Aportes</CardTitle>
+                 </CardHeader>
+                 <CardContent>
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                           <TableHead>Aporte</TableHead>
+                           <TableHead className="text-right">Valor Registrado</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                         {aporteData.length === 0 ? (
+                            <TableRow>
+                               <TableCell colSpan={2} className="text-center text-slate-500 py-6">Nenhum aporte registrado</TableCell>
+                            </TableRow>
+                         ) : (
+                           aporteData.map((item: any, idx: number) => (
+                             <TableRow key={idx}>
+                                <TableCell className="font-medium">{item.name}</TableCell>
+                                <TableCell className="text-right text-red-600 font-bold">R$ {(item.value || 0).toLocaleString()}</TableCell>
+                             </TableRow>
+                           ))
+                         )}
+                      </TableBody>
+                    </Table>
+                 </CardContent>
+              </Card>
           </div>
       </div>
     );

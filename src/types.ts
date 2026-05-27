@@ -144,6 +144,26 @@ export interface TimeRecord {
   companyId: string;
 }
 
+export interface AporteItem {
+  id: string;
+  categoria: string;
+  subcategoria: string;
+  fornecedor: string;
+  descricao: string;
+  mesCompetencia: string;
+  dataVencimento: string;
+  valor: number;
+}
+
+export interface Aporte {
+  id: string;
+  companyId: string;
+  contractId?: string;
+  numero: string; // e.g. 001/2026
+  data: string;
+  items: AporteItem[];
+}
+
 export interface ChatMessage {
   id: string;
   sender_id: string;

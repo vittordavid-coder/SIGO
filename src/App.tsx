@@ -10,7 +10,7 @@ import {
 import { motion, AnimatePresence, Reorder } from 'motion/react';
 import { v4 as uuidv4 } from 'uuid';
 import { useLocalStorage } from './lib/useLocalStorage';
-import { Resource, ServiceComposition, Quotation, User, ABCConfig, BudgetGroup, BDIConfig, AuditLog, UserRole, Contract, Measurement, MeasurementTemplate, CalculationMemory, HighwayLocation, StationGroup, CubationData, TransportData, ServiceProduction, Employee, TimeRecord, DailyReport, DailyReportActivity, PluviometryRecord, TechnicalSchedule, DashboardConfig, ControllerTeam, ControllerEquipment, EquipmentMonthlyData, ControllerManpower, ManpowerMonthlyData, TeamAssignment, MarketingConfig, AppModule, PasswordResetRequest, EquipmentTransfer, Supplier, PurchaseOrder, EmailConfig, PurchaseRequest, PurchaseQuotation, EquipmentMaintenance, FuelTank, FuelLog, EquipmentMeasurement, DailyEquipmentMeasurement } from './types';
+import { Resource, ServiceComposition, Quotation, User, ABCConfig, BudgetGroup, BDIConfig, AuditLog, UserRole, Contract, Measurement, MeasurementTemplate, CalculationMemory, HighwayLocation, StationGroup, CubationData, TransportData, ServiceProduction, Employee, TimeRecord, DailyReport, DailyReportActivity, PluviometryRecord, TechnicalSchedule, DashboardConfig, ControllerTeam, ControllerEquipment, EquipmentMonthlyData, ControllerManpower, ManpowerMonthlyData, TeamAssignment, MarketingConfig, AppModule, PasswordResetRequest, EquipmentTransfer, Supplier, PurchaseOrder, EmailConfig, PurchaseRequest, PurchaseQuotation, EquipmentMaintenance, FuelTank, FuelLog, EquipmentMeasurement, DailyEquipmentMeasurement, Aporte } from './types';
 import { cn, hashPassword } from './lib/utils';
 import { calculateBDI } from './lib/calculations';
 import { compressImage } from './lib/imageUtils';
@@ -252,6 +252,7 @@ export default function App() {
   const [suppliers, setSuppliers] = useLocalStorage<Supplier[]>('sigo_suppliers', [], compId);
   const [purchaseOrders, setPurchaseOrders] = useLocalStorage<PurchaseOrder[]>('sigo_purchase_orders', [], compId);
   const [purchaseRequests, setPurchaseRequests] = useLocalStorage<PurchaseRequest[]>('sigo_purchase_requests', [], compId);
+  const [aportes, setAportes] = useLocalStorage<Aporte[]>('sigo_aportes', [], compId);
   const [purchaseQuotations, setPurchaseQuotations] = useLocalStorage<PurchaseQuotation[]>('sigo_purchase_quotations', [], compId);
   const [fuelTanks, setFuelTanks] = useLocalStorage<FuelTank[]>('sigo_fuel_tanks', [], compId);
   const [fuelLogs, setFuelLogs] = useLocalStorage<FuelLog[]>('sigo_fuel_logs', [], compId);
@@ -439,18 +440,18 @@ export default function App() {
         visible: currentUser.role === 'master' || currentUser.role === 'admin' || currentUser.allowedModules?.includes('purchases') 
       },
       { 
+        id: 'financeiro', 
+        label: 'Financeiro', 
+        icon: <Calculator className="w-4 h-4" />, 
+        visible: currentUser.role === 'master' || currentUser.role === 'admin' || currentUser.allowedModules?.includes('financeiro') 
+      },
+      { 
         id: 'project_admin', 
         label: 'Administrador da Obra', 
         icon: <HardHat className="w-4 h-4" />, 
         visible: currentUser.role === 'master' || currentUser.role === 'admin' || currentUser.role === 'project_admin' 
       },
       { id: 'gerencia', label: 'Gerência', icon: <Landmark className="w-4 h-4" />, visible: true },
-      { 
-        id: 'financeiro', 
-        label: 'Financeiro', 
-        icon: <Calculator className="w-4 h-4" />, 
-        visible: currentUser.role === 'master' || currentUser.role === 'admin' || currentUser.allowedModules?.includes('financeiro') 
-      },
       { 
         id: 'settings', 
         label: 'Administrador do Sistema', 
@@ -626,6 +627,7 @@ export default function App() {
           'fuel_reservoirs': { key: 'sigo_fuel_tanks', setter: setFuelTanks },
           'fuel_logs': { key: 'sigo_fuel_logs', setter: setFuelLogs },
           'dashboard_config': { key: 'sigo_dashboard_config', setter: setDashboardConfig },
+          'aportes': { key: 'sigo_aportes', setter: setAportes },
           'ctrl_charges': { key: 'sigo_ctrl_charges', setter: setChargesPerc },
           'ctrl_ot': { key: 'sigo_ctrl_ot', setter: setOtPerc },
           'measurement_templates': { key: 'sigo_measurement_templates', setter: setMeasurementTemplates },
@@ -1144,6 +1146,7 @@ export default function App() {
       { id: `${compId}_sigo_purchase_requests`, content: purchaseRequests },
       { id: `${compId}_sigo_purchase_quotations`, content: purchaseQuotations },
       { id: `${compId}_sigo_equipment_transfers`, content: equipmentTransfers },
+      { id: `${compId}_sigo_aportes`, content: aportes },
       { id: `${compId}_sigo_ctrl_charges`, content: chargesPerc },
       { id: `${compId}_sigo_ctrl_ot`, content: otPerc },
     ];
@@ -1176,6 +1179,7 @@ export default function App() {
       'sigo_purchase_requests': 'purchase_requests',
       'sigo_purchase_quotations': 'purchase_quotations',
       'sigo_equipment_transfers': 'equipment_transfers',
+      'sigo_aportes': 'aportes',
       'sigo_employees': 'employees',
       'sigo_time_records': 'time_records',
       'sigo_dashboard_config': 'dashboard_config',
@@ -1262,7 +1266,13 @@ export default function App() {
               const chunkSize = 50;
               for (let i = 0; i < mappedData.length; i += chunkSize) {
                 const chunk = mappedData.slice(i, i + chunkSize);
-                const { error: tError } = await supabase.from(targetTable).upsert(chunk);
+                
+                let chunkToUpsert = chunk;
+                if (targetTable === 'aportes') {
+                   chunkToUpsert = chunk.map(({ items, ...rest }: any) => rest);
+                }
+                const { error: tError } = await supabase.from(targetTable).upsert(chunkToUpsert);
+                
                 if (tError) {
                   console.error(`Erro ao sincronizar pedaço da tabela ${targetTable}:`, tError);
                 }
@@ -1296,6 +1306,41 @@ export default function App() {
                          if (tsErr) console.error('Erro ao sincronizar technical_schedule_services:', tsErr);
                       }
                     }
+                  }
+                }
+
+                if (targetTable === 'aportes' && !tError) {
+                  for (const aporte of chunk) {
+                     if (aporte.items && Array.isArray(aporte.items)) {
+                       const currentItemIds = aporte.items.map((i: any) => i.id);
+                       if (currentItemIds.length > 0) {
+                         await supabase.from('aporte_items')
+                           .delete()
+                           .eq('aporte_id', aporte.id)
+                           .not('id', 'in', `(${currentItemIds.join(',')})`);
+                       } else {
+                         await supabase.from('aporte_items')
+                           .delete()
+                           .eq('aporte_id', aporte.id);
+                       }
+                       
+                       const itemsToInsert = aporte.items.map((item: any) => ({
+                          id: item.id,
+                          aporte_id: aporte.id,
+                          categoria: item.categoria,
+                          subcategoria: item.subcategoria,
+                          fornecedor: item.fornecedor,
+                          descricao: item.descricao,
+                          mes_competencia: item.mes_competencia || item.mesCompetencia,
+                          data_vencimento: item.data_vencimento || item.dataVencimento,
+                          valor: item.valor
+                       }));
+                       
+                       if (itemsToInsert.length > 0) {
+                          const { error: tsErr } = await supabase.from('aporte_items').upsert(itemsToInsert);
+                          if (tsErr) console.error('Erro ao sincronizar aporte_items:', tsErr);
+                       }
+                     }
                   }
                 }
               }
@@ -2872,7 +2917,7 @@ export default function App() {
     transportData, employees, dailyReports, pluviometryRecords,
     technicalSchedules, controllerTeams, controllerEquipments,
     manpowerRecords, teamAssignments, suppliers, purchaseRequests,
-    purchaseQuotations, purchaseOrders,
+    purchaseQuotations, purchaseOrders, aportes,
     users, resources, services, quotations, auditLogs,
     abcConfig, bdiConfig, companyLogo, companyLogoRight,
     defaultOrganization, timeRecords, dashboardConfig,
@@ -3981,6 +4026,8 @@ export default function App() {
                   employees={filteredEmployees}
                   selectedContractId={selectedContractId}
                   onUpdateContractId={(id) => setSelectedContractId(id)}
+                  aportes={aportes}
+                  currentUser={currentUser}
                 />
               )}
 
@@ -3989,6 +4036,9 @@ export default function App() {
                   contracts={finalContracts}
                   selectedContractId={selectedContractId}
                   onUpdateContractId={(id) => setSelectedContractId(id)}
+                  aportes={aportes}
+                  setAportes={setAportes}
+                  currentUser={currentUser}
                 />
               )}
 
