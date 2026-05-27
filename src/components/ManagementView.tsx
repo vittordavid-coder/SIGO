@@ -13,6 +13,8 @@ import {
   Pie,
   Legend,
   Treemap,
+  ComposedChart,
+  Line,
 } from "recharts";
 import {
   Table,
@@ -186,9 +188,9 @@ const AportePieChart = ({
   selectedTypeFilter,
   setSelectedTypeFilter,
   COLORS,
+  hoveredCategory,
+  setHoveredCategory,
 }: any) => {
-  const [hoveredCategory, setHoveredCategory] = useState<string | null>(null);
-
   return (
     <ResponsiveContainer width="100%" height="100%">
       <PieChart>
@@ -196,8 +198,8 @@ const AportePieChart = ({
           data={activeCategorias}
           cx="50%"
           cy="50%"
-          innerRadius={110}
-          outerRadius={160}
+          innerRadius={80}
+          outerRadius={120}
           paddingAngle={3}
           dataKey="value"
           labelLine={false}
@@ -256,13 +258,7 @@ const AportePieChart = ({
                     : 1
                 }
                 stroke={isHovered ? "#fff" : "none"}
-                strokeWidth={isHovered ? 4 : 0}
-                style={{
-                  filter: isHovered
-                    ? `drop-shadow(0px 0px 8px ${COLORS[index % COLORS.length]})`
-                    : "none",
-                  transition: "all 0.3s ease",
-                }}
+                strokeWidth={isHovered ? 3 : 0}
               />
             );
           })}
@@ -279,9 +275,660 @@ const AportePieChart = ({
             boxShadow: "0 10px 15px -3px rgb(0 0 0 / 0.1)",
           }}
         />
-        <Legend wrapperStyle={{ paddingTop: "20px" }} />
       </PieChart>
     </ResponsiveContainer>
+  );
+};
+
+const AporteFinanceiroTab = ({
+  aportes = [],
+  measurements = [],
+  contracts = [],
+  quotations = [],
+  currentUser,
+  selectedContractId,
+  setActiveView,
+  stats,
+}: any) => {
+  const [selectedTypeFilter, setSelectedTypeFilter] = useState<string | null>(null);
+  const [hoveredCategory, setHoveredCategory] = useState<string | null>(null);
+  const [selectedAporteCategorias, setSelectedAporteCategorias] = useState<Record<string, boolean>>({});
+  const [itemsSortConfig, setItemsSortConfig] = useState<{
+    key: string;
+    direction: "asc" | "desc";
+  } | null>(null);
+
+  const [categorySort, setCategorySort] = useState<{
+    key: "name" | "value";
+    direction: "asc" | "desc";
+  }>({ key: "value", direction: "desc" });
+
+  const COLORS = [
+    "#ef4444",
+    "#f97316",
+    "#f59e0b",
+    "#84cc16",
+    "#10b981",
+    "#06b6d4",
+    "#3b82f6",
+    "#6366f1",
+    "#8b5cf6",
+    "#d946ef",
+    "#f43f5e",
+    "#64748b",
+  ];
+
+  const toggleCategoria = (cat: string) => {
+    setSelectedAporteCategorias((prev) => ({
+      ...prev,
+      [cat]: prev[cat] === false ? true : false,
+    }));
+  };
+
+  const handleCategorySort = (key: "name" | "value") => {
+    setCategorySort((prev) => {
+      if (prev.key === key) {
+        return { key, direction: prev.direction === "asc" ? "desc" : "asc" };
+      }
+      return { key, direction: "desc" };
+    });
+  };
+
+  const sortedAporteCategorias = useMemo(() => {
+    const list = [...(stats.aporteCategorias || [])];
+    list.sort((a, b) => {
+      if (categorySort.key === "name") {
+        const valA = a.name || "";
+        const valB = b.name || "";
+        return categorySort.direction === "asc"
+          ? valA.localeCompare(valB)
+          : valB.localeCompare(valA);
+      } else {
+        const valA = a.value || 0;
+        const valB = b.value || 0;
+        return categorySort.direction === "asc" ? valA - valB : valB - valA;
+      }
+    });
+    return list;
+  }, [stats.aporteCategorias, categorySort]);
+
+  const activeCategorias = useMemo(() => {
+    return (stats.aporteCategorias || []).filter(
+      (c: any) => selectedAporteCategorias[c.name] !== false,
+    );
+  }, [stats.aporteCategorias, selectedAporteCategorias]);
+
+  const allAporteItems = useMemo(() => {
+    let items: any[] = [];
+    aportes
+      .filter((a: any) => {
+        const matchCompany =
+          !currentUser?.companyId || a.companyId === currentUser.companyId;
+        const matchContract =
+          selectedContractId === "all" ||
+          a.contractId === selectedContractId ||
+          !a.contractId;
+        return matchCompany && matchContract;
+      })
+      .forEach((a: any) => {
+        (a.items || []).forEach((i: any) => {
+          items.push({
+            ...i,
+            aporteNumero: a.numero,
+            aporteData: a.data,
+          });
+        });
+      });
+    return items;
+  }, [aportes, currentUser, selectedContractId]);
+
+  const filteredAporteItems = useMemo(() => {
+    let items = allAporteItems.filter((i) => {
+      const cat = i.categoria || "Sem Categoria";
+      if (selectedAporteCategorias[cat] === false) return false;
+      if (selectedTypeFilter && selectedTypeFilter !== cat) return false;
+      return true;
+    });
+
+    if (itemsSortConfig !== null) {
+      items.sort((a, b) => {
+        let valA = a[itemsSortConfig.key] || "";
+        let valB = b[itemsSortConfig.key] || "";
+        if (typeof valA === "string") valA = valA.toLowerCase();
+        if (typeof valB === "string") valB = valB.toLowerCase();
+        if (valA < valB) return itemsSortConfig.direction === "asc" ? -1 : 1;
+        if (valA > valB) return itemsSortConfig.direction === "asc" ? 1 : -1;
+        return 0;
+      });
+    }
+
+    return items;
+  }, [allAporteItems, selectedAporteCategorias, selectedTypeFilter, itemsSortConfig]);
+
+  const handleItemsSort = (key: string) => {
+    let direction: "asc" | "desc" = "asc";
+    if (
+      itemsSortConfig &&
+      itemsSortConfig.key === key &&
+      itemsSortConfig.direction === "asc"
+    ) {
+      direction = "desc";
+    }
+    setItemsSortConfig({ key, direction });
+  };
+
+  const renderItemsSortIndicator = (key: string) => {
+    if (!itemsSortConfig || itemsSortConfig.key !== key) {
+      return <span className="text-slate-300 ml-1 text-xs">↕</span>;
+    }
+    return itemsSortConfig.direction === "asc" ? (
+      <span className="text-red-500 ml-1 text-xs">▲</span>
+    ) : (
+      <span className="text-red-500 ml-1 text-xs">▼</span>
+    );
+  };
+
+  // Monthly logic combining Receita and Gasto
+  const monthlyChartData = useMemo(() => {
+    const monthlyMap: Record<string, { monthLabel: string; sortKey: number; receita: number; gasto: number }> = {};
+    const ptMonthsAbbr = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
+
+    const filteredM = selectedContractId === "all"
+      ? measurements
+      : measurements?.filter((m: any) => m.contractId === selectedContractId);
+
+    (filteredM || []).forEach((m: any) => {
+      let mTotal = 0;
+      const contract = (contracts || []).find((c: any) => c.id === m.contractId);
+      const quotation = (quotations || []).find((q: any) => q.id === contract?.quotationId);
+      const priceMap = new Map<string, number>();
+      
+      const addPrices = (srvs: any[]) => {
+        for (const srv of srvs || []) {
+          if (srv.price) priceMap.set(srv.serviceId || srv.code, srv.price);
+        }
+      };
+      
+      addPrices(quotation?.services || []);
+      (quotation?.groups || []).forEach((g: any) => addPrices(g.services || []));
+      addPrices(contract?.services || []);
+      (contract?.groups || []).forEach((g: any) => addPrices(g.services || []));
+
+      (m.items || []).forEach((it: any) => {
+        mTotal += (it.quantity || 0) * (priceMap.get(it.serviceId) || 0);
+      });
+
+      let parsedMonth = null;
+      if (m.date && m.date.length >= 7) {
+        const parts = m.date.split("-");
+        const y = parseInt(parts[0], 10);
+        const mon = parseInt(parts[1], 10);
+        if (!isNaN(y) && !isNaN(mon)) {
+          parsedMonth = { year: y, month: mon };
+        }
+      }
+      if (!parsedMonth && m.period) {
+        const match = m.period.match(/(\d{2})\/(\d{4})/);
+        if (match) {
+          parsedMonth = { year: parseInt(match[2], 10), month: parseInt(match[1], 10) };
+        }
+      }
+
+      if (parsedMonth) {
+        const label = `${ptMonthsAbbr[parsedMonth.month - 1]}/${parsedMonth.year.toString().slice(-2)}`;
+        const key = `${parsedMonth.year}-${parsedMonth.month.toString().padStart(2, "0")}`;
+        if (!monthlyMap[key]) {
+          monthlyMap[key] = {
+            monthLabel: label,
+            sortKey: parsedMonth.year * 12 + parsedMonth.month,
+            receita: 0,
+            gasto: 0,
+          };
+        }
+        monthlyMap[key].receita += mTotal;
+      }
+    });
+
+    (allAporteItems || []).forEach((i: any) => {
+      const cat = i.categoria || "Sem Categoria";
+      if (selectedAporteCategorias[cat] === false) return;
+
+      let parsedMonth = null;
+      
+      // Prioritize the item's competence date (mes_competencia or mesCompetencia)
+      const comp = i.mes_competencia || i.mesCompetencia;
+      if (comp && comp.length >= 4) {
+        if (comp.includes("-")) {
+          const parts = comp.split("-"); // e.g. "YYYY-MM" or "YYYY-MM-DD"
+          if (parts[0].length === 4) {
+            const y = parseInt(parts[0], 10);
+            const mon = parseInt(parts[1], 10);
+            if (!isNaN(y) && !isNaN(mon)) {
+              parsedMonth = { year: y, month: mon };
+            }
+          } else {
+            // "MM-YYYY" or other format
+            const y = parseInt(parts[parts.length - 1], 10);
+            const mon = parseInt(parts[0], 10);
+            if (!isNaN(y) && !isNaN(mon)) {
+              parsedMonth = { year: y < 100 ? y + 2000 : y, month: mon };
+            }
+          }
+        } else if (comp.includes("/")) {
+          const parts = comp.split("/"); // e.g. "MM/YYYY" or "YYYY/MM"
+          if (parts[0].length === 4) {
+            const y = parseInt(parts[0], 10);
+            const mon = parseInt(parts[1], 10);
+            if (!isNaN(y) && !isNaN(mon)) {
+              parsedMonth = { year: y, month: mon };
+            }
+          } else {
+            const y = parseInt(parts[parts.length - 1], 10);
+            const mon = parseInt(parts[0], 10);
+            if (!isNaN(y) && !isNaN(mon)) {
+              parsedMonth = { year: y < 100 ? y + 2000 : y, month: mon };
+            }
+          }
+        }
+      }
+
+      // Fallback 1: Due date (data_vencimento or dataVencimento) / Aporte date
+      if (!parsedMonth) {
+        const dateToUse = i.data_vencimento || i.dataVencimento || i.aporteData;
+        if (dateToUse && dateToUse.length >= 7) {
+          if (dateToUse.includes("-")) {
+            const parts = dateToUse.split("-");
+            const y = parseInt(parts[0], 10);
+            const mon = parseInt(parts[1], 10);
+            if (!isNaN(y) && !isNaN(mon)) {
+              parsedMonth = { year: y, month: mon };
+            }
+          } else if (dateToUse.includes("/")) {
+            const parts = dateToUse.split("/");
+            if (parts.length >= 2) {
+              let mon = parseInt(parts[parts.length - 2], 10);
+              let y = parseInt(parts[parts.length - 1], 10);
+              if (y < 100) y += 2000;
+              if (!isNaN(y) && !isNaN(mon)) {
+                parsedMonth = { year: y, month: mon };
+              }
+            }
+          }
+        }
+      }
+
+      if (parsedMonth) {
+        const label = `${ptMonthsAbbr[parsedMonth.month - 1]}/${parsedMonth.year.toString().slice(-2)}`;
+        const key = `${parsedMonth.year}-${parsedMonth.month.toString().padStart(2, "0")}`;
+        if (!monthlyMap[key]) {
+          monthlyMap[key] = {
+            monthLabel: label,
+            sortKey: parsedMonth.year * 12 + parsedMonth.month,
+            receita: 0,
+            gasto: 0,
+          };
+        }
+        monthlyMap[key].gasto += i.valor || 0;
+      }
+    });
+
+    const lst = Object.values(monthlyMap);
+    return lst.sort((a, b) => a.sortKey - b.sortKey);
+  }, [selectedContractId, measurements, contracts, quotations, allAporteItems, selectedAporteCategorias]);
+
+  return (
+    <div className="p-4 md:p-6 space-y-6 bg-slate-50 min-h-screen">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => {
+              setActiveView("overview");
+            }}
+            className="p-2 bg-white rounded-full shadow hover:bg-slate-100 transition-colors pointer-events-auto"
+          >
+            <ArrowLeft className="w-5 h-5 text-slate-600" />
+          </button>
+          <h1 className="text-xl md:text-2xl font-bold tracking-tight text-slate-900">
+            Gestão Global - Dashboard de Aportes
+          </h1>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 items-start">
+        {/* Sidebar Panes */}
+        <div className="col-span-1 space-y-6">
+          <Card className="shadow-lg border-t-4 border-red-500 overflow-hidden">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-xs uppercase text-slate-500 font-semibold tracking-wider flex items-center gap-2">
+                <TrendingUp className="w-4 h-4 text-red-500" /> Total Aportado
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl md:text-3xl font-bold text-red-600 tracking-tight">
+                R$ {stats.aporte.toLocaleString()}
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="shadow-lg border border-slate-100">
+            <CardHeader className="pb-3 border-b border-slate-50">
+              <CardTitle className="text-xs uppercase text-slate-500 font-semibold tracking-wider flex items-center gap-2">
+                Filtro por Categorias
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="pt-4">
+              <div className="space-y-3">
+                {/* Select All Checkbox */}
+                <div className="flex items-center justify-between p-2 pb-3 mb-1 border-b border-slate-100 hover:bg-slate-50/80 rounded transition-colors">
+                  <label
+                    className="flex items-center gap-2 cursor-pointer flex-1"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      const isAllSelected = (stats.aporteCategorias || []).every(
+                        (c: any) => selectedAporteCategorias[c.name] !== false,
+                      );
+                      const nextVal = !isAllSelected;
+                      const updated: Record<string, boolean> = {};
+                      (stats.aporteCategorias || []).forEach((c: any) => {
+                        updated[c.name] = nextVal;
+                      });
+                      setSelectedAporteCategorias(updated);
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      className="rounded text-red-600 focus:ring-red-500 w-4 h-4 cursor-pointer"
+                      checked={(stats.aporteCategorias || []).every(
+                        (c: any) => selectedAporteCategorias[c.name] !== false,
+                      )}
+                      readOnly
+                    />
+                    <span className="text-sm font-semibold text-slate-700">
+                      Selecionar todas
+                    </span>
+                  </label>
+                </div>
+
+                {/* Interactive Sorted Headers */}
+                <div className="flex items-center justify-between text-[11px] font-semibold text-slate-400 uppercase tracking-wider px-2 pb-2 border-b border-slate-100 select-none">
+                  <button
+                    onClick={() => handleCategorySort("name")}
+                    className="hover:text-slate-600 flex items-center gap-1 min-w-0 flex-1 justify-start font-bold focus:outline-none"
+                  >
+                    Categoria {categorySort.key === "name" ? (categorySort.direction === "asc" ? "▲" : "▼") : "↕"}
+                  </button>
+                  <button
+                    onClick={() => handleCategorySort("value")}
+                    className="hover:text-slate-600 flex items-center gap-1 flex-shrink-0 justify-end ml-2 font-bold focus:outline-none"
+                  >
+                    Valor {categorySort.key === "value" ? (categorySort.direction === "asc" ? "▲" : "▼") : "↕"}
+                  </button>
+                </div>
+
+                <div className="max-h-[350px] overflow-y-auto pr-1 space-y-1">
+                  {sortedAporteCategorias.map((cat, idx) => {
+                    const isChecked = selectedAporteCategorias[cat.name] !== false;
+                    const isSelectedInChart = selectedTypeFilter === cat.name;
+                    const isHoveredInChart = hoveredCategory === cat.name;
+
+                    // Match bullet color with cell index in the Pie chart
+                    const activeIndex = activeCategorias.findIndex(
+                      (c: any) => c.name === cat.name,
+                    );
+                    const bulletColor =
+                      activeIndex !== -1
+                        ? COLORS[activeIndex % COLORS.length]
+                        : "#cbd5e1"; // slate-300 for inactive
+
+                    return (
+                      <div
+                        key={idx}
+                        className={`flex items-center justify-between p-2 rounded cursor-pointer transition-colors ${
+                          isSelectedInChart || isHoveredInChart
+                            ? "bg-red-50 ring-1 ring-red-200"
+                            : "hover:bg-slate-50"
+                        }`}
+                        onMouseEnter={() => setHoveredCategory(cat.name)}
+                        onMouseLeave={() => setHoveredCategory(null)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggleCategoria(cat.name);
+                        }}
+                      >
+                        <div className="flex items-center gap-2 cursor-pointer flex-1 min-w-0">
+                          <input
+                            type="checkbox"
+                            className="rounded text-red-600 focus:ring-red-500 w-4 h-4 cursor-pointer flex-shrink-0"
+                            checked={isChecked}
+                            onChange={() => {}} // handled by click
+                          />
+                          <span
+                            className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                            style={{ backgroundColor: bulletColor }}
+                          />
+                          <span
+                            className="text-xs font-medium text-slate-700 truncate"
+                            title={cat.name}
+                          >
+                            {cat.name}
+                          </span>
+                        </div>
+                        <span className="text-xs font-bold text-slate-500 flex-shrink-0 ml-2">
+                          R$ {(cat.value || 0).toLocaleString()}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+                {selectedTypeFilter && (
+                  <button
+                    onClick={() => setSelectedTypeFilter(null)}
+                    className="text-xs text-red-600 hover:text-red-700 font-semibold mt-2 w-full text-left transition-colors"
+                  >
+                    Limpar seleção do gráfico
+                  </button>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Chart Area */}
+        <div className="col-span-1 lg:col-span-3 space-y-6">
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+            <Card className="shadow-lg border border-slate-100 flex flex-col h-[480px]">
+              <CardHeader className="pb-1">
+                <CardTitle className="text-sm font-semibold text-slate-800">
+                  Composição de Aportes por Categoria
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="flex-1 min-h-[350px] w-full relative pt-2">
+                {activeCategorias.length === 0 ? (
+                  <div className="h-full flex items-center justify-center text-slate-400 text-sm">
+                    Nenhuma categoria selecionada
+                  </div>
+                ) : (
+                  <AportePieChart
+                    activeCategorias={activeCategorias}
+                    selectedTypeFilter={selectedTypeFilter}
+                    setSelectedTypeFilter={setSelectedTypeFilter}
+                    COLORS={COLORS}
+                    hoveredCategory={hoveredCategory}
+                    setHoveredCategory={setHoveredCategory}
+                  />
+                )}
+              </CardContent>
+            </Card>
+
+            {useMemo(() => {
+              return (
+                <Card className="shadow-lg border border-slate-100 flex flex-col h-[480px]">
+                  <CardHeader className="pb-1">
+                    <CardTitle className="text-sm font-semibold text-slate-800">
+                      Evolução Mensal (Receita vs. Gastos)
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="flex-1 min-h-[350px] w-full pt-2">
+                    {monthlyChartData.length === 0 ? (
+                      <div className="h-full flex items-center justify-center text-slate-400 text-sm">
+                        Sem dados de evolução histórica
+                      </div>
+                    ) : (
+                      <ResponsiveContainer width="100%" height="100%">
+                        <ComposedChart data={monthlyChartData} margin={{ top: 10, right: 10, left: 0, bottom: 5 }}>
+                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                          <XAxis 
+                            dataKey="monthLabel" 
+                            tickLine={false}
+                            axisLine={false}
+                            stroke="#94a3b8" 
+                            style={{ fontSize: "11px", fontWeight: 500 }}
+                          />
+                          <YAxis 
+                            tickLine={false}
+                            axisLine={false}
+                            stroke="#94a3b8"
+                            style={{ fontSize: "10px", fontWeight: 500 }}
+                            tickFormatter={(v) => `R$ ${v >= 1000 ? `${(v/1000).toFixed(0)}k` : v}`}
+                          />
+                          <Tooltip 
+                            formatter={(value: number, name: string) => [
+                              `R$ ${value.toLocaleString()}`, 
+                              name === "receita" ? "Receita (Colunas)" : "Gastos (Linha)"
+                            ]}
+                            contentStyle={{ 
+                              borderRadius: "12px", 
+                              border: "none", 
+                              boxShadow: "0 10px 15px -3px rgb(0 0 0 / 0.1)",
+                              fontSize: "11px",
+                            }}
+                          />
+                          <Bar 
+                            dataKey="receita" 
+                            name="receita" 
+                            fill="#10b981" 
+                            radius={[4, 4, 0, 0]} 
+                            maxBarSize={40} 
+                            isAnimationActive={false}
+                          />
+                          <Line 
+                            type="monotone" 
+                            dataKey="gasto" 
+                            name="gasto" 
+                            stroke="#ef4444" 
+                            strokeWidth={3} 
+                            dot={{ r: 4, stroke: "#ef4444", strokeWidth: 2, fill: "#fff" }}
+                            activeDot={{ r: 6 }}
+                            isAnimationActive={false}
+                          />
+                        </ComposedChart>
+                      </ResponsiveContainer>
+                    )}
+                  </CardContent>
+                </Card>
+              );
+            }, [monthlyChartData])}
+          </div>
+
+          {useMemo(() => {
+            return (
+              <Card className="shadow-lg min-h-[300px] border border-slate-100">
+                <CardHeader className="pb-3 border-b border-slate-50">
+                  <CardTitle className="text-sm font-semibold text-slate-800">
+                    Detalhamento dos Itens ({filteredAporteItems.length})
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="pt-4">
+                  <div className="max-h-[500px] overflow-auto">
+                    <Table>
+                      <TableHeader className="sticky top-0 bg-white z-10 shadow-sm border-b">
+                        <TableRow>
+                          <TableHead
+                            onClick={() => handleItemsSort("aporteNumero")}
+                            className="cursor-pointer hover:bg-slate-50"
+                          >
+                            Aporte {renderItemsSortIndicator("aporteNumero")}
+                          </TableHead>
+                          <TableHead
+                            onClick={() => handleItemsSort("aporteData")}
+                            className="cursor-pointer hover:bg-slate-50"
+                          >
+                            Data {renderItemsSortIndicator("aporteData")}
+                          </TableHead>
+                          <TableHead
+                            onClick={() => handleItemsSort("categoria")}
+                            className="cursor-pointer hover:bg-slate-50"
+                          >
+                            Categoria {renderItemsSortIndicator("categoria")}
+                          </TableHead>
+                          <TableHead
+                            onClick={() => handleItemsSort("fornecedor")}
+                            className="cursor-pointer hover:bg-slate-50"
+                          >
+                            Fornecedor {renderItemsSortIndicator("fornecedor")}
+                          </TableHead>
+                          <TableHead
+                            onClick={() => handleItemsSort("descricao")}
+                            className="cursor-pointer hover:bg-slate-50"
+                          >
+                            Descrição {renderItemsSortIndicator("descricao")}
+                          </TableHead>
+                          <TableHead
+                            onClick={() => handleItemsSort("valor")}
+                            className="text-right cursor-pointer hover:bg-slate-50"
+                          >
+                            Valor {renderItemsSortIndicator("valor")}
+                          </TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {filteredAporteItems.length === 0 ? (
+                          <TableRow>
+                            <TableCell
+                              colSpan={6}
+                              className="text-center text-slate-500 py-6 text-sm"
+                            >
+                              Nenhum item encontrado para os filtros atuais.
+                            </TableCell>
+                          </TableRow>
+                        ) : (
+                          filteredAporteItems.map((item: any, idx: number) => (
+                            <TableRow key={idx} className="hover:bg-slate-50/80 transition-colors">
+                              <TableCell className="font-semibold text-xs text-slate-800 whitespace-nowrap">
+                                {item.aporteNumero}
+                              </TableCell>
+                              <TableCell className="whitespace-nowrap text-xs text-slate-600">
+                                {item.aporteData
+                                  ? new Date(item.aporteData).toLocaleDateString(
+                                      "pt-BR",
+                                      { timeZone: "UTC" },
+                                    )
+                                  : "-"}
+                              </TableCell>
+                              <TableCell className="text-xs text-slate-600 break-words whitespace-normal max-w-[150px]">{item.categoria || "-"}</TableCell>
+                              <TableCell className="text-xs text-slate-600 break-words whitespace-normal max-w-[180px]">{item.fornecedor || "-"}</TableCell>
+                              <TableCell
+                                className="text-xs text-slate-600 break-words whitespace-normal max-w-[300px]"
+                                title={item.descricao}
+                              >
+                                {item.descricao || "-"}
+                              </TableCell>
+                              <TableCell className="text-right text-red-600 font-bold whitespace-nowrap text-xs">
+                                R$ {(item.valor || 0).toLocaleString()}
+                              </TableCell>
+                            </TableRow>
+                          ))
+                        )}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          }, [filteredAporteItems, itemsSortConfig])}
+        </div>
+      </div>
+    </div>
   );
 };
 
@@ -312,9 +959,6 @@ export const ManagementView = ({
   const [selectedTypeFilter, setSelectedTypeFilter] = useState<string | null>(
     null,
   );
-  const [selectedAporteCategorias, setSelectedAporteCategorias] = useState<
-    Record<string, boolean>
-  >({});
   const [rhTreemapMetric, setRhTreemapMetric] = useState<"count" | "value">(
     "count",
   );
@@ -446,90 +1090,6 @@ export const ManagementView = ({
     selectedContractId,
     aportes,
     currentUser,
-  ]);
-
-  const activeCategorias = useMemo(() => {
-    return stats.aporteCategorias.filter(
-      (c: any) => selectedAporteCategorias[c.name] !== false,
-    );
-  }, [stats.aporteCategorias, selectedAporteCategorias]);
-
-  const allAporteItems = useMemo(() => {
-    let items: any[] = [];
-    aportes
-      .filter((a: any) => {
-        const matchCompany =
-          !currentUser?.companyId || a.companyId === currentUser.companyId;
-        const matchContract =
-          selectedContractId === "all" ||
-          a.contractId === selectedContractId ||
-          !a.contractId;
-        return matchCompany && matchContract;
-      })
-      .forEach((a: any) => {
-        (a.items || []).forEach((i: any) => {
-          items.push({
-            ...i,
-            aporteNumero: a.numero,
-            aporteData: a.data,
-          });
-        });
-      });
-    return items;
-  }, [aportes, currentUser, selectedContractId]);
-
-  const [itemsSortConfig, setItemsSortConfig] = useState<{
-    key: string;
-    direction: "asc" | "desc";
-  } | null>(null);
-
-  const renderItemsSortIndicator = (key: string) => {
-    if (!itemsSortConfig || itemsSortConfig.key !== key) {
-      return <span className="text-slate-300 ml-1 text-xs">↕</span>;
-    }
-    return itemsSortConfig.direction === "asc" ? (
-      <span className="text-red-600 ml-1 text-xs">▲</span>
-    ) : (
-      <span className="text-red-600 ml-1 text-xs">▼</span>
-    );
-  };
-
-  const handleItemsSort = (key: string) => {
-    let direction: "asc" | "desc" = "asc";
-    if (
-      itemsSortConfig &&
-      itemsSortConfig.key === key &&
-      itemsSortConfig.direction === "asc"
-    ) {
-      direction = "desc";
-    }
-    setItemsSortConfig({ key, direction });
-  };
-
-  const filteredAporteItems = useMemo(() => {
-    let items = allAporteItems.filter((i) => {
-      const cat = i.categoria || "Sem Categoria";
-      if (selectedAporteCategorias[cat] === false) return false;
-      if (selectedTypeFilter && selectedTypeFilter !== cat) return false;
-      return true;
-    });
-
-    if (itemsSortConfig !== null) {
-      items.sort((a, b) => {
-        let valA = a[itemsSortConfig.key] || "";
-        let valB = b[itemsSortConfig.key] || "";
-        if (valA < valB) return itemsSortConfig.direction === "asc" ? -1 : 1;
-        if (valA > valB) return itemsSortConfig.direction === "asc" ? 1 : -1;
-        return 0;
-      });
-    }
-
-    return items;
-  }, [
-    allAporteItems,
-    selectedAporteCategorias,
-    selectedTypeFilter,
-    itemsSortConfig,
   ]);
 
   const data = [
@@ -955,244 +1515,17 @@ export const ManagementView = ({
   }
 
   if (activeView === "Aporte Financeiro") {
-    const aporteData = stats.details["Aporte Financeiro"] || [];
-
-    // For the pie chart
-    // (activeCategorias uses stats.aporteCategorias)
-
-    // For the table, we want to show items or aportes
-    // Let's gather all items to allow detailed filtering
-
-    const COLORS = [
-      "#ef4444",
-      "#f97316",
-      "#f59e0b",
-      "#84cc16",
-      "#10b981",
-      "#06b6d4",
-      "#3b82f6",
-      "#6366f1",
-      "#8b5cf6",
-      "#d946ef",
-      "#f43f5e",
-      "#64748b",
-    ];
-
-    const toggleCategoria = (cat: string) => {
-      setSelectedAporteCategorias((prev) => ({
-        ...prev,
-        [cat]: prev[cat] === false ? true : false,
-      }));
-    };
-
     return (
-      <div className="p-6 space-y-6 bg-slate-50 min-h-screen">
-        <div className="flex items-center gap-4">
-          <button
-            onClick={() => {
-              setActiveView("overview");
-              setSelectedTypeFilter(null);
-            }}
-            className="p-2 bg-white rounded-full shadow hover:bg-slate-100 transition-colors"
-          >
-            <ArrowLeft className="w-5 h-5 text-slate-600" />
-          </button>
-          <h1 className="text-2xl font-bold">
-            Gestão Global - Dashboard de Aportes
-          </h1>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-          {/* Sidebar Panes */}
-          <div className="col-span-1 space-y-6">
-            <Card className="shadow-lg border-t-4 border-red-500">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm uppercase text-slate-500 flex items-center gap-2">
-                  <TrendingUp className="w-4 h-4" /> Total Aportado
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold text-red-600">
-                  R$ {stats.aporte.toLocaleString()}
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="shadow-lg">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm uppercase text-slate-500 flex items-center gap-2">
-                  Filtro por Categorias
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  {stats.aporteCategorias.map((cat, idx) => {
-                    const isChecked =
-                      selectedAporteCategorias[cat.name] !== false;
-                    const isSelectedInChart = selectedTypeFilter === cat.name;
-                    return (
-                      <div
-                        key={idx}
-                        className={`flex items-center justify-between p-2 rounded cursor-pointer transition-colors ${isSelectedInChart ? "bg-red-50 ring-1 ring-red-200" : "hover:bg-slate-50"}`}
-                      >
-                        <label
-                          className="flex items-center gap-2 cursor-pointer flex-1"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            toggleCategoria(cat.name);
-                          }}
-                        >
-                          <input
-                            type="checkbox"
-                            className="rounded text-red-600 focus:ring-red-500 w-4 h-4"
-                            checked={isChecked}
-                            onChange={() => {}} // handled by div
-                          />
-                          <span
-                            className="text-sm font-medium text-slate-700 truncate"
-                            title={cat.name}
-                          >
-                            {cat.name}
-                          </span>
-                        </label>
-                        <span className="text-xs font-bold text-slate-500">
-                          R$ {(cat.value || 0).toLocaleString()}
-                        </span>
-                      </div>
-                    );
-                  })}
-                  {selectedTypeFilter && (
-                    <button
-                      onClick={() => setSelectedTypeFilter(null)}
-                      className="text-xs text-red-600 hover:underline mt-2 w-full text-left"
-                    >
-                      Limpar seleção do gráfico
-                    </button>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Chart Area */}
-          <div className="col-span-1 md:col-span-3 space-y-6">
-            <Card className="shadow-lg">
-              <CardHeader>
-                <CardTitle>Composição de Aportes por Categoria</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="h-[450px] w-full">
-                  {activeCategorias.length === 0 ? (
-                    <div className="h-full flex items-center justify-center text-slate-400">
-                      Nenhuma categoria selecionada
-                    </div>
-                  ) : (
-                    <AportePieChart
-                      activeCategorias={activeCategorias}
-                      selectedTypeFilter={selectedTypeFilter}
-                      setSelectedTypeFilter={setSelectedTypeFilter}
-                      COLORS={COLORS}
-                    />
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="shadow-lg min-h-[300px]">
-              <CardHeader>
-                <CardTitle>
-                  Detalhamento dos Itens ({filteredAporteItems.length})
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="max-h-[500px] overflow-auto">
-                  <Table>
-                    <TableHeader className="sticky top-0 bg-white z-10 shadow-sm border-b">
-                      <TableRow>
-                        <TableHead
-                          onClick={() => handleItemsSort("aporteNumero")}
-                          className="cursor-pointer hover:bg-slate-50"
-                        >
-                          Aporte {renderItemsSortIndicator("aporteNumero")}
-                        </TableHead>
-                        <TableHead
-                          onClick={() => handleItemsSort("aporteData")}
-                          className="cursor-pointer hover:bg-slate-50"
-                        >
-                          Data {renderItemsSortIndicator("aporteData")}
-                        </TableHead>
-                        <TableHead
-                          onClick={() => handleItemsSort("categoria")}
-                          className="cursor-pointer hover:bg-slate-50"
-                        >
-                          Categoria {renderItemsSortIndicator("categoria")}
-                        </TableHead>
-                        <TableHead
-                          onClick={() => handleItemsSort("fornecedor")}
-                          className="cursor-pointer hover:bg-slate-50"
-                        >
-                          Fornecedor {renderItemsSortIndicator("fornecedor")}
-                        </TableHead>
-                        <TableHead
-                          onClick={() => handleItemsSort("descricao")}
-                          className="cursor-pointer hover:bg-slate-50"
-                        >
-                          Descrição {renderItemsSortIndicator("descricao")}
-                        </TableHead>
-                        <TableHead
-                          onClick={() => handleItemsSort("valor")}
-                          className="text-right cursor-pointer hover:bg-slate-50"
-                        >
-                          Valor {renderItemsSortIndicator("valor")}
-                        </TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {filteredAporteItems.length === 0 ? (
-                        <TableRow>
-                          <TableCell
-                            colSpan={6}
-                            className="text-center text-slate-500 py-6"
-                          >
-                            Nenhum item encontrado para os filtros atuais.
-                          </TableCell>
-                        </TableRow>
-                      ) : (
-                        filteredAporteItems.map((item: any, idx: number) => (
-                          <TableRow key={idx} className="hover:bg-slate-50">
-                            <TableCell className="font-medium whitespace-nowrap">
-                              {item.aporteNumero}
-                            </TableCell>
-                            <TableCell className="whitespace-nowrap">
-                              {item.aporteData
-                                ? new Date(item.aporteData).toLocaleDateString(
-                                    "pt-BR",
-                                    { timeZone: "UTC" },
-                                  )
-                                : "-"}
-                            </TableCell>
-                            <TableCell>{item.categoria || "-"}</TableCell>
-                            <TableCell>{item.fornecedor || "-"}</TableCell>
-                            <TableCell
-                              className="max-w-[200px] truncate"
-                              title={item.descricao}
-                            >
-                              {item.descricao || "-"}
-                            </TableCell>
-                            <TableCell className="text-right text-red-600 font-bold whitespace-nowrap">
-                              R$ {(item.valor || 0).toLocaleString()}
-                            </TableCell>
-                          </TableRow>
-                        ))
-                      )}
-                    </TableBody>
-                  </Table>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        </div>
-      </div>
+      <AporteFinanceiroTab
+        aportes={aportes}
+        measurements={measurements}
+        contracts={contracts}
+        quotations={quotations}
+        currentUser={currentUser}
+        selectedContractId={selectedContractId}
+        setActiveView={setActiveView}
+        stats={stats}
+      />
     );
   }
 
