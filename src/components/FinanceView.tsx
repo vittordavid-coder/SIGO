@@ -71,7 +71,11 @@ export const FinanceView = ({
       return aportes.some((a: Aporte) => 
         (a.items || []).some((item: any) => 
           item.purchaseOrderId === po.id || 
-          (item.descricao && item.descricao.includes(poNum))
+          (item.descricao && (
+            item.descricao === poNum ||
+            item.descricao.startsWith(`${poNum}:`) ||
+            item.descricao.startsWith(`Consolidado ${poNum} `)
+          ))
         )
       );
     };
@@ -143,6 +147,14 @@ export const FinanceView = ({
     };
 
     setAportes(aportes.map((a: Aporte) => a.id === updatedAporte.id ? updatedAporte : a));
+    
+    if (setPurchaseOrders && purchaseOrders) {
+      const updatedPurchaseOrders = purchaseOrders.map((po: any) => 
+        po.id === selectedPO.id ? { ...po, aporteId: targetAporteId } : po
+      );
+      setPurchaseOrders(updatedPurchaseOrders);
+    }
+
     setIsPOIncludeOpen(false);
     setSelectedPO(null);
     
@@ -197,7 +209,7 @@ export const FinanceView = ({
 
         <div style="background: #1e293b; color: white; padding: 6px 12px; font-weight: bold; text-transform: uppercase; border-radius: 4px; display: flex; justify-content: space-between; margin-bottom: 16px;">
           <span>Pedido de Suprimentos Oficial</span>
-          <span>Status: ${po.status === 'approved' ? 'Aprovada' : po.status === 'sent' ? 'Enviada' : po.status === 'delivered' ? 'Entregue' : po.status === 'cancelled' ? 'Cancelada' : 'Em Elaboração'}</span>
+          <span>Status: ${po.status === 'approved' ? 'Aprovada' : po.status === 'sent' ? 'Enviada' : po.status === 'delivered' ? 'Entregue' : po.status === 'cancelled' ? 'Cancelada' : po.status === 'finalizada' ? 'Finalizada' : po.status === 'waiting_delivery' ? 'Aguardando Entrega' : 'Em Elaboração'}</span>
         </div>
 
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 24px; border-bottom: 1px solid #e2e8f0; padding-bottom: 16px;">
@@ -307,6 +319,17 @@ export const FinanceView = ({
       return matchCompany && matchContract;
     });
   }, [aportes, currentUser, selectedContractId]);
+
+  const sortedAportesForInclusion = useMemo(() => {
+    return [...aportesCompany].sort((a, b) => {
+      const dateA = a.data ? new Date(a.data).getTime() : 0;
+      const dateB = b.data ? new Date(b.data).getTime() : 0;
+      if (dateB !== dateA) return dateB - dateA;
+      const numA = a.numero || '';
+      const numB = b.numero || '';
+      return numB.localeCompare(numA, undefined, { numeric: true, sensitivity: 'base' });
+    });
+  }, [aportesCompany]);
 
   React.useEffect(() => {
     if (aportesCompany.length > 0) {
@@ -986,14 +1009,18 @@ export const FinanceView = ({
                           approved: "bg-emerald-50 text-emerald-700 border-emerald-200",
                           sent: "bg-blue-50 text-blue-700 border-blue-200",
                           delivered: "bg-purple-50 text-purple-700 border-purple-200",
-                          cancelled: "bg-red-50 text-red-700 border-red-200"
+                          cancelled: "bg-red-50 text-red-700 border-red-200",
+                          finalizada: "bg-gray-100 text-gray-700 border-gray-200",
+                          waiting_delivery: "bg-amber-50 text-amber-700 border-amber-200"
                         };
                         const statusLabels: Record<string, string> = {
                           draft: "Rascunho",
                           approved: "Aprovada",
                           sent: "Enviada",
                           delivered: "Entregue",
-                          cancelled: "Cancelada"
+                          cancelled: "Cancelada",
+                          finalizada: "Finalizada",
+                          waiting_delivery: "Aguardando Entrega"
                         };
                         
                         const poNum = po.orderNumber || po.numero || '';
@@ -1053,7 +1080,7 @@ export const FinanceView = ({
                                     setSelectedPO(po);
                                     setIncludePOFormData(prev => ({
                                       ...prev,
-                                      targetAporteId: aportesCompany[0]?.id || '',
+                                      targetAporteId: sortedAportesForInclusion[0]?.id || '',
                                       dueDate: po.deliveryDate || po.orderDate || ''
                                     }));
                                     setIsPOIncludeOpen(true);
@@ -1389,7 +1416,7 @@ export const FinanceView = ({
                         <SelectValue placeholder="Selecione o Aporte destinar" />
                       </SelectTrigger>
                       <SelectContent>
-                        {aportesCompany.map((a: Aporte) => (
+                        {sortedAportesForInclusion.map((a: Aporte) => (
                           <SelectItem key={a.id} value={a.id} className="text-xs">
                             Aporte {a.numero} - {a.data ? new Date(a.data).toLocaleDateString('pt-BR', {timeZone: 'UTC'}) : ''}
                           </SelectItem>

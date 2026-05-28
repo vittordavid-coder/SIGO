@@ -667,6 +667,7 @@ export interface PurchaseOrder {
   status: 'draft' | 'approved' | 'sent' | 'delivered' | 'cancelled' | 'waiting_delivery' | 'finalizada';
   originQuotationId?: string;
   evaluation?: SupplierEvaluation;
+  aporteId?: string;
 }
 
 export interface SupplierEvaluation {

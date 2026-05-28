@@ -25,7 +25,8 @@ import {
   Download,
   Archive,
   ChevronUp,
-  ChevronDown
+  ChevronDown,
+  FileSpreadsheet
 } from 'lucide-react';
 import { applyPhoneMask, applyCEPMask, cn, hashPassword } from '../lib/utils';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -46,6 +47,15 @@ import {
   SelectTrigger, 
   SelectValue 
 } from "@/components/ui/select";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
+import * as XLSX from 'xlsx';
 
 import { PurchaseOrderItem, PaymentCondition, PurchaseOrder, Supplier, Contract, PurchaseRequest, PurchaseQuotation, SupplierEvaluation, EquipmentMaintenance, User } from '../types';
 
@@ -1322,6 +1332,329 @@ function OrdersTab({
   const [showFinalized, setShowFinalized] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
+  const handleExportExcel = (order: PurchaseOrder) => {
+    const data: any[] = [];
+    
+    // Header
+    data.push([(defaultOrganization || "CONSTRUTORA MASTER").toUpperCase(), "", "", "", "", "", "ORDEM DE COMPRA"]);
+    data.push(["DOCUMENTO DE ENGENHARIA E SUPRIMENTOS", "", "", "", "", "", `OC #${order.orderNumber}`]);
+    data.push(["Logística Integrada e Suprimentos", "", "", "", "", "", "Documento Oficial de Pedido"]);
+    data.push([]); // blank row
+
+    // Document Banner section
+    data.push(["DOCUMENTO OFICIAL DE PEDIDO"]);
+    data.push(["Pedido:", `#${order.orderNumber}`, "", "Fornecedor:", order.supplierName]);
+    data.push(["Telefone:", order.phone || "-", "", "E-mail:", order.email || "-"]);
+    
+    const dateFormatted = order.orderDate ? new Date(order.orderDate).toLocaleDateString('pt-BR') : '-';
+    const deliveryDateFormatted = order.deliveryDate ? new Date(order.deliveryDate).toLocaleDateString('pt-BR') : '-';
+    data.push(["Data do Pedido:", dateFormatted, "", "Previsão de Entrega:", deliveryDateFormatted]);
+    
+    let statusLabel = order.status === 'finalizada' ? 'Finalizada' : 
+                      order.status === 'draft' ? 'Rascunho' : 
+                      order.status === 'approved' ? 'Aprovado' :
+                      order.status === 'sent' ? 'Enviado' :
+                      order.status === 'delivered' ? 'Entregue' :
+                      order.status === 'waiting_delivery' ? 'Aguardando Entrega' :
+                      order.status === 'cancelled' ? 'Cancelado' : order.status;
+    data.push(["Status:", statusLabel.toUpperCase()]);
+    data.push([]);
+
+    // Delivery Address
+    data.push(["ENDEREÇO DE ENTREGA"]);
+    data.push(["Rua:", order.deliveryAddress?.street || "-", "Número:", order.deliveryAddress?.number || "-"]);
+    data.push(["Bairro:", order.deliveryAddress?.neighborhood || "-", "CEP:", order.deliveryAddress?.zipCode || "-"]);
+    data.push(["Complemento:", order.deliveryAddress?.complement || "-", "Cidade/UF:", `${order.deliveryAddress?.city || ""}/${order.deliveryAddress?.state || ""}`]);
+    data.push([]);
+
+    // Items Section
+    data.push(["ITENS DO PEDIDO"]);
+    data.push(["#", "Código", "Descrição", "Unidade", "Quantidade", "Preço Unitário", "Valor Total"]);
+    
+    (order.items || []).forEach((item, idx) => {
+      data.push([
+        idx + 1,
+        item.code || "-",
+        item.description,
+        item.unit,
+        item.quantity,
+        item.price,
+        item.quantity * item.price
+      ]);
+    });
+
+    // Summary block
+    data.push([]);
+    data.push(["", "", "", "", "", "Subtotal:", order.subtotal]);
+    data.push(["", "", "", "", "", "Desconto:", order.discount]);
+    data.push(["", "", "", "", "", "Acréscimos:", order.additions]);
+    data.push(["", "", "", "", "", "TOTAL GERAL:", order.total]);
+    data.push([]);
+
+    // Payment Conditions Section
+    if (order.paymentConditions && order.paymentConditions.length > 0) {
+      data.push(["CONDIÇÕES DE PAGAMENTO"]);
+      data.push(["Condição", "Vencimento", "Valor", "Observações"]);
+      order.paymentConditions.forEach((pay) => {
+        data.push([
+          pay.condition,
+          pay.dueDate ? new Date(pay.dueDate).toLocaleDateString('pt-BR') : "-",
+          pay.value,
+          pay.observation || "-"
+        ]);
+      });
+    }
+
+    const ws = XLSX.utils.aoa_to_sheet(data);
+    
+    // Set widths
+    ws['!cols'] = [
+      { wch: 10 }, // A (#)
+      { wch: 15 }, // B (Cod)
+      { wch: 45 }, // C (Desc / Section label)
+      { wch: 12 }, // D (Unid)
+      { wch: 12 }, // E (Qtd)
+      { wch: 18 }, // F (Preço Unitário)
+      { wch: 18 }  // G (Valor Total)
+    ];
+
+    // Merge titles and section headers
+    ws['!merges'] = [
+      { s: { r: 0, c: 0 }, e: { r: 0, c: 4 } }, // Org Name
+      { s: { r: 1, c: 0 }, e: { r: 1, c: 4 } }, // Document Subtitle
+      { s: { r: 2, c: 0 }, e: { r: 2, c: 4 } }, // Logistics Dept
+      { s: { r: 4, c: 0 }, e: { r: 4, c: 6 } }, // Section: DOCUMENTO OFICIAL DE PEDIDO
+      { s: { r: 11, c: 0 }, e: { r: 11, c: 6 } }  // Section: ENDEREÇO DE ENTREGA
+    ];
+
+    // Format money cells
+    const range = XLSX.utils.decode_range(ws['!ref'] || 'A1:G100');
+    for (let R = range.s.r; R <= range.e.r; ++R) {
+      for (let C = range.s.c; C <= range.e.c; ++C) {
+        const cell_ref = XLSX.utils.encode_cell({ r: R, c: C });
+        const cell = ws[cell_ref];
+        if (!cell) continue;
+        if (typeof cell.v === 'number' && R > 3 && (C === 5 || C === 6 || (C === 2 && data[R]?.[0] === ""))) {
+          cell.t = 'n';
+          cell.z = '"R$"#,##0.00';
+        }
+      }
+    }
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Ordem de Compra");
+    XLSX.writeFile(wb, `Ordem_Compra_${order.orderNumber}.xlsx`);
+  };
+
+  const handleExportPDF = (order: PurchaseOrder) => {
+    const doc = new jsPDF();
+    
+    // --- CABEÇALHO DA CONSTRUTORA (A mesma da impressão) ---
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(14);
+    doc.setTextColor(15, 23, 42); // slate-900
+    const orgName = (defaultOrganization || "CONSTRUTORA MASTER").toUpperCase();
+    doc.text(orgName, 14, 20);
+    
+    doc.setFontSize(8);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(156, 163, 175); // gray-400
+    doc.text("DOCUMENTO DE ENGENHARIA E SUPRIMENTOS", 14, 25);
+    
+    // Alinhado a direita (Ordem de Compra)
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(15);
+    doc.setTextColor(37, 99, 235); // blue-600
+    doc.text("Ordem de Compra", 196, 19, { align: "right" });
+    
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8);
+    doc.setTextColor(71, 85, 105); // slate-600
+    doc.text("Logística Integrada e Suprimentos", 196, 23, { align: "right" });
+    doc.text("Documento Gerado pelo Sistema SYNERA", 196, 27, { align: "right" });
+    
+    // Linha de divisão azul
+    doc.setDrawColor(37, 99, 235); // blue-600
+    doc.setLineWidth(1);
+    doc.line(14, 30, 196, 30);
+    
+    // --- BANNER ESCURO: DOCUMENTO OFICIAL DE PEDIDO (Slate-900) ---
+    doc.setFillColor(30, 41, 59); // slate-900
+    doc.rect(14, 34, 182, 8, "F");
+    
+    doc.setTextColor(255, 255, 255);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(10);
+    doc.text("DOCUMENTO OFICIAL DE PEDIDO", 18, 39.5);
+    doc.text(`OC #${order.orderNumber}`.toUpperCase(), 192, 39.5, { align: "right" });
+    
+    // --- INFORMAÇÕES DO PEDIDO E FORNECEDOR (2 Colunas) ---
+    doc.setTextColor(15, 23, 42); // slate-900
+    let currentY = 49;
+    
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
+    
+    // Coluna 1
+    doc.setFont("helvetica", "bold"); doc.setTextColor(156, 163, 175); doc.text("PEDIDO:", 14, currentY); 
+    doc.setFont("helvetica", "bold"); doc.setTextColor(30, 41, 59); doc.text(`#${order.orderNumber}`, 32, currentY);
+    
+    doc.setFont("helvetica", "bold"); doc.setTextColor(156, 163, 175); doc.text("FORNECEDOR:", 14, currentY + 5);
+    doc.setFont("helvetica", "bold"); doc.setTextColor(30, 41, 59); doc.text(order.supplierName || "-", 42, currentY + 5);
+    
+    doc.setFont("helvetica", "bold"); doc.setTextColor(156, 163, 175); doc.text("TELEFONE:", 14, currentY + 10);
+    doc.setFont("helvetica", "normal"); doc.setTextColor(30, 41, 59); doc.text(order.phone || "-", 36, currentY + 10);
+    
+    const dateFormatted = order.orderDate ? new Date(order.orderDate).toLocaleDateString('pt-BR') : '-';
+    doc.setFont("helvetica", "bold"); doc.setTextColor(156, 163, 175); doc.text("DATA DO PEDIDO:", 14, currentY + 15);
+    doc.setFont("helvetica", "normal"); doc.setTextColor(30, 41, 59); doc.text(dateFormatted, 48, currentY + 15);
+
+    // Coluna 2
+    doc.setFont("helvetica", "bold"); doc.setTextColor(156, 163, 175); doc.text("E-MAIL:", 115, currentY + 5);
+    doc.setFont("helvetica", "normal"); doc.setTextColor(30, 41, 59); doc.text(order.email || "-", 130, currentY + 5);
+    
+    const deliveryDateFormatted = order.deliveryDate ? new Date(order.deliveryDate).toLocaleDateString('pt-BR') : '-';
+    doc.setFont("helvetica", "bold"); doc.setTextColor(156, 163, 175); doc.text("PREVISÃO ENTREGA:", 115, currentY + 10);
+    doc.setFont("helvetica", "normal"); doc.setTextColor(30, 41, 59); doc.text(deliveryDateFormatted, 152, currentY + 10);
+
+    let statusLabel = order.status === 'finalizada' ? 'Finalizada' : 
+                      order.status === 'draft' ? 'Rascunho' : 
+                      order.status === 'approved' ? 'Aprovado' :
+                      order.status === 'sent' ? 'Enviado' :
+                      order.status === 'delivered' ? 'Entregue' :
+                      order.status === 'waiting_delivery' ? 'Aguardando Entrega' :
+                      order.status === 'cancelled' ? 'Cancelado' : order.status;
+    doc.setFont("helvetica", "bold"); doc.setTextColor(156, 163, 175); doc.text("STATUS:", 115, currentY + 15);
+    doc.setFont("helvetica", "bold"); doc.setTextColor(37, 99, 235); doc.text(statusLabel.toUpperCase(), 132, currentY + 15);
+
+    currentY += 21;
+    
+    // --- ENDEREÇO DE ENTREGA ---
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(10);
+    doc.setTextColor(30, 41, 59);
+    doc.text("ENDEREÇO DE ENTREGA", 14, currentY);
+    
+    doc.setDrawColor(226, 232, 240);
+    doc.setLineWidth(0.5);
+    doc.line(14, currentY + 2, 196, currentY + 2);
+    
+    currentY += 6;
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
+    doc.setTextColor(71, 85, 105);
+    
+    const addrText = `${order.deliveryAddress?.street || ""}, Num ${order.deliveryAddress?.number || ""}` +
+      (order.deliveryAddress?.complement ? ` - ${order.deliveryAddress.complement}` : "") +
+      `, Bairro: ${order.deliveryAddress?.neighborhood || ""}, CEP: ${order.deliveryAddress?.zipCode || ""}, ${order.deliveryAddress?.city || ""}/${order.deliveryAddress?.state || ""}`;
+    const splitAddrText = doc.splitTextToSize(addrText, 180);
+    doc.text(splitAddrText, 14, currentY);
+    
+    currentY += (splitAddrText.length * 5) + 3;
+
+    // --- SEÇÃO: ITENS DO PEDIDO (Barrinha azul igual à tela) ---
+    doc.setFillColor(37, 99, 235); // blue-600
+    doc.rect(14, currentY, 182, 6, "F");
+    
+    doc.setTextColor(255, 255, 255);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(9);
+    doc.text("ITENS DO PEDIDO", 18, currentY + 4);
+    
+    currentY += 8;
+
+    const tableData = (order.items || []).map((item, idx) => [
+      idx + 1,
+      item.code || "-",
+      item.description,
+      item.unit,
+      item.quantity,
+      `R$ ${item.price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
+      `R$ ${(item.quantity * item.price).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
+    ]);
+
+    (doc as any).autoTable({
+      startY: currentY,
+      head: [["#", "Código", "Descrição", "Unid", "Qtd", "Preço Unit.", "Total Item"]],
+      body: tableData,
+      theme: "striped",
+      headStyles: { fillColor: [37, 99, 235] }, // Azul igual à tela de impressão
+      styles: { font: "helvetica", fontSize: 9 },
+      columnStyles: {
+        0: { cellWidth: 10 },
+        1: { cellWidth: 22 },
+        2: { cellWidth: 'auto' },
+        3: { cellWidth: 12 },
+        4: { cellWidth: 12 },
+        5: { cellWidth: 28, halign: 'right' },
+        6: { cellWidth: 28, halign: 'right' }
+      }
+    });
+
+    let finalY = (doc as any).lastAutoTable.finalY + 8;
+    
+    // --- RESUMO FINANCEIRO À DIREITA ---
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
+    doc.setTextColor(71, 85, 105);
+    doc.text("Subtotal:", 135, finalY);
+    doc.text(`R$ ${order.subtotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, 196, finalY, { align: "right" });
+
+    doc.text("Desconto:", 135, finalY + 5);
+    doc.text(`R$ ${order.discount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, 196, finalY + 5, { align: "right" });
+
+    doc.text("Acréscimos:", 135, finalY + 10);
+    doc.text(`R$ ${order.additions.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, 196, finalY + 10, { align: "right" });
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(10);
+    doc.setTextColor(37, 99, 235); // destaque total azul
+    doc.text("TOTAL GERAL:", 135, finalY + 16);
+    doc.text(`R$ ${order.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, 196, finalY + 16, { align: "right" });
+
+    finalY += 24;
+
+    // --- CONDIÇÕES DE PAGAMENTO ---
+    if (order.paymentConditions && order.paymentConditions.length > 0) {
+      if (finalY > 230) { // Nova página para não cortar
+        doc.addPage();
+        finalY = 20;
+      }
+      
+      doc.setFillColor(37, 99, 235); // azul-600
+      doc.rect(14, finalY, 182, 6, "F");
+      
+      doc.setTextColor(255, 255, 255);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(9);
+      doc.text("CONDIÇÕES DE PAGAMENTO", 18, finalY + 4);
+      
+      const payData = order.paymentConditions.map((pay) => [
+        pay.condition,
+        pay.dueDate ? new Date(pay.dueDate).toLocaleDateString('pt-BR') : "-",
+        `R$ ${pay.value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
+        pay.observation || "-"
+      ]);
+
+      (doc as any).autoTable({
+        startY: finalY + 8,
+        head: [["Condições", "Vencimento", "Valor", "Observações"]],
+        body: payData,
+        theme: "striped",
+        headStyles: { fillColor: [37, 99, 235] },
+        styles: { font: "helvetica", fontSize: 9 },
+        columnStyles: {
+          0: { cellWidth: 'auto' },
+          1: { cellWidth: 28, halign: 'center' },
+          2: { cellWidth: 32, halign: 'right' },
+          3: { cellWidth: 60 }
+        }
+      });
+    }
+
+    doc.save(`Ordem_Compra_${order.orderNumber}.pdf`);
+  };
+
   const displayOrders = useMemo(() => {
     const filtered = orders.filter((o: any) => {
       if (showFinalized) {
@@ -1658,9 +1991,45 @@ function OrdersTab({
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-2">
-                       <Button variant="ghost" size="icon" onClick={() => { setCurrentOrder(order); setIsPrintDialogOpen(true); }} className="h-8 w-8 text-gray-500 hover:text-gray-900 hover:bg-gray-100">
+                       <Button 
+                         variant="ghost" 
+                         size="icon" 
+                         onClick={() => { setCurrentOrder(order); setIsPrintDialogOpen(true); }} 
+                         className="h-8 w-8 text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50"
+                         title="Imprimir"
+                       >
                           <Printer className="w-4 h-4" />
                        </Button>
+                       
+                       <DropdownMenu>
+                         <DropdownMenuTrigger asChild>
+                           <Button 
+                             variant="ghost" 
+                             size="icon" 
+                             className="h-8 w-8 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
+                             title="Exportar"
+                           >
+                             <Download className="w-4 h-4" />
+                           </Button>
+                         </DropdownMenuTrigger>
+                         <DropdownMenuContent align="end" className="w-40 border border-slate-200 shadow-lg rounded-xl bg-white p-1 z-50">
+                           <DropdownMenuItem 
+                             onClick={() => handleExportPDF(order)} 
+                             className="flex items-center gap-2 text-xs font-bold text-slate-700 cursor-pointer hover:bg-slate-50 rounded-lg py-2 px-2.5"
+                           >
+                             <FileText className="w-3.5 h-3.5 text-red-500" />
+                             Exportar PDF
+                           </DropdownMenuItem>
+                           <DropdownMenuItem 
+                             onClick={() => handleExportExcel(order)} 
+                             className="flex items-center gap-2 text-xs font-bold text-slate-700 cursor-pointer hover:bg-slate-50 rounded-lg py-2 px-2.5"
+                           >
+                             <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-500" />
+                             Exportar Excel
+                           </DropdownMenuItem>
+                         </DropdownMenuContent>
+                       </DropdownMenu>
+
                        <Button 
                          variant="ghost" 
                          size="icon" 
