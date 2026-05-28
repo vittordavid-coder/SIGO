@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { v4 as uuidv4 } from 'uuid';
 import { 
@@ -38,6 +38,7 @@ import { Modal } from "@/components/ui/Modal";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Switch } from '@/components/ui/switch';
 import { 
   Select,
   SelectContent, 
@@ -1318,8 +1319,27 @@ function OrdersTab({
   currentUser?: User | null
 }) {
   const [isPrintDialogOpen, setIsPrintDialogOpen] = useState(false);
+  const [showFinalized, setShowFinalized] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
 
-  const displayOrders = orders.filter(o => o.status === 'draft' || o.status === 'approved' || o.status === 'cancelled' || o.status === 'finalizada');
+  const displayOrders = useMemo(() => {
+    const filtered = orders.filter((o: any) => {
+      if (showFinalized) {
+        return o.status === 'finalizada';
+      } else {
+        return o.status !== 'finalizada' && (o.status === 'draft' || o.status === 'approved' || o.status === 'cancelled' || o.status === 'sent' || o.status === 'waiting_delivery' || o.status === 'delivered');
+      }
+    });
+
+    if (!searchQuery) return filtered;
+    const lower = searchQuery.toLowerCase();
+    return filtered.filter((o: any) => 
+      (o.orderNumber || '').toLowerCase().includes(lower) ||
+      (o.supplierName || '').toLowerCase().includes(lower) ||
+      (o.category || '').toLowerCase().includes(lower) ||
+      (o.costCenter || '').toLowerCase().includes(lower)
+    );
+  }, [orders, showFinalized, searchQuery]);
 
   const openNew = () => {
     setCurrentOrder({
@@ -1551,9 +1571,24 @@ function OrdersTab({
             </CardDescription>
           </div>
           <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2 bg-gray-50 px-3 py-1.5 rounded-xl border border-gray-100 h-10">
+              <Switch 
+                id="finalized-orders-switch" 
+                checked={showFinalized} 
+                onCheckedChange={setShowFinalized} 
+              />
+              <Label htmlFor="finalized-orders-switch" className="text-xs font-bold text-gray-600 cursor-pointer select-none">
+                Mostrar Finalizadas
+              </Label>
+            </div>
             <div className="relative">
               <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
-              <Input placeholder="Buscar pedido..." className="pl-9 bg-gray-50 border-transparent focus:bg-white focus:border-emerald-500 w-64 rounded-xl" />
+              <Input 
+                placeholder="Buscar pedido..." 
+                className="pl-9 bg-gray-50 border-transparent focus:bg-white focus:border-emerald-500 w-64 rounded-xl" 
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
             </div>
             <Button onClick={openNew} className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl shadow-lg shadow-emerald-200">
               <Plus className="w-4 h-4 mr-2" /> Nova Ordem

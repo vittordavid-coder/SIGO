@@ -153,6 +153,7 @@ export interface AporteItem {
   mesCompetencia: string;
   dataVencimento: string;
   valor: number;
+  purchaseOrderId?: string;
 }
 
 export interface Aporte {

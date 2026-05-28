@@ -303,6 +303,8 @@ const AporteFinanceiroTab = ({
     direction: "asc" | "desc";
   }>({ key: "value", direction: "desc" });
 
+  const [selectedMonthFilter, setSelectedMonthFilter] = useState<string | null>(null);
+
   const COLORS = [
     "#ef4444",
     "#f97316",
@@ -334,8 +336,125 @@ const AporteFinanceiroTab = ({
     });
   };
 
+  const allAporteItems = useMemo(() => {
+    let items: any[] = [];
+    const ptMonthsAbbr = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
+
+    aportes
+      .filter((a: any) => {
+        const matchCompany =
+          !currentUser?.companyId || a.companyId === currentUser.companyId;
+        const matchContract =
+          selectedContractId === "all" ||
+          a.contractId === selectedContractId ||
+          !a.contractId;
+        return matchCompany && matchContract;
+      })
+      .forEach((a: any) => {
+        (a.items || []).forEach((i: any) => {
+          let parsedMonth = null;
+          
+          // Prioritize competence month (mes_competencia or mesCompetencia)
+          const comp = i.mes_competencia || i.mesCompetencia;
+          if (comp && comp.length >= 4) {
+            if (comp.includes("-")) {
+              const parts = comp.split("-");
+              if (parts[0].length === 4) {
+                const y = parseInt(parts[0], 10);
+                const mon = parseInt(parts[1], 10);
+                if (!isNaN(y) && !isNaN(mon)) {
+                  parsedMonth = { year: y, month: mon };
+                }
+              } else {
+                const y = parseInt(parts[parts.length - 1], 10);
+                const mon = parseInt(parts[0], 10);
+                if (!isNaN(y) && !isNaN(mon)) {
+                  parsedMonth = { year: y < 100 ? y + 2000 : y, month: mon };
+                }
+              }
+            } else if (comp.includes("/")) {
+              const parts = comp.split("/");
+              if (parts[0].length === 4) {
+                const y = parseInt(parts[0], 10);
+                const mon = parseInt(parts[1], 10);
+                if (!isNaN(y) && !isNaN(mon)) {
+                  parsedMonth = { year: y, month: mon };
+                }
+              } else {
+                const y = parseInt(parts[parts.length - 1], 10);
+                const mon = parseInt(parts[0], 10);
+                if (!isNaN(y) && !isNaN(mon)) {
+                  parsedMonth = { year: y < 100 ? y + 2000 : y, month: mon };
+                }
+              }
+            }
+          }
+
+          // Fallback: Due date or Aporte date
+          if (!parsedMonth) {
+            const dateToUse = i.data_vencimento || i.dataVencimento || a.data;
+            if (dateToUse && dateToUse.length >= 7) {
+              if (dateToUse.includes("-")) {
+                const parts = dateToUse.split("-");
+                const y = parseInt(parts[0], 10);
+                const mon = parseInt(parts[1], 10);
+                if (!isNaN(y) && !isNaN(mon)) {
+                  parsedMonth = { year: y, month: mon };
+                }
+              } else if (dateToUse.includes("/")) {
+                const parts = dateToUse.split("/");
+                if (parts.length >= 2) {
+                  let mon = parseInt(parts[parts.length - 2], 10);
+                  let y = parseInt(parts[parts.length - 1], 10);
+                  if (y < 100) y += 2000;
+                  if (!isNaN(y) && !isNaN(mon)) {
+                    parsedMonth = { year: y, month: mon };
+                  }
+                }
+              }
+            }
+          }
+
+          let monthKey = null;
+          let monthLabel = null;
+          if (parsedMonth) {
+            monthLabel = `${ptMonthsAbbr[parsedMonth.month - 1]}/${parsedMonth.year.toString().slice(-2)}`;
+            monthKey = `${parsedMonth.year}-${parsedMonth.month.toString().padStart(2, "0")}`;
+          }
+
+          items.push({
+            ...i,
+            monthKey,
+            monthLabel,
+            aporteNumero: a.numero,
+            aporteData: a.data,
+          });
+        });
+      });
+    return items;
+  }, [aportes, currentUser, selectedContractId]);
+
+  // Derived: Filter items purely by active month selection (if any) to calculate reactive card totals & categories
+  const aporteItemsForView = useMemo(() => {
+    if (!selectedMonthFilter) return allAporteItems;
+    return allAporteItems.filter((i) => i.monthKey === selectedMonthFilter);
+  }, [allAporteItems, selectedMonthFilter]);
+
+  const totalAportadoSelected = useMemo(() => {
+    return aporteItemsForView.reduce((acc, i) => acc + (i.valor || 0), 0);
+  }, [aporteItemsForView]);
+
+  const aporteCategorias = useMemo(() => {
+    const map: Record<string, number> = {};
+    aporteItemsForView.forEach((i) => {
+      const cat = i.categoria || "Sem Categoria";
+      map[cat] = (map[cat] || 0) + (i.valor || 0);
+    });
+    return Object.entries(map).map(([name, value]) => ({ name, value }));
+  }, [aporteItemsForView]);
+
   const sortedAporteCategorias = useMemo(() => {
-    const list = [...(stats.aporteCategorias || [])];
+    const list = [...aporteCategorias];
     list.sort((a, b) => {
       if (categorySort.key === "name") {
         const valA = a.name || "";
@@ -350,40 +469,16 @@ const AporteFinanceiroTab = ({
       }
     });
     return list;
-  }, [stats.aporteCategorias, categorySort]);
+  }, [aporteCategorias, categorySort]);
 
   const activeCategorias = useMemo(() => {
-    return (stats.aporteCategorias || []).filter(
+    return aporteCategorias.filter(
       (c: any) => selectedAporteCategorias[c.name] !== false,
     );
-  }, [stats.aporteCategorias, selectedAporteCategorias]);
-
-  const allAporteItems = useMemo(() => {
-    let items: any[] = [];
-    aportes
-      .filter((a: any) => {
-        const matchCompany =
-          !currentUser?.companyId || a.companyId === currentUser.companyId;
-        const matchContract =
-          selectedContractId === "all" ||
-          a.contractId === selectedContractId ||
-          !a.contractId;
-        return matchCompany && matchContract;
-      })
-      .forEach((a: any) => {
-        (a.items || []).forEach((i: any) => {
-          items.push({
-            ...i,
-            aporteNumero: a.numero,
-            aporteData: a.data,
-          });
-        });
-      });
-    return items;
-  }, [aportes, currentUser, selectedContractId]);
+  }, [aporteCategorias, selectedAporteCategorias]);
 
   const filteredAporteItems = useMemo(() => {
-    let items = allAporteItems.filter((i) => {
+    let items = aporteItemsForView.filter((i) => {
       const cat = i.categoria || "Sem Categoria";
       if (selectedAporteCategorias[cat] === false) return false;
       if (selectedTypeFilter && selectedTypeFilter !== cat) return false;
@@ -403,7 +498,7 @@ const AporteFinanceiroTab = ({
     }
 
     return items;
-  }, [allAporteItems, selectedAporteCategorias, selectedTypeFilter, itemsSortConfig]);
+  }, [aporteItemsForView, selectedAporteCategorias, selectedTypeFilter, itemsSortConfig]);
 
   const handleItemsSort = (key: string) => {
     let direction: "asc" | "desc" = "asc";
@@ -430,7 +525,7 @@ const AporteFinanceiroTab = ({
 
   // Monthly logic combining Receita and Gasto
   const monthlyChartData = useMemo(() => {
-    const monthlyMap: Record<string, { monthLabel: string; sortKey: number; receita: number; gasto: number }> = {};
+    const monthlyMap: Record<string, { monthLabel: string; monthKey: string; sortKey: number; receita: number; gasto: number }> = {};
     const ptMonthsAbbr = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
 
     const filteredM = selectedContractId === "all"
@@ -480,6 +575,7 @@ const AporteFinanceiroTab = ({
         if (!monthlyMap[key]) {
           monthlyMap[key] = {
             monthLabel: label,
+            monthKey: key,
             sortKey: parsedMonth.year * 12 + parsedMonth.month,
             receita: 0,
             gasto: 0,
@@ -493,77 +589,13 @@ const AporteFinanceiroTab = ({
       const cat = i.categoria || "Sem Categoria";
       if (selectedAporteCategorias[cat] === false) return;
 
-      let parsedMonth = null;
-      
-      // Prioritize the item's competence date (mes_competencia or mesCompetencia)
-      const comp = i.mes_competencia || i.mesCompetencia;
-      if (comp && comp.length >= 4) {
-        if (comp.includes("-")) {
-          const parts = comp.split("-"); // e.g. "YYYY-MM" or "YYYY-MM-DD"
-          if (parts[0].length === 4) {
-            const y = parseInt(parts[0], 10);
-            const mon = parseInt(parts[1], 10);
-            if (!isNaN(y) && !isNaN(mon)) {
-              parsedMonth = { year: y, month: mon };
-            }
-          } else {
-            // "MM-YYYY" or other format
-            const y = parseInt(parts[parts.length - 1], 10);
-            const mon = parseInt(parts[0], 10);
-            if (!isNaN(y) && !isNaN(mon)) {
-              parsedMonth = { year: y < 100 ? y + 2000 : y, month: mon };
-            }
-          }
-        } else if (comp.includes("/")) {
-          const parts = comp.split("/"); // e.g. "MM/YYYY" or "YYYY/MM"
-          if (parts[0].length === 4) {
-            const y = parseInt(parts[0], 10);
-            const mon = parseInt(parts[1], 10);
-            if (!isNaN(y) && !isNaN(mon)) {
-              parsedMonth = { year: y, month: mon };
-            }
-          } else {
-            const y = parseInt(parts[parts.length - 1], 10);
-            const mon = parseInt(parts[0], 10);
-            if (!isNaN(y) && !isNaN(mon)) {
-              parsedMonth = { year: y < 100 ? y + 2000 : y, month: mon };
-            }
-          }
-        }
-      }
-
-      // Fallback 1: Due date (data_vencimento or dataVencimento) / Aporte date
-      if (!parsedMonth) {
-        const dateToUse = i.data_vencimento || i.dataVencimento || i.aporteData;
-        if (dateToUse && dateToUse.length >= 7) {
-          if (dateToUse.includes("-")) {
-            const parts = dateToUse.split("-");
-            const y = parseInt(parts[0], 10);
-            const mon = parseInt(parts[1], 10);
-            if (!isNaN(y) && !isNaN(mon)) {
-              parsedMonth = { year: y, month: mon };
-            }
-          } else if (dateToUse.includes("/")) {
-            const parts = dateToUse.split("/");
-            if (parts.length >= 2) {
-              let mon = parseInt(parts[parts.length - 2], 10);
-              let y = parseInt(parts[parts.length - 1], 10);
-              if (y < 100) y += 2000;
-              if (!isNaN(y) && !isNaN(mon)) {
-                parsedMonth = { year: y, month: mon };
-              }
-            }
-          }
-        }
-      }
-
-      if (parsedMonth) {
-        const label = `${ptMonthsAbbr[parsedMonth.month - 1]}/${parsedMonth.year.toString().slice(-2)}`;
-        const key = `${parsedMonth.year}-${parsedMonth.month.toString().padStart(2, "0")}`;
+      if (i.monthKey && i.monthLabel) {
+        const key = i.monthKey;
         if (!monthlyMap[key]) {
           monthlyMap[key] = {
-            monthLabel: label,
-            sortKey: parsedMonth.year * 12 + parsedMonth.month,
+            monthLabel: i.monthLabel,
+            monthKey: key,
+            sortKey: parseInt(key.split("-")[0], 10) * 12 + parseInt(key.split("-")[1], 10),
             receita: 0,
             gasto: 0,
           };
@@ -594,18 +626,35 @@ const AporteFinanceiroTab = ({
         </div>
       </div>
 
+      {selectedMonthFilter && (
+        <div className="flex flex-wrap items-center justify-between gap-3 bg-red-50 border border-red-200 text-red-800 px-4 py-2.5 rounded-lg text-sm font-semibold shadow-sm animate-fadeIn">
+          <div className="flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+            <span>Mês selecionado no gráfico: <strong>{
+              monthlyChartData.find(m => m.monthKey === selectedMonthFilter)?.monthLabel || selectedMonthFilter
+            }</strong></span>
+          </div>
+          <button
+            onClick={() => setSelectedMonthFilter(null)}
+            className="text-xs uppercase tracking-wider font-bold bg-white text-red-600 hover:bg-red-100 border border-red-200 px-3 py-1 rounded-md transition-all focus:outline-none shadow-sm"
+          >
+            Limpar Filtro
+          </button>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 items-start">
         {/* Sidebar Panes */}
         <div className="col-span-1 space-y-6">
           <Card className="shadow-lg border-t-4 border-red-500 overflow-hidden">
             <CardHeader className="pb-2">
               <CardTitle className="text-xs uppercase text-slate-500 font-semibold tracking-wider flex items-center gap-2">
-                <TrendingUp className="w-4 h-4 text-red-500" /> Total Aportado
+                <TrendingUp className="w-4 h-4 text-red-500" /> Total Aportado {selectedMonthFilter && "no Mês"}
               </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="text-2xl md:text-3xl font-bold text-red-600 tracking-tight">
-                R$ {stats.aporte.toLocaleString()}
+                R$ {totalAportadoSelected.toLocaleString()}
               </div>
             </CardContent>
           </Card>
@@ -624,12 +673,12 @@ const AporteFinanceiroTab = ({
                     className="flex items-center gap-2 cursor-pointer flex-1"
                     onClick={(e) => {
                       e.stopPropagation();
-                      const isAllSelected = (stats.aporteCategorias || []).every(
+                      const isAllSelected = (aporteCategorias || []).every(
                         (c: any) => selectedAporteCategorias[c.name] !== false,
                       );
                       const nextVal = !isAllSelected;
                       const updated: Record<string, boolean> = {};
-                      (stats.aporteCategorias || []).forEach((c: any) => {
+                      (aporteCategorias || []).forEach((c: any) => {
                         updated[c.name] = nextVal;
                       });
                       setSelectedAporteCategorias(updated);
@@ -638,7 +687,7 @@ const AporteFinanceiroTab = ({
                     <input
                       type="checkbox"
                       className="rounded text-red-600 focus:ring-red-500 w-4 h-4 cursor-pointer"
-                      checked={(stats.aporteCategorias || []).every(
+                      checked={(aporteCategorias || []).length > 0 && (aporteCategorias || []).every(
                         (c: any) => selectedAporteCategorias[c.name] !== false,
                       )}
                       readOnly
@@ -763,9 +812,17 @@ const AporteFinanceiroTab = ({
             {useMemo(() => {
               return (
                 <Card className="shadow-lg border border-slate-100 flex flex-col h-[480px]">
-                  <CardHeader className="pb-1">
-                    <CardTitle className="text-sm font-semibold text-slate-800">
-                      Evolução Mensal (Receita vs. Gastos)
+                  <CardHeader className="pb-1 mt-1">
+                    <CardTitle className="text-sm font-semibold text-slate-800 flex items-center justify-between">
+                      <span>Evolução Mensal (Receita vs. Gastos)</span>
+                      {selectedMonthFilter && (
+                        <button
+                          onClick={() => setSelectedMonthFilter(null)}
+                          className="text-[10px] bg-slate-100 text-slate-600 hover:bg-slate-200 px-2 py-0.5 rounded transition-colors focus:outline-none"
+                        >
+                          Limpar Zoom
+                        </button>
+                      )}
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="flex-1 min-h-[350px] w-full pt-2">
@@ -775,7 +832,36 @@ const AporteFinanceiroTab = ({
                       </div>
                     ) : (
                       <ResponsiveContainer width="100%" height="100%">
-                        <ComposedChart data={monthlyChartData} margin={{ top: 10, right: 10, left: 0, bottom: 5 }}>
+                        <ComposedChart 
+                          data={monthlyChartData} 
+                          margin={{ top: 10, right: 10, left: 0, bottom: 5 }}
+                          onClick={(state: any) => {
+                            if (state) {
+                              let key = null;
+                              // 1. Try tooltip index
+                              if (state.activeTooltipIndex !== undefined && state.activeTooltipIndex >= 0) {
+                                const item = monthlyChartData[state.activeTooltipIndex];
+                                if (item) key = item.monthKey;
+                              }
+                              // 2. Try active payload
+                              if (!key && state.activePayload && state.activePayload.length > 0) {
+                                key = state.activePayload[0].payload?.monthKey;
+                              }
+                              // 3. Try matching state.activeLabel
+                              if (!key && state.activeLabel) {
+                                const match = monthlyChartData.find((m: any) => m.monthLabel === state.activeLabel);
+                                if (match) key = match.monthKey;
+                              }
+                              
+                              if (key) {
+                                setSelectedMonthFilter((prev) => 
+                                  prev === key ? null : key
+                                );
+                              }
+                            }
+                          }}
+                          style={{ cursor: "pointer" }}
+                        >
                           <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                           <XAxis 
                             dataKey="monthLabel" 
@@ -794,7 +880,7 @@ const AporteFinanceiroTab = ({
                           <Tooltip 
                             formatter={(value: number, name: string) => [
                               `R$ ${value.toLocaleString()}`, 
-                              name === "receita" ? "Receita (Colunas)" : "Gastos (Linha)"
+                              name === "receita" ? "Receita" : "Gastos"
                             ]}
                             contentStyle={{ 
                               borderRadius: "12px", 
@@ -806,11 +892,30 @@ const AporteFinanceiroTab = ({
                           <Bar 
                             dataKey="receita" 
                             name="receita" 
-                            fill="#10b981" 
                             radius={[4, 4, 0, 0]} 
                             maxBarSize={40} 
                             isAnimationActive={false}
-                          />
+                          >
+                            {monthlyChartData.map((entry: any, index: number) => {
+                              const isSelected = selectedMonthFilter === entry.monthKey;
+                              const hasSelection = selectedMonthFilter !== null;
+                              return (
+                                <Cell 
+                                  key={`cell-${index}`} 
+                                  fill={isSelected ? "#059669" : (hasSelection ? "#d1fae5" : "#10b981")}
+                                  style={{ cursor: "pointer" }}
+                                  onClick={(e: any) => {
+                                    if (e && e.stopPropagation) {
+                                      e.stopPropagation();
+                                    }
+                                    setSelectedMonthFilter((prev) => 
+                                      prev === entry.monthKey ? null : entry.monthKey
+                                    );
+                                  }}
+                                />
+                              );
+                            })}
+                          </Bar>
                           <Line 
                             type="monotone" 
                             dataKey="gasto" 
@@ -820,6 +925,13 @@ const AporteFinanceiroTab = ({
                             dot={{ r: 4, stroke: "#ef4444", strokeWidth: 2, fill: "#fff" }}
                             activeDot={{ r: 6 }}
                             isAnimationActive={false}
+                            onClick={(data: any) => {
+                              if (data && data.payload && data.payload.monthKey) {
+                                setSelectedMonthFilter((prev) => 
+                                  prev === data.payload.monthKey ? null : data.payload.monthKey
+                                );
+                              }
+                            }}
                           />
                         </ComposedChart>
                       </ResponsiveContainer>
@@ -827,7 +939,7 @@ const AporteFinanceiroTab = ({
                   </CardContent>
                 </Card>
               );
-            }, [monthlyChartData])}
+            }, [monthlyChartData, selectedMonthFilter])}
           </div>
 
           {useMemo(() => {

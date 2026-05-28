@@ -8,8 +8,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { Landmark, Plus, Edit, Trash2, Printer, FileText, Download, FileSpreadsheet, Upload } from 'lucide-react';
-import { Aporte, AporteItem } from '../types';
+import { Landmark, Plus, Edit, Trash2, Printer, FileText, Download, FileSpreadsheet, Upload, Eye, CheckCircle, ShoppingBag, Search, ExternalLink } from 'lucide-react';
+import { Aporte, AporteItem, PurchaseOrder } from '../types';
 import { v4 as uuidv4 } from 'uuid';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -21,7 +21,9 @@ export const FinanceView = ({
   onUpdateContractId,
   aportes = [],
   setAportes,
-  currentUser
+  currentUser,
+  purchaseOrders = [],
+  setPurchaseOrders
 }: any) => {
   const [localSelectedContractId, setLocalSelectedContractId] = useState<string>('all');
   const selectedContractId = propSelectedContractId || localSelectedContractId;
@@ -46,6 +48,257 @@ export const FinanceView = ({
   // Confirm delete state
   const [itemToDelete, setItemToDelete] = useState<string | null>(null);
   const [aporteToDelete, setAporteToDelete] = useState<string | null>(null);
+
+  // Purchase Orders states
+  const [searchPO, setSearchPO] = useState('');
+  const [selectedPO, setSelectedPO] = useState<any>(null);
+  const [isPOPreviewOpen, setIsPOPreviewOpen] = useState(false);
+  const [isPOIncludeOpen, setIsPOIncludeOpen] = useState(false);
+  const [includePOFormData, setIncludePOFormData] = useState({
+    targetAporteId: '',
+    importMode: 'individual' as 'individual' | 'consolidated',
+    category: 'Suprimentos',
+    subcategory: 'Ordem de Compra',
+    dueDate: ''
+  });
+
+  const displayedPOs = useMemo(() => {
+    const list = purchaseOrders || [];
+    
+    // Check if PO is already in any Aporte
+    const isPOInAportes = (po: any) => {
+      const poNum = po.orderNumber || po.numero || '';
+      return aportes.some((a: Aporte) => 
+        (a.items || []).some((item: any) => 
+          item.purchaseOrderId === po.id || 
+          (item.descricao && item.descricao.includes(poNum))
+        )
+      );
+    };
+
+    // Filter to only include purchased orders (status !== 'draft' and status !== 'cancelled') and not yet in any Aporte
+    const filteredList = list.filter((po: any) => {
+      const isPurchased = po.status !== 'draft' && po.status !== 'cancelled';
+      const hasBeenAdded = isPOInAportes(po);
+      return isPurchased && !hasBeenAdded;
+    });
+
+    if (!searchPO) return filteredList;
+    const lower = searchPO.toLowerCase();
+    return filteredList.filter((po: any) => 
+      (po.orderNumber || po.numero || '').toLowerCase().includes(lower) ||
+      po.supplierName?.toLowerCase().includes(lower) ||
+      po.category?.toLowerCase().includes(lower) ||
+      (po.costCenter || po.centroCusto || '').toLowerCase().includes(lower)
+    );
+  }, [purchaseOrders, aportes, searchPO]);
+
+  const handleIncludePOInAporte = () => {
+    const { targetAporteId, importMode, category, subcategory, dueDate } = includePOFormData;
+    if (!targetAporteId || !selectedPO) return;
+
+    const targetAporte = aportes.find((a: Aporte) => a.id === targetAporteId);
+    if (!targetAporte) return;
+
+    let itemsToAdd: AporteItem[] = [];
+
+    const orderNumber = selectedPO.orderNumber || selectedPO.numero || '';
+
+    if (importMode === 'individual') {
+      itemsToAdd = (selectedPO.items || []).map((poi: any) => ({
+        id: uuidv4(),
+        categoria: category || selectedPO.category || 'Compras',
+        subcategoria: subcategory || poi.code || 'Ordem de Compra',
+        fornecedor: selectedPO.supplierName,
+        descricao: `${orderNumber}: ${poi.description || poi.descricao} (Qtd: ${poi.quantity || poi.quantidade} ${poi.unit || poi.unidade || ''})`,
+        mesCompetencia: selectedPO.orderDate ? selectedPO.orderDate.substring(0, 7) : (selectedPO.dataPedido ? selectedPO.dataPedido.substring(0, 7) : ''),
+        mes_competencia: selectedPO.orderDate ? selectedPO.orderDate.substring(0, 7) : (selectedPO.dataPedido ? selectedPO.dataPedido.substring(0, 7) : ''),
+        dataVencimento: dueDate || selectedPO.deliveryDate || selectedPO.orderDate || '',
+        data_vencimento: dueDate || selectedPO.deliveryDate || selectedPO.orderDate || '',
+        valor: ((poi.quantity || poi.quantidade || 0) * (poi.price || poi.precoUnitario || poi.valor || 0)) || 0,
+        purchaseOrderId: selectedPO.id
+      }));
+    } else {
+      itemsToAdd = [{
+        id: uuidv4(),
+        categoria: category || selectedPO.category || 'Compras',
+        subcategoria: subcategory || 'Consolidação de OC',
+        fornecedor: selectedPO.supplierName,
+        descricao: `Consolidado ${orderNumber} - Ref. Suprimentos / Compras`,
+        mesCompetencia: selectedPO.orderDate ? selectedPO.orderDate.substring(0, 7) : (selectedPO.dataPedido ? selectedPO.dataPedido.substring(0, 7) : ''),
+        mes_competencia: selectedPO.orderDate ? selectedPO.orderDate.substring(0, 7) : (selectedPO.dataPedido ? selectedPO.dataPedido.substring(0, 7) : ''),
+        dataVencimento: dueDate || selectedPO.deliveryDate || selectedPO.orderDate || '',
+        data_vencimento: dueDate || selectedPO.deliveryDate || selectedPO.orderDate || '',
+        valor: selectedPO.total || selectedPO.valorTotal || 0,
+        purchaseOrderId: selectedPO.id
+      }];
+    }
+
+    const updatedAporte = {
+      ...targetAporte,
+      items: [
+        ...(targetAporte.items || []),
+        ...itemsToAdd
+      ]
+    };
+
+    setAportes(aportes.map((a: Aporte) => a.id === updatedAporte.id ? updatedAporte : a));
+    setIsPOIncludeOpen(false);
+    setSelectedPO(null);
+    
+    // Switch to target Aporte view
+    setSelectedAporteId(updatedAporte.id);
+    setActiveTab('aportes');
+  };
+
+  const handlePrintPO = (po: any) => {
+    const iframe = document.createElement('iframe');
+    iframe.style.display = 'none';
+    document.body.appendChild(iframe);
+    
+    if (!iframe.contentWindow) return;
+    
+    const styles = Array.from(document.head.querySelectorAll('style, link[rel="stylesheet"]'))
+      .map(n => n.outerHTML).join('\n');
+      
+    const itemsHtml = (po.items || []).map((item: any, idx: number) => `
+      <tr style="border-bottom: 1px solid #e2e8f0;">
+        <td style="padding: 8px; text-align: center;">${idx + 1}</td>
+        <td style="padding: 8px; font-weight: bold; color: #1e293b;">${item.code || item.codigo || '-'}</td>
+        <td style="padding: 8px;">${item.description || item.descricao || ''}</td>
+        <td style="padding: 8px; text-align: center;">${item.unit || item.unidade || ''}</td>
+        <td style="padding: 8px; text-align: center;">${item.quantity || item.quantidade || 0}</td>
+        <td style="padding: 8px; text-align: right;">R$ ${(item.price || item.precoUnitario || item.valor || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+        <td style="padding: 8px; text-align: right; font-weight: bold;">R$ ${((item.quantity || item.quantidade || 0) * (item.price || item.precoUnitario || item.valor || 0)).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+      </tr>
+    `).join('');
+
+    const conditionsHtml = (po.paymentConditions || []).map((cond: any) => `
+      <tr style="border-bottom: 1px solid #e2e8f0;">
+        <td style="padding: 8px; font-weight: 550;">${cond.condition || cond.condicao || ''}</td>
+        <td style="padding: 8px; text-align: center;">${cond.dueDate || cond.dataVencimento ? new Date(cond.dueDate || cond.dataVencimento).toLocaleDateString('pt-BR', {timeZone: 'UTC'}) : ''}</td>
+        <td style="padding: 8px; text-align: right; font-weight: bold;">R$ ${(cond.value || cond.valor || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+        <td style="padding: 8px; font-size: 11px; color: #64748b;">${cond.observation || cond.observacao || ''}</td>
+      </tr>
+    `).join('');
+
+    const printContents = `
+      <div style="font-family: system-ui, sans-serif; color: #1e293b; padding: 24px; max-width: 800px; margin: 0 auto; background: white;">
+        <div style="display: flex; justify-content: space-between; align-items: start; border-bottom: 2px solid #2563eb; padding-bottom: 12px; margin-bottom: 16px;">
+          <div>
+            <h1 style="font-size: 20px; font-weight: 900; margin: 0; color: #0f172a;">CONSTRUTORA MASTER S.A.</h1>
+            <p style="font-size: 11px; color: #94a3b8; font-weight: bold; margin: 4px 0 0 0; text-transform: uppercase; letter-spacing: 2px;">LOGÍSTICA INTEGRADA E SUPRIMENTOS</p>
+          </div>
+          <div style="text-align: right;">
+            <h2 style="font-size: 18px; font-weight: 800; color: #2563eb; margin: 0; text-transform: uppercase;">ORDEM DE COMPRA</h2>
+            <p style="font-size: 12px; font-weight: bold; margin: 4px 0 0 0;">OC #${po.orderNumber || po.numero || ''}</p>
+          </div>
+        </div>
+
+        <div style="background: #1e293b; color: white; padding: 6px 12px; font-weight: bold; text-transform: uppercase; border-radius: 4px; display: flex; justify-content: space-between; margin-bottom: 16px;">
+          <span>Pedido de Suprimentos Oficial</span>
+          <span>Status: ${po.status === 'approved' ? 'Aprovada' : po.status === 'sent' ? 'Enviada' : po.status === 'delivered' ? 'Entregue' : po.status === 'cancelled' ? 'Cancelada' : 'Em Elaboração'}</span>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 24px; border-bottom: 1px solid #e2e8f0; padding-bottom: 16px;">
+          <div>
+            <div style="margin-bottom: 4px;"><strong style="color: #64748b; font-size: 11px; text-transform: uppercase; display: inline-block; width: 100px;">Fornecedor:</strong> <span>${po.supplierName}</span></div>
+            <div style="margin-bottom: 4px;"><strong style="color: #64748b; font-size: 11px; text-transform: uppercase; display: inline-block; width: 100px;">Data Pedido:</strong> <span>${po.orderDate || po.dataPedido ? new Date(po.orderDate || po.dataPedido).toLocaleDateString('pt-BR', {timeZone: 'UTC'}) : ''}</span></div>
+            <div style="margin-bottom: 4px;"><strong style="color: #64748b; font-size: 11px; text-transform: uppercase; display: inline-block; width: 100px;">Data Prevista:</strong> <span>${po.deliveryDate || po.dataEntrega ? new Date(po.deliveryDate || po.dataEntrega).toLocaleDateString('pt-BR', {timeZone: 'UTC'}) : ''}</span></div>
+          </div>
+          <div>
+            <div style="margin-bottom: 4px;"><strong style="color: #64748b; font-size: 11px; text-transform: uppercase; display: inline-block; width: 100px;">Centro Custo:</strong> <span>${po.costCenter || po.centroCusto || 'Geral'}</span></div>
+            <div style="margin-bottom: 4px;"><strong style="color: #64748b; font-size: 11px; text-transform: uppercase; display: inline-block; width: 100px;">Categoria:</strong> <span>${po.category || 'Suprimentos'}</span></div>
+          </div>
+        </div>
+
+        <div style="background: #2563eb; color: white; padding: 4px 8px; font-weight: bold; font-size: 13px; border-radius: 2px; margin-bottom: 8px;">Itens do Pedido</div>
+        <table style="width: 100%; border-collapse: collapse; margin-bottom: 24px; font-size: 13px;">
+          <thead>
+            <tr style="background: #f8fafc; border-bottom: 2px solid #e2e8f0; font-weight: bold; color: #1e293b;">
+              <th style="padding: 8px; text-align: center; width: 40px;">Item</th>
+              <th style="padding: 8px; text-align: left; width: 100px;">Código</th>
+              <th style="padding: 8px; text-align: left;">Descrição</th>
+              <th style="padding: 8px; text-align: center; width: 60px;">Unidade</th>
+              <th style="padding: 8px; text-align: center; width: 80px;">Qtd</th>
+              <th style="padding: 8px; text-align: right; width: 100px;">Preço Unit.</th>
+              <th style="padding: 8px; text-align: right; width: 120px;">Subtotal</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${itemsHtml}
+          </tbody>
+        </table>
+
+        <div style="display: flex; justify-content: flex-end; margin-bottom: 24px;">
+          <div style="width: 300px; border: 1px solid #e2e8f0; border-radius: 4px; padding: 12px; background: #f8fafc;">
+            <div style="display: flex; justify-content: space-between; margin-bottom: 4px; font-size: 12px;"><strong>Subtotal:</strong> <span>R$ ${(po.total || po.subtotal || po.valorTotal || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span></div>
+            <div style="display: flex; justify-content: space-between; margin-bottom: 4px; font-size: 12px; color: #ef4444;"><strong>Descontos:</strong> <span>R$ ${(po.discount || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span></div>
+            <div style="display: flex; justify-content: space-between; font-size: 14px; font-weight: bold; border-top: 1px solid #cbd5e1; padding-top: 4px; margin-top: 4px;"><strong>Total Geral:</strong> <span>R$ ${(po.total || po.valorTotal || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span></div>
+          </div>
+        </div>
+
+        ${conditionsHtml ? `
+        <div style="background: #2563eb; color: white; padding: 4px 8px; font-weight: bold; font-size: 13px; border-radius: 2px; margin-bottom: 8px;">Condições de Pagamento</div>
+        <table style="width: 100%; border-collapse: collapse; margin-bottom: 24px; font-size: 13px;">
+          <thead>
+            <tr style="background: #f8fafc; border-bottom: 2px solid #e2e8f0; font-weight: bold; color: #1e293b;">
+              <th style="padding: 8px; text-align: left;">Parcela / Condição</th>
+              <th style="padding: 8px; text-align: center; width: 120px;">Vencimento</th>
+              <th style="padding: 8px; text-align: right; width: 120px;">Valor</th>
+              <th style="padding: 8px; text-align: left;">Observação</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${conditionsHtml}
+          </tbody>
+        </table>
+        ` : ''}
+
+        ${po.observations || po.observacoes ? `
+        <div style="margin-top: 24px; border-top: 1px dashed #cbd5e1; padding-top: 12px;">
+          <strong style="font-size: 12px; color: #64748b; text-transform: uppercase; display: block; margin-bottom: 4px;">Observações Importantes:</strong>
+          <span style="font-size: 12px; color: #475569; line-height: 1.5;">${po.observations || po.observacoes}</span>
+        </div>
+        ` : ''}
+
+        <div style="margin-top: 60px; text-align: center; font-size: 10px; color: #94a3b8;">
+          Este documento foi gerado digitalmente e é válido sem assinaturas manuais se submetido pelo sistema de aprovação integrado.
+        </div>
+      </div>
+    `;
+
+    iframe.contentWindow.document.open();
+    iframe.contentWindow.document.write(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Ordem_Compra_${po.orderNumber || po.numero || 'S-N'}</title>
+          ${styles}
+          <style>
+             @page { margin: 8mm; }
+             body { 
+               background: white; 
+               margin: 0;
+               padding: 0;
+             }
+          </style>
+        </head>
+        <body>
+          ${printContents}
+          <script>
+            window.onload = () => {
+              setTimeout(() => {
+                window.print();
+                document.body.removeChild(window.frameElement);
+              }, 500);
+            };
+          </script>
+        </body>
+      </html>
+    `);
+    iframe.contentWindow.document.close();
+  };
 
   const aportesCompany = useMemo(() => {
     return aportes.filter((a: Aporte) => {
@@ -218,21 +471,61 @@ export const FinanceView = ({
 
   const openEditItemDialog = (item: AporteItem) => {
     setEditingItem(item);
-    setItemFormData({ ...item });
+    
+    const rawVencimento = item.dataVencimento || (item as any).data_vencimento || '';
+    const rawCompetencia = item.mesCompetencia || (item as any).mes_competencia || '';
+    
+    let formattedVencimento = '';
+    if (rawVencimento) {
+      const isCompliant = typeof rawVencimento === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(rawVencimento.substring(0, 10));
+      if (isCompliant) {
+        formattedVencimento = rawVencimento.substring(0, 10);
+      } else {
+        try {
+          formattedVencimento = new Date(rawVencimento).toISOString().substring(0, 10);
+        } catch (_) {
+          formattedVencimento = '';
+        }
+      }
+    }
+
+    let formattedCompetencia = '';
+    if (rawCompetencia) {
+      const isCompliant = typeof rawCompetencia === 'string' && /^\d{4}-\d{2}$/.test(rawCompetencia.substring(0, 7));
+      if (isCompliant) {
+        formattedCompetencia = rawCompetencia.substring(0, 7);
+      } else {
+        try {
+          formattedCompetencia = new Date(rawCompetencia).toISOString().substring(0, 7);
+        } catch (_) {
+          formattedCompetencia = '';
+        }
+      }
+    }
+
+    setItemFormData({ 
+      ...item,
+      mesCompetencia: formattedCompetencia || rawCompetencia,
+      mes_competencia: formattedCompetencia || rawCompetencia,
+      dataVencimento: formattedVencimento || rawVencimento,
+      data_vencimento: formattedVencimento || rawVencimento,
+    });
     setIsItemDialogOpen(true);
   };
 
   const handleSaveItem = () => {
     if (!selectedAporte) return;
 
-    const newItem: AporteItem = {
+    const newItem: any = {
       id: editingItem?.id || uuidv4(),
       categoria: itemFormData.categoria || '',
       subcategoria: itemFormData.subcategoria || '',
       fornecedor: itemFormData.fornecedor || '',
       descricao: itemFormData.descricao || '',
       mesCompetencia: itemFormData.mesCompetencia || '',
+      mes_competencia: itemFormData.mesCompetencia || '',
       dataVencimento: itemFormData.dataVencimento || '',
+      data_vencimento: itemFormData.dataVencimento || '',
       valor: Number(itemFormData.valor) || 0,
     };
 
@@ -441,6 +734,9 @@ export const FinanceView = ({
           <TabsTrigger value="aportes" className="px-6 data-[state=active]:bg-blue-600 data-[state=active]:text-white">Aportes</TabsTrigger>
           <TabsTrigger value="resumo-aportes" className="px-6 data-[state=active]:bg-blue-600 data-[state=active]:text-white">Gestão de Aportes</TabsTrigger>
           <TabsTrigger value="caixa" className="px-6 data-[state=active]:bg-blue-600 data-[state=active]:text-white">Controle de Caixa</TabsTrigger>
+          <TabsTrigger value="compras" className="px-6 data-[state=active]:bg-blue-600 data-[state=active]:text-white flex items-center gap-1.5">
+            <ShoppingBag className="w-4 h-4" /> Compras
+          </TabsTrigger>
         </TabsList>
         
         <TabsContent value="aportes">
@@ -520,12 +816,12 @@ export const FinanceView = ({
                         ) : (
                           sortedItems.map((item: AporteItem) => (
                             <TableRow key={item.id}>
-                              <TableCell>
+                              <TableCell className="break-words whitespace-normal max-w-[150px]">
                                 <div className="font-medium text-slate-900">{item.categoria}</div>
                                 <div className="text-xs text-slate-500">{item.subcategoria}</div>
                               </TableCell>
-                              <TableCell>{item.fornecedor}</TableCell>
-                              <TableCell>{item.descricao}</TableCell>
+                              <TableCell className="break-words whitespace-normal max-w-[180px]">{item.fornecedor}</TableCell>
+                              <TableCell className="break-words whitespace-normal max-w-[300px]">{item.descricao}</TableCell>
                               <TableCell>
                                 {item.dataVencimento ? new Date(item.dataVencimento).toLocaleDateString('pt-BR', {timeZone: 'UTC'}) : '-'}
                               </TableCell>
@@ -636,6 +932,145 @@ export const FinanceView = ({
             </CardHeader>
             <CardContent>
                 <p className="text-gray-500">Conteúdo para a seção de Controle de Caixa será implementado aqui.</p>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="compras">
+          <Card className="shadow-sm border border-slate-200">
+            <CardHeader className="pb-3 border-b border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div>
+                <CardTitle className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                  <ShoppingBag className="text-blue-600 w-5 h-5" /> Ordens de Compra (Setor de Suprimentos)
+                </CardTitle>
+                <p className="text-xs text-slate-500 mt-1">
+                  Visualizar, imprimir ou incluir ordens de compra em aportes financeiros ativos para controle consolidado.
+                </p>
+              </div>
+              <div className="relative w-full md:w-80">
+                <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+                <Input 
+                  placeholder="Pesquisar OC, Fornecedor ou Categoria..." 
+                  className="pl-9 text-xs rounded-xl"
+                  value={searchPO}
+                  onChange={(e) => setSearchPO(e.target.value)}
+                />
+              </div>
+            </CardHeader>
+            
+            <CardContent className="pt-4">
+              {displayedPOs.length === 0 ? (
+                <div className="text-center py-12 text-slate-400 flex flex-col items-center justify-center gap-2">
+                  <ShoppingBag className="w-12 h-12 text-slate-300" />
+                  <span className="font-semibold text-slate-600">Nenhuma Ordem de Compra localizada</span>
+                  <span className="text-xs text-slate-400 max-w-sm">Tente redefinir sua busca ou gere registros no módulo de Compras para exibi-los aqui.</span>
+                </div>
+              ) : (
+                <div className="overflow-x-auto rounded-xl border border-slate-200">
+                  <Table>
+                    <TableHeader className="bg-slate-50/50">
+                      <TableRow>
+                        <TableHead className="w-[110px] font-bold">Número OC</TableHead>
+                        <TableHead className="font-bold">Fornecedor</TableHead>
+                        <TableHead className="w-[110px] font-bold">Data Pedido</TableHead>
+                        <TableHead className="w-[150px] font-bold">Categoria</TableHead>
+                        <TableHead className="text-right w-[140px] font-bold">Valor Total</TableHead>
+                        <TableHead className="text-center w-[110px] font-bold">Status</TableHead>
+                        <TableHead className="text-center w-[180px] font-bold">Ações</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {displayedPOs.map((po: any) => {
+                        const statusColors: Record<string, string> = {
+                          draft: "bg-slate-100 text-slate-700 border-slate-200",
+                          approved: "bg-emerald-50 text-emerald-700 border-emerald-200",
+                          sent: "bg-blue-50 text-blue-700 border-blue-200",
+                          delivered: "bg-purple-50 text-purple-700 border-purple-200",
+                          cancelled: "bg-red-50 text-red-700 border-red-200"
+                        };
+                        const statusLabels: Record<string, string> = {
+                          draft: "Rascunho",
+                          approved: "Aprovada",
+                          sent: "Enviada",
+                          delivered: "Entregue",
+                          cancelled: "Cancelada"
+                        };
+                        
+                        const poNum = po.orderNumber || po.numero || '';
+                        const poVal = po.total || po.valorTotal || 0;
+                        const poDate = po.orderDate || po.dataPedido || '';
+
+                        return (
+                          <TableRow key={po.id} className="hover:bg-slate-50/40 transition-colors">
+                            <TableCell className="font-bold text-blue-600">
+                              {poNum}
+                            </TableCell>
+                            <TableCell className="font-semibold text-slate-800">
+                              {po.supplierName}
+                            </TableCell>
+                            <TableCell>
+                              {poDate ? new Date(poDate).toLocaleDateString('pt-BR', {timeZone: 'UTC'}) : '-'}
+                            </TableCell>
+                            <TableCell className="text-slate-500 font-medium">
+                              {po.category || 'Suprimentos'}
+                            </TableCell>
+                            <TableCell className="text-right font-black text-slate-950">
+                              {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(poVal)}
+                            </TableCell>
+                            <TableCell className="text-center">
+                              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-black tracking-wide border ${statusColors[po.status] || 'bg-slate-100 text-slate-700 border-slate-200'}`}>
+                                {statusLabels[po.status] || po.status}
+                              </span>
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex items-center justify-center gap-1.5">
+                                <Button 
+                                  variant="outline" 
+                                  size="sm" 
+                                  className="h-8 px-2 text-indigo-600 border-indigo-100 bg-indigo-50/20 hover:bg-indigo-50 hover:text-indigo-700 transition font-bold"
+                                  onClick={() => {
+                                    setSelectedPO(po);
+                                    setIsPOPreviewOpen(true);
+                                  }}
+                                  title="Visualizar Ordem de Compra"
+                                >
+                                  <Eye className="w-3.5 h-3.5 mr-1" /> Ver
+                                </Button>
+                                <Button 
+                                  variant="outline" 
+                                  size="sm" 
+                                  className="h-8 px-2 text-slate-600 border-slate-100 hover:bg-slate-100 transition"
+                                  onClick={() => handlePrintPO(po)}
+                                  title="Imprimir Ordem de Compra"
+                                >
+                                  <Printer className="w-3.5 h-3.5" />
+                                </Button>
+                                <Button 
+                                  variant="outline" 
+                                  size="sm" 
+                                  className="h-8 px-2 text-emerald-600 border-emerald-100 bg-emerald-50/20 hover:bg-emerald-50 hover:text-emerald-700 transition font-bold"
+                                  onClick={() => {
+                                    setSelectedPO(po);
+                                    setIncludePOFormData(prev => ({
+                                      ...prev,
+                                      targetAporteId: aportesCompany[0]?.id || '',
+                                      dueDate: po.deliveryDate || po.orderDate || ''
+                                    }));
+                                    setIsPOIncludeOpen(true);
+                                  }}
+                                  title="Incluir no Aporte"
+                                >
+                                  <Plus className="w-3.5 h-3.5 mr-1" /> Aporte
+                                </Button>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -782,6 +1217,246 @@ export const FinanceView = ({
           <DialogFooter>
             <Button variant="outline" onClick={() => setItemToDelete(null)}>Cancelar</Button>
             <Button variant="destructive" onClick={handleDeleteItemConfirm}>Excluir</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* dialog for OC detailed view */}
+      <Dialog open={isPOPreviewOpen} onOpenChange={setIsPOPreviewOpen}>
+        <DialogContent className="sm:max-w-[700px] max-h-[85vh] overflow-y-auto">
+          <DialogHeader className="border-b pb-3 flex flex-row items-center justify-between">
+            <DialogTitle className="text-lg font-bold text-slate-950 flex items-center gap-2">
+              <ShoppingBag className="w-5 h-5 text-blue-600" /> Detalhamento da Ordem de Compra
+            </DialogTitle>
+          </DialogHeader>
+          {selectedPO && (
+            <div className="space-y-4 py-4 text-xs">
+              <div className="grid grid-cols-2 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-100 leading-relaxed">
+                <div>
+                  <p className="text-slate-500 font-medium">Ordem de Compra:</p>
+                  <p className="font-bold text-sm text-slate-900">{selectedPO.orderNumber || selectedPO.numero}</p>
+                </div>
+                <div>
+                  <p className="text-slate-500 font-medium font-semibold">Valor Total Geral:</p>
+                  <p className="font-extrabold text-sm text-blue-600">
+                    {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(selectedPO.total || selectedPO.valorTotal || 0)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-slate-500 font-medium">Fornecedor:</p>
+                  <p className="font-bold text-sm text-slate-900">{selectedPO.supplierName}</p>
+                </div>
+                <div>
+                  <p className="text-slate-500 font-medium">Centro de Custo / Local:</p>
+                  <p className="font-semibold text-slate-800">{selectedPO.costCenter || selectedPO.centroCusto || 'Geral'}</p>
+                </div>
+                <div>
+                  <p className="text-slate-500 font-medium">Data Pedido:</p>
+                  <p className="font-semibold text-slate-800">
+                    {selectedPO.orderDate || selectedPO.dataPedido ? new Date(selectedPO.orderDate || selectedPO.dataPedido).toLocaleDateString('pt-BR', {timeZone: 'UTC'}) : '-'}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-slate-500 font-medium">Data Prevista de Entrega:</p>
+                  <p className="font-semibold text-slate-800">
+                    {selectedPO.deliveryDate || selectedPO.dataEntrega ? new Date(selectedPO.deliveryDate || selectedPO.dataEntrega).toLocaleDateString('pt-BR', {timeZone: 'UTC'}) : '-'}
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <h3 className="font-bold text-slate-800 border-b pb-1 text-xs uppercase tracking-wider">Itens do Pedido ({selectedPO.items?.length || 0})</h3>
+                <div className="border border-slate-100 rounded-lg overflow-hidden">
+                  <Table>
+                    <TableHeader className="bg-slate-50">
+                      <TableRow>
+                        <TableHead className="py-2 h-8 font-semibold">Cód</TableHead>
+                        <TableHead className="py-2 h-8 font-semibold">Descrição</TableHead>
+                        <TableHead className="text-center py-2 h-8 font-semibold">Un</TableHead>
+                        <TableHead className="text-center py-2 h-8 font-semibold text-right">Qtd</TableHead>
+                        <TableHead className="text-right py-2 h-8 font-semibold">Preço Unitário</TableHead>
+                        <TableHead className="text-right py-2 h-8 font-semibold">Subtotal</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {(selectedPO.items || []).map((item: any, idx: number) => {
+                        const qty = item.quantity || item.quantidade || 0;
+                        const price = item.price || item.precoUnitario || item.valor || 0;
+                        return (
+                          <TableRow key={item.id || idx}>
+                            <TableCell className="py-2 h-8 font-mono">{item.code || item.codigo || '-'}</TableCell>
+                            <TableCell className="py-2 h-8 font-medium">{item.description || item.descricao || ''}</TableCell>
+                            <TableCell className="text-center py-2 h-8">{item.unit || item.unidade || ''}</TableCell>
+                            <TableCell className="text-right py-2 h-8">{qty}</TableCell>
+                            <TableCell className="text-right py-2 h-8">
+                              {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(price)}
+                            </TableCell>
+                            <TableCell className="text-right py-2 h-8 font-bold">
+                              {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(qty * price)}
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
+              </div>
+
+              {selectedPO.paymentConditions && selectedPO.paymentConditions.length > 0 && (
+                <div className="space-y-2">
+                  <h3 className="font-bold text-slate-800 border-b pb-1 text-xs uppercase tracking-wider">Condições de Pagamento</h3>
+                  <div className="border border-slate-100 rounded-lg overflow-hidden">
+                    <Table>
+                      <TableHeader className="bg-slate-50">
+                        <TableRow>
+                          <TableHead className="py-2 h-8 font-semibold">Parcela / Condição</TableHead>
+                          <TableHead className="text-center py-2 h-8 font-semibold">Vencimento</TableHead>
+                          <TableHead className="text-right py-2 h-8 font-semibold">Valor</TableHead>
+                          <TableHead className="py-2 h-8 font-semibold">Observações</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {selectedPO.paymentConditions.map((cond: any, idx: number) => (
+                          <TableRow key={cond.id || idx}>
+                            <TableCell className="py-2 h-8 font-medium">{cond.condition || cond.condicao || ''}</TableCell>
+                            <TableCell className="text-center py-2 h-8">
+                              {cond.dueDate || cond.dataVencimento ? new Date(cond.dueDate || cond.dataVencimento).toLocaleDateString('pt-BR', {timeZone: 'UTC'}) : ''}
+                            </TableCell>
+                            <TableCell className="text-right py-2 h-8 font-bold text-slate-800">
+                              {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(cond.value || cond.valor || 0)}
+                            </TableCell>
+                            <TableCell className="py-2 h-8 text-slate-500">{cond.observation || cond.observacao || ''}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </div>
+              )}
+
+              {selectedPO.observations && (
+                <div className="bg-slate-50 p-3 rounded-lg border border-slate-100">
+                  <p className="font-bold text-slate-700 mb-1">Observações:</p>
+                  <p className="text-slate-600 italic leading-relaxed">{selectedPO.observations}</p>
+                </div>
+              )}
+            </div>
+          )}
+          <DialogFooter className="border-t pt-3">
+            <Button variant="outline" className="rounded-xl px-5 text-xs font-semibold" onClick={() => setIsPOPreviewOpen(false)}>Fechar</Button>
+            {selectedPO && (
+              <Button 
+                className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl px-5 font-bold shadow-sm flex items-center gap-1.5 text-xs"
+                onClick={() => {
+                  setIsPOPreviewOpen(false);
+                  handlePrintPO(selectedPO);
+                }}
+              >
+                <Printer className="w-3.5 h-3.5" /> Imprimir OC
+              </Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog for PO Include into Aporte */}
+      <Dialog open={isPOIncludeOpen} onOpenChange={setIsPOIncludeOpen}>
+        <DialogContent className="sm:max-w-[450px]">
+          <DialogHeader className="border-b pb-2">
+            <DialogTitle className="text-md font-bold text-slate-900 flex items-center gap-2">
+              <Landmark className="w-5 h-5 text-emerald-600" /> Incluir Ordem de Compra no Aporte
+            </DialogTitle>
+          </DialogHeader>
+          {selectedPO && (
+            <div className="space-y-4 py-3 text-xs leading-normal">
+              <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 mb-1 space-y-1">
+                <div className="flex justify-between"><strong>OC Selecionada:</strong> <span className="font-bold text-blue-600">{selectedPO.orderNumber || selectedPO.numero}</span></div>
+                <div className="flex justify-between"><strong>Fornecedor:</strong> <span className="font-medium">{selectedPO.supplierName}</span></div>
+                <div className="flex justify-between"><strong>Valor Total Geral:</strong> <span className="font-bold text-emerald-600">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(selectedPO.total || selectedPO.valorTotal || 0)}</span></div>
+              </div>
+
+              <div className="space-y-3">
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-slate-700">Aporte de Destino *</Label>
+                  {aportesCompany.length === 0 ? (
+                    <p className="text-red-500 font-semibold py-1">Nenhum aporte ativo cadastrado! Crie um primeiro.</p>
+                  ) : (
+                    <Select 
+                      value={includePOFormData.targetAporteId} 
+                      onValueChange={(val) => setIncludePOFormData({ ...includePOFormData, targetAporteId: val })}
+                    >
+                      <SelectTrigger className="text-xs h-9">
+                        <SelectValue placeholder="Selecione o Aporte destinar" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {aportesCompany.map((a: Aporte) => (
+                          <SelectItem key={a.id} value={a.id} className="text-xs">
+                            Aporte {a.numero} - {a.data ? new Date(a.data).toLocaleDateString('pt-BR', {timeZone: 'UTC'}) : ''}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-slate-700">Formato de Importação *</Label>
+                  <Select 
+                    value={includePOFormData.importMode} 
+                    onValueChange={(val: any) => setIncludePOFormData({ ...includePOFormData, importMode: val })}
+                  >
+                    <SelectTrigger className="text-xs h-9">
+                      <SelectValue placeholder="Escolha a estrutura" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="individual" className="text-xs">Desmembrar em itens individuais (${selectedPO.items?.length || 0} itens)</SelectItem>
+                      <SelectItem value="consolidated" className="text-xs">Consolidar em um único item com o valor total da OC</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-semibold text-slate-700">Categoria do Item</Label>
+                    <Input 
+                      value={includePOFormData.category} 
+                      onChange={(e) => setIncludePOFormData({ ...includePOFormData, category: e.target.value })}
+                      className="text-xs h-9"
+                      placeholder="Ex: Suprimentos" 
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-semibold text-slate-700">Subcategoria</Label>
+                    <Input 
+                      value={includePOFormData.subcategory} 
+                      onChange={(e) => setIncludePOFormData({ ...includePOFormData, subcategory: e.target.value })}
+                      className="text-xs h-9"
+                      placeholder="Ex: Ordem de Compra" 
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-slate-700">Data de Vencimento do Item</Label>
+                  <Input 
+                    type="date"
+                    value={includePOFormData.dueDate} 
+                    onChange={(e) => setIncludePOFormData({ ...includePOFormData, dueDate: e.target.value })}
+                    className="text-xs h-9" 
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+          <DialogFooter className="border-t pt-3">
+            <Button variant="outline" className="rounded-xl px-4 text-xs font-semibold" onClick={() => setIsPOIncludeOpen(false)}>Cancelar</Button>
+            <Button 
+              className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl px-5 font-bold text-xs" 
+              onClick={handleIncludePOInAporte}
+              disabled={!includePOFormData.targetAporteId}
+            >
+              Confirmar Inclusão
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

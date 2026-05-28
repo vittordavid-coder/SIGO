@@ -4039,6 +4039,8 @@ export default function App() {
                   aportes={aportes}
                   setAportes={setAportes}
                   currentUser={currentUser}
+                  purchaseOrders={finalPurchaseOrders}
+                  setPurchaseOrders={updatePurchaseOrders}
                 />
               )}
 
