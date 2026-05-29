@@ -123,7 +123,7 @@ export default function App() {
 
   const [mainTab, setMainTab] = useState<'home' | 'quotations' | 'measurements' | 'rh' | 'control' | 'purchases' | 'project_admin' | 'settings' | 'admin' | 'profile' | 'gerencia' | 'financeiro'>('home');
   const [activeTab, setActiveTab] = useState<'resources' | 'services' | 'quotations' | 'budget' | 'bdi' | 'abc' | 'schedule' | 'reports'>('resources');
-  const [activeMeasureTab, setActiveMeasureTab] = useState<'contracts' | 'measurements' | 'measure' | 'controls' | 'rdo' | 'pluviometria' | 'schedule' | 'teams' | 'reports' | 'summary'>('contracts');
+  const [activeMeasureTab, setActiveMeasureTab] = useState<'contracts' | 'measurements' | 'measure' | 'controls' | 'physical_progress' | 'rdo' | 'pluviometria' | 'schedule' | 'teams' | 'reports' | 'summary'>('contracts');
   const [activeRHTab, setActiveRHTab] = useState('employees');
   const [activeControlTab, setActiveControlTab] = useState('list');
   const [activePurchasesTab, setActivePurchasesTab] = useState<'requests' | 'suppliers' | 'quotations' | 'orders' | 'tracking' | 'estoque' | 'evaluation'>('requests');
@@ -324,6 +324,7 @@ export default function App() {
     { id: 'schedule', label: 'Cronograma', icon: 'Calendar' },
     { id: 'teams', label: 'Equipes', icon: 'Users2' },
     { id: 'controls', label: 'Controles', icon: 'BarChart3' },
+    { id: 'physical_progress', label: 'Avanço Físico', icon: 'Activity' },
     { id: 'reports', label: 'Relatório', icon: 'FileText' }
   ];
 
@@ -3544,6 +3545,7 @@ export default function App() {
                             case 'Calendar': return <Calendar />;
                             case 'Users2': return <Users2 />;
                             case 'BarChart3': return <BarChart3 />;
+                            case 'Activity': return <Activity />;
                             case 'FileText': return <FileText />;
                             default: return <Package />;
                           }
@@ -3639,6 +3641,7 @@ export default function App() {
                     activeMeasureTab === 'measurements' ? 'Planilha de Medição' :
                     activeMeasureTab === 'measure' ? 'Medir' :
                     activeMeasureTab === 'controls' ? 'Controles' :
+                    activeMeasureTab === 'physical_progress' ? 'Avanço Físico' :
                     activeMeasureTab === 'rdo' ? 'Diário de Obra' :
                     activeMeasureTab === 'pluviometria' ? 'Pluviometria' :
                     activeMeasureTab === 'schedule' ? 'Cronograma' :
@@ -3872,6 +3875,7 @@ export default function App() {
                   onUpdateEmployees={setEmployees}
                   onUpdateRecords={setTimeRecords}
                   initialTab={activeRHTab}
+                  controllerTeams={finalControllerTeams}
                 />
               )}
 
@@ -4028,6 +4032,8 @@ export default function App() {
                   onUpdateContractId={(id) => setSelectedContractId(id)}
                   aportes={aportes}
                   currentUser={currentUser}
+                  technicalSchedules={finalTechnicalSchedules}
+                  services={filteredServices}
                 />
               )}
 

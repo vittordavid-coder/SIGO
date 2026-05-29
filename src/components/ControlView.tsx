@@ -653,6 +653,64 @@ export default function ControlView({
     history: []
   });
 
+  const parsedNewPhotos = useMemo(() => {
+    const list = (newEquip.photos || []).map((p, idx) => {
+      const parts = p.split('|');
+      return {
+        index: idx,
+        url: parts[0],
+        date: parts[1] || new Date().toISOString().split('T')[0]
+      };
+    });
+    return list.sort((a, b) => b.date.localeCompare(a.date));
+  }, [newEquip.photos]);
+
+  const updateNewPhotoDate = (itemIndex: number, newDate: string) => {
+    setNewEquip(prev => {
+      const arr = [...(prev.photos || [])];
+      const parts = arr[itemIndex].split('|');
+      arr[itemIndex] = `${parts[0]}|${newDate}`;
+      return { ...prev, photos: arr };
+    });
+  };
+
+  const deleteNewPhoto = (itemIndex: number) => {
+    setNewEquip(prev => {
+      const arr = (prev.photos || []).filter((_, idx) => idx !== itemIndex);
+      return { ...prev, photos: arr };
+    });
+  };
+
+  const parsedEditPhotos = useMemo(() => {
+    const list = (equipmentToEdit?.photos || []).map((p, idx) => {
+      const parts = p.split('|');
+      return {
+        index: idx,
+        url: parts[0],
+        date: parts[1] || new Date().toISOString().split('T')[0]
+      };
+    });
+    return list.sort((a, b) => b.date.localeCompare(a.date));
+  }, [equipmentToEdit?.photos]);
+
+  const updateEditPhotoDate = (itemIndex: number, newDate: string) => {
+    setEquipmentToEdit(prev => {
+      if (!prev) return null;
+      const arr = [...(prev.photos || [])];
+      const parts = arr[itemIndex].split('|');
+      arr[itemIndex] = `${parts[0]}|${newDate}`;
+      return { ...prev, photos: arr };
+    });
+  };
+
+  const deleteEditPhoto = (itemIndex: number) => {
+    setEquipmentToEdit(prev => {
+      if (!prev) return null;
+      const arr = (prev.photos || []).filter((_, idx) => idx !== itemIndex);
+      return { ...prev, photos: arr };
+    });
+  };
+
   const handleTypeChange = (type: string) => {
     setNewEquip(prev => {
       const template = EQUIPMENT_TEMPLATES[type];
@@ -2301,13 +2359,24 @@ export default function ControlView({
                             </div>
                             
                             <div className="grid grid-cols-4 gap-4">
-                              {(newEquip.photos || []).map((url, idx) => (
-                                <div key={idx} className="aspect-square rounded-2xl overflow-hidden border border-gray-100 relative group">
-                                  <img src={url} alt={`Equip ${idx}`} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
-                                    <Button variant="destructive" size="icon" className="h-8 w-8 rounded-xl" onClick={() => setNewEquip(prev => ({ ...prev, photos: prev.photos?.filter((_, i) => i !== idx) }))}>
-                                      <Trash2 className="w-4 h-4" />
-                                    </Button>
+                              {(parsedNewPhotos || []).map((item) => (
+                                <div key={item.index} className="rounded-2xl border border-gray-200 overflow-hidden bg-white shadow-sm flex flex-col relative group">
+                                  <div className="aspect-square w-full overflow-hidden relative">
+                                    <img src={item.url} alt={`Equip ${item.index}`} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                                      <Button variant="destructive" size="icon" className="h-8 w-8 rounded-xl" onClick={() => deleteNewPhoto(item.index)}>
+                                        <Trash2 className="w-4 h-4" />
+                                      </Button>
+                                    </div>
+                                  </div>
+                                  <div className="p-2 border-t bg-gray-50/50">
+                                    <Label className="text-[10px] font-bold uppercase tracking-wider text-gray-505">Data da Foto</Label>
+                                    <Input 
+                                      type="date" 
+                                      value={item.date} 
+                                      onChange={e => updateNewPhotoDate(item.index, e.target.value)}
+                                      className="h-8 text-xs font-mono rounded-lg mt-0.5 border-gray-200 bg-white focus:ring-blue-500"
+                                    />
                                   </div>
                                 </div>
                               ))}
@@ -2319,6 +2388,7 @@ export default function ControlView({
                                   if (file) {
                                     try {
                                       const config = getSupabaseConfig();
+                                      const todayStr = new Date().toISOString().split('T')[0];
                                       if (config.enabled) {
                                         const supabase = createSupabaseClient(config.url, config.key);
                                         const fileExt = file.name.split('.').pop();
@@ -2327,12 +2397,12 @@ export default function ControlView({
                                         if (error) throw error;
                                         
                                         const { data: { publicUrl } } = supabase.storage.from('equipamentos').getPublicUrl(fileName);
-                                        setNewEquip(prev => ({ ...prev, photos: [...(prev.photos || []), publicUrl] }));
+                                        setNewEquip(prev => ({ ...prev, photos: [...(prev.photos || []), `${publicUrl}|${todayStr}`] }));
                                       } else {
                                         // Fallback
                                         const reader = new FileReader();
                                         reader.onload = (ev) => {
-                                          setNewEquip(prev => ({ ...prev, photos: [...(prev.photos || []), ev.target?.result as string] }));
+                                          setNewEquip(prev => ({ ...prev, photos: [...(prev.photos || []), `${ev.target?.result as string}|${todayStr}`] }));
                                         };
                                         reader.readAsDataURL(file);
                                       }
@@ -3767,13 +3837,24 @@ export default function ControlView({
                   </div>
                   
                   <div className="grid grid-cols-4 gap-4">
-                    {(equipmentToEdit?.photos || []).map((url, idx) => (
-                      <div key={idx} className="aspect-square rounded-2xl overflow-hidden border border-gray-100 relative group">
-                        <img src={url} alt={`Equip ${idx}`} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
-                          <Button variant="destructive" size="icon" className="h-8 w-8 rounded-xl" onClick={() => setEquipmentToEdit(prev => prev ? { ...prev, photos: prev.photos?.filter((_, i) => i !== idx) } : null)}>
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
+                    {(parsedEditPhotos || []).map((item) => (
+                      <div key={item.index} className="rounded-2xl border border-gray-200 overflow-hidden bg-white shadow-sm flex flex-col relative group">
+                        <div className="aspect-square w-full overflow-hidden relative">
+                          <img src={item.url} alt={`Equip ${item.index}`} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                            <Button variant="destructive" size="icon" className="h-8 w-8 rounded-xl" onClick={() => deleteEditPhoto(item.index)}>
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        </div>
+                        <div className="p-2 border-t bg-gray-50/50">
+                          <Label className="text-[10px] font-bold uppercase tracking-wider text-gray-505">Data da Foto</Label>
+                          <Input 
+                            type="date" 
+                            value={item.date} 
+                            onChange={e => updateEditPhotoDate(item.index, e.target.value)}
+                            className="h-8 text-xs font-mono rounded-lg mt-0.5 border-gray-200 bg-white focus:ring-blue-500"
+                          />
                         </div>
                       </div>
                     ))}
@@ -3785,6 +3866,7 @@ export default function ControlView({
                         if (file) {
                           try {
                             const config = getSupabaseConfig();
+                            const todayStr = new Date().toISOString().split('T')[0];
                             if (config.enabled) {
                               const supabase = createSupabaseClient(config.url, config.key);
                               const fileExt = file.name.split('.').pop();
@@ -3793,11 +3875,11 @@ export default function ControlView({
                               if (error) throw error;
                               
                               const { data: { publicUrl } } = supabase.storage.from('equipamentos').getPublicUrl(fileName);
-                              setEquipmentToEdit(prev => prev ? { ...prev, photos: [...(prev.photos || []), publicUrl] } : null);
+                              setEquipmentToEdit(prev => prev ? { ...prev, photos: [...(prev.photos || []), `${publicUrl}|${todayStr}`] } : null);
                             } else {
                               const reader = new FileReader();
                               reader.onload = (ev) => {
-                                setEquipmentToEdit(prev => prev ? { ...prev, photos: [...(prev.photos || []), ev.target?.result as string] } : null);
+                                setEquipmentToEdit(prev => prev ? { ...prev, photos: [...(prev.photos || []), `${ev.target?.result as string}|${todayStr}`] } : null);
                               };
                               reader.readAsDataURL(file);
                             }

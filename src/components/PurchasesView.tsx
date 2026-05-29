@@ -32,6 +32,7 @@ import { applyPhoneMask, applyCEPMask, cn, hashPassword } from '../lib/utils';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { NumericInput } from '@/components/ui/numeric-input';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger, DialogDescription } from '@/components/ui/dialog';
@@ -791,10 +792,9 @@ function RequestsTab({
                     </div>
                     <div className="col-span-6 sm:col-span-2 space-y-1">
                       <Label className="text-sm font-black text-gray-400 uppercase tracking-tighter">Qtd</Label>
-                      <Input 
-                        type="number"
+                      <NumericInput 
                         value={item.quantity}
-                        onChange={e => updateItem(idx, 'quantity', parseFloat(e.target.value) || 0)}
+                        onChange={val => updateItem(idx, 'quantity', val)}
                         className="h-10 border-gray-200 rounded-xl focus:ring-blue-500 bg-white text-center"
                       />
                     </div>
@@ -2496,10 +2496,10 @@ function OrdersTab({
                             <Input disabled={isReadOnly} className="h-8 text-base text-center bg-transparent border-transparent hover:border-gray-200 focus:border-emerald-500 focus:bg-white" value={item.unit} onChange={e => updateItem(index, 'unit', e.target.value)} />
                           </TableCell>
                           <TableCell className="p-1">
-                            <Input disabled={isReadOnly} type="number" className="h-8 text-base text-center bg-transparent border-transparent hover:border-gray-200 focus:border-emerald-500 focus:bg-white" value={item.quantity || ''} onChange={e => updateItem(index, 'quantity', parseFloat(e.target.value) || 0)} />
+                            <NumericInput disabled={isReadOnly} className="h-8 text-base text-center bg-transparent border-transparent hover:border-gray-200 focus:border-emerald-500 focus:bg-white" value={item.quantity || 0} onChange={val => updateItem(index, 'quantity', val)} />
                           </TableCell>
                           <TableCell className="p-1">
-                            <Input disabled={isReadOnly} type="number" className="h-8 text-base text-right bg-transparent border-transparent hover:border-gray-200 focus:border-emerald-500 focus:bg-white" value={item.price || ''} onChange={e => updateItem(index, 'price', parseFloat(e.target.value) || 0)} />
+                            <NumericInput disabled={isReadOnly} className="h-8 text-base text-right bg-transparent border-transparent hover:border-gray-200 focus:border-emerald-500 focus:bg-white" value={item.price || 0} onChange={val => updateItem(index, 'price', val)} />
                           </TableCell>
                           <TableCell className="p-1 text-right text-base font-medium pr-4">
                             R$ {((item.quantity ?? 0) * (item.price ?? 0)).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
@@ -2524,20 +2524,18 @@ function OrdersTab({
                      </div>
                      <div className="flex justify-between items-center px-2">
                        <span className="text-gray-500 font-medium">Desconto:</span>
-                       <Input 
-                         type="number" 
+                       <NumericInput 
                          className="h-7 w-28 text-right text-base border-gray-200" 
-                         value={currentOrder.discount || ''} 
-                         onChange={e => updateTotals(currentOrder.items || [], parseFloat(e.target.value) || 0, currentOrder.additions || 0)}
+                         value={currentOrder.discount || 0} 
+                         onChange={val => updateTotals(currentOrder.items || [], val, currentOrder.additions || 0)}
                        />
                      </div>
                      <div className="flex justify-between items-center px-2">
                        <span className="text-gray-500 font-medium">Acréscimos:</span>
-                       <Input 
-                         type="number" 
+                       <NumericInput 
                          className="h-7 w-28 text-right text-base border-gray-200" 
-                         value={currentOrder.additions || ''} 
-                         onChange={e => updateTotals(currentOrder.items || [], currentOrder.discount || 0, parseFloat(e.target.value) || 0)}
+                         value={currentOrder.additions || 0} 
+                         onChange={val => updateTotals(currentOrder.items || [], currentOrder.discount || 0, val)}
                        />
                      </div>
                      <div className="flex justify-between items-center pt-2 px-2 border-t border-gray-200">
@@ -2587,7 +2585,7 @@ function OrdersTab({
                             <Input disabled={isReadOnly} type="date" className="h-8 text-base bg-transparent border-transparent hover:border-gray-200 focus:border-emerald-500 focus:bg-white" value={pay.dueDate} onChange={e => updatePayment(index, 'dueDate', e.target.value)} />
                           </TableCell>
                           <TableCell className="p-1">
-                            <Input disabled={isReadOnly} type="number" className="h-8 text-base text-right bg-transparent border-transparent hover:border-gray-200 focus:border-emerald-500 focus:bg-white" value={pay.value || ''} onChange={e => updatePayment(index, 'value', parseFloat(e.target.value) || 0)} />
+                            <NumericInput disabled={isReadOnly} className="h-8 text-base text-right bg-transparent border-transparent hover:border-gray-200 focus:border-emerald-500 focus:bg-white" value={pay.value || 0} onChange={val => updatePayment(index, 'value', val)} />
                           </TableCell>
                           <TableCell className="p-1">
                             <Input disabled={isReadOnly} className="h-8 text-base bg-transparent border-transparent hover:border-gray-200 focus:border-emerald-500 focus:bg-white" value={pay.observation} onChange={e => updatePayment(index, 'observation', e.target.value)} />
@@ -2940,12 +2938,11 @@ function QuotationsTab({
                           return (
                             <TableCell key={qs.supplierId} className="p-2 border-l border-gray-100">
                               <div className="relative group">
-                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-base text-emerald-400 font-bold">R$</span>
-                                <Input 
-                                  type="number"
-                                  className="pl-8 h-9 bg-white border-gray-200 rounded-lg focus:ring-emerald-500 font-bold text-emerald-700 text-base shadow-sm"
-                                  value={response?.price || ''}
-                                  onChange={(e) => handleUpdatePrice(qs.supplierId, item.itemId, parseFloat(e.target.value) || 0)}
+                                <NumericInput 
+                                  className="h-9 bg-white border-gray-200 rounded-lg focus:ring-emerald-500 font-bold text-emerald-700 text-base shadow-sm"
+                                  value={response?.price || 0}
+                                  onChange={(val) => handleUpdatePrice(qs.supplierId, item.itemId, val)}
+                                  prefix="R$"
                                 />
                               </div>
                             </TableCell>
@@ -3576,10 +3573,9 @@ function EstoqueTab({
 
               <div className="space-y-2">
                 <Label className="text-base font-black uppercase text-gray-500">Quantidade a Aplicar (Saldo: {selectedItem ? selectedItem.quantity - (selectedItem.appliedQuantity || 0) : 0})</Label>
-                <Input 
-                  type="number" 
+                <NumericInput 
                   value={applyQty} 
-                  onChange={e => setApplyQty(parseFloat(e.target.value) || 0)}
+                  onChange={val => setApplyQty(val)}
                   className="rounded-xl h-12 border-gray-200 font-bold"
                 />
               </div>

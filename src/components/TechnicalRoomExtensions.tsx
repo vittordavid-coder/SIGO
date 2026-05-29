@@ -9,7 +9,7 @@ import {
   Construction, Map, Clock, ArrowRightLeft, Save,
   Search, ThermometerSun, AlertTriangle, FileText, FileSpreadsheet, FileDown,
   ChevronDown, ChevronRight, PanelRight, PanelRightClose, ZoomIn, ZoomOut,
-  TrendingUp, BarChart3, Maximize2, Minimize2, X, Layers
+  TrendingUp, BarChart3, Maximize2, Minimize2, X, Layers, Activity
 } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 import { jsPDF } from 'jspdf';
@@ -100,7 +100,8 @@ export function DailyReportView({
   // Sync selectedReportId and initial expanded month
   React.useEffect(() => {
     if (reports.length > 0) {
-      if (!selectedReportId) {
+      const hasValidSelection = selectedReportId && reports.some(r => r.id === selectedReportId);
+      if (!hasValidSelection) {
         const latest = [...reports].sort((a,b) => b.date.localeCompare(a.date))[0];
         setSelectedReportId(latest.id);
       }
@@ -109,6 +110,10 @@ export function DailyReportView({
       if (!hasAutoExpanded.current && monthKeys.length > 0) {
         setExpandedMonths([monthKeys[0]]);
         hasAutoExpanded.current = true;
+      }
+    } else {
+      if (selectedReportId !== null) {
+        setSelectedReportId(null);
       }
     }
   }, [reports, selectedReportId, monthKeys]);
@@ -582,10 +587,11 @@ export function DailyReportView({
 
         <TabsContent value="viewer">
           <div className="grid grid-cols-12 gap-6">
+            {/* Sidebar Histórico */}
             <div className="col-span-12 lg:col-span-3">
-              <Card className="h-[calc(100vh-360px)] flex flex-col">
-                <CardHeader className="p-4 border-b shrink-0">
-                  <CardTitle className="text-base font-bold flex items-center gap-2">
+              <Card className="h-[calc(100vh-360px)] flex flex-col border border-gray-100 shadow-sm rounded-2xl overflow-hidden">
+                <CardHeader className="p-4 border-b shrink-0 bg-gray-50/50">
+                  <CardTitle className="text-sm font-black uppercase tracking-wider text-gray-800 flex items-center gap-2">
                     <Calendar className="w-4 h-4 text-blue-600" /> Histórico de Dias
                   </CardTitle>
                 </CardHeader>
@@ -600,39 +606,49 @@ export function DailyReportView({
                         <div key={monthKey} className="space-y-1">
                           <button
                             onClick={() => toggleMonth(monthKey)}
-                            className="w-full flex items-center justify-between p-2 rounded-md hover:bg-gray-50 transition-colors group"
+                            className="w-full flex items-center justify-between p-2 rounded-xl hover:bg-gray-100 transition-colors group"
                           >
-                            <span className="text-sm font-bold text-gray-600 uppercase tracking-wider">{getMonthLabel(monthKey)}</span>
-                            <div className="flex items-center gap-2">
-                              <Badge variant="secondary" className="h-4 text-xs px-1 font-medium">{monthReports.length}</Badge>
-                              {isExpanded ? <ChevronDown className="w-3 h-3 text-gray-400" /> : <ChevronRight className="w-3 h-3 text-gray-400" />}
+                            <span className="text-xs font-black text-gray-500 uppercase tracking-widest">{getMonthLabel(monthKey)}</span>
+                            <div className="flex items-center gap-1.5">
+                              <Badge variant="secondary" className="h-5 text-[10px] font-black rounded-md">{monthReports.length}</Badge>
+                              {isExpanded ? <ChevronDown className="w-3.5 h-3.5 text-gray-400" /> : <ChevronRight className="w-3.5 h-3.5 text-gray-400" />}
                             </div>
                           </button>
                           
                           {isExpanded && (
-                            <div className="pl-2 space-y-1 border-l-2 border-blue-50 ml-1">
+                            <div className="pl-2 space-y-1.5 border-l border-gray-200 ml-1">
                               {monthReports.map((r) => {
                                 const reportIdx = reports.findIndex(rep => rep.id === r.id);
+                                const pluvi = pluviometryRecords.find(p => p.date === r.date);
+                                const isImp = pluvi?.morningStatus === 'Impraticável' || pluvi?.afternoonStatus === 'Impraticável' || r.weatherMorning === 'Impraticável' || r.weatherAfternoon === 'Impraticável';
+                                const isRain = pluvi?.morningStatus === 'Chuvoso' || pluvi?.afternoonStatus === 'Chuvoso' || r.weatherMorning === 'Chuvoso' || r.weatherAfternoon === 'Chuvoso';
+                                const weatherEmoji = isImp ? '🛑' : isRain ? '🌧️' : '☀️';
+
                                 return (
                                   <button
                                     key={r.id}
                                     onClick={() => setSelectedReportId(r.id)}
                                     className={cn(
-                                      "w-full text-left p-2 rounded-lg transition-all border",
+                                      "w-full text-left p-3 rounded-xl transition-all border",
                                       selectedReportId === r.id 
-                                        ? "bg-blue-50 border-blue-200 shadow-sm"
-                                        : "border-transparent hover:bg-gray-50"
+                                        ? "bg-blue-600 border-blue-600 shadow-md shadow-blue-100 text-white"
+                                        : "border-gray-50 bg-white hover:bg-gray-50/80 text-gray-800"
                                     )}
                                   >
-                      <div className="flex justify-between items-center mb-1">
-                                      <span className="font-bold text-sm text-blue-800">RDO #{reportIdx + 1}</span>
-                                      <div className="flex flex-col items-end">
-                                        <span className="text-sm font-bold text-gray-700 capitalize">{new Date(r.date + 'T12:00:00').toLocaleDateString('pt-BR', { weekday: 'short' })}</span>
-                                        <span className="text-xs font-medium text-gray-500">{new Date(r.date + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}</span>
+                                    <div className="flex justify-between items-start mb-0.5">
+                                      <div className="flex items-center gap-1">
+                                        <span className="text-[10px] font-bold opacity-75">{weatherEmoji}</span>
+                                        <span className={cn("font-black text-xs tracking-wider uppercase", selectedReportId === r.id ? "text-white" : "text-blue-900")}>
+                                          RDO #{reportIdx + 1}
+                                        </span>
                                       </div>
+                                      <span className={cn("text-[10px] font-bold uppercase tracking-wider", selectedReportId === r.id ? "text-blue-100" : "text-gray-400")}>
+                                        {new Date(r.date + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}
+                                      </span>
                                     </div>
-                                    <div className="flex items-center gap-2 text-xs text-gray-400 italic truncate">
-                                      {r.activities.length} atividades • {r.rainfallMm}mm
+                                    <div className="flex justify-between items-center text-[10px] font-bold opacity-80">
+                                      <span className="capitalize">{new Date(r.date + 'T12:00:00').toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.', '')}</span>
+                                      <span>{r.activities.length} Ativ. • {pluvi?.rainfallMm || r.rainfallMm}mm</span>
                                     </div>
                                   </button>
                                 );
@@ -645,198 +661,307 @@ export function DailyReportView({
                     {monthKeys.length === 0 && (
                       <div className="p-8 text-center text-gray-400">
                         <Calendar className="w-8 h-8 mx-auto mb-2 opacity-20" />
-                        <p className="text-sm">Nenhum RDO</p>
+                        <p className="text-sm font-bold uppercase tracking-wider text-gray-300">Nenhum RDO Criado</p>
                       </div>
                     )}
                   </div>
-                </ScrollArea>
+                  </ScrollArea>
                 </div>
               </Card>
             </div>
 
+            {/* Selected RDO Details Viewer Panel */}
             <div className="col-span-12 lg:col-span-9">
               {selectedReport ? (
                 <div className="space-y-6">
-                  {/* Report Header Card */}
-                  <Card>
-                    <CardHeader className="p-4 border-b flex flex-row items-center justify-between">
+                  {/* Modern Header Banner */}
+                  <Card className="border border-gray-100 shadow-sm rounded-2xl overflow-hidden bg-gradient-to-r from-gray-50 to-white">
+                    <div className="p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                       <div>
-                        <CardTitle className="text-lg font-bold">
-                          Relatório de Ocorrência - {new Date(selectedReport.date + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })}
-                          <span className="ml-2 text-blue-600 capitalize">({new Date(selectedReport.date + 'T12:00:00').toLocaleDateString('pt-BR', { weekday: 'long' })})</span>
-                        </CardTitle>
-                        <CardDescription>Resumo diário e condições de campo.</CardDescription>
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="bg-blue-100 text-blue-900 text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md">
+                            DIÁRIO OFICIAL DE OBRA
+                          </span>
+                          <span className="bg-gray-100 text-gray-800 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md">
+                            RDO #{reports.findIndex(rep => rep.id === selectedReport.id) + 1}
+                          </span>
+                        </div>
+                        <h3 className="text-xl font-black text-gray-950 uppercase tracking-tight flex items-center gap-2">
+                          Relatório Diário de Ocorrências
+                        </h3>
+                        <p className="text-xs text-gray-500 font-bold uppercase tracking-wider">
+                          {new Date(selectedReport.date + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })} 
+                          <span className="mx-1 text-gray-300">•</span>
+                          <span className="text-blue-600 capitalize font-black">{new Date(selectedReport.date + 'T12:00:00').toLocaleDateString('pt-BR', { weekday: 'long' })}</span>
+                        </p>
                       </div>
-                      <div className="flex gap-2">
-                        <Button variant="outline" size="sm" onClick={() => handleExportPDF(selectedReport)}>
-                          <Printer className="w-4 h-4 mr-2" /> PDF
+                      <div className="flex gap-2 self-end sm:self-auto">
+                        <Button variant="outline" size="sm" onClick={() => handleExportPDF(selectedReport)} className="font-extrabold uppercase text-[10px] tracking-widest bg-white border-gray-200">
+                          <Printer className="w-3.5 h-3.5 mr-1.5 text-blue-600" /> PDF
                         </Button>
-                        <Button variant="outline" size="sm" onClick={() => handleExportExcel(selectedReport)}>
-                          <FileSpreadsheet className="w-4 h-4 mr-2" /> Excel
+                        <Button variant="outline" size="sm" onClick={() => handleExportExcel(selectedReport)} className="font-extrabold uppercase text-[10px] tracking-widest bg-white border-gray-200">
+                          <FileSpreadsheet className="w-3.5 h-3.5 mr-1.5 text-green-600" /> Excel
                         </Button>
                         {!readonly && (
-                          <Button variant="destructive" size="sm" onClick={() => onDelete(selectedReport.id)}>
-                            <Trash2 className="w-4 h-4" />
+                          <Button variant="destructive" size="sm" onClick={() => onDelete(selectedReport.id)} className="rounded-xl">
+                            <Trash2 className="w-3.5 h-3.5" />
                           </Button>
                         )}
                       </div>
-                    </CardHeader>
-                    <CardContent className="p-4">
-                        <div className="grid grid-cols-4 gap-4">
-                            {/* Fetch pluviometry info */}
-                            {(() => {
-                                const pluvi = pluviometryRecords.find(p => p.date === selectedReport.date);
-                                return (
-                                    <>
-                                        <div className="p-3 bg-gray-50 rounded-lg border border-gray-100">
-                                            <Label className="text-xs uppercase text-gray-400 font-bold block mb-1">Noite Anterior</Label>
-                                            <span className="text-base font-bold flex items-center gap-2">
-                                                {pluvi?.nightStatus === 'Chuvoso' ? '🌧️' : pluvi?.nightStatus === 'Impraticável' ? '🛑' : '☀️'} 
-                                                {pluvi?.nightStatus || selectedReport.weatherNight}
-                                            </span>
-                                        </div>
-                                        <div className="p-3 bg-gray-50 rounded-lg border border-gray-100">
-                                            <Label className="text-xs uppercase text-gray-400 font-bold block mb-1">Manhã</Label>
-                                            <span className="text-base font-bold flex items-center gap-2">
-                                                {pluvi?.morningStatus === 'Chuvoso' ? '🌧️' : pluvi?.morningStatus === 'Impraticável' ? '🛑' : '☀️'} 
-                                                {pluvi?.morningStatus || selectedReport.weatherMorning}
-                                            </span>
-                                        </div>
-                                        <div className="p-3 bg-gray-50 rounded-lg border border-gray-100">
-                                            <Label className="text-xs uppercase text-gray-400 font-bold block mb-1">Tarde</Label>
-                                            <span className="text-base font-bold flex items-center gap-2">
-                                                {pluvi?.afternoonStatus === 'Chuvoso' ? '🌧️' : pluvi?.afternoonStatus === 'Impraticável' ? '🛑' : '☀️'} 
-                                                {pluvi?.afternoonStatus || selectedReport.weatherAfternoon}
-                                            </span>
-                                        </div>
-                                        <div className="p-3 bg-blue-50 rounded-lg border border-blue-100">
-                                            <Label className="text-xs uppercase text-blue-400 font-bold block mb-1">Chuva (mm)</Label>
-                                            <span className="text-base font-bold text-blue-700 flex items-center gap-2">
-                                                <CloudRain className="w-4 h-4" />
-                                                {pluvi?.rainfallMm || selectedReport.rainfallMm} mm
-                                            </span>
-                                        </div>
-                                    </>
-                                );
-                            })()}
-                        </div>
-                    </CardContent>
+                    </div>
                   </Card>
 
-                  <ScrollArea className="h-[calc(100vh-520px)]">
+                  {/* Bento Row of KPIs */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+                    {/* Weather card */}
+                    <Card className="border border-gray-100 shadow-sm rounded-2xl p-4 bg-white space-y-3">
+                      <div className="flex items-center justify-between border-b pb-2">
+                        <span className="text-[10px] font-black text-gray-400 uppercase tracking-wider">Status Climático</span>
+                        <CloudRain className="w-4 h-4 text-blue-500" />
+                      </div>
+                      {(() => {
+                        const pluvi = pluviometryRecords.find(p => p.date === selectedReport.date);
+                        const night = pluvi?.nightStatus || selectedReport.weatherNight;
+                        const morning = pluvi?.morningStatus || selectedReport.weatherMorning;
+                        const afternoon = pluvi?.afternoonStatus || selectedReport.weatherAfternoon;
+                        const rainfall = pluvi?.rainfallMm || selectedReport.rainfallMm;
+
+                        return (
+                          <div className="space-y-2">
+                            <div className="grid grid-cols-3 gap-1 text-[10px] text-center font-black uppercase">
+                              <div className="bg-gray-50 p-1.5 rounded-lg">
+                                <span className="text-gray-400 block text-[8px]">NOITE</span>
+                                <span>{night === 'Bom' ? '☀️' : night === 'Chuvoso' ? '🌧️' : '🛑'}</span>
+                              </div>
+                              <div className="bg-gray-50 p-1.5 rounded-lg">
+                                <span className="text-gray-400 block text-[8px]">MANHÃ</span>
+                                <span>{morning === 'Bom' ? '☀️' : morning === 'Chuvoso' ? '🌧️' : '🛑'}</span>
+                              </div>
+                              <div className="bg-gray-50 p-1.5 rounded-lg">
+                                <span className="text-gray-400 block text-[8px]">TARDE</span>
+                                <span>{afternoon === 'Bom' ? '☀️' : afternoon === 'Chuvoso' ? '🌧️' : '🛑'}</span>
+                              </div>
+                            </div>
+                            <div className="text-center bg-blue-50/50 p-1.5 rounded-xl border border-blue-100">
+                              <span className="text-[11px] font-black text-blue-800 uppercase">Precipitação: {rainfall} mm</span>
+                            </div>
+                          </div>
+                        );
+                      })()}
+                    </Card>
+
+                    {/* Workforce KPI card */}
+                    <Card className="border border-gray-100 shadow-sm rounded-2xl p-4 bg-white flex flex-col justify-between">
+                      <div className="flex items-center justify-between border-b pb-2">
+                        <span className="text-[10px] font-black text-gray-400 uppercase tracking-wider">Efetivo Homens-Dia</span>
+                        <UserCheck className="w-4 h-4 text-emerald-500" />
+                      </div>
+                      <div className="py-2">
+                        <div className="text-2xl font-black font-mono text-gray-900 leading-none">
+                          {selectedReport.manpower.reduce((acc, curr) => acc + curr.quantity, 0)}
+                        </div>
+                        <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mt-1">Colaboradores no campo</span>
+                      </div>
+                    </Card>
+
+                    {/* Equipment KPI card */}
+                    <Card className="border border-gray-100 shadow-sm rounded-2xl p-4 bg-white flex flex-col justify-between">
+                      <div className="flex items-center justify-between border-b pb-2">
+                        <span className="text-[10px] font-black text-gray-400 uppercase tracking-wider">Frota de Máquinas</span>
+                        <Construction className="w-4 h-4 text-orange-500" />
+                      </div>
+                      <div className="py-2">
+                        <div className="text-2xl font-black font-mono text-gray-900 leading-none">
+                          {selectedReport.equipment.reduce((acc, curr) => acc + curr.quantity, 0)}
+                        </div>
+                        <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mt-1">Equipamentos mobilizados</span>
+                      </div>
+                    </Card>
+
+                    {/* Security KPI card */}
+                    <Card className="border border-gray-100 shadow-sm rounded-2xl p-4 bg-white flex flex-col justify-between">
+                      <div className="flex items-center justify-between border-b pb-2">
+                        <span className="text-[10px] font-black text-gray-400 uppercase tracking-wider">Segurança e Incidentes</span>
+                        <AlertTriangle className={cn("w-4 h-4", selectedReport.accidents ? "text-red-500 animate-pulse" : "text-emerald-500")} />
+                      </div>
+                      <div className="py-2">
+                        {selectedReport.accidents ? (
+                          <div className="bg-red-50 text-red-700 text-[10px] font-black uppercase rounded-lg p-2 text-center border border-red-200">
+                            ⚠ Ocorrência Registrada
+                          </div>
+                        ) : (
+                          <div className="bg-emerald-50 text-emerald-700 text-[10px] font-black uppercase rounded-lg p-2 text-center border border-emerald-200">
+                            ✓ 100% Seguro / Sem Ocorrências
+                          </div>
+                        )}
+                        <span className="text-[9px] font-bold text-gray-400 uppercase tracking-wider block text-center mt-1">Segurança operacional</span>
+                      </div>
+                    </Card>
+                  </div>
+
+                  <ScrollArea className="h-[calc(100vh-520px)] pr-2">
                     <div className="space-y-6">
-                      {/* Detailed Inputs (Efetivo, Equipamento, etc) */}
-                      <div className="grid grid-cols-2 gap-6">
-                        <Card>
-                          <CardHeader className="p-3 border-b bg-gray-50/50">
-                            <CardTitle className="text-sm font-bold flex items-center gap-2">
-                              <UserCheck className="w-3 h-3 text-emerald-600" /> Efetivo (Mão de Obra)
+                      {/* Side by side: workforce & equipment */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <Card className="border border-gray-100 shadow-sm rounded-2xl overflow-hidden">
+                          <CardHeader className="p-4 border-b bg-gray-50/50 flex flex-row items-center justify-between">
+                            <CardTitle className="text-xs font-black uppercase tracking-wider text-gray-800 flex items-center gap-2">
+                              <UserCheck className="w-4 h-4 text-emerald-600" /> Efetivo (Mão de Obra)
                             </CardTitle>
+                            <Badge variant="secondary" className="font-mono font-black text-[10px]">{selectedReport.manpower.length} Categorias</Badge>
                           </CardHeader>
-                          <CardContent className="p-3 space-y-2">
+                          <CardContent className="p-4 space-y-2">
                             {selectedReport.manpower.map((m, idx) => (
-                              <div key={idx} className="flex gap-2 items-center">
-                                <span className="text-sm flex-1 font-medium">{m.description}</span>
-                                <Badge variant="secondary" className="font-bold">{m.quantity}</Badge>
+                              <div key={idx} className="flex gap-2 items-center justify-between p-2.5 bg-gray-50/50 border border-gray-100 rounded-xl">
+                                <span className="text-xs font-black uppercase text-gray-700">{m.description}</span>
+                                <span className="bg-emerald-100 text-emerald-800 text-xs font-black px-2.5 py-1 rounded-lg font-mono">{m.quantity}</span>
                               </div>
                             ))}
-                            {selectedReport.manpower.length === 0 && <p className="text-sm text-gray-400 italic">Nenhum efetivo listado.</p>}
+                            {selectedReport.manpower.length === 0 && (
+                              <p className="text-xs text-gray-400 italic font-bold my-4 text-center">Nenhum profissional listado para este dia.</p>
+                            )}
                           </CardContent>
                         </Card>
 
-                        <Card>
-                          <CardHeader className="p-3 border-b bg-gray-50/50">
-                            <CardTitle className="text-sm font-bold flex items-center gap-2">
-                              <Construction className="w-3 h-3 text-orange-600" /> Equipamentos
+                        <Card className="border border-gray-100 shadow-sm rounded-2xl overflow-hidden">
+                          <CardHeader className="p-4 border-b bg-gray-50/50 flex flex-row items-center justify-between">
+                            <CardTitle className="text-xs font-black uppercase tracking-wider text-gray-800 flex items-center gap-2">
+                              <Construction className="w-4 h-4 text-orange-600" /> Equipamentos
                             </CardTitle>
+                            <Badge variant="secondary" className="font-mono font-black text-[10px]">{selectedReport.equipment.length} Tipos</Badge>
                           </CardHeader>
-                          <CardContent className="p-3 space-y-2">
+                          <CardContent className="p-4 space-y-2">
                             {selectedReport.equipment.map((e, idx) => (
-                              <div key={idx} className="flex gap-2 items-center">
-                                <span className="text-sm flex-1 font-medium">{e.description}</span>
-                                <Badge variant="outline" className="font-bold border-orange-200 text-orange-700">{e.quantity}</Badge>
+                              <div key={idx} className="flex gap-2 items-center justify-between p-2.5 bg-gray-50/50 border border-gray-100 rounded-xl">
+                                <span className="text-xs font-black uppercase text-gray-700">{e.description}</span>
+                                <span className="bg-orange-100 text-orange-800 text-xs font-black px-2.5 py-1 rounded-lg font-mono">{e.quantity}</span>
                               </div>
                             ))}
-                            {selectedReport.equipment.length === 0 && <p className="text-sm text-gray-400 italic">Nenhum equipamento listado.</p>}
+                            {selectedReport.equipment.length === 0 && (
+                              <p className="text-xs text-gray-400 italic font-bold my-4 text-center">Nenhum equipamento listado para este dia.</p>
+                            )}
                           </CardContent>
                         </Card>
                       </div>
 
-                      <Card>
-                        <CardHeader className="p-3 border-b bg-blue-50/20">
-                          <CardTitle className="text-sm font-bold flex items-center gap-2">
-                            <HardHat className="w-3 h-3 text-blue-600" /> Atividades do Dia
+                      {/* Activities Block */}
+                      <Card className="border border-gray-100 shadow-sm rounded-2xl overflow-hidden">
+                        <CardHeader className="p-4 border-b bg-gray-50/50 flex flex-row items-center justify-between">
+                          <CardTitle className="text-xs font-black uppercase tracking-wider text-gray-800 flex items-center gap-2">
+                            <HardHat className="w-4 h-4 text-blue-600" /> Atividades Executadas
                           </CardTitle>
+                          <Badge variant="outline" className="text-blue-600 border-blue-200 font-mono font-black text-[10px]">
+                            {selectedReport.activities.length} Atividades
+                          </Badge>
                         </CardHeader>
-                        <Table>
-                          <TableHeader>
-                            <TableRow>
-                              <TableHead className="text-sm uppercase font-bold">Cód</TableHead>
-                              <TableHead className="text-sm uppercase font-bold">Descrição</TableHead>
-                              <TableHead className="text-sm uppercase font-bold text-right">Tipo</TableHead>
-                            </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                            {selectedReport.activities.map(a => (
-                              <TableRow key={a.id}>
-                                <TableCell className="py-2 text-sm font-mono">{a.code || '-'}</TableCell>
-                                <TableCell className="py-2 text-sm">{a.description}</TableCell>
-                                <TableCell className="py-2 text-right">
-                                  <Badge variant="outline" className="text-xs">{a.type}</Badge>
-                                </TableCell>
-                              </TableRow>
-                            ))}
-                            {selectedReport.activities.length === 0 && (
+                        <div className="overflow-x-auto">
+                          <Table>
+                            <TableHeader className="bg-gray-50">
                               <TableRow>
-                                <TableCell colSpan={3} className="text-center py-4 text-gray-400 text-sm">Sem atividades para este dia.</TableCell>
+                                <TableHead className="text-xs uppercase font-black tracking-wider text-gray-505 w-24">Cód</TableHead>
+                                <TableHead className="text-xs uppercase font-black tracking-wider text-gray-505">Descrição Geral da Atividade</TableHead>
+                                <TableHead className="text-xs uppercase font-black tracking-wider text-gray-505 text-right">Classificação</TableHead>
                               </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {selectedReport.activities.map(a => (
+                                <TableRow key={a.id} className="hover:bg-gray-50/50">
+                                  <TableCell className="py-3 text-xs font-mono font-black text-blue-600">{a.code || '-'}</TableCell>
+                                  <TableCell className="py-3 text-xs font-medium text-gray-800">{a.description}</TableCell>
+                                  <TableCell className="py-3 text-right">
+                                    <Badge variant="outline" className="text-[10px] font-black uppercase tracking-wider bg-white rounded-lg px-2 py-0.5">
+                                      {a.type}
+                                    </Badge>
+                                  </TableCell>
+                                </TableRow>
+                              ))}
+                              {selectedReport.activities.length === 0 && (
+                                <TableRow>
+                                  <TableCell colSpan={3} className="text-center py-6 text-gray-400 text-xs font-bold uppercase">
+                                    Sem atividades mapeadas para este dia de obra.
+                                  </TableCell>
+                                </TableRow>
+                              )}
+                            </TableBody>
+                          </Table>
+                        </div>
+                      </Card>
+
+                      {/* Comments and safety occurrences cards */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <Card className="border border-amber-100 shadow-sm bg-amber-50/5 rounded-2xl overflow-hidden">
+                          <CardHeader className="p-4 border-b border-amber-100 bg-amber-50/20">
+                            <CardTitle className="text-xs font-black uppercase tracking-wider text-amber-800 flex items-center gap-2">
+                              <Search className="w-4 h-4 text-amber-600" /> Comentários da Fiscalização
+                            </CardTitle>
+                          </CardHeader>
+                          <CardContent className="p-4">
+                            {readonly ? (
+                              <p className="text-xs text-gray-600 leading-relaxed font-bold whitespace-pre-wrap">
+                                {selectedReport.fiscalizationComments || "Nenhum apontamento inserido."}
+                              </p>
+                            ) : (
+                              <textarea 
+                                className="w-full text-xs font-medium p-3 border border-amber-100 bg-amber-50/10 rounded-xl min-h-[90px] focus:ring-1 focus:ring-amber-500 outline-none"
+                                placeholder="Anotações feitas pela fiscalização..."
+                                value={selectedReport.fiscalizationComments || ""}
+                                onChange={e => onUpdate({...selectedReport, fiscalizationComments: e.target.value})}
+                              />
                             )}
-                          </TableBody>
-                        </Table>
-                      </Card>
+                          </CardContent>
+                        </Card>
 
-                      <Card>
-                        <CardHeader className="p-3 border-b bg-amber-50/10">
-                          <CardTitle className="text-sm font-bold flex items-center gap-2">
-                            <Search className="w-3 h-3 text-amber-600" /> Comentários da Fiscalização
-                          </CardTitle>
-                        </CardHeader>
-                        <CardContent className="p-3">
-                          {readonly ? (
-                            <p className="text-sm text-gray-600 leading-relaxed whitespace-pre-wrap">
-                              {selectedReport.fiscalizationComments || "Nenhum comentário registrado."}
-                            </p>
-                          ) : (
-                            <textarea 
-                              className="w-full text-sm p-2 border rounded-md min-h-[80px] focus:ring-1 focus:ring-amber-500 outline-none"
-                              placeholder="Insira os comentários ou apontamentos da fiscalização..."
-                              value={selectedReport.fiscalizationComments || ""}
-                              onChange={e => onUpdate({...selectedReport, fiscalizationComments: e.target.value})}
-                            />
-                          )}
-                        </CardContent>
-                      </Card>
+                        <Card className="border border-red-100 shadow-sm bg-red-50/5 rounded-2xl overflow-hidden">
+                          <CardHeader className="p-4 border-b border-red-100 bg-red-50/20">
+                            <CardTitle className="text-xs font-black uppercase tracking-wider text-red-800 flex items-center gap-2">
+                              <AlertTriangle className="w-4 h-4 text-red-600" /> Relato de Ocorrências / Segurança
+                            </CardTitle>
+                          </CardHeader>
+                          <CardContent className="p-4">
+                            {readonly ? (
+                              <p className="text-xs text-gray-600 leading-relaxed font-bold whitespace-pre-wrap">
+                                {selectedReport.accidents || "Nenhum incidente de segurança mapeado."}
+                              </p>
+                            ) : (
+                              <textarea 
+                                className="w-full text-xs font-medium p-3 border border-red-100 bg-red-50/10 rounded-xl min-h-[90px] focus:ring-1 focus:ring-red-500 outline-none"
+                                placeholder="Registro detalhado de anomalias, acidentes ou quebras operacionais..."
+                                value={selectedReport.accidents || ""}
+                                onChange={e => onUpdate({...selectedReport, accidents: e.target.value})}
+                              />
+                            )}
+                          </CardContent>
+                        </Card>
+                      </div>
 
-                      <Card>
-                        <CardHeader className="p-3 border-b bg-red-50/10">
-                          <CardTitle className="text-sm font-bold flex items-center gap-2">
-                            <AlertTriangle className="w-3 h-3 text-red-600" /> Ocorrências / Acidentes
-                          </CardTitle>
-                        </CardHeader>
-                        <CardContent className="p-3">
-                          <p className="text-sm text-gray-600 leading-relaxed whitespace-pre-wrap">
-                            {selectedReport.accidents || "Nenhuma ocorrência registrada para este dia."}
-                          </p>
-                        </CardContent>
+                      {/* Resident Stamp layout showing digital signatures */}
+                      <Card className="border border-gray-100 bg-gray-50/30 rounded-2xl p-6">
+                        <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest block mb-4 text-center">VALIDAÇÃO DIGITAL DO DIÁRIO</span>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 text-center">
+                          <div className="flex flex-col items-center">
+                            <div className="w-40 border-b border-gray-300 pb-1 mb-2 font-mono text-[9px] text-gray-400">
+                              Validação por biometria via App
+                            </div>
+                            <span className="text-xs font-black uppercase text-gray-700">Engenheiro Responsável</span>
+                            <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">RESPONSÁVEL TÉCNICO (CREA)</span>
+                          </div>
+                          <div className="flex flex-col items-center">
+                            <div className="w-40 border-b border-gray-300 pb-1 mb-2 font-mono text-[9px] text-gray-300 italic">
+                              Aguardando assinatura
+                            </div>
+                            <span className="text-xs font-black uppercase text-gray-400">Fiscal do Contrato</span>
+                            <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">REPRESENTANTE DO CLIENTE</span>
+                          </div>
+                        </div>
                       </Card>
                     </div>
                   </ScrollArea>
                 </div>
               ) : (
-                <div className="h-[calc(100vh-360px)] flex flex-col items-center justify-center bg-white border rounded-2xl border-dashed">
-                  <Calendar className="w-16 h-16 text-gray-200 mb-4" />
-                  <h3 className="text-gray-400 font-medium text-base">Nenhum relatório selecionado</h3>
-                  <p className="text-gray-300 text-sm mt-2">Crie um RDO para começar o acompanhamento diário.</p>
+                <div className="h-[calc(100vh-360px)] flex flex-col items-center justify-center bg-white border border-gray-100 rounded-2xl shadow-sm border-dashed">
+                  <Calendar className="w-16 h-16 text-gray-200 mb-4 animate-pulse" />
+                  <h3 className="text-gray-500 font-black uppercase text-xs tracking-wider">Nenhum diário de obra selecionado</h3>
+                  <p className="text-gray-400 text-xs mt-1 font-bold uppercase tracking-wider">Selecione ou adicione um relatório no painel de controle lateral.</p>
                 </div>
               )}
             </div>
@@ -860,6 +985,8 @@ interface PluviometryViewProps {
 export function PluviometryView({ contract, records, onAdd, onUpdate, readonly }: PluviometryViewProps) {
   const [currentMonth, setCurrentMonth] = useState(new Date().getMonth());
   const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
+  const [activeTab, setActiveTab] = useState<'table' | 'chart'>('table');
+  const [hoveredDay, setHoveredDay] = useState<number | null>(null);
 
   const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
   const monthDays = Array.from({ length: daysInMonth }, (_, i) => i + 1);
@@ -889,133 +1016,419 @@ export function PluviometryView({ contract, records, onAdd, onUpdate, readonly }
     }
   };
 
+  const stats = React.useMemo(() => {
+    let nightBom = 0, nightChuva = 0, nightImp = 0;
+    let morningBom = 0, morningChuva = 0, morningImp = 0;
+    let afternoonBom = 0, afternoonChuva = 0, afternoonImp = 0;
+    let totalRain = 0;
+
+    monthDays.forEach(day => {
+      const rec = getRecordForDay(day);
+      const night = rec?.nightStatus || 'Bom';
+      const morning = rec?.morningStatus || 'Bom';
+      const afternoon = rec?.afternoonStatus || 'Bom';
+      
+      if (night === 'Bom') nightBom++;
+      else if (night === 'Chuvoso') nightChuva++;
+      else if (night === 'Impraticável') nightImp++;
+
+      if (morning === 'Bom') morningBom++;
+      else if (morning === 'Chuvoso') morningChuva++;
+      else if (morning === 'Impraticável') morningImp++;
+
+      if (afternoon === 'Bom') afternoonBom++;
+      else if (afternoon === 'Chuvoso') afternoonChuva++;
+      else if (afternoon === 'Impraticável') afternoonImp++;
+
+      totalRain += rec?.rainfallMm || 0;
+    });
+
+    return {
+      night: { bom: nightBom, chuva: nightChuva, imp: nightImp },
+      morning: { bom: morningBom, chuva: morningChuva, imp: morningImp },
+      afternoon: { bom: afternoonBom, chuva: afternoonChuva, imp: afternoonImp },
+      totalRain
+    };
+  }, [records, monthDays, currentMonth, currentYear]);
+
+  // Polar to Cartesian Helper for SVG graphics
+  const polarToCartesian = (centerX: number, centerY: number, radius: number, angleInDegrees: number) => {
+    const angleInRadians = ((angleInDegrees - 90) * Math.PI) / 180.0;
+    return {
+      x: centerX + radius * Math.cos(angleInRadians),
+      y: centerY + radius * Math.sin(angleInRadians),
+    };
+  };
+
+  // Generate Arc Segment SVG Path Helper
+  const describeArcSegment = (x: number, y: number, rInner: number, rOuter: number, startAngle: number, endAngle: number) => {
+    const start = polarToCartesian(x, y, rOuter, endAngle);
+    const end = polarToCartesian(x, y, rOuter, startAngle);
+    const startInner = polarToCartesian(x, y, rInner, endAngle);
+    const endInner = polarToCartesian(x, y, rInner, startAngle);
+    
+    const largeArcFlag = endAngle - startAngle <= 180 ? "0" : "1";
+    
+    return [
+      "M", start.x, start.y,
+      "A", rOuter, rOuter, 0, largeArcFlag, 0, end.x, end.y,
+      "L", endInner.x, endInner.y,
+      "A", rInner, rInner, 0, largeArcFlag, 1, startInner.x, startInner.y,
+      "Z"
+    ].join(" ");
+  };
+
+  const getStatusColor = (status: 'Bom' | 'Chuvoso' | 'Impraticável') => {
+    if (status === 'Bom') return '#eab308'; // Amarelo
+    if (status === 'Chuvoso') return '#3b82f6'; // Azul
+    return '#dc2626'; // Vermelho (Impraticável)
+  };
+
+  const hoveredRecord = hoveredDay ? getRecordForDay(hoveredDay) : null;
+  const monthNames = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-bold text-gray-900">Controle Pluviométrico</h2>
-          <p className="text-gray-500">Acompanhamento climático e medição de precipitação.</p>
+          <h2 className="text-2xl font-black text-gray-950 uppercase tracking-tight flex items-center gap-2">
+            <CloudRain className="w-6 h-6 text-blue-600 animate-bounce" />
+            Controle Pluviométrico
+          </h2>
+          <p className="text-gray-500 font-bold uppercase text-xs tracking-wider">Acompanhamento climático e medição de precipitação em tempo real.</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 shrink-0 self-end md:self-auto">
             <Select value={currentMonth.toString()} onValueChange={v => setCurrentMonth(parseInt(v))}>
-                <SelectTrigger className="w-32 h-9 text-sm"><SelectValue /></SelectTrigger>
+                <SelectTrigger className="w-32 h-9 text-xs font-black uppercase"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                    {['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'].map((m, i) => (
-                        <SelectItem key={i} value={i.toString()}>{m}</SelectItem>
+                    {monthNames.map((m, i) => (
+                        <SelectItem key={i} value={i.toString()} className="text-xs font-bold uppercase">{m}</SelectItem>
                     ))}
                 </SelectContent>
             </Select>
             <Select value={currentYear.toString()} onValueChange={v => setCurrentYear(parseInt(v))}>
-                <SelectTrigger className="w-24 h-9 text-sm"><SelectValue /></SelectTrigger>
+                <SelectTrigger className="w-24 h-9 text-xs font-black uppercase"><SelectValue /></SelectTrigger>
                 <SelectContent>
                     {[2024, 2025, 2026, 2027, 2028].map(y => (
-                        <SelectItem key={y} value={y.toString()}>{y}</SelectItem>
+                        <SelectItem key={y} value={y.toString()} className="text-xs font-bold uppercase">{y}</SelectItem>
                     ))}
                 </SelectContent>
             </Select>
         </div>
       </div>
 
-      <Card className="overflow-hidden">
-        <div className="overflow-x-auto">
-          <Table>
-            <TableHeader className="bg-gray-50">
-              <TableRow>
-                <TableHead className="w-20 text-center font-bold text-sm uppercase">Dia</TableHead>
-                <TableHead className="text-center font-bold text-sm uppercase bg-blue-50/30">Noite Anterior</TableHead>
-                <TableHead className="text-center font-bold text-sm uppercase bg-blue-50/50">Manhã</TableHead>
-                <TableHead className="text-center font-bold text-sm uppercase bg-blue-50/70">Tarde</TableHead>
-                <TableHead className="w-32 text-center font-bold text-sm uppercase">Chuva (mm)</TableHead>
-                <TableHead className="font-bold text-sm uppercase">Impacto na Obra</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {monthDays.map(day => {
-                const record = getRecordForDay(day);
-                const isRainy = (record?.morningStatus === 'Chuvoso' || record?.afternoonStatus === 'Chuvoso');
-                const isImpraticable = (record?.morningStatus === 'Impraticável' || record?.afternoonStatus === 'Impraticável');
+      <Tabs value={activeTab} onValueChange={v => setActiveTab(v as any)} className="w-full">
+        <TabsList className="mb-4 bg-gray-100 p-1 rounded-xl">
+          <TabsTrigger value="table" className="flex items-center gap-2 rounded-lg font-black uppercase text-xs tracking-widest px-4 py-2">
+            <FileSpreadsheet className="w-4 h-4" /> Planilha de Dados
+          </TabsTrigger>
+          <TabsTrigger value="chart" className="flex items-center gap-2 rounded-lg font-black uppercase text-xs tracking-widest px-4 py-2">
+            <Activity className="w-4 h-4" /> Gráfico Circular 3 Camadas
+          </TabsTrigger>
+        </TabsList>
 
-                return (
-                  <TableRow key={day} className={cn(isImpraticable ? "bg-red-50/30" : isRainy ? "bg-blue-50/20" : "")}>
-                    <TableCell className="text-center font-bold text-gray-400">
-                      <div className="flex flex-col items-center leading-tight">
-                        <span className="text-sm text-gray-300 uppercase leading-none mb-0.5">
-                          {(() => {
-                            const date = new Date(currentYear, currentMonth, day, 12);
-                            return date.toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.', '');
-                          })()}
-                        </span>
-                        <span>{String(day).padStart(2, '0')}</span>
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-center">
-                      <Select 
-                        disabled={readonly}
-                        value={record?.nightStatus || 'Bom'} 
-                        onValueChange={v => handleUpdate(day, 'nightStatus', v)}
-                      >
-                        <SelectTrigger className="h-8 text-sm w-28 mx-auto"><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="Bom">☀️ Bom</SelectItem>
-                          <SelectItem value="Chuvoso">🌧️ Chuvoso</SelectItem>
-                          <SelectItem value="Impraticável">🛑 Impraticável</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </TableCell>
-                    <TableCell className="text-center">
-                      <Select 
-                        disabled={readonly}
-                        value={record?.morningStatus || 'Bom'} 
-                        onValueChange={v => handleUpdate(day, 'morningStatus', v)}
-                      >
-                        <SelectTrigger className="h-8 text-sm w-28 mx-auto"><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="Bom">☀️ Bom</SelectItem>
-                          <SelectItem value="Chuvoso">🌧️ Chuvoso</SelectItem>
-                          <SelectItem value="Impraticável">🛑 Impraticável</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </TableCell>
-                    <TableCell className="text-center">
-                      <Select 
-                        disabled={readonly}
-                        value={record?.afternoonStatus || 'Bom'} 
-                        onValueChange={v => handleUpdate(day, 'afternoonStatus', v)}
-                      >
-                        <SelectTrigger className="h-8 text-sm w-28 mx-auto"><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="Bom">☀️ Bom</SelectItem>
-                          <SelectItem value="Chuvoso">🌧️ Chuvoso</SelectItem>
-                          <SelectItem value="Impraticável">🛑 Impraticável</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </TableCell>
-                    <TableCell className="text-center">
-                      <Input 
-                        disabled={readonly}
-                        type="number" 
-                        step="0.1"
-                        className="h-8 text-center text-sm w-24 mx-auto font-bold" 
-                        value={record?.rainfallMm || 0}
-                        onChange={e => handleUpdate(day, 'rainfallMm', parseFloat(e.target.value) || 0)}
-                      />
-                    </TableCell>
-                    <TableCell>
-                      {isImpraticable ? (
-                        <Badge className="bg-red-600">Paralisação Total</Badge>
-                      ) : isRainy ? (
-                        <Badge variant="outline" className="text-blue-600 border-blue-200">Trabalho sob chuva</Badge>
-                      ) : (
-                        <span className="text-sm text-gray-300">Nenhum impacto</span>
-                      )}
-                    </TableCell>
+        <TabsContent value="table">
+          <Card className="overflow-hidden border border-gray-100 shadow-sm rounded-2xl">
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader className="bg-gray-50">
+                  <TableRow>
+                    <TableHead className="w-20 text-center font-black text-xs uppercase tracking-wider text-gray-505">Dia</TableHead>
+                    <TableHead className="text-center font-black text-xs uppercase tracking-wider text-gray-505 bg-blue-50/20">Noite Anterior</TableHead>
+                    <TableHead className="text-center font-black text-xs uppercase tracking-wider text-gray-505 bg-blue-50/40">Manhã</TableHead>
+                    <TableHead className="text-center font-black text-xs uppercase tracking-wider text-gray-505 bg-blue-50/60">Tarde</TableHead>
+                    <TableHead className="w-32 text-center font-black text-xs uppercase tracking-wider text-gray-505">Chuva (mm)</TableHead>
+                    <TableHead className="font-black text-xs uppercase tracking-wider text-gray-505">Impacto na Obra</TableHead>
                   </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
-        </div>
-      </Card>
+                </TableHeader>
+                <TableBody>
+                  {monthDays.map(day => {
+                    const record = getRecordForDay(day);
+                    const isRainy = (record?.morningStatus === 'Chuvoso' || record?.afternoonStatus === 'Chuvoso');
+                    const isImpraticable = (record?.morningStatus === 'Impraticável' || record?.afternoonStatus === 'Impraticável');
+
+                    return (
+                      <TableRow key={day} className={cn(isImpraticable ? "bg-red-50/30 font-bold" : isRainy ? "bg-blue-50/20" : "")}>
+                        <TableCell className="text-center font-bold text-gray-600 border-r">
+                          <div className="flex flex-col items-center leading-tight">
+                            <span className="text-[10px] text-gray-400 font-bold uppercase leading-none mb-0.5">
+                              {(() => {
+                                const date = new Date(currentYear, currentMonth, day, 12);
+                                return date.toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.', '');
+                              })()}
+                            </span>
+                            <span className="text-sm font-mono font-black">{String(day).padStart(2, '0')}</span>
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <Select 
+                            disabled={readonly}
+                            value={record?.nightStatus || 'Bom'} 
+                            onValueChange={v => handleUpdate(day, 'nightStatus', v)}
+                          >
+                            <SelectTrigger className="h-8 text-xs font-bold w-32 mx-auto rounded-lg"><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="Bom" className="text-xs font-semibold">☀️ Bom</SelectItem>
+                              <SelectItem value="Chuvoso" className="text-xs font-semibold text-blue-600">🌧️ Chuvoso</SelectItem>
+                              <SelectItem value="Impraticável" className="text-xs font-semibold text-red-600">🛑 Impraticável</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <Select 
+                            disabled={readonly}
+                            value={record?.morningStatus || 'Bom'} 
+                            onValueChange={v => handleUpdate(day, 'morningStatus', v)}
+                          >
+                            <SelectTrigger className="h-8 text-xs font-bold w-32 mx-auto rounded-lg"><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="Bom" className="text-xs font-semibold">☀️ Bom</SelectItem>
+                              <SelectItem value="Chuvoso" className="text-xs font-semibold text-blue-600">🌧️ Chuvoso</SelectItem>
+                              <SelectItem value="Impraticável" className="text-xs font-semibold text-red-600">🛑 Impraticável</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <Select 
+                            disabled={readonly}
+                            value={record?.afternoonStatus || 'Bom'} 
+                            onValueChange={v => handleUpdate(day, 'afternoonStatus', v)}
+                          >
+                            <SelectTrigger className="h-8 text-xs font-bold w-32 mx-auto rounded-lg"><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="Bom" className="text-xs font-semibold">☀️ Bom</SelectItem>
+                              <SelectItem value="Chuvoso" className="text-xs font-semibold text-blue-600">🌧️ Chuvoso</SelectItem>
+                              <SelectItem value="Impraticável" className="text-xs font-semibold text-red-600">🛑 Impraticável</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </TableCell>
+                        <TableCell className="text-center border-l">
+                          <Input 
+                            disabled={readonly}
+                            type="number" 
+                            step="0.1"
+                            className="h-8 text-center text-xs w-24 mx-auto font-mono font-black" 
+                            value={record?.rainfallMm || 0}
+                            onChange={e => handleUpdate(day, 'rainfallMm', parseFloat(e.target.value) || 0)}
+                          />
+                        </TableCell>
+                        <TableCell className="border-l">
+                          {isImpraticable ? (
+                            <Badge className="bg-red-600 hover:bg-red-700 font-extrabold uppercase text-[10px] tracking-wider rounded-lg px-2 py-0.5">Paralisação Total</Badge>
+                          ) : isRainy ? (
+                            <Badge variant="outline" className="text-blue-600 border-blue-200 bg-blue-50/40 font-extrabold uppercase text-[10px] tracking-wider rounded-lg px-2 py-0.5">Trabalho sob chuva</Badge>
+                          ) : (
+                            <span className="text-xs text-gray-400 font-bold uppercase">Produtivo / Bom Estado</span>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </div>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="chart">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+            {/* SVG Donut Wheel */}
+            <div className="lg:col-span-5 bg-white p-6 border border-gray-100 rounded-2xl shadow-sm flex flex-col items-center">
+              <span className="text-xs font-black uppercase text-gray-400 tracking-wider mb-6 block text-center">Gráfico Rosca Concentrico 3 Camadas</span>
+              
+              <div className="relative w-72 h-72">
+                <svg className="w-full h-full overflow-visible" viewBox="0 0 300 300">
+                  {/* Central Help Circle for visual beauty */}
+                  <circle cx="150" cy="150" r="44" className="fill-gray-50 stroke-gray-100" strokeWidth="1" />
+
+                  {monthDays.map((day) => {
+                    const anglePerDay = 360 / daysInMonth;
+                    const gap = 1.5; // Gap for extreme professional styling grid separators
+                    const startAngle = (day - 1) * anglePerDay;
+                    const endAngle = day * anglePerDay - gap;
+
+                    const rec = getRecordForDay(day);
+                    const nightCol = getStatusColor(rec?.nightStatus || 'Bom');
+                    const morningCol = getStatusColor(rec?.morningStatus || 'Bom');
+                    const afternoonCol = getStatusColor(rec?.afternoonStatus || 'Bom');
+
+                    return (
+                      <g 
+                        key={day} 
+                        className="cursor-pointer transition-all duration-200 hover:opacity-80"
+                        onMouseEnter={() => setHoveredDay(day)}
+                        onMouseLeave={() => setHoveredDay(null)}
+                      >
+                        {/* Layer 1: Noite Anterior (Inner) */}
+                        <path 
+                          d={describeArcSegment(150, 150, 48, 68, startAngle, endAngle)}
+                          fill={nightCol}
+                          className="transition-all"
+                        />
+
+                        {/* Layer 2: Manhã (Middle) */}
+                        <path 
+                          d={describeArcSegment(150, 150, 72, 92, startAngle, endAngle)}
+                          fill={morningCol}
+                          className="transition-all"
+                        />
+
+                        {/* Layer 3: Tarde (Outer) */}
+                        <path 
+                          d={describeArcSegment(150, 150, 96, 116, startAngle, endAngle)}
+                          fill={afternoonCol}
+                          className="transition-all"
+                        />
+                      </g>
+                    );
+                  })}
+
+                  {/* Centered dynamically updated tooltip */}
+                  {hoveredDay ? (
+                    <g pointerEvents="none">
+                      <text x="150" y="125" textAnchor="middle" className="text-[10px] font-black uppercase tracking-wider fill-gray-400">Dia</text>
+                      <text x="150" y="152" textAnchor="middle" className="text-2xl font-black fill-gray-900 font-mono">{String(hoveredDay).padStart(2, '0')}</text>
+                      <text x="150" y="172" textAnchor="middle" className="text-[10px] font-bold fill-blue-600">{hoveredRecord?.rainfallMm || 0} mm</text>
+                    </g>
+                  ) : (
+                    <g pointerEvents="none">
+                      <text x="150" y="128" textAnchor="middle" className="text-[9px] font-black uppercase tracking-wider fill-gray-400 leading-none">Chuva Total</text>
+                      <text x="150" y="152" textAnchor="middle" className="text-lg font-black fill-blue-600 font-mono leading-none">{stats.totalRain.toFixed(1)}</text>
+                      <text x="150" y="168" textAnchor="middle" className="text-[9px] font-black uppercase tracking-wider fill-gray-400 font-mono">mm</text>
+                    </g>
+                  )}
+                </svg>
+              </div>
+
+              {/* Graphic Info Alert details inside Dial Center */}
+              <p className="text-center text-[10px] font-black uppercase tracking-wider text-gray-400 mt-6 leading-relaxed">
+                Passe o mouse por cima dos setores para ver as condições diárias.
+              </p>
+            </div>
+
+            {/* Side statistics, Color Legend & Layers Explanation */}
+            <div className="lg:col-span-7 space-y-4">
+              <Card className="border border-gray-100 shadow-sm rounded-2xl overflow-hidden">
+                <div className="bg-gray-50 border-b border-gray-100 p-4">
+                  <h4 className="font-black text-sm uppercase text-gray-800 tracking-tight">Legenda Climática do Diário</h4>
+                </div>
+                <div className="p-4 grid grid-cols-3 gap-4">
+                  <div className="flex items-center gap-2 p-3 bg-amber-50 rounded-xl border border-amber-100">
+                    <span className="w-5 h-5 rounded-md inline-block" style={{ backgroundColor: '#eab308' }} />
+                    <div className="leading-tight">
+                      <span className="text-xs font-black uppercase text-amber-800 block">Bom</span>
+                      <span className="text-[10px] font-bold text-amber-400 uppercase">Tempo Estável</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 p-3 bg-blue-50 rounded-xl border border-blue-100">
+                    <span className="w-5 h-5 rounded-md inline-block" style={{ backgroundColor: '#3b82f6' }} />
+                    <div className="leading-tight">
+                      <span className="text-xs font-black uppercase text-blue-800 block">Chuva</span>
+                      <span className="text-[10px] font-bold text-blue-400 uppercase">Sob Precipitação</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 p-3 bg-red-50 rounded-xl border border-red-100">
+                    <span className="w-5 h-5 rounded-md inline-block" style={{ backgroundColor: '#dc2626' }} />
+                    <div className="leading-tight">
+                      <span className="text-xs font-black uppercase text-red-800 block font-bold">Impraticável</span>
+                      <span className="text-[10px] font-bold text-red-400 uppercase">Paralisação</span>
+                    </div>
+                  </div>
+                </div>
+              </Card>
+
+              {/* Tiers Layers Explanation and counts */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {/* Concentric Layers breakdown */}
+                <div className="bg-white p-4 border border-gray-100 rounded-2xl shadow-sm space-y-3">
+                  <div className="flex items-center justify-between border-b pb-2">
+                    <span className="text-xs font-black uppercase text-gray-500">Camada Externa (Tarde)</span>
+                  </div>
+                  <div className="text-xs space-y-1.5 font-bold uppercase">
+                    <div className="flex justify-between">
+                      <span className="text-gray-400">☀️ Bons:</span>
+                      <span className="text-amber-500 font-mono font-black">{stats.afternoon.bom} dias</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-400">🌧️ Chuvas:</span>
+                      <span className="text-blue-500 font-mono font-black">{stats.afternoon.chuva} dias</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-400">🛑 Imprat.:</span>
+                      <span className="text-red-500 font-mono font-black">{stats.afternoon.imp} dias</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="bg-white p-4 border border-gray-100 rounded-2xl shadow-sm space-y-3">
+                  <div className="flex items-center justify-between border-b pb-2">
+                    <span className="text-xs font-black uppercase text-gray-500">Camada Média (Manhã)</span>
+                  </div>
+                  <div className="text-xs space-y-1.5 font-bold uppercase">
+                    <div className="flex justify-between">
+                      <span className="text-gray-400">☀️ Bons:</span>
+                      <span className="text-amber-500 font-mono font-black">{stats.morning.bom} dias</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-400">🌧️ Chuvas:</span>
+                      <span className="text-blue-500 font-mono font-black">{stats.morning.chuva} dias</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-400">🛑 Imprat.:</span>
+                      <span className="text-red-500 font-mono font-black">{stats.morning.imp} dias</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="bg-white p-4 border border-gray-100 rounded-2xl shadow-sm space-y-3">
+                  <div className="flex items-center justify-between border-b pb-2">
+                    <span className="text-xs font-black uppercase text-gray-500">Camada Interna (Noite)</span>
+                  </div>
+                  <div className="text-xs space-y-1.5 font-bold uppercase">
+                    <div className="flex justify-between">
+                      <span className="text-gray-400">☀️ Bons:</span>
+                      <span className="text-amber-500 font-mono font-black">{stats.night.bom} dias</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-400">🌧️ Chuvas:</span>
+                      <span className="text-blue-500 font-mono font-black">{stats.night.chuva} dias</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-400">🛑 Imprat.:</span>
+                      <span className="text-red-500 font-mono font-black">{stats.night.imp} dias</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Hover day detailed info card inside graph layout */}
+              {hoveredDay && hoveredRecord && (
+                <div className="bg-blue-50 border border-blue-100 p-4 rounded-2xl flex flex-col gap-2">
+                  <span className="text-[10px] font-black uppercase tracking-wider text-blue-400 block">Detalhamento do Dia sob o Cursor</span>
+                  <div className="grid grid-cols-4 gap-2 text-xs font-black uppercase">
+                    <div className="bg-white/80 p-2.5 rounded-lg border border-blue-50">
+                      <span className="text-[9px] text-gray-400 block leading-tight">DIA</span>
+                      <span className="text-blue-700 font-mono text-sm leading-tight block">{String(hoveredDay).padStart(2, '0')}/{String(currentMonth + 1).padStart(2, '0')}</span>
+                    </div>
+                    <div className="bg-white/80 p-2.5 rounded-lg border border-blue-50">
+                      <span className="text-[9px] text-gray-400 block leading-tight">NOITE ANT.</span>
+                      <span className="text-gray-800 text-sm leading-tight block">{hoveredRecord.nightStatus === 'Bom' ? '☀️ Bom' : hoveredRecord.nightStatus === 'Chuvoso' ? '🌧️ Chuva' : '🛑 Imprat.'}</span>
+                    </div>
+                    <div className="bg-white/80 p-2.5 rounded-lg border border-blue-50">
+                      <span className="text-[9px] text-gray-400 block leading-tight">MANHÃ</span>
+                      <span className="text-gray-800 text-sm leading-tight block">{hoveredRecord.morningStatus === 'Bom' ? '☀️ Bom' : hoveredRecord.morningStatus === 'Chuvoso' ? '🌧️ Chuva' : '🛑 Imprat.'}</span>
+                    </div>
+                    <div className="bg-white/80 p-2.5 rounded-lg border border-blue-50">
+                      <span className="text-[9px] text-gray-400 block leading-tight">TARDE</span>
+                      <span className="text-gray-800 text-sm leading-tight block">{hoveredRecord.afternoonStatus === 'Bom' ? '☀️ Bom' : hoveredRecord.afternoonStatus === 'Chuvoso' ? '🌧️ Chuva' : '🛑 Imprat.'}</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
@@ -1499,6 +1912,17 @@ export function TechnicalScheduleView({
   });
   // ------------------------
 
+  const onUpdateRef = React.useRef(onUpdate);
+  const readonlyRef = React.useRef(readonly);
+
+  React.useEffect(() => {
+    onUpdateRef.current = onUpdate;
+  }, [onUpdate]);
+
+  React.useEffect(() => {
+    readonlyRef.current = readonly;
+  }, [readonly]);
+
   // Sync to local draft every 5 seconds if dirty
   React.useEffect(() => {
     if (isDirty.current) {
@@ -1520,7 +1944,7 @@ export function TechnicalScheduleView({
       const timer = setTimeout(async () => {
         setIsSaving(true);
         try {
-          await onUpdate(localSchedule);
+          await onUpdateRef.current(localSchedule);
           if (scheduleRef.current === localSchedule) {
             isDirty.current = false;
             setHasUnsavedChanges(false);
@@ -1533,19 +1957,19 @@ export function TechnicalScheduleView({
       }, 120000); // 2 minutes
       return () => clearTimeout(timer);
     }
-  }, [localSchedule, onUpdate, readonly]);
+  }, [localSchedule, readonly]);
 
   // Clean up on unmount
   React.useEffect(() => {
     return () => {
-      if (isDirty.current && !readonly && scheduleRef.current) {
-        const result = onUpdate(scheduleRef.current);
+      if (isDirty.current && !readonlyRef.current && scheduleRef.current) {
+        const result = onUpdateRef.current(scheduleRef.current);
         if (result && result.catch) {
           result.catch(console.error);
         }
       }
     };
-  }, [readonly, onUpdate]);
+  }, []);
 
   const groupsToRender = React.useMemo(() => {
     const groups = [...(contract.groups || [])];
@@ -1588,19 +2012,26 @@ export function TechnicalScheduleView({
   // Sync only if NOT dirty to prevent overwriting user input while it's being saved
   React.useEffect(() => {
     const existing = technicalSchedules.find(s => s.contractId === contract.id);
-    if (existing && !isDirty.current) {
-      setLocalSchedule(existing);
-    } else if (!existing && !isDirty.current) {
-      setLocalSchedule({
-        id: uuidv4(),
-        contractId: contract.id,
-        startDate: contract.startDate || new Date().toISOString().split('T')[0],
-        duration: 6,
-        timeUnit: 'months',
-        services: budgetItems.map(bi => ({ serviceId: bi.serviceId, distribution: [] }))
-      });
+    if (!isDirty.current) {
+      if (existing) {
+        if (localSchedule?.id !== existing.id) {
+          setLocalSchedule(existing);
+        }
+      } else {
+        const isAlreadyInitialized = localSchedule?.contractId === contract.id;
+        if (!isAlreadyInitialized) {
+          setLocalSchedule({
+            id: uuidv4(),
+            contractId: contract.id,
+            startDate: contract.startDate || new Date().toISOString().split('T')[0],
+            duration: 6,
+            timeUnit: 'months',
+            services: budgetItems.map(bi => ({ serviceId: bi.serviceId, distribution: [] }))
+          });
+        }
+      }
     }
-  }, [contract.id, technicalSchedules, budgetItems]);
+  }, [contract.id, technicalSchedules, budgetItems, localSchedule?.id, localSchedule?.contractId]);
 
   const updateLocalSchedule = (updates: Partial<TechnicalSchedule>) => {
     isDirty.current = true;

@@ -7,6 +7,7 @@ import { formatNumber } from '../lib/utils';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
+import { NumericInput } from '@/components/ui/numeric-input';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 
@@ -19,8 +20,7 @@ interface BDIViewProps {
 export function BDIView({ bdiConfig, setBdiConfig }: BDIViewProps) {
   const bdiValue = calculateBDI(bdiConfig);
 
-  const handleChange = (field: keyof BDIConfig, value: string) => {
-    const numValue = parseFloat(value) || 0;
+  const handleChange = (field: keyof BDIConfig, numValue: number) => {
     setBdiConfig({
       ...bdiConfig,
       [field]: numValue
@@ -58,12 +58,10 @@ export function BDIView({ bdiConfig, setBdiConfig }: BDIViewProps) {
                     <span className="text-sm text-gray-400 font-mono">{bdiConfig.ac}%</span>
                   </div>
                   <div className="relative">
-                    <Input 
+                    <NumericInput 
                       id="ac"
-                      type="number"
-                      step="0.01"
                       value={bdiConfig.ac}
-                      onChange={(e) => handleChange('ac', e.target.value)}
+                      onChange={(val) => handleChange('ac', val)}
                       className="pr-8"
                     />
                     <Percent className="w-4 h-4 text-gray-400 absolute right-3 top-1/2 -translate-y-1/2" />
@@ -76,12 +74,10 @@ export function BDIView({ bdiConfig, setBdiConfig }: BDIViewProps) {
                     <span className="text-sm text-gray-400 font-mono">{bdiConfig.s}%</span>
                   </div>
                   <div className="relative">
-                    <Input 
+                    <NumericInput 
                       id="s"
-                      type="number"
-                      step="0.01"
                       value={bdiConfig.s}
-                      onChange={(e) => handleChange('s', e.target.value)}
+                      onChange={(val) => handleChange('s', val)}
                       className="pr-8"
                     />
                     <Percent className="w-4 h-4 text-gray-400 absolute right-3 top-1/2 -translate-y-1/2" />
@@ -94,12 +90,10 @@ export function BDIView({ bdiConfig, setBdiConfig }: BDIViewProps) {
                     <span className="text-sm text-gray-400 font-mono">{bdiConfig.r}%</span>
                   </div>
                   <div className="relative">
-                    <Input 
+                    <NumericInput 
                       id="r"
-                      type="number"
-                      step="0.01"
                       value={bdiConfig.r}
-                      onChange={(e) => handleChange('r', e.target.value)}
+                      onChange={(val) => handleChange('r', val)}
                       className="pr-8"
                     />
                     <Percent className="w-4 h-4 text-gray-400 absolute right-3 top-1/2 -translate-y-1/2" />
@@ -112,12 +106,10 @@ export function BDIView({ bdiConfig, setBdiConfig }: BDIViewProps) {
                     <span className="text-sm text-gray-400 font-mono">{bdiConfig.g}%</span>
                   </div>
                   <div className="relative">
-                    <Input 
+                    <NumericInput 
                       id="g"
-                      type="number"
-                      step="0.01"
                       value={bdiConfig.g}
-                      onChange={(e) => handleChange('g', e.target.value)}
+                      onChange={(val) => handleChange('g', val)}
                       className="pr-8"
                     />
                     <Percent className="w-4 h-4 text-gray-400 absolute right-3 top-1/2 -translate-y-1/2" />
@@ -134,12 +126,10 @@ export function BDIView({ bdiConfig, setBdiConfig }: BDIViewProps) {
                     <span className="text-sm text-gray-400 font-mono">{bdiConfig.df}%</span>
                   </div>
                   <div className="relative">
-                    <Input 
+                    <NumericInput 
                       id="df"
-                      type="number"
-                      step="0.01"
                       value={bdiConfig.df}
-                      onChange={(e) => handleChange('df', e.target.value)}
+                      onChange={(val) => handleChange('df', val)}
                       className="pr-8"
                     />
                     <Percent className="w-4 h-4 text-gray-400 absolute right-3 top-1/2 -translate-y-1/2" />
@@ -152,12 +142,10 @@ export function BDIView({ bdiConfig, setBdiConfig }: BDIViewProps) {
                     <span className="text-sm text-gray-400 font-mono">{bdiConfig.l}%</span>
                   </div>
                   <div className="relative">
-                    <Input 
+                    <NumericInput 
                       id="l"
-                      type="number"
-                      step="0.01"
                       value={bdiConfig.l}
-                      onChange={(e) => handleChange('l', e.target.value)}
+                      onChange={(val) => handleChange('l', val)}
                       className="pr-8"
                     />
                     <Percent className="w-4 h-4 text-gray-400 absolute right-3 top-1/2 -translate-y-1/2" />
@@ -170,12 +158,10 @@ export function BDIView({ bdiConfig, setBdiConfig }: BDIViewProps) {
                     <span className="text-sm text-gray-400 font-mono">{bdiConfig.i}%</span>
                   </div>
                   <div className="relative">
-                    <Input 
+                    <NumericInput 
                       id="i"
-                      type="number"
-                      step="0.01"
                       value={bdiConfig.i}
-                      onChange={(e) => handleChange('i', e.target.value)}
+                      onChange={(val) => handleChange('i', val)}
                       className="pr-8"
                     />
                     <Percent className="w-4 h-4 text-gray-400 absolute right-3 top-1/2 -translate-y-1/2" />

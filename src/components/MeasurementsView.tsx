@@ -37,6 +37,7 @@ import {
   TechnicalScheduleView 
 } from './TechnicalRoomExtensions';
 import { TechnicalReportsView } from './TechnicalReportsView';
+import { PhysicalProgressView } from './PhysicalProgressView';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -235,8 +236,8 @@ interface MeasurementsViewProps {
   onUpdateTechnicalSchedule: (s: TechnicalSchedule) => void;
   onSyncAll?: () => Promise<void>;
   schedules: any[];
-  activeSubTab: 'contracts' | 'measurements' | 'measure' | 'controls' | 'rdo' | 'pluviometria' | 'schedule' | 'teams' | 'reports' | 'summary';
-  onSetActiveSubTab: (tab: 'contracts' | 'measurements' | 'measure' | 'controls' | 'rdo' | 'pluviometria' | 'schedule' | 'teams' | 'reports' | 'summary') => void;
+  activeSubTab: 'contracts' | 'measurements' | 'measure' | 'controls' | 'physical_progress' | 'rdo' | 'pluviometria' | 'schedule' | 'teams' | 'reports' | 'summary';
+  onSetActiveSubTab: (tab: 'contracts' | 'measurements' | 'measure' | 'controls' | 'physical_progress' | 'rdo' | 'pluviometria' | 'schedule' | 'teams' | 'reports' | 'summary') => void;
   selectedContractId: string | null;
   onSetSelectedContractId: (id: string | null) => void;
   selectedMeasurementId: string | null;
@@ -1158,6 +1159,14 @@ export function MeasurementsView({
                     manpowerMonthly={manpowerMonthly}
                     equipmentMonthly={equipmentMonthly}
                     employees={employees}
+                />
+            )}
+
+            {activeSubTab === 'physical_progress' && selectedContract && (
+                <PhysicalProgressView
+                    contract={selectedContract}
+                    services={services}
+                    technicalSchedules={technicalSchedules}
                 />
             )}
 
@@ -6224,31 +6233,31 @@ function ProductionControlView({
                        <div className="grid grid-cols-2 gap-4">
                           <div className="space-y-1">
                              <Label className="text-sm font-bold">Nº Equip.</Label>
-                             <Input type="number" className="h-9" value={production.numEquip || 0} onChange={e => handleUpdate({ numEquip: e.target.valueAsNumber })} disabled={readonly} />
+                              <NumericInput className="h-9" value={production.numEquip || 0} onChange={val => handleUpdate({ numEquip: val })} disabled={readonly} decimals={0} />
                           </div>
                           <div className="space-y-1">
                              <Label className="text-sm font-bold">Dias/Mês</Label>
-                             <Input type="number" className="h-9" value={production.workDays || 0} onChange={e => handleUpdate({ workDays: e.target.valueAsNumber })} disabled={readonly} />
+                              <NumericInput className="h-9" value={production.workDays || 0} onChange={val => handleUpdate({ workDays: val })} disabled={readonly} decimals={0} />
                           </div>
                        </div>
                        <div className="grid grid-cols-2 gap-4">
                           <div className="space-y-1">
                              <Label className="text-sm font-bold">Horas/Dia</Label>
-                             <Input type="number" className="h-9" value={production.hoursDay || 0} onChange={e => handleUpdate({ hoursDay: e.target.valueAsNumber })} disabled={readonly} />
+                              <NumericInput className="h-9" value={production.hoursDay || 0} onChange={val => handleUpdate({ hoursDay: val })} disabled={readonly} decimals={1} />
                           </div>
                           <div className="space-y-1">
                              <Label className="text-sm font-bold">Prod. ({selectedService?.unit}/h)</Label>
-                             <Input type="number" className="h-9" value={production.unitHour || 0} onChange={e => handleUpdate({ unitHour: e.target.valueAsNumber })} disabled={readonly} />
+                              <NumericInput className="h-9" value={production.unitHour || 0} onChange={val => handleUpdate({ unitHour: val })} disabled={readonly} decimals={2} />
                           </div>
                        </div>
                        <div className="grid grid-cols-2 gap-4">
                           <div className="space-y-1">
                              <Label className="text-sm font-bold">Efic. (%)</Label>
-                             <Input type="number" className="h-9" value={production.efficiency || 0} onChange={e => handleUpdate({ efficiency: e.target.valueAsNumber })} disabled={readonly} />
+                              <NumericInput className="h-9" value={production.efficiency || 0} onChange={val => handleUpdate({ efficiency: val })} disabled={readonly} decimals={2} />
                           </div>
                           <div className="space-y-1">
                              <Label className="text-sm font-bold">% Chuva</Label>
-                             <Input type="number" className="h-9" value={production.rainPercent || 0} onChange={e => handleUpdate({ rainPercent: e.target.valueAsNumber })} disabled={readonly} />
+                              <NumericInput className="h-9" value={production.rainPercent || 0} onChange={val => handleUpdate({ rainPercent: val })} disabled={readonly} decimals={2} />
                           </div>
                        </div>
                        <div className="grid grid-cols-2 gap-4">
@@ -6384,6 +6393,7 @@ function ProductionControlView({
                                  tick={{ fontSize: 9, fill: '#64748b' }} 
                                  axisLine={false}
                                  tickLine={false}
+                                 tickFormatter={(v) => formatNumber(v, 0)}
                                  label={{ 
                                     value: viewMode === 'quantity' ? `Acumulado (${selectedService.unit})` : 'Acumulado (R$)', 
                                     angle: -90, 
@@ -6424,7 +6434,7 @@ function ProductionControlView({
                                     fill="#000000" 
                                     fontSize={9} 
                                     fontWeight="bold" 
-                                    formatter={(v: any) => v > 0 ? (viewMode === 'quantity' ? formatNumber(v, 1) : 'R$ ' + formatNumber(v, 0)) : ''} 
+                                    formatter={(v: any) => v > 0 ? (viewMode === 'quantity' ? formatNumber(v, 0) : 'R$ ' + formatNumber(v, 0)) : ''} 
                                   />
                                </Bar>
                                {(() => {
@@ -6446,12 +6456,12 @@ function ProductionControlView({
                                    <>
                                      {targetDailyValue > 0 && (
                                        <ReferenceLine yAxisId="right" y={targetDailyValue} stroke="#3b82f6" strokeDasharray="3 3">
-                                          <RechartsLabel position="right" fill="#3b82f6" fontSize={10} fontWeight="bold" value={`Média Prv: ${viewMode === 'quantity' ? formatNumber(targetDailyValue, 1) : 'R$ ' + formatNumber(targetDailyValue, 0)}`} />
+                                          <RechartsLabel position="right" fill="#3b82f6" fontSize={10} fontWeight="bold" value={`Média Prv: ${viewMode === 'quantity' ? formatNumber(targetDailyValue, 0) : 'R$ ' + formatNumber(targetDailyValue, 0)}`} />
                                        </ReferenceLine>
                                      )}
                                      {avgActualValue > 0 && (
                                        <ReferenceLine yAxisId="right" y={avgActualValue} stroke="#10b981" strokeDasharray="3 3">
-                                          <RechartsLabel position="right" fill="#10b981" fontSize={10} fontWeight="bold" value={`Média Exe: ${viewMode === 'quantity' ? formatNumber(avgActualValue, 1) : 'R$ ' + formatNumber(avgActualValue, 0)}`} />
+                                          <RechartsLabel position="right" fill="#10b981" fontSize={10} fontWeight="bold" value={`Média Exe: ${viewMode === 'quantity' ? formatNumber(avgActualValue, 0) : 'R$ ' + formatNumber(avgActualValue, 0)}`} />
                                        </ReferenceLine>
                                      )}
                                      {projectedAccumValue > 0 && (
@@ -6482,21 +6492,21 @@ function ProductionControlView({
                        <ScrollArea className="h-[50vh]">
                           <Table>
                              <TableHeader className="bg-gray-100/50">
-                                <TableRow className="text-xs uppercase tracking-wider">
-                                   <TableHead rowSpan={2} className="border-r font-bold w-12 align-bottom pb-4"><div className="whitespace-nowrap mx-auto flex items-center justify-center -rotate-180" style={{ writingMode: 'vertical-rl' }}>DATA/DIA</div></TableHead>
-                                   <TableHead colSpan={2} className="text-center border-r text-blue-600 font-bold bg-blue-50/30">PREVISTO</TableHead>
-                                   <TableHead colSpan={2} className="text-center border-r text-emerald-600 font-bold bg-emerald-50/30">EXECUTADO</TableHead>
-                                   <TableHead className="text-center text-red-600 font-bold bg-red-50/30">CUSTO</TableHead>
-                                   <TableHead colSpan={2} className="text-center text-amber-600 font-bold bg-amber-50/30">PROJEÇÃO</TableHead>
+                                <TableRow className="text-xs uppercase tracking-wider whitespace-nowrap">
+                                   <TableHead rowSpan={2} className="border-r font-black text-center align-middle w-24 bg-slate-100 text-slate-700 whitespace-nowrap">DATA/DIA</TableHead>
+                                   <TableHead colSpan={2} className="text-center border-r text-blue-600 font-bold bg-blue-50/30 whitespace-nowrap">PREVISTO</TableHead>
+                                   <TableHead colSpan={2} className="text-center border-r text-emerald-600 font-bold bg-emerald-50/30 whitespace-nowrap">EXECUTADO</TableHead>
+                                   {viewMode === 'financial' && <TableHead className="text-center text-red-600 font-bold bg-red-50/30 whitespace-nowrap">CUSTO</TableHead>}
+                                   <TableHead colSpan={2} className="text-center text-amber-600 font-bold bg-amber-50/30 whitespace-nowrap">PROJEÇÃO</TableHead>
                                 </TableRow>
-                                <TableRow className="text-xs uppercase tracking-wider h-32">
-                                   <TableHead className="font-bold w-10 align-bottom pb-2"><div className="whitespace-nowrap mx-auto flex items-center justify-center -rotate-180 text-blue-600" style={{ writingMode: 'vertical-rl' }}>NO DIA</div></TableHead>
-                                   <TableHead className="font-bold border-r w-10 align-bottom pb-2"><div className="whitespace-nowrap mx-auto flex items-center justify-center -rotate-180 text-blue-600" style={{ writingMode: 'vertical-rl' }}>ACUMULADO</div></TableHead>
-                                   <TableHead className="font-bold w-10 align-bottom pb-2"><div className="whitespace-nowrap mx-auto flex items-center justify-center -rotate-180 text-emerald-600" style={{ writingMode: 'vertical-rl' }}>NO DIA</div></TableHead>
-                                   <TableHead className="font-bold border-r w-10 align-bottom pb-2"><div className="whitespace-nowrap mx-auto flex items-center justify-center -rotate-180 text-emerald-600" style={{ writingMode: 'vertical-rl' }}>ACUMULADO</div></TableHead>
-                                   <TableHead className="font-bold border-r w-10 align-bottom pb-2"><div className="whitespace-nowrap mx-auto flex items-center justify-center -rotate-180 text-red-600" style={{ writingMode: 'vertical-rl' }}>CUSTO ACUM.</div></TableHead>
-                                   <TableHead className="font-bold w-10 align-bottom pb-2"><div className="whitespace-nowrap mx-auto flex items-center justify-center -rotate-180 text-amber-600" style={{ writingMode: 'vertical-rl' }}>NO DIA</div></TableHead>
-                                   <TableHead className="font-bold w-10 align-bottom pb-2"><div className="whitespace-nowrap mx-auto flex items-center justify-center -rotate-180 text-amber-600" style={{ writingMode: 'vertical-rl' }}>ACUMULADO</div></TableHead>
+                                <TableRow className="text-[10px] font-black uppercase tracking-wider text-slate-500 bg-slate-50/50 whitespace-nowrap">
+                                   <TableHead className="font-bold text-right pr-4 w-28 text-blue-600 whitespace-nowrap">NO DIA</TableHead>
+                                   <TableHead className="font-bold border-r text-right pr-4 w-32 text-blue-600 whitespace-nowrap">ACUMULADO</TableHead>
+                                   <TableHead className="font-bold text-right pr-4 w-36 text-emerald-600 whitespace-nowrap">NO DIA</TableHead>
+                                   <TableHead className="font-bold border-r text-right pr-4 w-32 text-emerald-600 whitespace-nowrap">ACUMULADO</TableHead>
+                                   {viewMode === 'financial' && <TableHead className="font-bold border-r text-right pr-4 w-32 text-red-600 whitespace-nowrap">CUSTO ACUM.</TableHead>}
+                                   <TableHead className="font-bold text-right pr-4 w-28 text-amber-600 whitespace-nowrap">NO DIA</TableHead>
+                                   <TableHead className="font-bold text-right pr-4 w-32 text-amber-600 whitespace-nowrap">ACUMULADO</TableHead>
                                 </TableRow>
                              </TableHeader>
                              <TableBody>
@@ -6519,27 +6529,28 @@ function ProductionControlView({
                                                 </span>
                                              )}
                                              <div className={viewMode === 'quantity' ? "" : "hidden"}>
-                                            <Input 
-                                               type="number" 
-                                               className="h-8 text-sm text-right font-bold bg-transparent border-transparent focus:border-emerald-200 focus:bg-white transition-all" 
-                                               value={(day.actual === undefined || day.actual === null) ? "" : day.actual} 
-                                               onChange={e => {
-                                                  const val = e.target.value;
-                                                  const newData = { ...production.dailyData };
-                                                  newData[day.date] = { ...newData[day.date], actual: val === "" ? 0 : parseFloat(val) };
-                                                  handleUpdate({ dailyData: newData });
-                                               }}
-                                               disabled={readonly}
-                                               placeholder="0,00"
-                                            />
+                                                <NumericInput 
+                                                   className="h-8 text-sm text-right font-bold bg-transparent border-transparent focus:border-emerald-200 focus:bg-white transition-all" 
+                                                   value={(day.actual === undefined || day.actual === null) ? 0 : day.actual} 
+                                                   onChange={val => {
+                                                      const newData = { ...production.dailyData };
+                                                      newData[day.date] = { ...newData[day.date], actual: val };
+                                                      handleUpdate({ dailyData: newData });
+                                                   }}
+                                                   disabled={readonly}
+                                                   placeholder="0,00"
+                                                   decimals={2}
+                                                />
                                             </div>
                                          </TableCell>
                                          
                                                                                     <TableCell className="text-right border-r font-bold text-emerald-600 bg-emerald-50/10">{formatNumber(day.displayActualAccumulated, 2)}</TableCell>
                                          
-                                         <TableCell className="text-right border-r font-bold text-red-600 bg-red-50/10">
-                                            {viewMode !== 'quantity' ? `R$ ${formatNumber(day.displayCostAccumulated, 2)}` : "-"}
-                                         </TableCell>
+                                         {viewMode === 'financial' && (
+                                            <TableCell className="text-right border-r font-bold text-red-600 bg-red-50/10 whitespace-nowrap">
+                                               R$ {formatNumber(day.displayCostAccumulated, 2)}
+                                            </TableCell>
+                                         )}
                                          
                                                                                   <TableCell className={cn("text-right", day.actual > 0 ? "text-gray-300 font-normal" : "font-bold text-amber-600")}>
                                             {formatNumber(day.displayProjected, 2)}
@@ -6560,10 +6571,12 @@ function ProductionControlView({
                                        {viewMode !== 'quantity' ? 'R$ ' : ''}
                                        {formatNumber(renderData[renderData.length-1]?.displayActualAccumulated || 0, 2)}
                                     </TableCell>
-                                   <TableCell className="text-right border-r text-red-500 font-black font-mono">
+                                   {viewMode === 'financial' && (
+                                      <TableCell className="text-right border-r text-red-500 font-black font-mono whitespace-nowrap">
                                        {viewMode !== 'quantity' ? 'R$ ' : ''}
-                                       {formatNumber(renderData[renderData.length-1]?.displayCostAccumulated || 0, 2)}
-                                    </TableCell>
+                                      {formatNumber(renderData[renderData.length-1]?.displayCostAccumulated || 0, 2)}
+                                   </TableCell>
+                                   )}
                                    <TableCell className="text-right text-amber-200/50 text-sm">-</TableCell>
                                                                        <TableCell className="text-right text-[#f59e0b] font-black font-mono">
                                        {viewMode !== 'quantity' ? 'R$ ' : ''}

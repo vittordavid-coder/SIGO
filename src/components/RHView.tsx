@@ -67,6 +67,7 @@ const EMPLOYEE_DB_COLUMNS = [
   'spouse_name', 'dependents', 'address_logradouro', 'address_number', 'address_complement',
   'address_neighborhood', 'address_city', 'address_zip_code', 'address_state', 'contract_id',
   'commuter_benefits', 'commuter_value1', 'commuter_city1', 'commuter_value2', 'commuter_city2',
+  'team', 'charges_percentage', 'overtime_percentage',
   'created_at', 'updated_at'
 ];
 
@@ -108,6 +109,7 @@ interface RHViewProps {
   onUpdateEmployees: (employees: Employee[]) => void;
   onUpdateRecords: (records: TimeRecord[]) => void;
   initialTab?: string;
+  controllerTeams?: ControllerTeam[];
 }
 
 export default function RHView({ 
@@ -119,7 +121,8 @@ export default function RHView({
   onUpdateContractId,
   onUpdateEmployees, 
   onUpdateRecords,
-  initialTab
+  initialTab,
+  controllerTeams = []
 }: RHViewProps) {
   const [activeTab, setActiveTab] = useState(initialTab || 'employees');
   const [searchTerm, setSearchTerm] = useState('');
@@ -1252,7 +1255,7 @@ export default function RHView({
                               </div>
 
                               <div className="bg-slate-50 p-6 rounded-2xl border border-slate-200/50">
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                                   <div className="space-y-2">
                                     <Label className="text-sm font-bold text-gray-500 uppercase tracking-wide">Modalidade de Contratação</Label>
                                     <Select value={newEmployee.paymentType} onValueChange={(v: any) => setNewEmployee({...newEmployee, paymentType: v})}>
@@ -1296,6 +1299,26 @@ export default function RHView({
                                             </SelectItem>
                                           );
                                         })}
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
+                                  <div className="space-y-2">
+                                    <Label className="text-sm font-bold text-gray-500 uppercase tracking-wide">Equipe Vinculada</Label>
+                                    <Select 
+                                      value={newEmployee.team || 'none'} 
+                                      onValueChange={val => setNewEmployee({...newEmployee, team: val === 'none' ? undefined : val})}
+                                    >
+                                      <SelectTrigger className="w-full h-11 bg-white shadow-sm border-slate-200 rounded-xl font-medium text-gray-900 focus:ring-blue-500">
+                                        <SelectValue placeholder="Sem equipe" />
+                                      </SelectTrigger>
+                                      <SelectContent className="max-h-80 rounded-xl border-slate-200 bg-white">
+                                        <SelectItem value="none">Sem equipe</SelectItem>
+                                        {(controllerTeams || [])
+                                          .filter(t => !newEmployee.contractId || t.contractId === newEmployee.contractId)
+                                          .map(t => (
+                                            <SelectItem key={t.id} value={t.name}>{t.name}</SelectItem>
+                                          ))
+                                        }
                                       </SelectContent>
                                     </Select>
                                   </div>
@@ -1459,6 +1482,7 @@ export default function RHView({
                       </div>
                     </TableHead>
                     <TableHead className="font-bold text-center">Obra / Contrato</TableHead>
+                    <TableHead className="font-bold text-center">Equipe</TableHead>
                     <TableHead className="w-[150px] font-bold text-right">Ações</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -1536,6 +1560,15 @@ export default function RHView({
                             </div>
                           );
                         })()}
+                      </TableCell>
+                      <TableCell className="text-center">
+                        {e.team ? (
+                          <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200 font-bold uppercase tracking-wide text-[11px] whitespace-nowrap">
+                            {e.team}
+                          </Badge>
+                        ) : (
+                          <span className="text-gray-400 italic text-sm">Sem Equipe</span>
+                        )}
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex items-center justify-end gap-1">

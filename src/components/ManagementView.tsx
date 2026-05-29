@@ -39,7 +39,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { Landmark, ArrowLeft, Users, HardHat, TrendingUp } from "lucide-react";
+import { Landmark, ArrowLeft, Users, HardHat, TrendingUp, AlertCircle, ListTodo, CheckCircle2, Clock, ShieldAlert } from "lucide-react";
 
 const CustomTreemapContent = (props: any) => {
   const {
@@ -1056,6 +1056,8 @@ export const ManagementView = ({
   onUpdateContractId,
   aportes = [],
   currentUser,
+  technicalSchedules = [],
+  services = [],
 }: any) => {
   type DetailViewType =
     | "overview"
@@ -1063,8 +1065,12 @@ export const ManagementView = ({
     | "Equipamentos"
     | "RH"
     | "Receita"
-    | "Aporte Financeiro";
+    | "Aporte Financeiro"
+    | "CurvaS";
   const [activeView, setActiveView] = useState<DetailViewType>("overview");
+  const [sCurveContractId, setSCurveContractId] = useState<string>("all");
+  const [clickedMonthIndex, setClickedMonthIndex] = useState<number | null>(null);
+
   const [selectedRoleFilter, setSelectedRoleFilter] = useState<string | null>(
     null,
   );
@@ -1082,6 +1088,152 @@ export const ManagementView = ({
   const selectedContractId = propSelectedContractId || localSelectedContractId;
   const setSelectedContractId =
     onUpdateContractId || setLocalSelectedContractId;
+
+  // Active contract for the comparative S-curve:
+  // if global filter is a specific contract, use it. Otherwise, use local state
+  const activeSCurveContractId = useMemo(() => {
+    if (selectedContractId && selectedContractId !== "all") {
+      return selectedContractId;
+    }
+    if (sCurveContractId === "all") {
+      // Find the first contract that actually has a technical schedule
+      const firstWithSchedule = contracts?.find((c: any) =>
+        technicalSchedules?.some((s: any) => s.contractId === c.id)
+      );
+      return firstWithSchedule?.id || contracts?.[0]?.id || "";
+    }
+    return sCurveContractId;
+  }, [selectedContractId, sCurveContractId, contracts, technicalSchedules]);
+
+  const activeSCurveSchedule = useMemo(() => {
+    return technicalSchedules?.find((s: any) => s.contractId === activeSCurveContractId);
+  }, [technicalSchedules, activeSCurveContractId]);
+
+  // Compute physical groups for the active SCurve contract
+  const activeSCurveGroups = useMemo(() => {
+    const actContract = contracts?.find((c: any) => c.id === activeSCurveContractId);
+    if (!actContract) return [];
+    
+    const groups = [...(actContract.groups || [])];
+    const directServices = (actContract.services || []).filter((item: any) => item && item.serviceId);
+    
+    if (directServices.length > 0) {
+      groups.push({
+        id: 'standalone',
+        name: 'Serviços Gerais',
+        services: directServices
+      });
+    }
+    
+    return groups.filter(g => g.services.length > 0);
+  }, [contracts, activeSCurveContractId]);
+
+  const sCurveTimelineData = useMemo(() => {
+    if (!activeSCurveSchedule || !activeSCurveSchedule.services || activeSCurveSchedule.services.length === 0) {
+      return [];
+    }
+    const duration = activeSCurveSchedule.duration || 6;
+    const dataList: any[] = [];
+
+    for (let i = 0; i < duration; i++) {
+      const monthNum = i + 1;
+      const periodName = `Mês ${monthNum.toString().padStart(2, '0')}`;
+
+      let globalTotalValSum = 0;
+      let globalCumulativePlanVal = 0;
+      let globalCumulativeActVal = 0;
+
+      let globalTotalQtySum = 0;
+      let globalCumulativePlanQty = 0;
+      let globalCumulativeActQty = 0;
+
+      const groupsList = activeSCurveGroups.map((group: any) => {
+        let groupTotalVal = 0;
+        let groupPlannedVal = 0;
+        let groupActualVal = 0;
+
+        let groupTotalQty = 0;
+        let groupPlannedQty = 0;
+        let groupActualQty = 0;
+
+        group.services.forEach((gSvc: any) => {
+          const sSched = activeSCurveSchedule.services.find((s: any) => s.serviceId === gSvc.serviceId);
+          if (!sSched) return;
+
+          sSched.distribution?.forEach((dist: any) => {
+            groupTotalVal += dist.plannedValue || 0;
+            groupTotalQty += dist.plannedQty || 0;
+
+            if (dist.periodIndex <= i) {
+              groupPlannedVal += dist.plannedValue || 0;
+              groupActualVal += dist.actualValue || 0;
+              groupPlannedQty += dist.plannedQty || 0;
+              groupActualQty += dist.actualQty || 0;
+            }
+          });
+        });
+
+        // Add to global totals for weighting
+        globalTotalValSum += groupTotalVal;
+        globalCumulativePlanVal += groupPlannedVal;
+        globalCumulativeActVal += groupActualVal;
+
+        globalTotalQtySum += groupTotalQty;
+        globalCumulativePlanQty += groupPlannedQty;
+        globalCumulativeActQty += groupActualQty;
+
+        let plannedPercent = 0;
+        let actualPercent = 0;
+
+        if (groupTotalVal > 0) {
+          plannedPercent = Math.min(100, Math.round((groupPlannedVal / groupTotalVal) * 100));
+          actualPercent = Math.min(100, Math.round((groupActualVal / groupTotalVal) * 100));
+        } else if (groupTotalQty > 0) {
+          plannedPercent = Math.min(100, Math.round((groupPlannedQty / groupTotalQty) * 100));
+          actualPercent = Math.min(100, Math.round((groupActualQty / groupTotalQty) * 100));
+        }
+
+        return {
+          groupId: group.id,
+          name: group.name,
+          planned: plannedPercent,
+          actual: actualPercent,
+          plannedVal: groupPlannedVal,
+          actualVal: groupActualVal,
+          totalVal: groupTotalVal
+        };
+      });
+
+      let overallPlanned = 0;
+      let overallActual = 0;
+
+      if (globalTotalValSum > 0) {
+        overallPlanned = Math.min(100, Math.round((globalCumulativePlanVal / globalTotalValSum) * 100));
+        overallActual = Math.min(100, Math.round((globalCumulativeActVal / globalTotalValSum) * 100));
+      } else if (globalTotalQtySum > 0) {
+        overallPlanned = Math.min(100, Math.round((globalCumulativePlanQty / globalTotalQtySum) * 100));
+        overallActual = Math.min(100, Math.round((globalCumulativeActQty / globalTotalQtySum) * 100));
+      } else if (groupsList.length > 0) {
+        const sumPlan = groupsList.reduce((sum: number, g: any) => sum + g.planned, 0);
+        const sumAct = groupsList.reduce((sum: number, g: any) => sum + g.actual, 0);
+        overallPlanned = Math.min(100, Math.round(sumPlan / groupsList.length));
+        overallActual = Math.min(100, Math.round(sumAct / groupsList.length));
+      }
+
+      dataList.push({
+        name: periodName,
+        periodName,
+        periodIndex: i,
+        "Planejado Acumulado (%)": overallPlanned,
+        "Realizado Acumulado (%)": overallActual,
+        planned: overallPlanned,
+        actual: overallActual,
+        groupsList
+      });
+    }
+
+    return dataList;
+  }, [activeSCurveSchedule, activeSCurveGroups]);
 
   const stats = useMemo(() => {
     const filteredMeasurements =
@@ -1641,6 +1793,263 @@ export const ManagementView = ({
     );
   }
 
+  if (activeView === "CurvaS") {
+    return (
+      <div className="p-6 space-y-6 bg-slate-50 min-h-screen">
+        <div className="flex items-center gap-4">
+          <button
+            onClick={() => setActiveView("overview")}
+            className="p-2 bg-white rounded-full shadow hover:bg-slate-100 transition-colors"
+          >
+            <ArrowLeft className="w-5 h-5 text-slate-600" />
+          </button>
+          <div>
+            <span className="text-[10px] font-black uppercase text-blue-600 tracking-widest bg-blue-50 px-2 py-0.5 rounded">Detalhamento Técnico</span>
+            <h1 className="text-2xl font-black text-slate-800">
+              Gestão Global - Avanço Físico (Curva-S)
+            </h1>
+          </div>
+        </div>
+
+        <Card className="shadow-lg border-t-4 border-blue-600">
+          <CardHeader className="flex flex-col md:flex-row md:items-center justify-between pb-4 space-y-2 md:space-y-0">
+            <div className="space-y-1">
+              <CardTitle className="text-xl font-bold text-slate-800 flex items-center gap-2">
+                <TrendingUp className="w-5 h-5 text-blue-600" />
+                Avanço Físico do Cronograma por Grupo de Serviços
+              </CardTitle>
+              <p className="text-xs text-slate-400 uppercase tracking-wide font-black">
+                Gráfico acumulado comparando metas físico-financeiras x avanço real executado dos grupos
+              </p>
+            </div>
+
+            <div className="flex items-center gap-4 flex-wrap">
+              {/* Legend indicators */}
+              <div className="flex gap-4 text-xs font-bold uppercase tracking-wider">
+                <div className="flex items-center gap-1.5 text-slate-400">
+                  <span className="w-3 h-1 bg-slate-300 rounded-sm inline-block" />
+                  <span>Planejado</span>
+                </div>
+                <div className="flex items-center gap-1.5 text-blue-600">
+                  <span className="w-3 h-1 bg-blue-500 rounded-sm inline-block" />
+                  <span>Realizado</span>
+                </div>
+              </div>
+
+              {/* Contract Selector inside S-curve Card if global selection is 'all' */}
+              {selectedContractId === "all" ? (
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold text-slate-400 uppercase">Filtrar Contrato S-Curve:</span>
+                  <Select value={activeSCurveContractId} onValueChange={setSCurveContractId}>
+                    <SelectTrigger className="w-[200px] h-9">
+                      <SelectValue placeholder="Selecione um contrato" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {contracts?.map((c: any) => (
+                        <SelectItem key={c.id} value={c.id}>
+                          {c.contractNumber}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              ) : (
+                <div className="bg-blue-50 text-blue-600 px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-wider font-mono">
+                  Contrato: {contracts?.find((c: any) => c.id === activeSCurveContractId)?.contractNumber || activeSCurveContractId}
+                </div>
+              )}
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            {sCurveTimelineData.length === 0 ? (
+              <div className="py-24 text-center bg-white border border-slate-100 rounded-3xl space-y-4 shadow-sm">
+                <AlertCircle className="w-12 h-12 text-amber-500 mx-auto" />
+                <div className="space-y-2">
+                  <h4 className="font-bold text-slate-900 text-lg">Nenhum Cronograma Técnico Ativo</h4>
+                  <p className="text-sm text-slate-400 max-w-md mx-auto leading-relaxed">
+                    Não foi encontrado um cronograma técnico estruturado para o contrato selecionado. Adicione metas na aba "Cronograma" na Sala Técnica para gerar a Curva-S correspondente.
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-6">
+                {/* Graphic container */}
+                <div className="h-[380px] w-full bg-slate-50/50 p-4 rounded-2xl border border-slate-100 relative">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <ComposedChart 
+                      data={sCurveTimelineData} 
+                      onClick={(state) => {
+                        if (state && state.activeTooltipIndex !== undefined) {
+                          setClickedMonthIndex(state.activeTooltipIndex);
+                        }
+                      }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                      <XAxis 
+                        dataKey="name" 
+                        axisLine={false}
+                        tickLine={false}
+                        tick={{ fill: '#64748b', fontSize: 11, fontWeight: 'bold' }} 
+                      />
+                      <YAxis 
+                        domain={[0, 100]} 
+                        axisLine={false}
+                        tickLine={false}
+                        tickFormatter={(v) => `${v}%`}
+                        tick={{ fill: '#64748b', fontSize: 11, fontWeight: 'bold' }} 
+                      />
+                      <Tooltip 
+                        cursor={{ fill: 'rgba(226, 232, 240, 0.4)' }}
+                        formatter={(v: number, name: string) => [`${v}%`, name]}
+                        contentStyle={{ borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '12px' }}
+                      />
+                      <Line 
+                        type="monotone" 
+                        dataKey="Planejado Acumulado (%)" 
+                        stroke="#94a3b8" 
+                        strokeWidth={2.5} 
+                        strokeDasharray="5 4" 
+                        dot={{ r: 4, stroke: '#94a3b8', strokeWidth: 2, fill: '#fff' }}
+                        activeDot={{ r: 6 }} 
+                      />
+                      <Line 
+                        type="monotone" 
+                        dataKey="Realizado Acumulado (%)" 
+                        stroke="#2563eb" 
+                        strokeWidth={3} 
+                        dot={{ r: 5, stroke: '#2563eb', strokeWidth: 2.5, fill: '#fff' }}
+                        activeDot={{ r: 8 }} 
+                      />
+                    </ComposedChart>
+                  </ResponsiveContainer>
+                  
+                  <div className="absolute top-4 left-4 bg-white/90 backdrop-blur-sm border border-slate-100 rounded-lg px-2.5 py-1 text-[10px] font-bold text-slate-500 uppercase tracking-widest leading-none select-none">
+                    💡 Clique nos meses do gráfico para detalhar progresso de serviços ou grupos correspondentes
+                  </div>
+                </div>
+
+                {/* Detalhes do mês selecionado por GRUPO */}
+                {(() => {
+                  const activeMonthData = clickedMonthIndex !== null 
+                    ? sCurveTimelineData[clickedMonthIndex] 
+                    : sCurveTimelineData[sCurveTimelineData.length - 1]; // defaults to last period
+
+                  if (!activeMonthData) return null;
+
+                  const deviation = activeMonthData.actual - activeMonthData.planned;
+                  const statusBadge = (() => {
+                    if (deviation >= 2) {
+                      return {
+                        label: 'Avançado',
+                        class: 'bg-green-100 text-green-700 border-green-200',
+                        icon: CheckCircle2,
+                      };
+                    } else if (deviation < -4) {
+                      return {
+                        label: 'Atrasado',
+                        class: 'bg-red-100 text-red-700 border-red-200',
+                        icon: ShieldAlert,
+                      };
+                    } else {
+                      return {
+                        label: 'No Cronograma',
+                        class: 'bg-blue-100 text-blue-700 border-blue-200',
+                        icon: Clock,
+                      };
+                    }
+                  })();
+
+                  return (
+                    <motion.div 
+                      layout
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.2 }}
+                      className="bg-white border border-slate-100 rounded-2xl p-5 space-y-4 shadow-sm"
+                    >
+                      <div className="flex flex-col md:flex-row items-start md:items-center justify-between border-b border-slate-50 pb-3 gap-4">
+                        <div>
+                          <h4 className="font-extrabold text-slate-800 text-base uppercase tracking-tight flex items-center gap-1.5">
+                            <ListTodo className="w-5 h-5 text-blue-500" />
+                            Progresso Físico dos Grupos de Serviços no {activeMonthData.periodName}
+                          </h4>
+                          <p className="text-xs text-slate-400">
+                            Acompanhamento do cronograma acumulado comparando metas de grupos planejadas x progresso executado real
+                          </p>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <span className={`px-2.5 py-1 rounded-full text-xs font-bold border flex items-center gap-1 uppercase ${statusBadge.class}`}>
+                            <statusBadge.icon className="w-3.5 h-3.5" />
+                            {statusBadge.label} ({deviation >= 0 ? `+${deviation}%` : `${deviation}%`})
+                          </span>
+                          
+                          <div className="bg-slate-50 border border-slate-100 rounded-lg px-3 py-1 text-center font-mono text-xs">
+                            <span className="text-[9px] text-slate-400 font-bold block uppercase">Meta Global</span>
+                            <span className="font-bold text-slate-700">{activeMonthData.planned}%</span>
+                          </div>
+                          <div className="bg-blue-50 border border-blue-100 rounded-lg px-3 py-1 text-center font-mono text-xs">
+                            <span className="text-[9px] text-blue-400 font-bold block uppercase">Realizado</span>
+                            <span className="font-bold text-blue-600">{activeMonthData.actual}%</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="overflow-x-auto">
+                        <Table>
+                          <TableHeader>
+                            <TableRow className="bg-slate-50 border-none hover:bg-slate-50">
+                              <TableHead className="font-bold text-slate-600 uppercase">GRUPO DE SERVIÇO</TableHead>
+                              <TableHead className="font-bold text-slate-600 text-right uppercase">META ACUMULADA</TableHead>
+                              <TableHead className="font-bold text-slate-600 text-right uppercase">REALIZADO ACUMULADO</TableHead>
+                              <TableHead className="font-bold text-slate-600 text-right w-56 uppercase">AVALIAÇÃO DE AVANÇO</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {activeMonthData.groupsList?.map((item: any) => {
+                              const diff = item.actual - item.planned;
+                              const isAhead = diff >= 0;
+                              return (
+                                <TableRow key={item.groupId} className="border-slate-50 hover:bg-slate-50/50">
+                                  <TableCell className="font-bold text-slate-700 text-xs uppercase max-w-[325px] truncate">
+                                    {item.name}
+                                  </TableCell>
+                                  <TableCell className="text-right font-mono text-slate-600 font-bold">{item.planned}%</TableCell>
+                                  <TableCell className="text-right font-mono text-blue-600 font-bold">{item.actual}%</TableCell>
+                                  <TableCell className="text-right">
+                                    <div className="space-y-1">
+                                      <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden relative">
+                                        <div 
+                                          className="absolute left-0 top-0 h-full bg-slate-300 rounded-full" 
+                                          style={{ width: `${item.planned}%` }}
+                                        />
+                                        <div 
+                                          className="absolute left-0 top-0 h-full bg-blue-500 rounded-full shadow-inner" 
+                                          style={{ width: `${item.actual}%` }}
+                                        />
+                                      </div>
+                                      <span className={`text-[10px] font-mono font-bold uppercase leading-none block ${isAhead ? 'text-green-600' : 'text-red-500'}`}>
+                                        {diff >= 0 ? `Adiantado (+${diff}%)` : `Atrasado (${diff}%)`}
+                                      </span>
+                                    </div>
+                                  </TableCell>
+                                </TableRow>
+                              );
+                            })}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    </motion.div>
+                  );
+                })()}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div className="p-6 space-y-6 bg-slate-50 min-h-screen">
       <div className="flex justify-between items-center">
@@ -1679,6 +2088,70 @@ export const ManagementView = ({
           </motion.div>
         ))}
       </div>
+
+      {/* PREVIEW DA CURVA-S COMPARATIVA */}
+      <motion.div
+        whileHover={{ scale: 1.01 }}
+        whileTap={{ scale: 0.99 }}
+        className="cursor-pointer"
+        onClick={() => setActiveView("CurvaS")}
+      >
+        <Card className="shadow-lg border-t-4 border-blue-600 hover:shadow-xl transition-shadow bg-white">
+          <CardHeader className="flex flex-col md:flex-row md:items-center justify-between pb-4 space-y-2 md:space-y-0">
+            <div className="space-y-1">
+              <CardTitle className="text-xl font-bold text-slate-800 flex items-center gap-2">
+                <TrendingUp className="w-5 h-5 text-blue-600" />
+                Curva-S Comparativa (Evolução Física do Contrato)
+              </CardTitle>
+              <p className="text-xs text-slate-400 uppercase tracking-wide font-black">
+                Acompanhamento físico de metas x executado real por grupo de serviços — Clique para detalhamento completo ↗
+              </p>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {sCurveTimelineData.length === 0 ? (
+              <div className="py-8 text-center bg-slate-50 border border-slate-100 rounded-xl space-y-2 animate-pulse">
+                <AlertCircle className="w-8 h-8 text-amber-500 mx-auto" />
+                <h4 className="font-bold text-slate-900 text-sm">Nenhum Cronograma Técnico Ativo</h4>
+                <p className="text-[11px] text-slate-400 max-w-sm mx-auto">
+                  Adicione metas físicas e financeiras na Sala Técnica para gerar a Curva-S.
+                </p>
+              </div>
+            ) : (() => {
+              const lastPeriod = sCurveTimelineData[sCurveTimelineData.length - 1];
+              const deviation = lastPeriod.actual - lastPeriod.planned;
+              return (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-center">
+                  <div className="col-span-1 space-y-3 bg-slate-50 p-4 rounded-xl border border-slate-100">
+                    <span className="text-[10px] uppercase text-slate-400 font-black tracking-wider block">Último Período Acumulado</span>
+                    <div className="text-3xl font-extrabold text-blue-600 font-mono">
+                      {lastPeriod.actual}% <span className="text-xs font-bold text-slate-400 font-sans uppercase">Realizado</span>
+                    </div>
+                    <div className="text-xs font-bold text-slate-600">
+                      Desvio: <span className={deviation >= 0 ? 'text-green-600' : 'text-red-500'}>
+                        {deviation >= 0 ? `+${deviation}%` : `${deviation}%`}
+                      </span> (Meta: {lastPeriod.planned}%)
+                    </div>
+                  </div>
+                  
+                  <div className="col-span-2 h-[100px] w-full bg-slate-50/20 rounded-xl border border-dashed border-slate-200 flex items-center justify-center p-2 relative overflow-hidden">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <ComposedChart data={sCurveTimelineData}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                        <XAxis dataKey="name" hide />
+                        <YAxis hide />
+                        <Line type="monotone" dataKey="Planejado Acumulado (%)" stroke="#94a3b8" strokeWidth={1.5} strokeDasharray="3 3" dot={false} />
+                        <Line type="monotone" dataKey="Realizado Acumulado (%)" stroke="#2563eb" strokeWidth={2.5} dot={false} />
+                      </ComposedChart>
+                    </ResponsiveContainer>
+                    <div className="absolute inset-0 bg-gradient-to-t from-white/30 to-transparent pointer-events-none" />
+                  </div>
+                </div>
+              );
+            })()}
+          </CardContent>
+        </Card>
+      </motion.div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <Card className="shadow-lg border-t-4 border-slate-900">

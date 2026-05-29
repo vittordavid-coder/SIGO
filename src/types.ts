@@ -132,6 +132,7 @@ export interface Employee {
   // Custom fields
   chargesPercentage?: number;
   overtimePercentage?: number;
+  team?: string;
 }
 
 export interface TimeRecord {
