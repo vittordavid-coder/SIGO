@@ -40,8 +40,15 @@ import {
   FileSpreadsheet,
   Edit,
   ArrowRight,
-  Upload
+  Upload,
+  Printer
 } from 'lucide-react';
+import { 
+  DropdownMenu, 
+  DropdownMenuContent, 
+  DropdownMenuItem, 
+  DropdownMenuTrigger 
+} from '@/components/ui/dropdown-menu';
 import { Employee, TimeRecord, User, Dependent, ControllerManpower, ManpowerMonthlyData, Contract } from '../types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -142,6 +149,20 @@ export default function RHView({
   const [editingEmployeeId, setEditingEmployeeId] = useState<string | null>(null);
   const [sortField, setSortField] = useState<'name' | 'cpf' | 'role' | 'admissionDate'>('name');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
+
+  const [isPrintColumnsModalOpen, setIsPrintColumnsModalOpen] = useState(false);
+  const [printColumns, setPrintColumns] = useState({
+    name: true,
+    cpf: true,
+    role: true,
+    status: true,
+    admissionDate: true,
+    salary: false,
+    mobile: false,
+    email: false,
+    team: false,
+    pis: false,
+  });
 
   const toggleCPF = (id: string) => {
     setShowCPF(prev => ({ ...prev, [id]: !prev[id] }));
@@ -595,6 +616,165 @@ export default function RHView({
     const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
     saveAs(new Blob([wbout], { type: "application/octet-stream" }), `Relatorio_Colaboradores_${new Date().toISOString().split('T')[0]}.xlsx`);
   };
+
+  const exportAllEmployeesToPDF = () => {
+    const doc = new jsPDF('landscape');
+    
+    // Header
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(14);
+    doc.setTextColor(30, 58, 138); // blue-800
+    doc.text("SYNERA - Gestão e Planejamento", 14, 15);
+    
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(100, 116, 139); // slate-500
+    doc.text(`Lista Geral de Colaboradores - Gerado em ${new Date().toLocaleDateString('pt-BR')}`, 14, 21);
+    
+    const tableHeaders = [['Nome', 'CPF', 'Cargo', 'Data Admissão', 'Remuneração', 'Status']];
+    
+    const tableRows = filteredEmployees.map(e => [
+      e.name || '-',
+      e.cpf || '-',
+      e.role || '-',
+      e.admissionDate ? new Date(e.admissionDate).toLocaleDateString('pt-BR') : '-',
+      e.salary ? e.salary.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : 'R$ 0,00',
+      e.status === 'active' ? 'Ativo' : 'Desligado'
+    ]);
+
+    autoTable(doc, {
+      startY: 25,
+      head: tableHeaders,
+      body: tableRows,
+      theme: 'striped',
+      styles: { fontSize: 8, cellPadding: 2 },
+      headStyles: { fillColor: [30, 58, 138], textColor: 255, fontStyle: 'bold' }
+    });
+
+    doc.save(`Relatorio_Colaboradores_${new Date().toISOString().split('T')[0]}.pdf`);
+  };
+
+  const handlePrintCollaborators = () => {
+    const selectedFields = Object.entries(printColumns)
+      .filter(([_, enabled]) => enabled)
+      .map(([field, _]) => field);
+
+    const getHeaderLabel = (field: string) => {
+      switch(field) {
+        case 'name': return 'Nome';
+        case 'cpf': return 'CPF';
+        case 'role': return 'Cargo';
+        case 'status': return 'Status';
+        case 'admissionDate': return 'Admissão';
+        case 'salary': return 'Salário';
+        case 'mobile': return 'Contato';
+        case 'email': return 'E-mail';
+        case 'team': return 'Equipe';
+        case 'pis': return 'PIS';
+        default: return field;
+      }
+    };
+
+    const getFieldValue = (emp: Employee, field: string) => {
+      const val = (emp as any)[field];
+      if (field === 'status') {
+        return val === 'active' ? 'Ativo' : 'Desligado';
+      }
+      if (field === 'admissionDate') {
+        return val ? new Date(val).toLocaleDateString('pt-BR') : '-';
+      }
+      if (field === 'salary') {
+        return val ? val.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : 'R$ 0,00';
+      }
+      return val || '-';
+    };
+
+    const headersHtml = selectedFields.map(f => `<th style="text-align: left; padding: 8px; border-bottom: 2px solid #cbd5e1; font-size: 11px; text-transform: uppercase; color: #1e293b;">${getHeaderLabel(f)}</th>`).join('');
+
+    const rowsHtml = filteredEmployees.map(emp => {
+      const cells = selectedFields.map(f => {
+        return `<td style="padding: 8px; border-bottom: 1px solid #e2e8f0; font-size: 11px; color: #334155;">${getFieldValue(emp, f)}</td>`;
+      }).join('');
+      return `<tr>${cells}</tr>`;
+    }).join('');
+
+    const iframe = document.createElement('iframe');
+    iframe.style.display = 'none';
+    document.body.appendChild(iframe);
+    
+    if (!iframe.contentWindow) return;
+
+    const styles = Array.from(document.head.querySelectorAll('style, link[rel="stylesheet"]'))
+      .map(n => n.outerHTML).join('\n');
+
+    iframe.contentWindow.document.open();
+    iframe.contentWindow.document.write(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Lista_Colaboradores_SYNERA</title>
+          ${styles}
+          <style>
+            @page { margin: 12mm; size: landscape; }
+            body { 
+              font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+              color: #1e293b;
+              background: white; 
+              margin: 0;
+              padding: 0;
+            }
+            .header-info {
+              display: flex;
+              justify-content: space-between;
+              align-items: center;
+              border-bottom: 2px solid #1e3a8a;
+              padding-bottom: 10px;
+              margin-bottom: 20px;
+            }
+            .main-table {
+              width: 100%;
+              border-collapse: collapse;
+            }
+            @media print {
+              body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="header-info">
+            <div>
+              <h1 style="font-size: 18px; font-weight: bold; color: #1e3a8a; margin: 0; text-transform: uppercase;">SYNERA - Gestão e Planejamento</h1>
+              <h2 style="font-size: 13px; font-weight: bold; color: #475569; margin: 4px 0 0 0;">RELATÓRIO: LISTA DE COLABORADORES</h2>
+            </div>
+            <div style="text-align: right; font-size: 11px; color: #64748b;">
+              Total: <strong>\${filteredEmployees.length} colaboradores</strong><br>
+              Gerado em: \${new Date().toLocaleDateString('pt-BR')}
+            </div>
+          </div>
+
+          <table class="main-table">
+            <thead>
+              <tr>
+                \${headersHtml}
+              </tr>
+            </thead>
+            <tbody>
+              \${rowsHtml}
+            </tbody>
+          </table>
+          <script>
+            window.onload = () => {
+              setTimeout(() => {
+                window.print();
+              }, 500);
+            };
+          </script>
+        </body>
+      </html>
+    `);
+    iframe.contentWindow.document.close();
+    setIsPrintColumnsModalOpen(false);
+  };
   
   const filteredEmployees = useMemo(() => {
     let result = employees.filter(e => 
@@ -824,7 +1004,7 @@ export default function RHView({
                 <CardTitle>Colaboradores</CardTitle>
                 <CardDescription>Lista completa de funcionários da empresa.</CardDescription>
               </div>
-              <div className="flex gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                   <Input 
@@ -861,6 +1041,148 @@ export default function RHView({
                     )}
                   </Button>
                 </div>
+
+                <Button variant="outline" className="gap-2 text-slate-700 border-slate-200" onClick={() => setIsPrintColumnsModalOpen(true)}>
+                  <Printer className="w-4 h-4 text-indigo-505" /> Imprimir Lista
+                </Button>
+
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" className="gap-2 text-slate-700 border-slate-200">
+                      <Download className="w-4 h-4 text-emerald-505" /> Exportar Lista
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-48 border border-slate-200 shadow-xl rounded-xl bg-white p-1.5 z-50">
+                    <DropdownMenuItem 
+                      onClick={exportAllEmployeesToPDF} 
+                      className="flex items-center gap-2 text-sm font-semibold text-slate-700 cursor-pointer hover:bg-slate-50 rounded-lg py-2 px-2.5"
+                    >
+                      <FileText className="w-4 h-4 text-red-500" />
+                      Exportar em PDF
+                    </DropdownMenuItem>
+                    <DropdownMenuItem 
+                      onClick={exportAllEmployeesToExcel} 
+                      className="flex items-center gap-2 text-sm font-semibold text-slate-700 cursor-pointer hover:bg-slate-50 rounded-lg py-2 px-2.5"
+                    >
+                      <FileSpreadsheet className="w-4 h-4 text-emerald-500" />
+                      Exportar em EXCEL
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+
+                <Dialog open={isPrintColumnsModalOpen} onOpenChange={setIsPrintColumnsModalOpen}>
+                  <DialogContent className="max-w-md bg-white border border-slate-200 shadow-2xl rounded-2xl p-6 text-left">
+                    <DialogHeader className="text-left space-y-2">
+                      <DialogTitle className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                        <Printer className="w-5 h-5 text-indigo-600" />
+                        Configurar Impressão de Colaboradores
+                      </DialogTitle>
+                      <DialogDescription className="text-sm text-slate-500">
+                        Selecione as colunas do cadastro que deseja que apareçam no relatório impresso.
+                      </DialogDescription>
+                    </DialogHeader>
+
+                    <div className="grid grid-cols-2 gap-x-4 gap-y-3 py-4 text-left">
+                      <div className="flex items-center gap-3 bg-slate-50 p-2.5 rounded-lg border border-slate-100">
+                        <Checkbox 
+                          id="col-name" 
+                          checked={printColumns.name} 
+                          onCheckedChange={(checked) => setPrintColumns({ ...printColumns, name: !!checked })}
+                        />
+                        <Label htmlFor="col-name" className="text-sm font-semibold text-slate-700 cursor-pointer">Nome</Label>
+                      </div>
+
+                      <div className="flex items-center gap-3 bg-slate-50 p-2.5 rounded-lg border border-slate-100">
+                        <Checkbox 
+                          id="col-cpf" 
+                          checked={printColumns.cpf} 
+                          onCheckedChange={(checked) => setPrintColumns({ ...printColumns, cpf: !!checked })}
+                        />
+                        <Label htmlFor="col-cpf" className="text-sm font-semibold text-slate-700 cursor-pointer">CPF</Label>
+                      </div>
+
+                      <div className="flex items-center gap-3 bg-slate-50 p-2.5 rounded-lg border border-slate-100">
+                        <Checkbox 
+                          id="col-role" 
+                          checked={printColumns.role} 
+                          onCheckedChange={(checked) => setPrintColumns({ ...printColumns, role: !!checked })}
+                        />
+                        <Label htmlFor="col-role" className="text-sm font-semibold text-slate-700 cursor-pointer">Cargo</Label>
+                      </div>
+
+                      <div className="flex items-center gap-3 bg-slate-50 p-2.5 rounded-lg border border-slate-100">
+                        <Checkbox 
+                          id="col-status" 
+                          checked={printColumns.status} 
+                          onCheckedChange={(checked) => setPrintColumns({ ...printColumns, status: !!checked })}
+                        />
+                        <Label htmlFor="col-status" className="text-sm font-semibold text-slate-700 cursor-pointer">Status</Label>
+                      </div>
+
+                      <div className="flex items-center gap-3 bg-slate-50 p-2.5 rounded-lg border border-slate-100">
+                        <Checkbox 
+                          id="col-admissionDate" 
+                          checked={printColumns.admissionDate} 
+                          onCheckedChange={(checked) => setPrintColumns({ ...printColumns, admissionDate: !!checked })}
+                        />
+                        <Label htmlFor="col-admissionDate" className="text-sm font-semibold text-slate-700 cursor-pointer">Data Admissão</Label>
+                      </div>
+
+                      <div className="flex items-center gap-3 bg-slate-50 p-2.5 rounded-lg border border-slate-100">
+                        <Checkbox 
+                          id="col-salary" 
+                          checked={printColumns.salary} 
+                          onCheckedChange={(checked) => setPrintColumns({ ...printColumns, salary: !!checked })}
+                        />
+                        <Label htmlFor="col-salary" className="text-sm font-semibold text-slate-700 cursor-pointer">Salário / Remuneração</Label>
+                      </div>
+
+                      <div className="flex items-center gap-3 bg-slate-50 p-2.5 rounded-lg border border-slate-100">
+                        <Checkbox 
+                          id="col-mobile" 
+                          checked={printColumns.mobile} 
+                          onCheckedChange={(checked) => setPrintColumns({ ...printColumns, mobile: !!checked })}
+                        />
+                        <Label htmlFor="col-mobile" className="text-sm font-semibold text-slate-700 cursor-pointer">Telefone / Celular</Label>
+                      </div>
+
+                      <div className="flex items-center gap-3 bg-slate-50 p-2.5 rounded-lg border border-slate-100">
+                        <Checkbox 
+                          id="col-email" 
+                          checked={printColumns.email} 
+                          onCheckedChange={(checked) => setPrintColumns({ ...printColumns, email: !!checked })}
+                        />
+                        <Label htmlFor="col-email" className="text-sm font-semibold text-slate-700 cursor-pointer">E-mail</Label>
+                      </div>
+
+                      <div className="flex items-center gap-3 bg-slate-50 p-2.5 rounded-lg border border-slate-100">
+                        <Checkbox 
+                          id="col-team" 
+                          checked={printColumns.team} 
+                          onCheckedChange={(checked) => setPrintColumns({ ...printColumns, team: !!checked })}
+                        />
+                        <Label htmlFor="col-team" className="text-sm font-semibold text-slate-700 cursor-pointer">Equipe / Frente</Label>
+                      </div>
+
+                      <div className="flex items-center gap-3 bg-slate-50 p-2.5 rounded-lg border border-slate-100">
+                        <Checkbox 
+                          id="col-pis" 
+                          checked={printColumns.pis} 
+                          onCheckedChange={(checked) => setPrintColumns({ ...printColumns, pis: !!checked })}
+                        />
+                        <Label htmlFor="col-pis" className="text-sm font-semibold text-slate-700 cursor-pointer">PIS / NIT</Label>
+                      </div>
+                    </div>
+
+                    <DialogFooter className="flex justify-end gap-2 border-t pt-4">
+                      <Button variant="outline" onClick={() => setIsPrintColumnsModalOpen(false)}>Cancelar</Button>
+                      <Button onClick={handlePrintCollaborators} className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-6">
+                        <Printer className="w-4 h-4 mr-2" />
+                        Imprimir Relatório
+                      </Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
                 <Dialog open={isDialogOpen} onOpenChange={(open) => {
                   setIsDialogOpen(open);
                   if (!open) resetForm();
