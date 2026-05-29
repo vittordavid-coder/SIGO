@@ -19,7 +19,8 @@ import { saveAs } from 'file-saver';
 import { 
   Contract, DailyReport, DailyReportActivity, 
   PluviometryRecord, TechnicalSchedule, TechnicalServiceSchedule,
-  ServiceComposition, Resource, Schedule, TimeUnit, Quotation
+  ServiceComposition, Resource, Schedule, TimeUnit, Quotation,
+  ControllerManpower, ControllerEquipment
 } from '../types';
 import { useLocalStorage } from '../lib/useLocalStorage';
 import { formatCurrency, formatNumber, cn } from '../lib/utils';
@@ -54,11 +55,14 @@ interface DailyReportViewProps {
   companyLogo?: string;
   companyLogoRight?: string;
   logoMode?: 'left' | 'right' | 'both' | 'none';
+  controllerManpower?: ControllerManpower[];
+  controllerEquipments?: ControllerEquipment[];
 }
 
 export function DailyReportView({ 
   contract, reports, onAdd, onUpdate, onDelete, onMoveActivity, 
-  pluviometryRecords, readonly, companyLogo, companyLogoRight, logoMode 
+  pluviometryRecords, readonly, companyLogo, companyLogoRight, logoMode,
+  controllerManpower = [], controllerEquipments = []
 }: DailyReportViewProps) {
   const [activeItem, setActiveItem] = useState<'activities' | 'viewer'>('activities');
   const [selectedReportId, setSelectedReportId] = useState<string | null>(null);
@@ -130,6 +134,22 @@ export function DailyReportView({
 
   const handleAdd = () => {
     const today = new Date().toISOString().split('T')[0];
+    
+    // Auto-populate from contract's manpower & equipments
+    const defaultManpower = (controllerManpower || [])
+      .filter(m => m.contractId === contract.id)
+      .map(m => ({
+        description: `${m.name} (${m.role})`,
+        quantity: 1
+      }));
+
+    const defaultEquipment = (controllerEquipments || [])
+      .filter(e => e.contractId === contract.id)
+      .map(e => ({
+        description: `${e.name} (${e.model})`,
+        quantity: 1
+      }));
+
     onAdd({
       contractId: contract.id,
       date: today,
@@ -137,8 +157,8 @@ export function DailyReportView({
       weatherAfternoon: 'Bom',
       weatherNight: 'Bom',
       rainfallMm: 0,
-      manpower: [],
-      equipment: [],
+      manpower: defaultManpower,
+      equipment: defaultEquipment,
       activities: [],
       accidents: ''
     });
@@ -220,7 +240,7 @@ export function DailyReportView({
 
     doc.setTextColor(255);
     doc.setFontSize(12);
-    doc.setFont(undefined, 'bold');
+    doc.setFont('helvetica', 'bold');
     doc.text('RELATÓRIO DIÁRIO DE OCORRÊNCIAS - RDO', pageWidth / 2, margin + 8, { align: 'center' });
     
     doc.setTextColor(0);
@@ -250,7 +270,7 @@ export function DailyReportView({
       doc.setFillColor(240, 245, 255);
       doc.rect(margin, startY, contentWidth, 6, 'F');
       doc.setFontSize(9);
-      doc.setFont(undefined, 'bold');
+      doc.setFont('helvetica', 'bold');
       doc.setTextColor(30, 58, 138);
       doc.text(title, margin + 2, startY + 4.5);
       doc.setTextColor(0);
@@ -814,11 +834,94 @@ export function DailyReportView({
                             {selectedReport.manpower.map((m, idx) => (
                               <div key={idx} className="flex gap-2 items-center justify-between p-2.5 bg-gray-50/50 border border-gray-100 rounded-xl">
                                 <span className="text-xs font-black uppercase text-gray-700">{m.description}</span>
-                                <span className="bg-emerald-100 text-emerald-800 text-xs font-black px-2.5 py-1 rounded-lg font-mono">{m.quantity}</span>
+                                <div className="flex items-center gap-2">
+                                  {readonly ? (
+                                    <span className="bg-emerald-100 text-emerald-800 text-xs font-black px-2.5 py-1 rounded-lg font-mono">{m.quantity}</span>
+                                  ) : (
+                                    <>
+                                      <input 
+                                        type="number" 
+                                        min="0"
+                                        className="h-8 w-14 text-center text-xs font-mono font-black border border-gray-200 rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                                        value={m.quantity} 
+                                        onChange={e => {
+                                          const val = parseInt(e.target.value) || 0;
+                                          const updated = selectedReport.manpower.map((item, i) => i === idx ? { ...item, quantity: val } : item);
+                                          onUpdate({ ...selectedReport, manpower: updated });
+                                        }}
+                                      />
+                                      <Button variant="ghost" size="xs" className="h-8 w-8 text-red-500 hover:text-red-700 hover:bg-red-50 p-0 rounded-md" onClick={() => {
+                                        const updated = selectedReport.manpower.filter((_, i) => i !== idx);
+                                        onUpdate({ ...selectedReport, manpower: updated });
+                                      }}>
+                                        <Trash2 className="w-3.5 h-3.5" />
+                                      </Button>
+                                    </>
+                                  )}
+                                </div>
                               </div>
                             ))}
                             {selectedReport.manpower.length === 0 && (
-                              <p className="text-xs text-gray-400 italic font-bold my-4 text-center">Nenhum profissional listado para este dia.</p>
+                              <div className="text-center py-4 space-y-2">
+                                <p className="text-xs text-gray-400 italic font-bold">Nenhum profissional listado para este dia.</p>
+                                {!readonly && (
+                                  <Button 
+                                    size="sm" 
+                                    variant="outline" 
+                                    className="text-[10px] font-black uppercase text-emerald-600 border-emerald-200 hover:bg-emerald-50 h-8 px-4"
+                                    onClick={() => {
+                                      const cMan = (controllerManpower || []).filter(m => m.contractId === contract.id);
+                                      const mapped = cMan.map(m => ({ description: `${m.name} (${m.role})`, quantity: 1 }));
+                                      const finalMapped = mapped.length > 0 ? mapped : [
+                                        { description: 'Engenheiro Residente', quantity: 1 },
+                                        { description: 'Encarregado Geral', quantity: 1 },
+                                        { description: 'Apontador', quantity: 1 },
+                                        { description: 'Auxiliar Técnico', quantity: 1 },
+                                        { description: 'Operador de Máquinas', quantity: 2 },
+                                        { description: 'Servente de Obras', quantity: 4 }
+                                      ];
+                                      onUpdate({ ...selectedReport, manpower: finalMapped });
+                                    }}
+                                  >
+                                    ⚡ Importar do Contrato
+                                  </Button>
+                                )}
+                              </div>
+                            )}
+                            {!readonly && (
+                              <div className="flex gap-1.5 mt-2 pt-2 border-t">
+                                <Input 
+                                  placeholder="Nova cat. / colaborador..." 
+                                  id="new-manpower-desc"
+                                  className="h-8 text-[11px] font-semibold"
+                                  onKeyDown={e => {
+                                    if (e.key === 'Enter') {
+                                      const input = e.currentTarget;
+                                      const desc = input.value.trim();
+                                      if (desc) {
+                                        onUpdate({
+                                          ...selectedReport,
+                                          manpower: [...selectedReport.manpower, { description: desc, quantity: 1 }]
+                                        });
+                                        input.value = '';
+                                      }
+                                    }
+                                  }}
+                                />
+                                <Button size="sm" className="h-8 text-xs font-black bg-emerald-600 hover:bg-emerald-700 text-white" onClick={() => {
+                                  const input = document.getElementById('new-manpower-desc') as HTMLInputElement;
+                                  const desc = input?.value?.trim();
+                                  if (desc) {
+                                    onUpdate({
+                                      ...selectedReport,
+                                      manpower: [...selectedReport.manpower, { description: desc, quantity: 1 }]
+                                    });
+                                    input.value = '';
+                                  }
+                                }}>
+                                  +
+                                </Button>
+                              </div>
                             )}
                           </CardContent>
                         </Card>
@@ -834,11 +937,93 @@ export function DailyReportView({
                             {selectedReport.equipment.map((e, idx) => (
                               <div key={idx} className="flex gap-2 items-center justify-between p-2.5 bg-gray-50/50 border border-gray-100 rounded-xl">
                                 <span className="text-xs font-black uppercase text-gray-700">{e.description}</span>
-                                <span className="bg-orange-100 text-orange-800 text-xs font-black px-2.5 py-1 rounded-lg font-mono">{e.quantity}</span>
+                                <div className="flex items-center gap-2">
+                                  {readonly ? (
+                                    <span className="bg-orange-100 text-orange-800 text-xs font-black px-2.5 py-1 rounded-lg font-mono">{e.quantity}</span>
+                                  ) : (
+                                    <>
+                                      <input 
+                                        type="number" 
+                                        min="0"
+                                        className="h-8 w-14 text-center text-xs font-mono font-black border border-gray-200 rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-orange-500"
+                                        value={e.quantity} 
+                                        onChange={val => {
+                                          const value = parseInt(val.target.value) || 0;
+                                          const updated = selectedReport.equipment.map((item, i) => i === idx ? { ...item, quantity: value } : item);
+                                          onUpdate({ ...selectedReport, equipment: updated });
+                                        }}
+                                      />
+                                      <Button variant="ghost" size="xs" className="h-8 w-8 text-red-500 hover:text-red-700 hover:bg-red-50 p-0 rounded-md" onClick={() => {
+                                        const updated = selectedReport.equipment.filter((_, i) => i !== idx);
+                                        onUpdate({ ...selectedReport, equipment: updated });
+                                      }}>
+                                        <Trash2 className="w-3.5 h-3.5" />
+                                      </Button>
+                                    </>
+                                  )}
+                                </div>
                               </div>
                             ))}
                             {selectedReport.equipment.length === 0 && (
-                              <p className="text-xs text-gray-400 italic font-bold my-4 text-center">Nenhum equipamento listado para este dia.</p>
+                              <div className="text-center py-4 space-y-2">
+                                <p className="text-xs text-gray-400 italic font-bold">Nenhum equipamento listado para este dia.</p>
+                                {!readonly && (
+                                  <Button 
+                                    size="sm" 
+                                    variant="outline" 
+                                    className="text-[10px] font-black uppercase text-orange-600 border-orange-200 hover:bg-orange-50 h-8 px-4"
+                                    onClick={() => {
+                                      const cEq = (controllerEquipments || []).filter(e => e.contractId === contract.id);
+                                      const mapped = cEq.map(e => ({ description: `${e.name} (${e.model})`, quantity: 1 }));
+                                      const finalMapped = mapped.length > 0 ? mapped : [
+                                        { description: 'Escavadeira Hidráulica', quantity: 1 },
+                                        { description: 'Retroescavadeira', quantity: 1 },
+                                        { description: 'Caminhão Caçamba', quantity: 2 },
+                                        { description: 'Rolo Compactador', quantity: 1 },
+                                        { description: 'Motoniveladora', quantity: 1 }
+                                      ];
+                                      onUpdate({ ...selectedReport, equipment: finalMapped });
+                                    }}
+                                  >
+                                    ⚡ Importar do Contrato
+                                  </Button>
+                                )}
+                              </div>
+                            )}
+                            {!readonly && (
+                              <div className="flex gap-1.5 mt-2 pt-2 border-t">
+                                <Input 
+                                  placeholder="Novo equip. / frota..." 
+                                  id="new-equipment-desc"
+                                  className="h-8 text-[11px] font-semibold"
+                                  onKeyDown={e => {
+                                    if (e.key === 'Enter') {
+                                      const input = e.currentTarget;
+                                      const desc = input.value.trim();
+                                      if (desc) {
+                                        onUpdate({
+                                          ...selectedReport,
+                                          equipment: [...selectedReport.equipment, { description: desc, quantity: 1 }]
+                                        });
+                                        input.value = '';
+                                      }
+                                    }
+                                  }}
+                                />
+                                <Button size="sm" className="h-8 text-xs font-black bg-orange-600 hover:bg-orange-700 text-white" onClick={() => {
+                                  const input = document.getElementById('new-equipment-desc') as HTMLInputElement;
+                                  const desc = input?.value?.trim();
+                                  if (desc) {
+                                    onUpdate({
+                                      ...selectedReport,
+                                      equipment: [...selectedReport.equipment, { description: desc, quantity: 1 }]
+                                    });
+                                    input.value = '';
+                                  }
+                                }}>
+                                  +
+                                </Button>
+                              </div>
                             )}
                           </CardContent>
                         </Card>
@@ -1016,6 +1201,332 @@ export function PluviometryView({ contract, records, onAdd, onUpdate, readonly }
     }
   };
 
+  const handleExportPluviometryPDF = () => {
+    const doc = new jsPDF() as any;
+    const pageWidth = doc.internal.pageSize.width;
+    const pageHeight = doc.internal.pageSize.height;
+    const margin = 10;
+    const contentWidth = pageWidth - (margin * 2);
+
+    // Document border
+    doc.setDrawColor(200);
+    doc.setLineWidth(0.1);
+    doc.rect(margin - 2, margin - 2, contentWidth + 4, pageHeight - (margin * 2) + 4);
+
+    // Title banner
+    doc.setFillColor(30, 58, 138); // Deep Blue
+    doc.rect(margin, margin, contentWidth, 12, 'F');
+    doc.setTextColor(255);
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'bold');
+    doc.text('RELATÓRIO PLUVIOMÉTRICO MENSAL', pageWidth / 2, margin + 7.5, { align: 'center' });
+
+    // Contract details
+    doc.setTextColor(0);
+    doc.setFontSize(7.5);
+    const mNames = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+    const filterMonthText = `${mNames[currentMonth].toUpperCase()} / ${currentYear}`;
+    const detailsData = [
+      ['CONTRATO:', contract.contractNumber || 'N/A', 'PERÍODO REFERÊNCIA:', filterMonthText],
+      ['CONTRATANTE:', contract.client || 'N/A', 'CONTRATADA:', contract.contractor || 'N/A'],
+      ['OBJETO:', contract.object || 'N/A', 'REQUISITANTE:', 'SALA TÉCNICA']
+    ];
+    autoTable(doc, {
+      startY: margin + 14,
+      body: detailsData,
+      theme: 'grid',
+      styles: { fontSize: 7, cellPadding: 1, fontStyle: 'bold' },
+      columnStyles: { 
+        0: { cellWidth: 35, fillColor: [245, 245, 245] }, 
+        1: { cellWidth: 62 },
+        2: { cellWidth: 35, fillColor: [245, 245, 245] },
+        3: { cellWidth: 62 }
+      }
+    });
+
+    let currentY = ((doc as any).lastAutoTable?.finalY ?? (margin + 30)) + 4;
+
+    // Helper for Section Header inside Pluviometry Report
+    const sectionTitle = (title: string, y: number) => {
+      doc.setFillColor(240, 245, 255);
+      doc.rect(margin, y, contentWidth, 5, 'F');
+      doc.setFontSize(8);
+      doc.setFont('helvetica', 'bold');
+      doc.text(title, margin + 2, y + 3.5);
+      doc.setTextColor(0);
+      return y + 5;
+    };
+
+    // 1. INDICADORES GERAIS (KPI Dashboard)
+    currentY = sectionTitle('1. INDICADORES CLIMÁTICOS DO MÊS', currentY) + 2;
+
+    const boxW = contentWidth / 4 - 2;
+    const boxH = 14;
+    const kpiY = currentY;
+
+    // Calc stats on the fly to be certain
+    let rainyDays = 0;
+    let impDays = 0;
+    let bDays = 0;
+    monthDays.forEach(day => {
+      const rec = getRecordForDay(day);
+      if ((rec?.rainfallMm || 0) > 0) rainyDays++;
+      if (rec?.morningStatus === 'Impraticável' || rec?.afternoonStatus === 'Impraticável') impDays++;
+      else if (rec?.morningStatus === 'Bom' && rec?.afternoonStatus === 'Bom') bDays++;
+    });
+
+    const kpis = [
+      { label: 'PRECIPITAÇÃO TOTAL', val: `${stats.totalRain.toFixed(1)} mm` },
+      { label: 'DIAS COM CHUVA', val: `${rainyDays} dias` },
+      { label: 'DIAS IMPRATICÁVEIS', val: `${impDays} dias` },
+      { label: 'DIAS 100% LIMPOS', val: `${bDays} dias` }
+    ];
+
+    kpis.forEach((k, idx) => {
+      const bx = margin + (idx * (boxW + 2.6));
+      doc.setFillColor(248, 250, 252);
+      doc.setDrawColor(226, 232, 240);
+      doc.setLineWidth(0.1);
+      doc.rect(bx, kpiY, boxW, boxH, 'FD');
+      
+      doc.setTextColor(100);
+      doc.setFontSize(6);
+      doc.text(k.label, bx + boxW/2, kpiY + 4.5, { align: 'center' });
+      
+      doc.setTextColor(30, 58, 138);
+      doc.setFontSize(8);
+      doc.setFont('helvetica', 'bold');
+      doc.text(k.val, bx + boxW/2, kpiY + 10.5, { align: 'center' });
+    });
+
+    currentY = kpiY + boxH + 4;
+
+    // 2. DAILY PRECIPITATION CHART
+    currentY = sectionTitle('2. HISTÓRICO DE PRECIPITAÇÃO DIÁRIA (ÍNDICE PLUVIOMÉTRICO)', currentY) + 2;
+
+    const chartH = 32;
+    doc.setFillColor(250, 250, 250);
+    doc.setDrawColor(240, 240, 240);
+    doc.rect(margin, currentY, contentWidth, chartH, 'FD');
+
+    // Axes
+    const axesX = margin + 12;
+    const axesY = currentY + chartH - 6;
+    const chartW = contentWidth - 18;
+    const chartActualH = chartH - 10;
+
+    doc.setDrawColor(180);
+    doc.setLineWidth(0.1);
+    doc.line(axesX, axesY, axesX + chartW, axesY); // X-axis
+
+    // Max rain in month
+    let maxRain = 10;
+    monthDays.forEach(day => {
+      const r = getRecordForDay(day)?.rainfallMm || 0;
+      if (r > maxRain) maxRain = r;
+    });
+    maxRain = Math.ceil(maxRain / 10) * 10; // Round to next 10
+
+    // Draw Y ticks and horizontal gridlines
+    doc.setFontSize(5);
+    doc.setTextColor(120);
+    const ticksCount = 4;
+    for (let i = 0; i <= ticksCount; i++) {
+      const tickVal = (maxRain / ticksCount) * i;
+      const ty = axesY - (chartActualH / ticksCount) * i;
+      doc.text(`${tickVal.toFixed(0)} mm`, axesX - 1.5, ty + 1.5, { align: 'right' });
+      
+      doc.setDrawColor(240);
+      if (i > 0) doc.line(axesX, ty, axesX + chartW, ty);
+    }
+
+    // Draw bars
+    const barSpacing = chartW / daysInMonth;
+    const barW = Math.max(1.5, barSpacing - 1.2);
+    
+    monthDays.forEach(day => {
+      const rec = getRecordForDay(day);
+      const rain = rec?.rainfallMm || 0;
+      const bx = axesX + (day - 1) * barSpacing + (barSpacing - barW) / 2;
+      
+      // Label X axis
+      if (day % 3 === 1 || day === daysInMonth) {
+        doc.text(String(day), bx + barW/2, axesY + 4, { align: 'center' });
+      }
+
+      if (rain > 0) {
+        const barH = (rain / maxRain) * chartActualH;
+        doc.setFillColor(59, 130, 246); // Blue
+        doc.rect(bx, axesY - barH, barW, barH, 'F');
+      } else {
+        // Tiny baseline mark for days with 0 rain
+        doc.setFillColor(220, 220, 220);
+        doc.rect(bx, axesY - 0.5, barW, 0.5, 'F');
+      }
+    });
+
+    currentY = currentY + chartH + 4;
+
+    // 3. MONTHLY WEATHER CALENDAR / MATRIX OVERVIEW (Elegant grid layout)
+    currentY = sectionTitle('3. CALENDÁRIO OPERACIONAL ADAPTATIVO (MANHÃ / TARDE / NOITE)', currentY) + 2;
+
+    const colWidth = contentWidth / 7;
+    const rowHeight = 11;
+    const gridY = currentY;
+
+    // Calendar Header
+    const weekdays = ['DOM', 'SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SÁB'];
+    weekdays.forEach((w, idx) => {
+      const wx = margin + (idx * colWidth);
+      doc.setFillColor(241, 245, 249);
+      doc.setDrawColor(226, 232, 240);
+      doc.rect(wx, gridY, colWidth, 4.5, 'FD');
+      doc.setFontSize(5.5);
+      doc.setTextColor(71, 85, 105);
+      doc.setFont('helvetica', 'bold');
+      doc.text(w, wx + colWidth / 2, gridY + 3.2, { align: 'center' });
+    });
+
+    // Calendar cells
+    let cellY = gridY + 4.5;
+    const firstDayDate = new Date(currentYear, currentMonth, 1);
+    const startOffset = firstDayDate.getDay(); // 0 is Sunday, 1 Monday...
+
+    let colIdx = startOffset;
+    let currentCellY = cellY;
+
+    // Pre-draw blank cells for previous month padding
+    for (let i = 0; i < startOffset; i++) {
+      const bx = margin + (i * colWidth);
+      doc.setFillColor(252, 252, 252);
+      doc.setDrawColor(241, 245, 249);
+      doc.rect(bx, currentCellY, colWidth, rowHeight, 'FD');
+    }
+
+    monthDays.forEach(day => {
+      const bx = margin + (colIdx * colWidth);
+      const rec = getRecordForDay(day);
+      const night = rec?.nightStatus || 'Bom';
+      const morning = rec?.morningStatus || 'Bom';
+      const afternoon = rec?.afternoonStatus || 'Bom';
+      const rAmount = rec?.rainfallMm || 0;
+
+      // Draw cell perimeter
+      doc.setFillColor(255);
+      const isWeekend = colIdx === 0 || colIdx === 6;
+      if (isWeekend) doc.setFillColor(251, 252, 253);
+      if (rec?.morningStatus === 'Impraticável' || rec?.afternoonStatus === 'Impraticável') {
+        doc.setFillColor(254, 242, 242); // Reddish for paralysis days
+      }
+      doc.setDrawColor(226, 232, 240);
+      doc.rect(bx, currentCellY, colWidth, rowHeight, 'FD');
+
+      // Day label
+      doc.setFontSize(6.5);
+      doc.setTextColor(30, 41, 59);
+      doc.setFont('helvetica', isWeekend ? 'normal' : 'bold');
+      doc.text(String(day), bx + 2, currentCellY + 4.5);
+
+      // Rain indicator
+      if (rAmount > 0) {
+        doc.setFontSize(5);
+        doc.setTextColor(59, 130, 246);
+        doc.setFont('helvetica', 'bold');
+        doc.text(`${rAmount.toFixed(1)}mm`, bx + colWidth - 2, currentCellY + 4.5, { align: 'right' });
+      }
+
+      // We draw 3 small status indicators side-by-side representing Night, Morning, Afternoon
+      const drawDotsY = currentCellY + 7.5;
+      const dotRadius = 1.1;
+      const dotSpacing = 3.5;
+      const firstDotX = bx + (colWidth - (dotSpacing * 2)) / 2;
+
+      const periods = [
+        { label: 'N', status: night },
+        { label: 'M', status: morning },
+        { label: 'T', status: afternoon }
+      ];
+
+      periods.forEach((p, pIdx) => {
+        const dotX = firstDotX + (pIdx * dotSpacing);
+        let color = [234, 179, 8]; // Amber (Bom)
+        if (p.status === 'Chuvoso') color = [59, 130, 246]; // Blue
+        else if (p.status === 'Impraticável') color = [220, 38, 38]; // Red
+
+        // Dot Circle
+        doc.setFillColor(color[0], color[1], color[2]);
+        doc.circle(dotX, drawDotsY, dotRadius, 'F');
+      });
+
+      // Move cell pointers
+      colIdx++;
+      if (colIdx > 6) {
+        colIdx = 0;
+        currentCellY += rowHeight;
+      }
+    });
+
+    // Outer padding for following month days
+    if (colIdx > 0) {
+      for (let i = colIdx; i <= 6; i++) {
+        const bx = margin + (i * colWidth);
+        doc.setFillColor(252, 252, 252);
+        doc.setDrawColor(241, 245, 249);
+        doc.rect(bx, currentCellY, colWidth, rowHeight, 'FD');
+      }
+      currentCellY += rowHeight;
+    }
+
+    currentY = Math.max(currentCellY + 4, currentY);
+
+    // 4. COLOR LEGEND & COMPREHENSIVE STATUS CODES
+    doc.setFillColor(248, 250, 252);
+    doc.setDrawColor(226, 232, 240);
+    doc.rect(margin, currentY, contentWidth, 12, 'FD');
+
+    doc.setFontSize(5.5);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(71, 85, 105);
+    doc.text('LEGENDA OPERACIONAL:', margin + 3, currentY + 7.5);
+
+    // Legends
+    const legends = [
+      { text: '☀️  BOM (OPERACIONAL)', color: [234, 179, 8], offset: 50 },
+      { text: '🌧️  CHUVOSO (REDUZIDO)', color: [59, 130, 246], offset: 100 },
+      { text: '🛑  IMPRATICÁVEL (PARADO)', color: [220, 38, 38], offset: 150 }
+    ];
+
+    legends.forEach(lg => {
+      doc.setFillColor(lg.color[0], lg.color[1], lg.color[2]);
+      doc.circle(margin + lg.offset - 3, currentY + 7, 1.2, 'F');
+      doc.setFont('helvetica', 'bold');
+      doc.text(lg.text, margin + lg.offset, currentY + 7.5);
+    });
+
+    currentY += 16;
+
+    // Stamps, sign block at bottom
+    doc.setDrawColor(180);
+    doc.rect(margin, pageHeight - 34, contentWidth / 2 - 2, 20);
+    doc.rect(pageWidth / 2 + 2, pageHeight - 34, contentWidth / 2 - 2, 20);
+
+    doc.line(margin + 5, pageHeight - 20, (margin + contentWidth / 2) - 10, pageHeight - 20);
+    doc.line(pageWidth / 2 + 7, pageHeight - 20, pageWidth - margin - 5, pageHeight - 20);
+
+    doc.setFontSize(7);
+    doc.setTextColor(30, 41, 59);
+    doc.setFont('helvetica', 'bold');
+    doc.text('RESPONSÁVEL TÉCNICO', margin + contentWidth / 4, pageHeight - 16, { align: 'center' });
+    doc.text('FISCALIZAÇÃO DO CONTRATO', (pageWidth / 2) + (contentWidth / 4), pageHeight - 16, { align: 'center' });
+
+    doc.setFontSize(5);
+    doc.setTextColor(150);
+    doc.text('Assinatura e Carimbo Digital', margin + contentWidth / 4, pageHeight - 22, { align: 'center' });
+    doc.text('Assinatura e Carimbo Digital', (pageWidth / 2) + (contentWidth / 4), pageHeight - 22, { align: 'center' });
+
+    doc.save(`Pluviometria_${contract.contractNumber}_${currentYear}_${currentMonth + 1}.pdf`);
+  };
+
   const stats = React.useMemo(() => {
     let nightBom = 0, nightChuva = 0, nightImp = 0;
     let morningBom = 0, morningChuva = 0, morningImp = 0;
@@ -1097,7 +1608,13 @@ export function PluviometryView({ contract, records, onAdd, onUpdate, readonly }
           </h2>
           <p className="text-gray-500 font-bold uppercase text-xs tracking-wider">Acompanhamento climático e medição de precipitação em tempo real.</p>
         </div>
-        <div className="flex gap-2 shrink-0 self-end md:self-auto">
+        <div className="flex gap-2 shrink-0 self-end md:self-auto items-center">
+            <Button onClick={handleExportPluviometryPDF} className="bg-blue-600 hover:bg-blue-700 text-white h-9 font-black text-xs uppercase tracking-wider rounded-xl shadow-sm">
+                <FileDown className="w-4 h-4 mr-2" /> Gerar PDF
+            </Button>
+            <Button onClick={() => window.print()} variant="outline" className="h-9 font-black text-xs uppercase tracking-wider rounded-xl border-slate-200 hover:bg-slate-50 text-slate-700 shadow-sm">
+                <Printer className="w-4 h-4 mr-2 text-slate-500" /> Imprimir
+            </Button>
             <Select value={currentMonth.toString()} onValueChange={v => setCurrentMonth(parseInt(v))}>
                 <SelectTrigger className="w-32 h-9 text-xs font-black uppercase"><SelectValue /></SelectTrigger>
                 <SelectContent>
@@ -1123,7 +1640,7 @@ export function PluviometryView({ contract, records, onAdd, onUpdate, readonly }
             <FileSpreadsheet className="w-4 h-4" /> Planilha de Dados
           </TabsTrigger>
           <TabsTrigger value="chart" className="flex items-center gap-2 rounded-lg font-black uppercase text-xs tracking-widest px-4 py-2">
-            <Activity className="w-4 h-4" /> Gráfico Circular 3 Camadas
+            <Activity className="w-4 h-4" /> Gráfico
           </TabsTrigger>
         </TabsList>
 
@@ -1233,13 +1750,13 @@ export function PluviometryView({ contract, records, onAdd, onUpdate, readonly }
         <TabsContent value="chart">
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
             {/* SVG Donut Wheel */}
-            <div className="lg:col-span-5 bg-white p-6 border border-gray-100 rounded-2xl shadow-sm flex flex-col items-center">
-              <span className="text-xs font-black uppercase text-gray-400 tracking-wider mb-6 block text-center">Gráfico Rosca Concentrico 3 Camadas</span>
+            <div className="lg:col-span-7 bg-white p-8 border border-gray-100 rounded-2xl shadow-sm flex flex-col items-center justify-center min-h-[520px]">
+              <span className="text-sm font-black uppercase text-gray-400 tracking-wider mb-8 block text-center">Gráfico Rosca Concêntrico 3 Camadas</span>
               
-              <div className="relative w-72 h-72">
+              <div className="relative w-full max-w-[440px] aspect-square flex items-center justify-center">
                 <svg className="w-full h-full overflow-visible" viewBox="0 0 300 300">
                   {/* Central Help Circle for visual beauty */}
-                  <circle cx="150" cy="150" r="44" className="fill-gray-50 stroke-gray-100" strokeWidth="1" />
+                  <circle cx="150" cy="150" r="50" className="fill-gray-50 stroke-gray-100" strokeWidth="1" />
 
                   {monthDays.map((day) => {
                     const anglePerDay = 360 / daysInMonth;
@@ -1261,21 +1778,21 @@ export function PluviometryView({ contract, records, onAdd, onUpdate, readonly }
                       >
                         {/* Layer 1: Noite Anterior (Inner) */}
                         <path 
-                          d={describeArcSegment(150, 150, 48, 68, startAngle, endAngle)}
+                          d={describeArcSegment(150, 150, 54, 78, startAngle, endAngle)}
                           fill={nightCol}
                           className="transition-all"
                         />
 
                         {/* Layer 2: Manhã (Middle) */}
                         <path 
-                          d={describeArcSegment(150, 150, 72, 92, startAngle, endAngle)}
+                          d={describeArcSegment(150, 150, 84, 108, startAngle, endAngle)}
                           fill={morningCol}
                           className="transition-all"
                         />
 
                         {/* Layer 3: Tarde (Outer) */}
                         <path 
-                          d={describeArcSegment(150, 150, 96, 116, startAngle, endAngle)}
+                          d={describeArcSegment(150, 150, 114, 138, startAngle, endAngle)}
                           fill={afternoonCol}
                           className="transition-all"
                         />
@@ -1286,28 +1803,28 @@ export function PluviometryView({ contract, records, onAdd, onUpdate, readonly }
                   {/* Centered dynamically updated tooltip */}
                   {hoveredDay ? (
                     <g pointerEvents="none">
-                      <text x="150" y="125" textAnchor="middle" className="text-[10px] font-black uppercase tracking-wider fill-gray-400">Dia</text>
-                      <text x="150" y="152" textAnchor="middle" className="text-2xl font-black fill-gray-900 font-mono">{String(hoveredDay).padStart(2, '0')}</text>
-                      <text x="150" y="172" textAnchor="middle" className="text-[10px] font-bold fill-blue-600">{hoveredRecord?.rainfallMm || 0} mm</text>
+                      <text x="150" y="118" textAnchor="middle" className="text-[11px] font-black uppercase tracking-wider fill-gray-400">Dia</text>
+                      <text x="150" y="152" textAnchor="middle" className="text-3xl font-black fill-gray-900 font-mono">{String(hoveredDay).padStart(2, '0')}</text>
+                      <text x="150" y="174" textAnchor="middle" className="text-[11px] font-bold fill-blue-600">{hoveredRecord?.rainfallMm || 0} mm</text>
                     </g>
                   ) : (
                     <g pointerEvents="none">
-                      <text x="150" y="128" textAnchor="middle" className="text-[9px] font-black uppercase tracking-wider fill-gray-400 leading-none">Chuva Total</text>
-                      <text x="150" y="152" textAnchor="middle" className="text-lg font-black fill-blue-600 font-mono leading-none">{stats.totalRain.toFixed(1)}</text>
-                      <text x="150" y="168" textAnchor="middle" className="text-[9px] font-black uppercase tracking-wider fill-gray-400 font-mono">mm</text>
+                      <text x="150" y="122" textAnchor="middle" className="text-[10px] font-black uppercase tracking-wider fill-gray-400 leading-none">Chuva Total</text>
+                      <text x="150" y="152" textAnchor="middle" className="text-2xl font-black fill-blue-600 font-mono leading-none">{stats.totalRain.toFixed(1)}</text>
+                      <text x="150" y="170" textAnchor="middle" className="text-[10px] font-black uppercase tracking-wider fill-gray-400 font-mono">mm</text>
                     </g>
                   )}
                 </svg>
               </div>
 
               {/* Graphic Info Alert details inside Dial Center */}
-              <p className="text-center text-[10px] font-black uppercase tracking-wider text-gray-400 mt-6 leading-relaxed">
+              <p className="text-center text-xs font-black uppercase tracking-wider text-gray-400 mt-8 leading-relaxed">
                 Passe o mouse por cima dos setores para ver as condições diárias.
               </p>
             </div>
 
             {/* Side statistics, Color Legend & Layers Explanation */}
-            <div className="lg:col-span-7 space-y-4">
+            <div className="lg:col-span-5 space-y-4 font-black">
               <Card className="border border-gray-100 shadow-sm rounded-2xl overflow-hidden">
                 <div className="bg-gray-50 border-b border-gray-100 p-4">
                   <h4 className="font-black text-sm uppercase text-gray-800 tracking-tight">Legenda Climática do Diário</h4>

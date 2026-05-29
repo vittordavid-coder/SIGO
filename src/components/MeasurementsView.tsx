@@ -1184,6 +1184,8 @@ export function MeasurementsView({
                     companyLogo={companyLogo}
                     companyLogoRight={companyLogoRight}
                     logoMode={logoMode}
+                    controllerManpower={controllerManpower}
+                    controllerEquipments={controllerEquipments}
                   />
                 </motion.div>
             )}
