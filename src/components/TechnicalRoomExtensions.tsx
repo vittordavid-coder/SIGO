@@ -16,6 +16,8 @@ import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import ExcelJS from 'exceljs';
 import { saveAs } from 'file-saver';
+import { getSupabaseConfig, createSupabaseClient } from '../lib/supabaseClient';
+import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
 import { 
   Contract, DailyReport, DailyReportActivity, 
   PluviometryRecord, TechnicalSchedule, TechnicalServiceSchedule,
@@ -73,6 +75,8 @@ export function DailyReportView({
   const [activeItem, setActiveItem] = useState<'activities' | 'viewer'>('activities');
   const [selectedReportId, setSelectedReportId] = useState<string | null>(null);
   const [expandedMonths, setExpandedMonths] = useState<string[]>([]);
+  const [focusedPhotoIdx, setFocusedPhotoIdx] = useState<number | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
   const hasAutoExpanded = React.useRef(false);
   const selectedReport = React.useMemo(() => {
     const r = reports.find(r => r.id === selectedReportId) || (reports.length > 0 ? [...reports].sort((a,b) => b.date.localeCompare(a.date))[0] : null);
@@ -507,7 +511,9 @@ export function DailyReportView({
       
       let imgY = margin + 15;
       for (const p of report.photos) {
-        if (imgY + 80 > doc.internal.pageSize.height - margin) {
+        const url = typeof p === 'string' ? p : p.url;
+        const desc = typeof p === 'string' ? '' : (p.description || '');
+        if (imgY + 90 > doc.internal.pageSize.height - margin) {
           doc.addPage();
           imgY = margin + 15;
         }
@@ -517,7 +523,7 @@ export function DailyReportView({
             img.crossOrigin = "Anonymous";
             img.onload = () => resolve(img);
             img.onerror = reject;
-            img.src = p;
+            img.src = url;
           });
           
           const canvas = document.createElement('canvas');
@@ -537,7 +543,16 @@ export function DailyReportView({
               imgW = imgH * ratio;
             }
             doc.addImage(b64, 'JPEG', margin + (contentWidth - imgW) / 2, imgY, imgW, imgH);
-            imgY += imgH + 10;
+            imgY += imgH + 2;
+            if (desc) {
+              doc.setFontSize(8);
+              doc.setTextColor(100);
+              doc.text(desc, pageWidth / 2, imgY + 2, { align: 'center', maxWidth: contentWidth * 0.8 });
+              const lines = doc.splitTextToSize(desc, contentWidth * 0.8);
+              imgY += (lines.length * 4) + 6;
+            } else {
+              imgY += 8;
+            }
           }
         } catch(e) {
              console.error("Photo error", e);
@@ -730,22 +745,30 @@ export function DailyReportView({
       let r = 1;
       let c = 1;
       for (const p of report.photos) {
+        const url = typeof p === 'string' ? p : p.url;
+        const desc = typeof p === 'string' ? '' : (p.description || '');
         try {
-          const response = await fetch(p);
+          const response = await fetch(url);
           const blob = await response.blob();
           const arrayBuffer = await blob.arrayBuffer();
           const imageId = workbook.addImage({
             buffer: arrayBuffer,
-            extension: p.toLowerCase().includes('png') ? 'png' : 'jpeg',
+            extension: url.toLowerCase().includes('png') ? 'png' : 'jpeg',
           });
           photoSheet.addImage(imageId, {
             tl: { col: c - 1, row: r },
             ext: { width: 300, height: 300 }
           });
+          if (desc) {
+            const descRow = r + 15;
+            photoSheet.getCell(descRow, c).value = desc;
+            photoSheet.getCell(descRow, c).font = { size: 9 };
+            photoSheet.getCell(descRow, c).alignment = { wrapText: true, horizontal: 'center' };
+          }
           c++;
           if (c > 2) {
             c = 1;
-            r += 16;
+            r += 17;
           }
         } catch (e) { console.error('Failed to attach photo', e); }
       }
@@ -1419,50 +1442,157 @@ export function DailyReportView({
                         <CardHeader className="bg-blue-50/50 rounded-t-2xl border-b border-blue-100 p-3">
                           <CardTitle className="text-[11px] font-black uppercase text-blue-800 flex items-center gap-2">
                             <Plus className="w-4 h-4 text-blue-600" /> Registro Fotográfico
+                            {isUploading && <span className="ml-2 text-[10px] text-blue-600 font-normal">Enviando arquivos...</span>}
                           </CardTitle>
                         </CardHeader>
                         <CardContent className="p-4">
-                          <div className="flex flex-wrap gap-4">
-                            {(selectedReport.photos || []).map((photoUrl, idx) => (
-                              <div key={idx} className="relative group w-32 h-32 rounded-lg overflow-hidden border border-gray-200 shadow-sm">
-                                <img src={photoUrl} alt={`Foto ${idx + 1}`} className="w-full h-full object-cover" />
-                                {!readonly && (
-                                  <button
-                                    onClick={() => {
-                                      const updatedPhotos = selectedReport.photos!.filter((_, i) => i !== idx);
-                                      onUpdate({...selectedReport, photos: updatedPhotos});
-                                    }}
-                                    className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
-                                  >
-                                    <X className="w-3 h-3" />
-                                  </button>
-                                )}
-                              </div>
-                            ))}
-                            {!readonly && (
-                              <label className="w-32 h-32 flex flex-col items-center justify-center border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50 flex-shrink-0 transition-colors">
-                                <Plus className="w-6 h-6 text-gray-400 mb-2" />
-                                <span className="text-[10px] text-gray-500 font-bold px-2 text-center uppercase">Adicionar<br />Foto</span>
-                                <input
-                                  type="file"
-                                  accept="image/*"
-                                  multiple
-                                  className="hidden"
-                                  onChange={e => {
-                                    if (e.target.files) {
-                                      const newPhotos = Array.from(e.target.files).map(file => URL.createObjectURL(file));
-                                      onUpdate({...selectedReport, photos: [...(selectedReport.photos || []), ...newPhotos]});
-                                    }
-                                  }}
-                                />
-                              </label>
-                            )}
-                            {readonly && (!selectedReport.photos || selectedReport.photos.length === 0) && (
-                              <p className="text-xs text-gray-500 font-bold w-full text-center py-4">Nenhum registro fotográfico anexado.</p>
-                            )}
-                          </div>
+                          <DragDropContext onDragEnd={(result) => {
+                            if (!result.destination) return;
+                            const currentPhotos = (selectedReport.photos || []).map((p: any) => typeof p === 'string' ? { url: p, description: '' } : p);
+                            const [reorderedItem] = currentPhotos.splice(result.source.index, 1);
+                            currentPhotos.splice(result.destination.index, 0, reorderedItem);
+                            onUpdate({...selectedReport, photos: currentPhotos});
+                          }}>
+                            <Droppable droppableId="photos-grid" direction="horizontal">
+                              {(provided) => (
+                                <div 
+                                  className="flex flex-wrap gap-4" 
+                                  {...provided.droppableProps} 
+                                  ref={provided.innerRef}
+                                >
+                                  {(selectedReport.photos || []).map((photoObj: any, idx: number) => {
+                                    const photo = typeof photoObj === 'string' ? { url: photoObj, description: '' } : photoObj;
+                                    return (
+                                      <Draggable key={photo.url || idx.toString()} draggableId={photo.url || idx.toString()} index={idx} isDragDisabled={readonly}>
+                                        {(provided) => (
+                                          <div
+                                            ref={provided.innerRef}
+                                            {...provided.draggableProps}
+                                            {...provided.dragHandleProps}
+                                          >
+                                            <div className="relative group w-32 h-32 rounded-lg overflow-hidden border border-gray-200 shadow-sm cursor-pointer" onClick={() => setFocusedPhotoIdx(idx)}>
+                                              <img src={photo.url} alt={`Foto ${idx + 1}`} className="w-full h-full object-cover" />
+                                              {!readonly && (
+                                                <button
+                                                  onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    const updatedPhotos = selectedReport.photos!.filter((_: any, i: number) => i !== idx);
+                                                    onUpdate({...selectedReport, photos: updatedPhotos});
+                                                  }}
+                                                  className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                                                >
+                                                  <X className="w-3 h-3" />
+                                                </button>
+                                              )}
+                                              {photo.description && (
+                                                <div className="absolute bottom-0 inset-x-0 bg-black/60 p-1">
+                                                  <p className="text-[9px] text-white truncate text-center">{photo.description}</p>
+                                                </div>
+                                              )}
+                                            </div>
+                                          </div>
+                                        )}
+                                      </Draggable>
+                                    );
+                                  })}
+                                  {provided.placeholder}
+                                  
+                                  {!readonly && (
+                                    <label className="w-32 h-32 flex flex-col items-center justify-center border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50 flex-shrink-0 transition-colors">
+                                      <Plus className="w-6 h-6 text-gray-400 mb-2" />
+                                      <span className="text-[10px] text-gray-500 font-bold px-2 text-center uppercase">Adicionar<br />Foto</span>
+                                      <input
+                                        type="file"
+                                        accept="image/*"
+                                        multiple
+                                        className="hidden"
+                                        onChange={async e => {
+                                          if (e.target.files && e.target.files.length > 0) {
+                                            setIsUploading(true);
+                                            const config = getSupabaseConfig();
+                                            const supabase = createSupabaseClient(config.url, config.key);
+                                            const newUrls: any[] = [];
+                                            for (const file of Array.from(e.target.files)) {
+                                              if (supabase) {
+                                                const fileExt = file.name.split('.').pop() || 'jpg';
+                                                const fileName = uuidv4() + '.' + fileExt;
+                                                const { error } = await supabase.storage.from('rdo_photos').upload(fileName, file);
+                                                if (!error) {
+                                                  const { data } = supabase.storage.from('rdo_photos').getPublicUrl(fileName);
+                                                  newUrls.push({ url: data.publicUrl, description: '' });
+                                                } else {
+                                                  console.error("error uploading photo: ", error);
+                                                }
+                                              } else {
+                                                newUrls.push({ url: URL.createObjectURL(file), description: '' });
+                                              }
+                                            }
+                                            if (newUrls.length > 0) {
+                                              const currentPhotos = (selectedReport.photos || []).map((p: any) => typeof p === 'string' ? { url: p, description: '' } : p);
+                                              onUpdate({...selectedReport, photos: [...currentPhotos, ...newUrls]});
+                                            }
+                                            setIsUploading(false);
+                                            e.target.value = '';
+                                          }
+                                        }}
+                                      />
+                                    </label>
+                                  )}
+                                  {readonly && (!selectedReport.photos || selectedReport.photos.length === 0) && (
+                                    <p className="text-xs text-gray-500 font-bold w-full text-center py-4">Nenhum registro fotográfico anexado.</p>
+                                  )}
+                                </div>
+                              )}
+                            </Droppable>
+                          </DragDropContext>
                         </CardContent>
                       </Card>
+
+                      <AnimatePresence>
+                        {focusedPhotoIdx !== null && (
+                          <motion.div 
+                            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                            className="fixed inset-0 z-[100] bg-black/90 flex flex-col items-center justify-center p-4 backdrop-blur-sm"
+                            onClick={() => setFocusedPhotoIdx(null)}
+                          >
+                            <button className="absolute top-6 right-6 text-white hover:text-gray-300 p-2 focus:outline-none" onClick={() => setFocusedPhotoIdx(null)}>
+                              <X className="w-8 h-8" />
+                            </button>
+                            <div className="max-w-4xl w-full h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
+                              <div className="flex-1 min-h-0 bg-transparent flex items-center justify-center p-4">
+                                <img 
+                                  src={
+                                    typeof (selectedReport.photos || [])[focusedPhotoIdx] === 'string' 
+                                      ? (selectedReport.photos || [])[focusedPhotoIdx] as string
+                                      : ((selectedReport.photos || [])[focusedPhotoIdx] as any)?.url
+                                  } 
+                                  alt="Zoom" 
+                                  className="max-w-full max-h-full object-contain rounded-md" 
+                                />
+                              </div>
+                              <div className="h-40 shrink-0 p-4 w-full max-w-2xl mx-auto flex flex-col gap-2">
+                                <label className="text-white text-sm font-semibold uppercase">Descrição da Foto</label>
+                                <textarea
+                                  disabled={readonly}
+                                  placeholder={readonly ? "Sem descrição" : "Adicione uma descrição detalhada para essa foto..."}
+                                  className="w-full h-24 p-3 bg-white/10 text-white placeholder-white/50 border border-white/20 rounded-xl resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-75 disabled:bg-transparent"
+                                  value={
+                                    typeof (selectedReport.photos || [])[focusedPhotoIdx] === 'string' 
+                                      ? ''
+                                      : ((selectedReport.photos || [])[focusedPhotoIdx] as any)?.description || ''
+                                  }
+                                  onChange={e => {
+                                    if (readonly) return;
+                                    const currentPhotos = (selectedReport.photos || []).map((p: any) => typeof p === 'string' ? { url: p, description: '' } : { ...p });
+                                    currentPhotos[focusedPhotoIdx].description = e.target.value;
+                                    onUpdate({...selectedReport, photos: currentPhotos});
+                                  }}
+                                />
+                              </div>
+                            </div>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
 
                       {/* Resident Stamp layout showing digital signatures */}
                       <Card className="border border-gray-100 bg-gray-50/30 rounded-2xl p-6">
