@@ -6,7 +6,7 @@ import {
 import { 
   Plus, Edit, Trash2, Download, Printer, 
   CloudRain, Calendar, BookOpen, UserCheck, HardHat,
-  Construction, Map, Clock, ArrowRightLeft, Save,
+  Construction, Map as MapIcon, Clock, ArrowRightLeft, Save,
   Search, ThermometerSun, AlertTriangle, FileText, FileSpreadsheet, FileDown,
   ChevronDown, ChevronRight, PanelRight, PanelRightClose, ZoomIn, ZoomOut,
   TrendingUp, BarChart3, Maximize2, Minimize2, X, Layers, Activity
@@ -74,7 +74,47 @@ export function DailyReportView({
   const [selectedReportId, setSelectedReportId] = useState<string | null>(null);
   const [expandedMonths, setExpandedMonths] = useState<string[]>([]);
   const hasAutoExpanded = React.useRef(false);
-  const selectedReport = reports.find(r => r.id === selectedReportId) || (reports.length > 0 ? [...reports].sort((a,b) => b.date.localeCompare(a.date))[0] : null);
+  const selectedReport = React.useMemo(() => {
+    const r = reports.find(r => r.id === selectedReportId) || (reports.length > 0 ? [...reports].sort((a,b) => b.date.localeCompare(a.date))[0] : null);
+    if (!r) return null;
+
+    const groupItems = (list: { description: string, quantity: number }[], extactor: (desc: string) => string) => {
+      const map = new Map<string, number>();
+      list.forEach(item => {
+        const clean = extactor(item.description);
+        const key = clean.toUpperCase();
+        const existingKey = Array.from(map.keys()).find(k => k.toUpperCase() === key);
+        if (existingKey) {
+          map.set(existingKey, (map.get(existingKey) || 0) + item.quantity);
+        } else {
+          map.set(clean, item.quantity);
+        }
+      });
+      return Array.from(map.entries()).map(([description, quantity]) => ({ description, quantity }));
+    };
+
+    const cleanManpower = (desc: string) => {
+      const match = desc.match(/(.+)\s+\((.+)\)$/);
+      const searchName = match ? match[1].trim() : desc.trim();
+      const found = controllerManpower.find(m => m.name === searchName || `${m.name} (${m.role})` === desc);
+      if (found && found.role) return found.role;
+      return match ? match[2].trim() : desc.trim();
+    };
+
+    const cleanEquipment = (desc: string) => {
+      const match = desc.match(/(.+)\s+\((.+)\)$/);
+      const searchName = match ? match[1].trim() : desc.trim();
+      const found = controllerEquipments.find(e => e.name === searchName || `${e.name} (${e.model})` === desc);
+      if (found && found.type) return found.type;
+      return match ? match[1].trim() : desc.trim();
+    };
+
+    return {
+      ...r,
+      manpower: groupItems(r.manpower, cleanManpower),
+      equipment: groupItems(r.equipment, cleanEquipment)
+    };
+  }, [reports, selectedReportId]);
 
   // Group reports by month/year
   const groupedReports = React.useMemo(() => {
@@ -142,19 +182,19 @@ export function DailyReportView({
     const today = new Date().toISOString().split('T')[0];
     
     // Auto-populate from contract's manpower & equipments
-    const defaultManpower = (controllerManpower || [])
-      .filter(m => m.contractId === contract.id)
-      .map(m => ({
-        description: `${m.name} (${m.role})`,
-        quantity: 1
-      }));
+    const filteredManpower = (controllerManpower || []).filter(m => m.contractId === contract.id);
+    const mpMap = new Map<string, number>();
+    filteredManpower.forEach(m => {
+      mpMap.set(m.role || 'Geral', (mpMap.get(m.role || 'Geral') || 0) + 1);
+    });
+    const defaultManpower = Array.from(mpMap.entries()).map(([desc, qty]) => ({ description: desc, quantity: qty }));
 
-    const defaultEquipment = (controllerEquipments || [])
-      .filter(e => e.contractId === contract.id)
-      .map(e => ({
-        description: `${e.name} (${e.model})`,
-        quantity: 1
-      }));
+    const filteredEquipment = (controllerEquipments || []).filter(e => e.contractId === contract.id);
+    const eqMapInit = new Map<string, number>();
+    filteredEquipment.forEach(e => {
+      eqMapInit.set(e.type || 'Equipamento', (eqMapInit.get(e.type || 'Equipamento') || 0) + 1);
+    });
+    const defaultEquipment = Array.from(eqMapInit.entries()).map(([desc, qty]) => ({ description: desc, quantity: qty }));
 
     onAdd({
       contractId: contract.id,
@@ -184,73 +224,54 @@ export function DailyReportView({
     onMoveActivity(activityId, reportId, newDate, contract.id);
   };
 
-  const generateRdoPdf = (report: DailyReport) => {
+  const generateRdoPdf = async (report: DailyReport) => {
     const doc = new jsPDF() as any;
     const pluviometry = pluviometryRecords.find(p => p.date === report.date);
     
-    // Page dimensions
+    // Dimensions and Frame
     const pageWidth = doc.internal.pageSize.width;
     const margin = 10;
     const contentWidth = pageWidth - (margin * 2);
 
-    // Document Frame/Border
     doc.setDrawColor(200);
     doc.setLineWidth(0.1);
     doc.rect(margin - 2, margin - 2, contentWidth + 4, doc.internal.pageSize.height - (margin * 2) + 4);
 
-    // Header
-    doc.setFillColor(30, 58, 138); // Dark Blue
-    doc.rect(margin, margin, contentWidth, 12, 'F');
+    // Header Structure
+    doc.setFillColor(30, 58, 138); 
+    doc.rect(margin, margin, contentWidth, 10, 'F');
     
-    // Logo Logic
+    // Logos logic
     const mode = logoMode || 'left';
     const showLeft = (mode === 'left' || mode === 'both') && companyLogo;
     const showRight = (mode === 'right' || mode === 'both') && companyLogoRight;
 
-    // Logos
     if (showLeft) {
       try {
         const props = doc.getImageProperties(companyLogo!);
         const ratio = props.width / props.height;
-        let w = 10;
-        let h = 10 / ratio;
-        if (h > 10) {
-          h = 10;
-          w = 10 * ratio;
-        }
-        const y = margin + 1 + (10 - h) / 2;
-        doc.addImage(companyLogo!, 'PNG', margin + 1, y, w, h);
-      } catch (e) { 
-        try { doc.addImage(companyLogo!, 'PNG', margin + 1, margin + 1, 15, 10); } catch(err) {}
-        console.error("Logo Left add error", e); 
-      }
+        let w = 8, h = 8 / ratio;
+        if (h > 8) { h = 8; w = 8 * ratio; }
+        doc.addImage(companyLogo!, 'PNG', margin + 1, margin + 1 + (8 - h) / 2, w, h);
+      } catch (e) { console.error(e); }
     }
     
     if (showRight) {
       try {
         const props = doc.getImageProperties(companyLogoRight!);
         const ratio = props.width / props.height;
-        let w = 10;
-        let h = 10 / ratio;
-        if (h > 10) {
-          h = 10;
-          w = 10 * ratio;
-        }
-        const y = margin + 1 + (10 - h) / 2;
-        doc.addImage(companyLogoRight!, 'PNG', pageWidth - margin - 1 - w, y, w, h);
-      } catch (e) { 
-        try { doc.addImage(companyLogoRight!, 'PNG', pageWidth - margin - 16, margin + 1, 15, 10); } catch(err) {}
-        console.error("Logo Right add error", e); 
-      }
+        let w = 8, h = 8 / ratio;
+        if (h > 8) { h = 8; w = 8 * ratio; }
+        doc.addImage(companyLogoRight!, 'PNG', pageWidth - margin - 1 - w, margin + 1 + (8 - h) / 2, w, h);
+      } catch (e) { console.error(e); }
     }
 
     doc.setTextColor(255);
-    doc.setFontSize(12);
+    doc.setFontSize(10);
     doc.setFont('helvetica', 'bold');
-    doc.text('RELATÓRIO DIÁRIO DE OCORRÊNCIAS - RDO', pageWidth / 2, margin + 8, { align: 'center' });
+    doc.text('RELATÓRIO DIÁRIO DE OCORRÊNCIAS - RDO', pageWidth / 2, margin + 7, { align: 'center' });
     
     doc.setTextColor(0);
-    doc.setFontSize(8);
     
     const headerData = [
       ['Nº DO RDO:', `RDO-${reports.indexOf(report) + 1}`, 'DATA DO REGISTRO:', new Date(report.date + 'T12:00:00').toLocaleDateString('pt-BR')],
@@ -259,73 +280,66 @@ export function DailyReportView({
     ];
 
     autoTable(doc, {
-      startY: margin + 14,
+      startY: margin + 11,
       body: headerData,
       theme: 'grid',
-      styles: { fontSize: 8, cellPadding: 2, fontStyle: 'bold' },
+      styles: { fontSize: 6.5, cellPadding: 1.2, fontStyle: 'bold', textColor: [60,60,60] },
       columnStyles: { 
-        0: { cellWidth: 35, fillColor: [245, 245, 245] }, 
-        1: { cellWidth: 60 },
-        2: { cellWidth: 35, fillColor: [245, 245, 245] },
-        3: { cellWidth: 60 }
+        0: { cellWidth: 25, fillColor: [248, 250, 252] }, 
+        1: { cellWidth: 70 },
+        2: { cellWidth: 30, fillColor: [248, 250, 252] },
+        3: { cellWidth: 'auto' }
       }
     });
 
-    // Sections Header Style Helper
+    // Helper for Section Titles
     const sectionHeader = (title: string, startY: number) => {
-      doc.setFillColor(240, 245, 255);
-      doc.rect(margin, startY, contentWidth, 6, 'F');
-      doc.setFontSize(9);
+      doc.setFillColor(241, 245, 249);
+      doc.rect(margin, startY, contentWidth, 5, 'F');
+      doc.setFontSize(7.5);
       doc.setFont('helvetica', 'bold');
       doc.setTextColor(30, 58, 138);
-      doc.text(title, margin + 2, startY + 4.5);
+      doc.text(title, margin + 2, startY + 3.8);
       doc.setTextColor(0);
-      return startY + 6;
+      return startY + 5;
     };
     
-    // Weather Table
+    // Config values
     const morning = pluviometry?.morningStatus || report.weatherMorning;
     const afternoon = pluviometry?.afternoonStatus || report.weatherAfternoon;
     const night = pluviometry?.nightStatus || report.weatherNight;
     const rain = pluviometry?.rainfallMm || report.rainfallMm;
 
-    let currentY = (doc as any).lastAutoTable.finalY + 5;
+    let currentY = (doc as any).lastAutoTable.finalY + 3;
     currentY = sectionHeader('1. CONDIÇÕES CLIMÁTICAS (PLUVIOMETRIA)', currentY);
 
     autoTable(doc, {
         startY: currentY,
-        head: [['Cenário Noite Ant.', 'Cenário Manhã', 'Cenário Tarde', 'Índice (mm)']],
+        head: [['Noite Ant.', 'Manhã', 'Tarde', 'Índice (mm)']],
         body: [[night, morning, afternoon, `${rain} mm`]],
         theme: 'grid',
-        headStyles: { fillColor: [70, 70, 70], textColor: [255, 255, 255], fontStyle: 'bold', halign: 'center' },
-        styles: { halign: 'center' }
+        headStyles: { fillColor: [71, 85, 105], textColor: [255, 255, 255], fontStyle: 'bold', halign: 'center', fontSize: 6.5, cellPadding: 1.2 },
+        styles: { halign: 'center', fontSize: 6.5, cellPadding: 1.2, textColor: [50,50,50] }
     });
 
-    // Manpower and Equipment
-    currentY = (doc as any).lastAutoTable.finalY + 5;
+    currentY = (doc as any).lastAutoTable.finalY + 3;
     currentY = sectionHeader('2. RECURSOS (MÃO DE OBRA E EQUIPAMENTOS)', currentY);
 
-    // Grouping Manpower by function
     const mpMap = new Map<string, number>();
-    report.manpower.forEach(m => {
-        mpMap.set(m.description.toUpperCase(), (mpMap.get(m.description.toUpperCase()) || 0) + m.quantity);
-    });
+    report.manpower.forEach(m => mpMap.set(m.description.toUpperCase(), (mpMap.get(m.description.toUpperCase()) || 0) + m.quantity));
     const manpowerBody = Array.from(mpMap.entries()).map(([desc, qty]) => [desc, qty]);
 
-    // Grouping Equipment by type
     const eqMap = new Map<string, number>();
-    report.equipment.forEach(e => {
-        eqMap.set(e.description.toUpperCase(), (eqMap.get(e.description.toUpperCase()) || 0) + e.quantity);
-    });
+    report.equipment.forEach(e => eqMap.set(e.description.toUpperCase(), (eqMap.get(e.description.toUpperCase()) || 0) + e.quantity));
     const equipmentBody = Array.from(eqMap.entries()).map(([desc, qty]) => [desc, qty]);
     
-    // Split screen for resources
     autoTable(doc, {
         startY: currentY,
         head: [['MÃO DE OBRA', 'QTDE']],
         body: manpowerBody.length > 0 ? manpowerBody : [['Nenhum registro', '0']],
         theme: 'grid',
-        headStyles: { fillColor: [40, 100, 40], textColor: [255, 255, 255] },
+        headStyles: { fillColor: [22, 163, 74], textColor: [255, 255, 255], fontSize: 6.5, cellPadding: 1.2 },
+        styles: { fontSize: 6.5, cellPadding: 1.2 },
         margin: { left: margin, right: pageWidth / 2 + 1 }
     });
 
@@ -334,12 +348,12 @@ export function DailyReportView({
         head: [['EQUIPAMENTO', 'QTDE']],
         body: equipmentBody.length > 0 ? equipmentBody : [['Nenhum registro', '0']],
         theme: 'grid',
-        headStyles: { fillColor: [120, 60, 20], textColor: [255, 255, 255] },
+        headStyles: { fillColor: [234, 88, 12], textColor: [255, 255, 255], fontSize: 6.5, cellPadding: 1.2 },
+        styles: { fontSize: 6.5, cellPadding: 1.2 },
         margin: { left: pageWidth / 2 + 1, right: margin }
     });
 
-    // Activities
-    currentY = Math.max((doc as any).lastAutoTable.finalY + 5, currentY);
+    currentY = Math.max((doc as any).lastAutoTable.finalY + 3, currentY);
     currentY = sectionHeader('3. ATIVIDADES EXECUTADAS E PROGRESSO', currentY);
 
     const activitiesBody = report.activities.map(a => [a.code || '-', a.description, a.type]);
@@ -348,22 +362,22 @@ export function DailyReportView({
         head: [['CÓD.', 'DESCRIÇÃO DA ATIVIDADE', 'TIPO / CATEGORIA']],
         body: activitiesBody.length > 0 ? activitiesBody : [['-', 'Nenhum registro de atividade para este dia.', '-']],
         theme: 'grid',
-        headStyles: { fillColor: [30, 60, 100], textColor: [255, 255, 255] },
-        columnStyles: { 0: { cellWidth: 20 }, 1: { cellWidth: 'auto' }, 2: { cellWidth: 40 } }
+        headStyles: { fillColor: [15, 23, 42], textColor: [255, 255, 255], fontSize: 6.5, cellPadding: 1.2 },
+        styles: { fontSize: 6.5, cellPadding: 1.2 },
+        columnStyles: { 0: { cellWidth: 15 }, 1: { cellWidth: 'auto' }, 2: { cellWidth: 35 } }
     });
 
-    currentY = (doc as any).lastAutoTable.finalY + 5;
+    currentY = (doc as any).lastAutoTable.finalY + 3;
 
-    // Comments Sections
     if (report.accidents) {
         currentY = sectionHeader('4. OCORRÊNCIAS E ACIDENTES', currentY);
         autoTable(doc, {
           startY: currentY,
           body: [[report.accidents]],
           theme: 'grid',
-          styles: { minCellHeight: 15 }
+          styles: { minCellHeight: 12, fontSize: 6.5, cellPadding: 1.2, textColor: [220, 38, 38] }
         });
-        currentY = (doc as any).lastAutoTable.finalY + 5;
+        currentY = (doc as any).lastAutoTable.finalY + 3;
     }
 
     if (report.fiscalizationComments) {
@@ -372,44 +386,102 @@ export function DailyReportView({
           startY: currentY,
           body: [[report.fiscalizationComments]],
           theme: 'grid',
-          styles: { minCellHeight: 15 }
+          styles: { minCellHeight: 12, fontSize: 6.5, cellPadding: 1.2, fontStyle: 'italic' }
         });
-        currentY = (doc as any).lastAutoTable.finalY + 5;
+        currentY = (doc as any).lastAutoTable.finalY + 3;
     }
 
-    // Signatures
     const pageHeight = doc.internal.pageSize.height;
-    if (currentY > pageHeight - 50) doc.addPage();
+    if (currentY > pageHeight - 35) doc.addPage();
     
-    currentY = Math.max(currentY + 10, pageHeight - 50);
+    currentY = Math.max(currentY + 5, pageHeight - 35);
 
-    // Signature boxes
-    doc.setDrawColor(180);
-    doc.rect(margin, currentY, contentWidth / 2 - 2, 30);
-    doc.rect(pageWidth / 2 + 2, currentY, contentWidth / 2 - 2, 30);
+    doc.setDrawColor(200);
+    doc.setFillColor(248, 250, 252);
+    doc.rect(margin, currentY, contentWidth / 2 - 2, 25, 'FD');
+    doc.rect(pageWidth / 2 + 2, currentY, contentWidth / 2 - 2, 25, 'FD');
 
-    doc.line(margin + 5, currentY + 22, (margin + contentWidth / 2) - 10, currentY + 22);
-    doc.line(pageWidth / 2 + 7, currentY + 22, pageWidth - margin - 5, currentY + 22);
+    doc.line(margin + 5, currentY + 18, (margin + contentWidth / 2) - 10, currentY + 18);
+    doc.line(pageWidth / 2 + 7, currentY + 18, pageWidth - margin - 5, currentY + 18);
     
-    doc.setFontSize(8);
-    doc.text('ENGENHEIRO DA OBRA', margin + contentWidth / 4, currentY + 26, { align: 'center' });
-    doc.text('FISCALIZAÇÃO', (pageWidth / 2) + (contentWidth / 4), currentY + 26, { align: 'center' });
+    doc.setFontSize(7);
+    doc.setTextColor(30, 41, 59);
+    doc.setFont('helvetica', 'bold');
+    doc.text('ENGENHEIRO DA OBRA', margin + contentWidth / 4, currentY + 22, { align: 'center' });
+    doc.text('FISCALIZAÇÃO', (pageWidth / 2) + (contentWidth / 4), currentY + 22, { align: 'center' });
     
-    doc.setFontSize(6);
-    doc.setTextColor(150);
-    doc.text('Assinatura e Carimbo', margin + contentWidth / 4, currentY + 20, { align: 'center' });
-    doc.text('Assinatura e Carimbo', (pageWidth / 2) + (contentWidth / 4), currentY + 20, { align: 'center' });
+    doc.setFontSize(5.5);
+    doc.setTextColor(148, 163, 184);
+    doc.setFont('helvetica', 'normal');
+    doc.text('Assinatura e Carimbo', margin + contentWidth / 4, currentY + 16, { align: 'center' });
+    doc.text('Assinatura e Carimbo', (pageWidth / 2) + (contentWidth / 4), currentY + 16, { align: 'center' });
+
+    // Append Photos Page
+    if (report.photos && report.photos.length > 0) {
+      doc.addPage();
+      
+      doc.setDrawColor(200);
+      doc.setLineWidth(0.1);
+      doc.rect(margin - 2, margin - 2, contentWidth + 4, doc.internal.pageSize.height - (margin * 2) + 4);
+  
+      doc.setFillColor(30, 58, 138); 
+      doc.rect(margin, margin, contentWidth, 10, 'F');
+      
+      doc.setTextColor(255);
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'bold');
+      doc.text('REGISTRO FOTOGRÁFICO', pageWidth / 2, margin + 7, { align: 'center' });
+      
+      let imgY = margin + 15;
+      for (const p of report.photos) {
+        if (imgY + 80 > doc.internal.pageSize.height - margin) {
+          doc.addPage();
+          imgY = margin + 15;
+        }
+        try {
+          const loadedImg = await new Promise<HTMLImageElement>((resolve, reject) => {
+            const img = new window.Image();
+            img.crossOrigin = "Anonymous";
+            img.onload = () => resolve(img);
+            img.onerror = reject;
+            img.src = p;
+          });
+          
+          const canvas = document.createElement('canvas');
+          canvas.width = loadedImg.width;
+          canvas.height = loadedImg.height;
+          const ctx = canvas.getContext('2d');
+          if(ctx) {
+            ctx.drawImage(loadedImg, 0, 0);
+            const b64 = canvas.toDataURL('image/jpeg', 0.8);
+            
+            const props = doc.getImageProperties(b64);
+            const ratio = props.width / props.height;
+            let imgW = contentWidth * 0.8;
+            let imgH = imgW / ratio;
+            if (imgH > 80) {
+              imgH = 80;
+              imgW = imgH * ratio;
+            }
+            doc.addImage(b64, 'JPEG', margin + (contentWidth - imgW) / 2, imgY, imgW, imgH);
+            imgY += imgH + 10;
+          }
+        } catch(e) {
+             console.error("Photo error", e);
+        }
+      }
+    }
 
     return doc;
   };
 
-  const handleExportPDF = (report: DailyReport) => {
-    const doc = generateRdoPdf(report);
+  const handleExportPDF = async (report: DailyReport) => {
+    const doc = await generateRdoPdf(report);
     doc.save(`RDO_${contract.contractNumber}_${report.date}.pdf`);
   };
 
-  const handlePrintRDO = (report: DailyReport) => {
-    const doc = generateRdoPdf(report);
+  const handlePrintRDO = async (report: DailyReport) => {
+    const doc = await generateRdoPdf(report);
     doc.autoPrint();
     const pdfBlob = doc.output('blob');
     const pdfUrl = URL.createObjectURL(pdfBlob);
@@ -437,93 +509,157 @@ export function DailyReportView({
     // Title
     worksheet.mergeCells('A1:D1');
     const titleCell = worksheet.getCell('A1');
-    titleCell.value = 'DIÁRIO DE OCORRÊNCIA - RDO';
-    titleCell.font = { bold: true, size: 14 };
-    titleCell.alignment = { horizontal: 'center' };
+    titleCell.value = 'RELATÓRIO DIÁRIO DE OCORRÊNCIAS - RDO';
+    titleCell.font = { bold: true, size: 12, color: { argb: 'FFFFFFFF' } };
+    titleCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1E3A8A' } };
+    titleCell.alignment = { horizontal: 'center', vertical: 'middle' };
 
     // Info
-    worksheet.addRow(['Data:', new Date(report.date + 'T12:00:00').toLocaleDateString(), 'RDO Nº:', reports.indexOf(report) + 1]);
+    worksheet.addRow(['Data:', new Date(report.date + 'T12:00:00').toLocaleDateString('pt-BR'), 'RDO Nº:', reports.indexOf(report) + 1]);
     worksheet.addRow(['Contrato:', contract.contractNumber, 'Obra:', contract.object]);
-    worksheet.getRow(2).font = { bold: true };
-    worksheet.getRow(3).font = { bold: true };
+    
+    // Style Info block
+    [2, 3].forEach(rowNum => {
+      const row = worksheet.getRow(rowNum);
+      row.font = { size: 9 };
+      row.getCell(1).font = { bold: true };
+      row.getCell(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8FAFC' } };
+      row.getCell(3).font = { bold: true };
+      row.getCell(3).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8FAFC' } };
+    });
 
-    worksheet.addRow([]);
+    // Helper for Section Titles
+    const addSectionHeader = (title: string, color: string, textColor = 'FFFFFFFF') => {
+      const row = worksheet.addRow([title]);
+      worksheet.mergeCells(`A${row.number}:D${row.number}`);
+      row.font = { bold: true, size: 10, color: { argb: textColor } };
+      row.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: color } };
+    };
 
     // Weather
-    worksheet.addRow(['Cenário Climático']);
-    worksheet.mergeCells(`A${worksheet.lastRow!.number}:D${worksheet.lastRow!.number}`);
-    worksheet.lastRow!.font = { bold: true };
-    worksheet.lastRow!.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE0E0E0' } };
-
-    worksheet.addRow(['Noite Anterior', 'Manhã', 'Tarde', 'Precipitação (mm)']);
+    addSectionHeader('1. CONDIÇÕES CLIMÁTICAS (PLUVIOMETRIA)', 'FF475569');
+    const headWeather = worksheet.addRow(['Noite Anterior', 'Manhã', 'Tarde', 'Precipitação (mm)']);
+    headWeather.font = { bold: true, size: 9 };
+    headWeather.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF1F5F9' } };
+    
     worksheet.addRow([
       pluviometry?.nightStatus || report.weatherNight,
       pluviometry?.morningStatus || report.weatherMorning,
       pluviometry?.afternoonStatus || report.weatherAfternoon,
       (pluviometry?.rainfallMm || report.rainfallMm) + ' mm'
-    ]);
-    worksheet.addRow([]);
+    ]).font = { size: 9 };
 
-    // Manpower
-    worksheet.addRow(['Mão de Obra']);
-    worksheet.mergeCells(`A${worksheet.lastRow!.number}:D${worksheet.lastRow!.number}`);
-    worksheet.lastRow!.font = { bold: true };
-    worksheet.lastRow!.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE8F5E9' } };
-    worksheet.addRow(['Descrição', 'Quantidade']);
+    // Manpower and Equipment
+    addSectionHeader('2. RECURSOS (MÃO DE OBRA E EQUIPAMENTOS)', 'FF16A34A');
+    
+    const headResources = worksheet.addRow(['Descrição (Mão de Obra)', 'Quantidade', 'Descrição (Equipamento)', 'Quantidade']);
+    headResources.font = { bold: true, size: 9 };
+    headResources.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF1F5F9' } };
+
     const mpMap = new Map<string, number>();
     report.manpower.forEach(m => mpMap.set(m.description.toUpperCase(), (mpMap.get(m.description.toUpperCase()) || 0) + m.quantity));
-    Array.from(mpMap.entries()).forEach(([desc, qty]) => worksheet.addRow([desc, qty]));
-    worksheet.addRow([]);
+    const manpowerArr = Array.from(mpMap.entries());
 
-    // Equipment
-    worksheet.addRow(['Equipamentos']);
-    worksheet.mergeCells(`A${worksheet.lastRow!.number}:D${worksheet.lastRow!.number}`);
-    worksheet.lastRow!.font = { bold: true };
-    worksheet.lastRow!.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFF3E0' } };
-    worksheet.addRow(['Descrição', 'Quantidade']);
     const eqMapExcel = new Map<string, number>();
     report.equipment.forEach(e => eqMapExcel.set(e.description.toUpperCase(), (eqMapExcel.get(e.description.toUpperCase()) || 0) + e.quantity));
-    Array.from(eqMapExcel.entries()).forEach(([desc, qty]) => worksheet.addRow([desc, qty]));
-    worksheet.addRow([]);
+    const eqArr = Array.from(eqMapExcel.entries());
+    
+    const maxRows = Math.max(manpowerArr.length, eqArr.length);
+    if (maxRows === 0) {
+      worksheet.addRow(['Nenhum registro', 0, 'Nenhum registro', 0]).font = { size: 9 };
+    } else {
+      for (let i = 0; i < maxRows; i++) {
+        worksheet.addRow([
+          manpowerArr[i] ? manpowerArr[i][0] : '', manpowerArr[i] ? manpowerArr[i][1] : '',
+          eqArr[i] ? eqArr[i][0] : '', eqArr[i] ? eqArr[i][1] : ''
+        ]).font = { size: 9 };
+      }
+    }
 
     // Activities
-    worksheet.addRow(['Atividades Executadas']);
-    worksheet.mergeCells(`A${worksheet.lastRow!.number}:D${worksheet.lastRow!.number}`);
-    worksheet.lastRow!.font = { bold: true };
-    worksheet.lastRow!.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE3F2FD' } };
-    worksheet.addRow(['Cód.', 'Atividade', 'Tipo']);
-    report.activities.forEach(a => worksheet.addRow([a.code, a.description, a.type]));
-    worksheet.addRow([]);
+    addSectionHeader('3. ATIVIDADES EXECUTADAS E PROGRESSO', 'FF0F172A');
+    const headAct = worksheet.addRow(['Cód.', 'Atividade', 'Tipo']);
+    worksheet.mergeCells(`C${headAct.number}:D${headAct.number}`);
+    headAct.font = { bold: true, size: 9 };
+    headAct.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF1F5F9' } };
+    
+    if (report.activities.length === 0) {
+      const row = worksheet.addRow(['-', 'Nenhum registro de atividade.', '-']);
+      worksheet.mergeCells(`C${row.number}:D${row.number}`);
+      row.font = { size: 9 };
+    } else {
+      report.activities.forEach(a => {
+        const row = worksheet.addRow([a.code, a.description, a.type]);
+        worksheet.mergeCells(`C${row.number}:D${row.number}`);
+        row.font = { size: 9 };
+      });
+    }
 
     // Occurrences
     if (report.accidents) {
-      worksheet.addRow(['Ocorrências / Acidentes']);
-      worksheet.mergeCells(`A${worksheet.lastRow!.number}:D${worksheet.lastRow!.number}`);
-      worksheet.lastRow!.font = { bold: true };
-      worksheet.addRow([report.accidents]);
-      worksheet.mergeCells(`A${worksheet.lastRow!.number}:D${worksheet.lastRow!.number + 2}`);
-      worksheet.addRow([]); worksheet.addRow([]); worksheet.addRow([]);
+      addSectionHeader('4. OCORRÊNCIAS E ACIDENTES', 'FFDC2626');
+      const row = worksheet.addRow([report.accidents]);
+      worksheet.mergeCells(`A${row.number}:D${row.number + 1}`);
+      row.font = { size: 9, color: { argb: 'FFDC2626' } };
+      worksheet.addRow([]);
     }
 
     // Fiscalization Comments
     if (report.fiscalizationComments) {
-      worksheet.addRow(['Comentários da Fiscalização']);
-      worksheet.mergeCells(`A${worksheet.lastRow!.number}:D${worksheet.lastRow!.number}`);
-      worksheet.lastRow!.font = { bold: true };
-      worksheet.addRow([report.fiscalizationComments]);
-      worksheet.mergeCells(`A${worksheet.lastRow!.number}:D${worksheet.lastRow!.number + 2}`);
-      worksheet.addRow([]); worksheet.addRow([]); worksheet.addRow([]);
+      addSectionHeader('5. COMENTÁRIOS DA FISCALIZAÇÃO', 'FF334155');
+      const row = worksheet.addRow([report.fiscalizationComments]);
+      worksheet.mergeCells(`A${row.number}:D${row.number + 1}`);
+      row.font = { italic: true, size: 9 };
+      worksheet.addRow([]);
     }
 
-    worksheet.addRow([]);
     worksheet.addRow([]);
     
     // Signatures
     const sigRow = worksheet.addRow(['__________________________________', '', '__________________________________']);
+    worksheet.mergeCells(`A${sigRow.number}:B${sigRow.number}`);
+    worksheet.mergeCells(`C${sigRow.number}:D${sigRow.number}`);
     sigRow.alignment = { horizontal: 'center' };
+    
     const sigLabelRow = worksheet.addRow(['Engenheiro da Obra', '', 'Fiscalização']);
+    worksheet.mergeCells(`A${sigLabelRow.number}:B${sigLabelRow.number}`);
+    worksheet.mergeCells(`C${sigLabelRow.number}:D${sigLabelRow.number}`);
     sigLabelRow.alignment = { horizontal: 'center' };
-    sigLabelRow.font = { size: 9 };
+    sigLabelRow.font = { size: 9, bold: true };
+
+    worksheet.columns = [
+      { width: 25 },
+      { width: 45 },
+      { width: 25 },
+      { width: 45 }
+    ];
+
+    if (report.photos && report.photos.length > 0) {
+      const photoSheet = workbook.addWorksheet('Registro Fotográfico');
+      photoSheet.columns = [{ width: 45 }, { width: 45 }];
+      let r = 1;
+      let c = 1;
+      for (const p of report.photos) {
+        try {
+          const response = await fetch(p);
+          const blob = await response.blob();
+          const arrayBuffer = await blob.arrayBuffer();
+          const imageId = workbook.addImage({
+            buffer: arrayBuffer,
+            extension: p.toLowerCase().includes('png') ? 'png' : 'jpeg',
+          });
+          photoSheet.addImage(imageId, {
+            tl: { col: c - 1, row: r },
+            ext: { width: 300, height: 300 }
+          });
+          c++;
+          if (c > 2) {
+            c = 1;
+            r += 16;
+          }
+        } catch (e) { console.error('Failed to attach photo', e); }
+      }
+    }
 
     const buffer = await workbook.xlsx.writeBuffer();
     saveAs(new Blob([buffer]), `RDO_${contract.contractNumber}_${report.date}.xlsx`);
@@ -968,7 +1104,7 @@ export function DailyReportView({
                             {!readonly && (
                               <div className="flex gap-1.5 mt-2 pt-2 border-t">
                                 <Input 
-                                  placeholder="Nova cat. / colaborador..." 
+                                  placeholder="Nova cat. / função..." 
                                   id="new-manpower-desc"
                                   className="h-8 text-[11px] font-semibold"
                                   onKeyDown={e => {
@@ -1199,6 +1335,56 @@ export function DailyReportView({
                           </CardContent>
                         </Card>
                       </div>
+
+                      {/* Photo Evidences Section (Registro Fotográfico) */}
+                      <Card className="border border-blue-100 shadow-sm rounded-2xl bg-white mt-4">
+                        <CardHeader className="bg-blue-50/50 rounded-t-2xl border-b border-blue-100 p-3">
+                          <CardTitle className="text-[11px] font-black uppercase text-blue-800 flex items-center gap-2">
+                            <Plus className="w-4 h-4 text-blue-600" /> Registro Fotográfico
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent className="p-4">
+                          <div className="flex flex-wrap gap-4">
+                            {(selectedReport.photos || []).map((photoUrl, idx) => (
+                              <div key={idx} className="relative group w-32 h-32 rounded-lg overflow-hidden border border-gray-200 shadow-sm">
+                                <img src={photoUrl} alt={`Foto ${idx + 1}`} className="w-full h-full object-cover" />
+                                {!readonly && (
+                                  <button
+                                    onClick={() => {
+                                      const updatedPhotos = selectedReport.photos!.filter((_, i) => i !== idx);
+                                      onUpdate({...selectedReport, photos: updatedPhotos});
+                                    }}
+                                    className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                                  >
+                                    <X className="w-3 h-3" />
+                                  </button>
+                                )}
+                              </div>
+                            ))}
+                            {!readonly && (
+                              <label className="w-32 h-32 flex flex-col items-center justify-center border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50 flex-shrink-0 transition-colors">
+                                <Plus className="w-6 h-6 text-gray-400 mb-2" />
+                                <span className="text-[10px] text-gray-500 font-bold px-2 text-center uppercase">Adicionar<br />Foto</span>
+                                <input
+                                  type="file"
+                                  accept="image/*"
+                                  multiple
+                                  className="hidden"
+                                  onChange={e => {
+                                    if (e.target.files) {
+                                      const newPhotos = Array.from(e.target.files).map(file => URL.createObjectURL(file));
+                                      onUpdate({...selectedReport, photos: [...(selectedReport.photos || []), ...newPhotos]});
+                                    }
+                                  }}
+                                />
+                              </label>
+                            )}
+                            {readonly && (!selectedReport.photos || selectedReport.photos.length === 0) && (
+                              <p className="text-xs text-gray-500 font-bold w-full text-center py-4">Nenhum registro fotográfico anexado.</p>
+                            )}
+                          </div>
+                        </CardContent>
+                      </Card>
 
                       {/* Resident Stamp layout showing digital signatures */}
                       <Card className="border border-gray-100 bg-gray-50/30 rounded-2xl p-6">

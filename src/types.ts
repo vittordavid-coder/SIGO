@@ -525,6 +525,7 @@ export interface DailyReport {
   activities: DailyReportActivity[];
   accidents: string;
   fiscalizationComments?: string;
+  photos?: string[];
 }
 
 export interface PluviometryRecord {

@@ -591,12 +591,20 @@ export default function RHView({
   };
 
   const exportAllEmployeesToExcel = () => {
+    const contract = contracts.find(c => c.id === selectedContractId);
+    
     const wsData: any[][] = [
-      ['RELATÓRIO GERAL DE COLABORADORES'],
-      [`Data de Geração: ${new Date().toLocaleDateString('pt-BR')}`],
-      [],
-      ['Nome', 'CPF', 'Cargo', 'Data Admissão', 'Remuneração', 'Tipo Contrato']
+      ['SYNERA - Gestão e Planejamento'],
+      ['RELATÓRIO: LISTA DE COLABORADORES'],
+      [`Gerado em: ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`]
     ];
+
+    if (contract) {
+      wsData.push([`CONTRATO: ${contract.contractNumber} - ${contract.object || ''}`]);
+    }
+
+    wsData.push([]);
+    wsData.push(['Nome', 'CPF', 'Cargo', 'Data Admissão', 'Remuneração', 'Tipo Contrato']);
 
     filteredEmployees.forEach(e => {
       wsData.push([
@@ -619,6 +627,7 @@ export default function RHView({
 
   const exportAllEmployeesToPDF = () => {
     const doc = new jsPDF('landscape');
+    const contract = contracts.find(c => c.id === selectedContractId);
     
     // Header
     doc.setFont("helvetica", "bold");
@@ -630,6 +639,11 @@ export default function RHView({
     doc.setFont("helvetica", "normal");
     doc.setTextColor(100, 116, 139); // slate-500
     doc.text(`Lista Geral de Colaboradores - Gerado em ${new Date().toLocaleDateString('pt-BR')}`, 14, 21);
+    
+    if (contract) {
+      doc.setFont("helvetica", "bold");
+      doc.text(`CONTRATO: ${contract.contractNumber} - ${contract.object || ''}`, 14, 27);
+    }
     
     const tableHeaders = [['Nome', 'CPF', 'Cargo', 'Data Admissão', 'Remuneração', 'Status']];
     
@@ -643,7 +657,7 @@ export default function RHView({
     ]);
 
     autoTable(doc, {
-      startY: 25,
+      startY: contract ? 32 : 28,
       head: tableHeaders,
       body: tableRows,
       theme: 'striped',
@@ -655,6 +669,7 @@ export default function RHView({
   };
 
   const handlePrintCollaborators = () => {
+    const contract = contracts.find(c => c.id === selectedContractId);
     const selectedFields = Object.entries(printColumns)
       .filter(([_, enabled]) => enabled)
       .map(([field, _]) => field);
@@ -745,6 +760,7 @@ export default function RHView({
             <div>
               <h1 style="font-size: 18px; font-weight: bold; color: #1e3a8a; margin: 0; text-transform: uppercase;">SYNERA - Gestão e Planejamento</h1>
               <h2 style="font-size: 13px; font-weight: bold; color: #475569; margin: 4px 0 0 0;">RELATÓRIO: LISTA DE COLABORADORES</h2>
+              \${contract ? \`<div style="font-size: 11px; margin-top: 4px; color: #1e3a8a;"><strong>CONTRATO:</strong> \${contract.contractNumber} - \${contract.object || ''}</div>\` : ''}
             </div>
             <div style="text-align: right; font-size: 11px; color: #64748b;">
               Total: <strong>\${filteredEmployees.length} colaboradores</strong><br>
