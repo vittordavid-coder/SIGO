@@ -361,38 +361,73 @@ export function DailyReportView({
     });
 
     currentY = (doc as any).lastAutoTable.finalY + 3;
-    currentY = sectionHeader('2. RECURSOS (MÃO DE OBRA E EQUIPAMENTOS)', currentY);
+    currentY = sectionHeader('2. EFETIVO', currentY);
 
     const mpMap = new Map<string, number>();
     report.manpower.forEach(m => mpMap.set(m.description.toUpperCase(), (mpMap.get(m.description.toUpperCase()) || 0) + m.quantity));
-    const manpowerBody = Array.from(mpMap.entries()).map(([desc, qty]) => [desc, qty]);
+    const manpowerArr = Array.from(mpMap.entries());
 
-    const eqMap = new Map<string, number>();
-    report.equipment.forEach(e => eqMap.set(e.description.toUpperCase(), (eqMap.get(e.description.toUpperCase()) || 0) + e.quantity));
-    const equipmentBody = Array.from(eqMap.entries()).map(([desc, qty]) => [desc, qty]);
+    const mpBody = [];
+    for (let i = 0; i < 14; i++) {
+        const item1 = manpowerArr[i];
+        const item2 = manpowerArr[i + 14];
+        mpBody.push([
+            item1 ? item1[0] : '', item1 ? item1[1] : '-',
+            item2 ? item2[0] : '', item2 ? item2[1] : '-'
+        ]);
+    }
     
     autoTable(doc, {
         startY: currentY,
-        head: [['MÃO DE OBRA', 'QTDE']],
-        body: manpowerBody.length > 0 ? manpowerBody : [['Nenhum registro', '0']],
+        head: [['DESCRIÇÃO', 'QTDE', 'DESCRIÇÃO', 'QTDE']],
+        body: mpBody,
         theme: 'grid',
-        headStyles: { fillColor: [22, 163, 74], textColor: [255, 255, 255], fontSize: 6.5, cellPadding: 1.2 },
-        styles: { fontSize: 6.5, cellPadding: 1.2 },
-        margin: { left: margin, right: pageWidth / 2 + 1 }
+        headStyles: { fillColor: [22, 163, 74], textColor: [255, 255, 255], fontSize: 6.5, cellPadding: 1 },
+        styles: { fontSize: 6, cellPadding: 1, minCellHeight: 4, textColor: [50,50,50] },
+        columnStyles: { 
+            0: { cellWidth: (contentWidth / 2) - 15 },
+            1: { cellWidth: 15, halign: 'center' },
+            2: { cellWidth: (contentWidth / 2) - 15 },
+            3: { cellWidth: 15, halign: 'center' }
+        },
+        margin: { left: margin, right: margin }
     });
+
+    currentY = (doc as any).lastAutoTable.finalY + 3;
+    currentY = sectionHeader('3. EQUIPAMENTOS', currentY);
+
+    const eqMap = new Map<string, number>();
+    report.equipment.forEach(e => eqMap.set(e.description.toUpperCase(), (eqMap.get(e.description.toUpperCase()) || 0) + e.quantity));
+    const eqArr = Array.from(eqMap.entries());
+
+    const eqBody = [];
+    for (let i = 0; i < 14; i++) {
+        const item1 = eqArr[i];
+        const item2 = eqArr[i + 14];
+        eqBody.push([
+            item1 ? item1[0] : '', item1 ? item1[1] : '-',
+            item2 ? item2[0] : '', item2 ? item2[1] : '-'
+        ]);
+    }
 
     autoTable(doc, {
         startY: currentY,
-        head: [['EQUIPAMENTO', 'QTDE']],
-        body: equipmentBody.length > 0 ? equipmentBody : [['Nenhum registro', '0']],
+        head: [['DESCRIÇÃO', 'QTDE', 'DESCRIÇÃO', 'QTDE']],
+        body: eqBody,
         theme: 'grid',
-        headStyles: { fillColor: [234, 88, 12], textColor: [255, 255, 255], fontSize: 6.5, cellPadding: 1.2 },
-        styles: { fontSize: 6.5, cellPadding: 1.2 },
-        margin: { left: pageWidth / 2 + 1, right: margin }
+        headStyles: { fillColor: [234, 88, 12], textColor: [255, 255, 255], fontSize: 6.5, cellPadding: 1 },
+        styles: { fontSize: 6, cellPadding: 1, minCellHeight: 4, textColor: [50,50,50] },
+        columnStyles: { 
+            0: { cellWidth: (contentWidth / 2) - 15 },
+            1: { cellWidth: 15, halign: 'center' },
+            2: { cellWidth: (contentWidth / 2) - 15 },
+            3: { cellWidth: 15, halign: 'center' }
+        },
+        margin: { left: margin, right: margin }
     });
 
-    currentY = Math.max((doc as any).lastAutoTable.finalY + 3, currentY);
-    currentY = sectionHeader('3. ATIVIDADES EXECUTADAS E PROGRESSO', currentY);
+    currentY = (doc as any).lastAutoTable.finalY + 3;
+    currentY = sectionHeader('4. ATIVIDADES EXECUTADAS E PROGRESSO', currentY);
 
     const activitiesBody = report.activities.map(a => [a.code || '-', a.description, a.type]);
     autoTable(doc, {
@@ -408,7 +443,7 @@ export function DailyReportView({
     currentY = (doc as any).lastAutoTable.finalY + 3;
 
     if (report.accidents) {
-        currentY = sectionHeader('4. OCORRÊNCIAS E ACIDENTES', currentY);
+        currentY = sectionHeader('5. OCORRÊNCIAS E ACIDENTES', currentY);
         autoTable(doc, {
           startY: currentY,
           body: [[report.accidents]],
@@ -419,7 +454,7 @@ export function DailyReportView({
     }
 
     if (report.fiscalizationComments) {
-        currentY = sectionHeader('5. COMENTÁRIOS DA FISCALIZAÇÃO', currentY);
+        currentY = sectionHeader('6. COMENTÁRIOS DA FISCALIZAÇÃO', currentY);
         autoTable(doc, {
           startY: currentY,
           body: [[report.fiscalizationComments]],
@@ -592,34 +627,47 @@ export function DailyReportView({
     ]).font = { size: 9 };
 
     // Manpower and Equipment
-    addSectionHeader('2. RECURSOS (MÃO DE OBRA E EQUIPAMENTOS)', 'FF16A34A');
+    addSectionHeader('2. EFETIVO', 'FF16A34A');
     
-    const headResources = worksheet.addRow(['Descrição (Mão de Obra)', 'Quantidade', 'Descrição (Equipamento)', 'Quantidade']);
-    headResources.font = { bold: true, size: 9 };
-    headResources.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF1F5F9' } };
+    const headMp = worksheet.addRow(['Descrição', 'Quantidade', 'Descrição', 'Quantidade']);
+    headMp.font = { bold: true, size: 9 };
+    headMp.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF1F5F9' } };
 
     const mpMap = new Map<string, number>();
     report.manpower.forEach(m => mpMap.set(m.description.toUpperCase(), (mpMap.get(m.description.toUpperCase()) || 0) + m.quantity));
     const manpowerArr = Array.from(mpMap.entries());
 
+    for (let i = 0; i < 14; i++) {
+       const item1 = manpowerArr[i];
+       const item2 = manpowerArr[i + 14];
+       worksheet.addRow([
+          item1 ? item1[0] : '', item1 ? item1[1] : '',
+          item2 ? item2[0] : '', item2 ? item2[1] : ''
+       ]).font = { size: 9 };
+    }
+    worksheet.addRow([]);
+
+    addSectionHeader('3. EQUIPAMENTOS', 'FFEA580C');
+    
+    const headEq = worksheet.addRow(['Descrição', 'Quantidade', 'Descrição', 'Quantidade']);
+    headEq.font = { bold: true, size: 9 };
+    headEq.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF1F5F9' } };
+
     const eqMapExcel = new Map<string, number>();
     report.equipment.forEach(e => eqMapExcel.set(e.description.toUpperCase(), (eqMapExcel.get(e.description.toUpperCase()) || 0) + e.quantity));
     const eqArr = Array.from(eqMapExcel.entries());
     
-    const maxRows = Math.max(manpowerArr.length, eqArr.length);
-    if (maxRows === 0) {
-      worksheet.addRow(['Nenhum registro', 0, 'Nenhum registro', 0]).font = { size: 9 };
-    } else {
-      for (let i = 0; i < maxRows; i++) {
-        worksheet.addRow([
-          manpowerArr[i] ? manpowerArr[i][0] : '', manpowerArr[i] ? manpowerArr[i][1] : '',
-          eqArr[i] ? eqArr[i][0] : '', eqArr[i] ? eqArr[i][1] : ''
-        ]).font = { size: 9 };
-      }
+    for (let i = 0; i < 14; i++) {
+       const item1 = eqArr[i];
+       const item2 = eqArr[i + 14];
+       worksheet.addRow([
+          item1 ? item1[0] : '', item1 ? item1[1] : '',
+          item2 ? item2[0] : '', item2 ? item2[1] : ''
+       ]).font = { size: 9 };
     }
 
     // Activities
-    addSectionHeader('3. ATIVIDADES EXECUTADAS E PROGRESSO', 'FF0F172A');
+    addSectionHeader('4. ATIVIDADES EXECUTADAS E PROGRESSO', 'FF0F172A');
     const headAct = worksheet.addRow(['Cód.', 'Atividade', 'Tipo']);
     worksheet.mergeCells(`C${headAct.number}:D${headAct.number}`);
     headAct.font = { bold: true, size: 9 };
@@ -639,7 +687,7 @@ export function DailyReportView({
 
     // Occurrences
     if (report.accidents) {
-      addSectionHeader('4. OCORRÊNCIAS E ACIDENTES', 'FFDC2626');
+      addSectionHeader('5. OCORRÊNCIAS E ACIDENTES', 'FFDC2626');
       const row = worksheet.addRow([report.accidents]);
       worksheet.mergeCells(`A${row.number}:D${row.number + 1}`);
       row.font = { size: 9, color: { argb: 'FFDC2626' } };
@@ -648,7 +696,7 @@ export function DailyReportView({
 
     // Fiscalization Comments
     if (report.fiscalizationComments) {
-      addSectionHeader('5. COMENTÁRIOS DA FISCALIZAÇÃO', 'FF334155');
+      addSectionHeader('6. COMENTÁRIOS DA FISCALIZAÇÃO', 'FF334155');
       const row = worksheet.addRow([report.fiscalizationComments]);
       worksheet.mergeCells(`A${row.number}:D${row.number + 1}`);
       row.font = { italic: true, size: 9 };
