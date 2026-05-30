@@ -1480,6 +1480,11 @@ export default function App() {
             : r
         );
       } else {
+        const contractReports = intermediateReports
+          .filter(r => r.contractId === contractId && r.date < toDate)
+          .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+        const previousReport = contractReports[0];
+
         const newReport: DailyReport = {
           id: uuidv4(),
           contractId,
@@ -1488,11 +1493,12 @@ export default function App() {
           weatherAfternoon: 'Bom',
           weatherNight: 'Bom',
           rainfallMm: 0,
-          manpower: [],
-          equipment: [],
+          manpower: previousReport ? JSON.parse(JSON.stringify(previousReport.manpower)) : [],
+          equipment: previousReport ? JSON.parse(JSON.stringify(previousReport.equipment)) : [],
           activities: [movedActivity!],
           accidents: '',
-          fiscalizationComments: ''
+          fiscalizationComments: '',
+          photos: []
         };
         return [...intermediateReports, newReport];
       }

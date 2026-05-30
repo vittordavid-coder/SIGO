@@ -181,20 +181,35 @@ export function DailyReportView({
   const handleAdd = () => {
     const today = new Date().toISOString().split('T')[0];
     
-    // Auto-populate from contract's manpower & equipments
-    const filteredManpower = (controllerManpower || []).filter(m => m.contractId === contract.id);
-    const mpMap = new Map<string, number>();
-    filteredManpower.forEach(m => {
-      mpMap.set(m.role || 'Geral', (mpMap.get(m.role || 'Geral') || 0) + 1);
-    });
-    const defaultManpower = Array.from(mpMap.entries()).map(([desc, qty]) => ({ description: desc, quantity: qty }));
+    // Sort reports by date descending
+    const contractReports = reports
+      .filter(r => r.contractId === contract.id)
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    
+    const latestReport = contractReports[0];
+    
+    let defaultManpower = [];
+    let defaultEquipment = [];
+    
+    if (latestReport) {
+      defaultManpower = JSON.parse(JSON.stringify(latestReport.manpower));
+      defaultEquipment = JSON.parse(JSON.stringify(latestReport.equipment));
+    } else {
+      // Auto-populate from contract's manpower & equipments
+      const filteredManpower = (controllerManpower || []).filter(m => m.contractId === contract.id);
+      const mpMap = new Map<string, number>();
+      filteredManpower.forEach(m => {
+        mpMap.set(m.role || 'Geral', (mpMap.get(m.role || 'Geral') || 0) + 1);
+      });
+      defaultManpower = Array.from(mpMap.entries()).map(([desc, qty]) => ({ description: desc, quantity: qty }));
 
-    const filteredEquipment = (controllerEquipments || []).filter(e => e.contractId === contract.id);
-    const eqMapInit = new Map<string, number>();
-    filteredEquipment.forEach(e => {
-      eqMapInit.set(e.type || 'Equipamento', (eqMapInit.get(e.type || 'Equipamento') || 0) + 1);
-    });
-    const defaultEquipment = Array.from(eqMapInit.entries()).map(([desc, qty]) => ({ description: desc, quantity: qty }));
+      const filteredEquipment = (controllerEquipments || []).filter(e => e.contractId === contract.id);
+      const eqMapInit = new Map<string, number>();
+      filteredEquipment.forEach(e => {
+        eqMapInit.set(e.type || 'Equipamento', (eqMapInit.get(e.type || 'Equipamento') || 0) + 1);
+      });
+      defaultEquipment = Array.from(eqMapInit.entries()).map(([desc, qty]) => ({ description: desc, quantity: qty }));
+    }
 
     onAdd({
       contractId: contract.id,
@@ -206,7 +221,8 @@ export function DailyReportView({
       manpower: defaultManpower,
       equipment: defaultEquipment,
       activities: [],
-      accidents: ''
+      accidents: '',
+      photos: []
     });
   };
 
@@ -222,6 +238,28 @@ export function DailyReportView({
   const handleUpdateActivityDate = (reportId: string, activityId: string, newDate: string) => {
     if (!newDate || !onMoveActivity) return;
     onMoveActivity(activityId, reportId, newDate, contract.id);
+  };
+
+  const handleUpdateManpower = (updatedManpower: any[]) => {
+    if (!selectedReport) return;
+    onUpdate({ ...selectedReport, manpower: updatedManpower });
+    
+    // Cascade to subsequent dates
+    const subsequentReports = reports.filter(r => r.contractId === contract.id && r.date > selectedReport.date);
+    subsequentReports.forEach(r => {
+      onUpdate({ ...r, manpower: updatedManpower });
+    });
+  };
+
+  const handleUpdateEquipment = (updatedEquipment: any[]) => {
+    if (!selectedReport) return;
+    onUpdate({ ...selectedReport, equipment: updatedEquipment });
+    
+    // Cascade to subsequent dates
+    const subsequentReports = reports.filter(r => r.contractId === contract.id && r.date > selectedReport.date);
+    subsequentReports.forEach(r => {
+      onUpdate({ ...r, equipment: updatedEquipment });
+    });
   };
 
   const generateRdoPdf = async (report: DailyReport) => {
@@ -486,19 +524,23 @@ export function DailyReportView({
     const pdfBlob = doc.output('blob');
     const pdfUrl = URL.createObjectURL(pdfBlob);
     
-    const iframe = document.createElement('iframe');
-    iframe.style.position = 'absolute';
-    iframe.style.width = '0';
-    iframe.style.height = '0';
-    iframe.style.border = '0';
-    iframe.src = pdfUrl;
+    // Using window.open is more reliable across modern browsers and iframes.
+    const printWindow = window.open(pdfUrl);
     
-    document.body.appendChild(iframe);
-    
-    setTimeout(() => {
-      if (iframe.parentNode) iframe.parentNode.removeChild(iframe);
-      URL.revokeObjectURL(pdfUrl);
-    }, 30000); // Allow time for printing dialog to show/close
+    // Fallback if popup blocker prevents window.open
+    if (!printWindow) {
+      const iframe = document.createElement('iframe');
+      iframe.style.position = 'absolute';
+      iframe.style.width = '0';
+      iframe.style.height = '0';
+      iframe.style.border = '0';
+      iframe.src = pdfUrl;
+      document.body.appendChild(iframe);
+      setTimeout(() => {
+        if (iframe.parentNode) iframe.parentNode.removeChild(iframe);
+        URL.revokeObjectURL(pdfUrl);
+      }, 30000);
+    }
   };
 
   const handleExportExcel = async (report: DailyReport) => {
@@ -1056,12 +1098,12 @@ export function DailyReportView({
                                         onChange={e => {
                                           const val = parseInt(e.target.value) || 0;
                                           const updated = selectedReport.manpower.map((item, i) => i === idx ? { ...item, quantity: val } : item);
-                                          onUpdate({ ...selectedReport, manpower: updated });
+                                          handleUpdateManpower(updated);
                                         }}
                                       />
                                       <Button variant="ghost" size="xs" className="h-8 w-8 text-red-500 hover:text-red-700 hover:bg-red-50 p-0 rounded-md" onClick={() => {
                                         const updated = selectedReport.manpower.filter((_, i) => i !== idx);
-                                        onUpdate({ ...selectedReport, manpower: updated });
+                                        handleUpdateManpower(updated);
                                       }}>
                                         <Trash2 className="w-3.5 h-3.5" />
                                       </Button>
@@ -1093,7 +1135,7 @@ export function DailyReportView({
                                         { description: 'Operador de Máquinas', quantity: 2 },
                                         { description: 'Servente de Obras', quantity: 4 }
                                       ];
-                                      onUpdate({ ...selectedReport, manpower: finalMapped });
+                                      handleUpdateManpower(finalMapped);
                                     }}
                                   >
                                     ⚡ Importar do Contrato
@@ -1112,10 +1154,7 @@ export function DailyReportView({
                                       const input = e.currentTarget;
                                       const desc = input.value.trim();
                                       if (desc) {
-                                        onUpdate({
-                                          ...selectedReport,
-                                          manpower: [...selectedReport.manpower, { description: desc, quantity: 1 }]
-                                        });
+                                        handleUpdateManpower([...selectedReport.manpower, { description: desc, quantity: 1 }]);
                                         input.value = '';
                                       }
                                     }
@@ -1125,10 +1164,7 @@ export function DailyReportView({
                                   const input = document.getElementById('new-manpower-desc') as HTMLInputElement;
                                   const desc = input?.value?.trim();
                                   if (desc) {
-                                    onUpdate({
-                                      ...selectedReport,
-                                      manpower: [...selectedReport.manpower, { description: desc, quantity: 1 }]
-                                    });
+                                    handleUpdateManpower([...selectedReport.manpower, { description: desc, quantity: 1 }]);
                                     input.value = '';
                                   }
                                 }}>
@@ -1163,12 +1199,12 @@ export function DailyReportView({
                                         onChange={val => {
                                           const value = parseInt(val.target.value) || 0;
                                           const updated = selectedReport.equipment.map((item, i) => i === idx ? { ...item, quantity: value } : item);
-                                          onUpdate({ ...selectedReport, equipment: updated });
+                                          handleUpdateEquipment(updated);
                                         }}
                                       />
                                       <Button variant="ghost" size="xs" className="h-8 w-8 text-red-500 hover:text-red-700 hover:bg-red-50 p-0 rounded-md" onClick={() => {
                                         const updated = selectedReport.equipment.filter((_, i) => i !== idx);
-                                        onUpdate({ ...selectedReport, equipment: updated });
+                                        handleUpdateEquipment(updated);
                                       }}>
                                         <Trash2 className="w-3.5 h-3.5" />
                                       </Button>
@@ -1199,7 +1235,7 @@ export function DailyReportView({
                                         { description: 'Rolo Compactador', quantity: 1 },
                                         { description: 'Motoniveladora', quantity: 1 }
                                       ];
-                                      onUpdate({ ...selectedReport, equipment: finalMapped });
+                                      handleUpdateEquipment(finalMapped);
                                     }}
                                   >
                                     ⚡ Importar do Contrato
@@ -1218,10 +1254,7 @@ export function DailyReportView({
                                       const input = e.currentTarget;
                                       const desc = input.value.trim();
                                       if (desc) {
-                                        onUpdate({
-                                          ...selectedReport,
-                                          equipment: [...selectedReport.equipment, { description: desc, quantity: 1 }]
-                                        });
+                                        handleUpdateEquipment([...selectedReport.equipment, { description: desc, quantity: 1 }]);
                                         input.value = '';
                                       }
                                     }
@@ -1231,10 +1264,7 @@ export function DailyReportView({
                                   const input = document.getElementById('new-equipment-desc') as HTMLInputElement;
                                   const desc = input?.value?.trim();
                                   if (desc) {
-                                    onUpdate({
-                                      ...selectedReport,
-                                      equipment: [...selectedReport.equipment, { description: desc, quantity: 1 }]
-                                    });
+                                    handleUpdateEquipment([...selectedReport.equipment, { description: desc, quantity: 1 }]);
                                     input.value = '';
                                   }
                                 }}>
