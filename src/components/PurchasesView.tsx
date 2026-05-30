@@ -1832,7 +1832,10 @@ function OrdersTab({
     if (!printContents) return;
     
     const iframe = document.createElement('iframe');
-    iframe.style.display = 'none';
+    iframe.style.position = 'absolute';
+    iframe.style.width = '0';
+    iframe.style.height = '0';
+    iframe.style.border = '0';
     document.body.appendChild(iframe);
     
     if (!iframe.contentWindow) return;
@@ -1876,6 +1879,9 @@ function OrdersTab({
             window.onload = () => {
               setTimeout(() => {
                 window.print();
+                setTimeout(() => {
+                  window.parent.document.body.removeChild(window.frameElement);
+                }, 500);
               }, 500);
             };
           </script>

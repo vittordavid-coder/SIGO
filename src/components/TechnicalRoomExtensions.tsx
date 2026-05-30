@@ -22,6 +22,12 @@ import {
   ServiceComposition, Resource, Schedule, TimeUnit, Quotation,
   ControllerManpower, ControllerEquipment
 } from '../types';
+import { 
+  DropdownMenu, 
+  DropdownMenuContent, 
+  DropdownMenuItem, 
+  DropdownMenuTrigger 
+} from '@/components/ui/dropdown-menu';
 import { useLocalStorage } from '../lib/useLocalStorage';
 import { formatCurrency, formatNumber, cn } from '../lib/utils';
 import { calculateServiceUnitCost } from '../lib/calculations';
@@ -178,7 +184,7 @@ export function DailyReportView({
     onMoveActivity(activityId, reportId, newDate, contract.id);
   };
 
-  const handleExportPDF = (report: DailyReport) => {
+  const generateRdoPdf = (report: DailyReport) => {
     const doc = new jsPDF() as any;
     const pluviometry = pluviometryRecords.find(p => p.date === report.date);
     
@@ -299,8 +305,19 @@ export function DailyReportView({
     currentY = (doc as any).lastAutoTable.finalY + 5;
     currentY = sectionHeader('2. RECURSOS (MÃO DE OBRA E EQUIPAMENTOS)', currentY);
 
-    const manpowerBody = report.manpower.map(m => [m.description, m.quantity]);
-    const equipmentBody = report.equipment.map(e => [e.description, e.quantity]);
+    // Grouping Manpower by function
+    const mpMap = new Map<string, number>();
+    report.manpower.forEach(m => {
+        mpMap.set(m.description.toUpperCase(), (mpMap.get(m.description.toUpperCase()) || 0) + m.quantity);
+    });
+    const manpowerBody = Array.from(mpMap.entries()).map(([desc, qty]) => [desc, qty]);
+
+    // Grouping Equipment by type
+    const eqMap = new Map<string, number>();
+    report.equipment.forEach(e => {
+        eqMap.set(e.description.toUpperCase(), (eqMap.get(e.description.toUpperCase()) || 0) + e.quantity);
+    });
+    const equipmentBody = Array.from(eqMap.entries()).map(([desc, qty]) => [desc, qty]);
     
     // Split screen for resources
     autoTable(doc, {
@@ -383,7 +400,33 @@ export function DailyReportView({
     doc.text('Assinatura e Carimbo', margin + contentWidth / 4, currentY + 20, { align: 'center' });
     doc.text('Assinatura e Carimbo', (pageWidth / 2) + (contentWidth / 4), currentY + 20, { align: 'center' });
 
+    return doc;
+  };
+
+  const handleExportPDF = (report: DailyReport) => {
+    const doc = generateRdoPdf(report);
     doc.save(`RDO_${contract.contractNumber}_${report.date}.pdf`);
+  };
+
+  const handlePrintRDO = (report: DailyReport) => {
+    const doc = generateRdoPdf(report);
+    doc.autoPrint();
+    const pdfBlob = doc.output('blob');
+    const pdfUrl = URL.createObjectURL(pdfBlob);
+    
+    const iframe = document.createElement('iframe');
+    iframe.style.position = 'absolute';
+    iframe.style.width = '0';
+    iframe.style.height = '0';
+    iframe.style.border = '0';
+    iframe.src = pdfUrl;
+    
+    document.body.appendChild(iframe);
+    
+    setTimeout(() => {
+      if (iframe.parentNode) iframe.parentNode.removeChild(iframe);
+      URL.revokeObjectURL(pdfUrl);
+    }, 30000); // Allow time for printing dialog to show/close
   };
 
   const handleExportExcel = async (report: DailyReport) => {
@@ -427,7 +470,9 @@ export function DailyReportView({
     worksheet.lastRow!.font = { bold: true };
     worksheet.lastRow!.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE8F5E9' } };
     worksheet.addRow(['Descrição', 'Quantidade']);
-    report.manpower.forEach(m => worksheet.addRow([m.description, m.quantity]));
+    const mpMap = new Map<string, number>();
+    report.manpower.forEach(m => mpMap.set(m.description.toUpperCase(), (mpMap.get(m.description.toUpperCase()) || 0) + m.quantity));
+    Array.from(mpMap.entries()).forEach(([desc, qty]) => worksheet.addRow([desc, qty]));
     worksheet.addRow([]);
 
     // Equipment
@@ -436,7 +481,9 @@ export function DailyReportView({
     worksheet.lastRow!.font = { bold: true };
     worksheet.lastRow!.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFF3E0' } };
     worksheet.addRow(['Descrição', 'Quantidade']);
-    report.equipment.forEach(e => worksheet.addRow([e.description, e.quantity]));
+    const eqMapExcel = new Map<string, number>();
+    report.equipment.forEach(e => eqMapExcel.set(e.description.toUpperCase(), (eqMapExcel.get(e.description.toUpperCase()) || 0) + e.quantity));
+    Array.from(eqMapExcel.entries()).forEach(([desc, qty]) => worksheet.addRow([desc, qty]));
     worksheet.addRow([]);
 
     // Activities
@@ -715,12 +762,38 @@ export function DailyReportView({
                           <span className="text-blue-600 capitalize font-black">{new Date(selectedReport.date + 'T12:00:00').toLocaleDateString('pt-BR', { weekday: 'long' })}</span>
                         </p>
                       </div>
-                      <div className="flex gap-2 self-end sm:self-auto">
-                        <Button variant="outline" size="sm" onClick={() => handleExportPDF(selectedReport)} className="font-extrabold uppercase text-[10px] tracking-widest bg-white border-gray-200">
-                          <Printer className="w-3.5 h-3.5 mr-1.5 text-blue-600" /> PDF
-                        </Button>
-                        <Button variant="outline" size="sm" onClick={() => handleExportExcel(selectedReport)} className="font-extrabold uppercase text-[10px] tracking-widest bg-white border-gray-200">
-                          <FileSpreadsheet className="w-3.5 h-3.5 mr-1.5 text-green-600" /> Excel
+                      <div className="flex gap-2 self-end sm:self-auto items-center">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="outline" size="sm" className="font-extrabold uppercase text-[10px] tracking-widest bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100 flex items-center gap-1.5">
+                              <Download className="w-3.5 h-3.5" /> EXPORTAR
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="w-40 border border-slate-200 shadow-xl rounded-xl bg-white p-1 z-50">
+                            <DropdownMenuItem 
+                              onClick={() => handleExportPDF(selectedReport)} 
+                              className="flex items-center gap-2 text-xs font-bold text-slate-700 cursor-pointer hover:bg-slate-50 rounded-lg p-2"
+                            >
+                              <FileText className="w-4 h-4 text-red-500" />
+                              PDF
+                            </DropdownMenuItem>
+                            <DropdownMenuItem 
+                              onClick={() => handleExportExcel(selectedReport)} 
+                              className="flex items-center gap-2 text-xs font-bold text-slate-700 cursor-pointer hover:bg-slate-50 rounded-lg p-2"
+                            >
+                              <FileSpreadsheet className="w-4 h-4 text-emerald-500" />
+                              Excel
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          onClick={() => handlePrintRDO(selectedReport)} 
+                          className="font-extrabold uppercase text-[10px] tracking-widest bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-100 flex items-center gap-1.5"
+                        >
+                          <Printer className="w-3.5 h-3.5" /> IMPRIMIR
                         </Button>
                         {!readonly && (
                           <Button variant="destructive" size="sm" onClick={() => onDelete(selectedReport.id)} className="rounded-xl">
@@ -871,7 +944,11 @@ export function DailyReportView({
                                     className="text-[10px] font-black uppercase text-emerald-600 border-emerald-200 hover:bg-emerald-50 h-8 px-4"
                                     onClick={() => {
                                       const cMan = (controllerManpower || []).filter(m => m.contractId === contract.id);
-                                      const mapped = cMan.map(m => ({ description: `${m.name} (${m.role})`, quantity: 1 }));
+                                      const mappedMap = new Map<string, number>();
+                                      cMan.forEach(m => {
+                                        mappedMap.set(m.role || 'Geral', (mappedMap.get(m.role || 'Geral') || 0) + 1);
+                                      });
+                                      const mapped = Array.from(mappedMap.entries()).map(([desc, qty]) => ({ description: desc, quantity: qty }));
                                       const finalMapped = mapped.length > 0 ? mapped : [
                                         { description: 'Engenheiro Residente', quantity: 1 },
                                         { description: 'Encarregado Geral', quantity: 1 },
@@ -974,7 +1051,11 @@ export function DailyReportView({
                                     className="text-[10px] font-black uppercase text-orange-600 border-orange-200 hover:bg-orange-50 h-8 px-4"
                                     onClick={() => {
                                       const cEq = (controllerEquipments || []).filter(e => e.contractId === contract.id);
-                                      const mapped = cEq.map(e => ({ description: `${e.name} (${e.model})`, quantity: 1 }));
+                                      const mappedMap = new Map<string, number>();
+                                      cEq.forEach(e => {
+                                        mappedMap.set(e.type || 'Equipamento', (mappedMap.get(e.type || 'Equipamento') || 0) + 1);
+                                      });
+                                      const mapped = Array.from(mappedMap.entries()).map(([desc, qty]) => ({ description: desc, quantity: qty }));
                                       const finalMapped = mapped.length > 0 ? mapped : [
                                         { description: 'Escavadeira Hidráulica', quantity: 1 },
                                         { description: 'Retroescavadeira', quantity: 1 },
