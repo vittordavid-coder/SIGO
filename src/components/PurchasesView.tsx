@@ -1336,7 +1336,7 @@ function OrdersTab({
     const data: any[] = [];
     
     // Header
-    data.push([(defaultOrganization || "CONSTRUTORA MASTER").toUpperCase(), "", "", "", "", "", "ORDEM DE COMPRA"]);
+    data.push(["SYNERA - GESTÃO E PLANEJAMENTO", "", "", "", "", "", "ORDEM DE COMPRA"]);
     data.push(["DOCUMENTO DE ENGENHARIA E SUPRIMENTOS", "", "", "", "", "", `OC #${order.orderNumber}`]);
     data.push(["Logística Integrada e Suprimentos", "", "", "", "", "", "Documento Oficial de Pedido"]);
     data.push([]); // blank row
@@ -1453,7 +1453,7 @@ function OrdersTab({
     doc.setFont("helvetica", "bold");
     doc.setFontSize(14);
     doc.setTextColor(15, 23, 42); // slate-900
-    const orgName = (defaultOrganization || "CONSTRUTORA MASTER").toUpperCase();
+    const orgName = "SYNERA - GESTÃO E PLANEJAMENTO";
     doc.text(orgName, 14, 20);
     
     doc.setFontSize(8);
@@ -2059,10 +2059,35 @@ function OrdersTab({
           className="p-0 border-none sm:max-w-[800px] h-[600px] flex flex-col overflow-hidden"
           headerClassName="hidden"
           footer={
-            <div className="flex justify-end gap-3 w-full p-4 bg-gray-50 border-t">
+            <div className="flex justify-end gap-3 w-full p-4 bg-gray-50 border-t items-center">
               <Button variant="outline" onClick={() => setIsPrintDialogOpen(false)} className="rounded-xl px-6">Fechar</Button>
-              <Button onClick={handlePrintIframe} className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl px-8 font-bold shadow-lg shadow-emerald-100">
-                <Printer className="w-4 h-4 mr-2" /> Imprimir / Salvar PDF
+              
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" className="text-emerald-700 bg-emerald-50 hover:bg-emerald-110 border-emerald-200 rounded-xl px-6 font-bold flex items-center gap-2">
+                    <Download className="w-4 h-4 text-emerald-600" /> Exportar
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-44 border border-slate-200 shadow-xl rounded-xl bg-white p-1.5 z-50">
+                  <DropdownMenuItem 
+                    onClick={() => handleExportPDF(currentOrder)} 
+                    className="flex items-center gap-2 text-sm font-semibold text-slate-700 cursor-pointer hover:bg-slate-50 rounded-lg py-2 px-2.5"
+                  >
+                    <FileText className="w-4 h-4 text-red-500" />
+                    Exportar PDF
+                  </DropdownMenuItem>
+                  <DropdownMenuItem 
+                    onClick={() => handleExportExcel(currentOrder)} 
+                    className="flex items-center gap-2 text-sm font-semibold text-slate-700 cursor-pointer hover:bg-slate-50 rounded-lg py-2 px-2.5"
+                  >
+                    <FileSpreadsheet className="w-4 h-4 text-emerald-500" />
+                    Exportar Excel
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+
+              <Button onClick={handlePrintIframe} className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl px-8 font-bold shadow-lg shadow-indigo-100 flex items-center gap-2">
+                <Printer className="w-4 h-4" /> Imprimir
               </Button>
             </div>
           }
@@ -2083,7 +2108,7 @@ function OrdersTab({
                    )}
                    <div>
                      <h1 className="text-lg font-black text-slate-900 tracking-tighter leading-tight break-words max-w-[300px] print-compact-header">
-                       {defaultOrganization || "CONSTRUTORA MASTER"}
+                       {"SYNERA - Gestão e Planejamento"}
                      </h1>
                      <p className="text-sm text-gray-400 font-bold uppercase tracking-[0.2em] mt-0.5">Documento de Engenharia e Suprimentos</p>
                    </div>
@@ -2091,7 +2116,7 @@ function OrdersTab({
                  <div className="flex items-start gap-3">
                    <div className="text-right text-sm text-slate-600 leading-tight">
                      <h2 className="text-lg font-black text-blue-600 mb-0.5 uppercase tracking-tight print-compact-header">Ordem de Compra</h2>
-                     <div className="font-black text-slate-900 text-sm mb-0.5">{defaultOrganization || "CONSTRUTORA MASTER"}</div>
+                     <div className="font-black text-slate-900 text-sm mb-0.5">{"SYNERA - Gestão e Planejamento"}</div>
                      <div>Logística Integrada e Suprimentos</div>
                      <div>Documento Gerado pelo Sistema SYNERA</div>
                    </div>

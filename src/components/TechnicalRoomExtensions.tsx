@@ -1201,6 +1201,274 @@ export function PluviometryView({ contract, records, onAdd, onUpdate, readonly }
     }
   };
 
+  const handlePrintPluviometry = () => {
+    const mNames = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+    const filterMonthText = `${mNames[currentMonth]} / ${currentYear}`;
+    
+    let rainyDays = 0;
+    let impDays = 0;
+    let bDays = 0;
+    monthDays.forEach(day => {
+      const rec = getRecordForDay(day);
+      if ((rec?.rainfallMm || 0) > 0) rainyDays++;
+      if (rec?.morningStatus === 'Impraticável' || rec?.afternoonStatus === 'Impraticável') impDays++;
+      else if (rec?.morningStatus === 'Bom' && rec?.afternoonStatus === 'Bom') bDays++;
+    });
+
+    const rowsHtml = monthDays.map(day => {
+      const rec = getRecordForDay(day);
+      const isRainy = (rec?.morningStatus === 'Chuvoso' || rec?.afternoonStatus === 'Chuvoso');
+      const isImpraticable = (rec?.morningStatus === 'Impraticável' || rec?.afternoonStatus === 'Impraticável');
+      const rowBg = isImpraticable ? '#fef2f2' : isRainy ? '#f0f9ff' : 'white';
+      const dayOfWeek = (() => {
+        const date = new Date(currentYear, currentMonth, day, 12);
+        return date.toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.', '').toUpperCase();
+      })();
+
+      const getStatusBadgeHtml = (status?: string) => {
+        if (status === 'Chuvoso') return `<span style="background: #3b82f6; color: white; padding: 2px 6px; border-radius: 4px; font-size: 9px; font-weight: bold; text-transform: uppercase;">Chuvoso</span>`;
+        if (status === 'Impraticável') return `<span style="background: #dc2626; color: white; padding: 2px 6px; border-radius: 4px; font-size: 9px; font-weight: bold; text-transform: uppercase;">Impraticável</span>`;
+        return `<span style="background: #eab308; color: white; padding: 2px 6px; border-radius: 4px; font-size: 9px; font-weight: bold; text-transform: uppercase;">Bom</span>`;
+      };
+
+      return `
+        <tr style="background-color: ${rowBg};">
+          <td style="padding: 6px; border: 1px solid #cbd5e1; text-align: center; font-weight: bold; font-family: monospace;">${String(day).padStart(2, '0')} (${dayOfWeek})</td>
+          <td style="padding: 6px; border: 1px solid #cbd5e1; text-align: center;">${getStatusBadgeHtml(rec?.nightStatus)}</td>
+          <td style="padding: 6px; border: 1px solid #cbd5e1; text-align: center;">${getStatusBadgeHtml(rec?.morningStatus)}</td>
+          <td style="padding: 6px; border: 1px solid #cbd5e1; text-align: center;">${getStatusBadgeHtml(rec?.afternoonStatus)}</td>
+          <td style="padding: 6px; border: 1px solid #cbd5e1; text-align: center; font-weight: bold; font-family: monospace; color: #1d4ed8;">${rec?.rainfallMm ? rec.rainfallMm.toFixed(1) + ' mm' : '0.0 mm'}</td>
+          <td style="padding: 6px; border: 1px solid #cbd5e1; font-size: 10px;">${rec?.impact || '-'}</td>
+        </tr>
+      `;
+    }).join('');
+
+    const iframe = document.createElement('iframe');
+    iframe.style.display = 'none';
+    document.body.appendChild(iframe);
+    
+    if (!iframe.contentWindow) return;
+
+    iframe.contentWindow.document.open();
+    iframe.contentWindow.document.write(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Relatorio_Pluviometrico_SYNERA</title>
+          <style>
+            @page { margin: 10mm; size: portrait; }
+            body { 
+              font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+              color: #1e293b;
+              background: white; 
+              margin: 0;
+              padding: 0;
+            }
+            .header {
+              display: flex;
+              justify-content: space-between;
+              align-items: center;
+              border-bottom: 2px solid #1e3a8a;
+              padding-bottom: 10px;
+              margin-bottom: 15px;
+            }
+            .title-box {
+              background: #1e3a8a;
+              color: white;
+              padding: 8px 12px;
+              text-align: center;
+              font-size: 14px;
+              font-weight: bold;
+              text-transform: uppercase;
+              margin-bottom: 15px;
+              border-radius: 4px;
+            }
+            .details-table, .main-table {
+              width: 100%;
+              border-collapse: collapse;
+              margin-bottom: 15px;
+              font-size: 11px;
+            }
+            .details-table td {
+              padding: 4px 8px;
+              border: 1px solid #e2e8f0;
+            }
+            .details-label {
+              background: #f1f5f9;
+              font-weight: bold;
+              width: 15%;
+            }
+            .details-value {
+              width: 35%;
+            }
+            .main-table th {
+              background: #1e3a8a;
+              color: white;
+              padding: 8px 6px;
+              font-weight: bold;
+              font-size: 11px;
+              text-transform: uppercase;
+              border: 1px solid #1e3a8a;
+            }
+            .main-table td {
+              border: 1px solid #cbd5e1;
+              padding: 6px;
+              font-size: 11px;
+            }
+            .kpi-container {
+              display: flex;
+              gap: 10px;
+              margin-bottom: 15px;
+            }
+            .kpi-box {
+              flex: 1;
+              background: #f8fafc;
+              border: 1px solid #e2e8f0;
+              border-radius: 6px;
+              padding: 8px;
+              text-align: center;
+            }
+            .kpi-title {
+              font-size: 9px;
+              color: #64748b;
+              font-weight: bold;
+              text-transform: uppercase;
+              margin-bottom: 4px;
+            }
+            .kpi-val {
+              font-size: 14px;
+              color: #1e3a8a;
+              font-weight: bold;
+            }
+            .signatures {
+              margin-top: 30px;
+              display: flex;
+              justify-content: space-between;
+              gap: 40px;
+            }
+            .signature-box {
+              flex: 1;
+              border: 1px solid #cbd5e1;
+              border-radius: 4px;
+              padding: 15px;
+              text-align: center;
+              page-break-inside: avoid;
+            }
+            .signature-line {
+              margin: 15px auto 5px auto;
+              width: 80%;
+              border-bottom: 1px solid #475569;
+            }
+            .signature-title {
+              font-size: 9px;
+              font-weight: bold;
+              color: #1e293b;
+              text-transform: uppercase;
+            }
+            .signature-subtitle {
+              font-size: 8px;
+              color: #94a3b8;
+            }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <div>
+              <h1 style="font-size: 16px; font-weight: bold; color: #1e3a8a; margin: 0; text-transform: uppercase;">SYNERA - Gestão e Planejamento</h1>
+              <h2 style="font-size: 11px; font-weight: bold; color: #475569; margin: 2px 0 0 0;">RELATÓRIO PLUVIOMÉTRICO MENSAL</h2>
+            </div>
+            <div style="text-align: right; font-size: 10px; color: #64748b;">
+              Referência: <strong>\${filterMonthText}</strong><br>
+              Gerado em: \${new Date().toLocaleDateString('pt-BR')}
+            </div>
+          </div>
+
+          <div class="title-box">REGISTRO DE PRECIPITAÇÃO E CONCORRÊNCIA CLIMÁTICA</div>
+
+          <table class="details-table">
+            <tr>
+              <td class="details-label">CONTRATO:</td>
+              <td class="details-value">\${contract.contractNumber || 'N/A'}</td>
+              <td class="details-label">PERÍODO:</td>
+              <td class="details-value">\${filterMonthText}</td>
+            </tr>
+            <tr>
+              <td class="details-label">CONTRATANTE:</td>
+              <td class="details-value">\${contract.client || 'N/A'}</td>
+              <td class="details-label">CONTRATADA:</td>
+              <td class="details-value">\${contract.contractor || 'N/A'}</td>
+            </tr>
+            <tr>
+              <td class="details-label">OBJETO:</td>
+              <td class="details-value" colspan="3">\${contract.object || 'N/A'}</td>
+            </tr>
+          </table>
+
+          <div class="kpi-container">
+            <div class="kpi-box">
+              <div class="kpi-title">Precipitação Total</div>
+              <div class="kpi-val">\${stats.totalRain.toFixed(1)} mm</div>
+            </div>
+            <div class="kpi-box">
+              <div class="kpi-title">Dias com Chuva</div>
+              <div class="kpi-val">\${rainyDays} dias</div>
+            </div>
+            <div class="kpi-box">
+              <div class="kpi-title">Dias Impraticáveis</div>
+              <div class="kpi-val">\${impDays} dias</div>
+            </div>
+            <div class="kpi-box">
+              <div class="kpi-title">Dias 100% Limpos</div>
+              <div class="kpi-val">\${bDays} dias</div>
+            </div>
+          </div>
+
+          <table class="main-table">
+            <thead>
+              <tr>
+                <th style="width: 15%; text-align: center;">Dia</th>
+                <th style="width: 15%; text-align: center;">Noite Anterior</th>
+                <th style="width: 15%; text-align: center;">Manhã</th>
+                <th style="width: 15%; text-align: center;">Tarde</th>
+                <th style="width: 15%; text-align: center;">Chuva (mm)</th>
+                <th style="width: 25%; text-align: left;">Impacto na Obra / Observações</th>
+              </tr>
+            </thead>
+            <tbody>
+              \${rowsHtml}
+            </tbody>
+          </table>
+
+          <div class="signatures">
+            <div class="signature-box">
+              <div class="signature-subtitle">Assinatura e Carimbo Digital</div>
+              <div class="signature-line"></div>
+              <div class="signature-title">RESPONSÁVEL TÉCNICO</div>
+            </div>
+            <div class="signature-box">
+              <div class="signature-subtitle">Assinatura e Carimbo Digital</div>
+              <div class="signature-line"></div>
+              <div class="signature-title">FISCALIZAÇÃO DO CONTRATO</div>
+            </div>
+          </div>
+
+          <script>
+            window.onload = () => {
+              setTimeout(() => {
+                window.print();
+              }, 400);
+            };
+          </script>
+        </body>
+      </html>
+    `);
+    iframe.contentWindow.document.close();
+    
+    setTimeout(() => {
+      if (iframe.parentNode) iframe.parentNode.removeChild(iframe);
+    }, 15000);
+  };
+
   const handleExportPluviometryPDF = () => {
     const doc = new jsPDF() as any;
     const pageWidth = doc.internal.pageSize.width;
@@ -1612,7 +1880,7 @@ export function PluviometryView({ contract, records, onAdd, onUpdate, readonly }
             <Button onClick={handleExportPluviometryPDF} className="bg-blue-600 hover:bg-blue-700 text-white h-9 font-black text-xs uppercase tracking-wider rounded-xl shadow-sm">
                 <FileDown className="w-4 h-4 mr-2" /> Gerar PDF
             </Button>
-            <Button onClick={() => window.print()} variant="outline" className="h-9 font-black text-xs uppercase tracking-wider rounded-xl border-slate-200 hover:bg-slate-50 text-slate-700 shadow-sm">
+            <Button onClick={handlePrintPluviometry} variant="outline" className="h-9 font-black text-xs uppercase tracking-wider rounded-xl border-slate-200 hover:bg-slate-50 text-slate-700 shadow-sm">
                 <Printer className="w-4 h-4 mr-2 text-slate-500" /> Imprimir
             </Button>
             <Select value={currentMonth.toString()} onValueChange={v => setCurrentMonth(parseInt(v))}>
