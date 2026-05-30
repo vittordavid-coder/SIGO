@@ -714,7 +714,15 @@ export default function RHView({
     }).join('');
 
     const iframe = document.createElement('iframe');
-    iframe.style.display = 'none';
+    iframe.style.position = 'fixed';
+    iframe.style.bottom = '0';
+    iframe.style.right = '0';
+    iframe.style.width = '1024px';
+    iframe.style.height = '1024px';
+    iframe.style.border = '0';
+    iframe.style.zIndex = '-9999';
+    iframe.style.opacity = '0';
+    iframe.style.pointerEvents = 'none';
     document.body.appendChild(iframe);
     
     if (!iframe.contentWindow) return;

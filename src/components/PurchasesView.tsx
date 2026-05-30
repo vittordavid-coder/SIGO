@@ -1832,10 +1832,15 @@ function OrdersTab({
     if (!printContents) return;
     
     const iframe = document.createElement('iframe');
-    iframe.style.position = 'absolute';
-    iframe.style.width = '0';
-    iframe.style.height = '0';
+    iframe.style.position = 'fixed';
+    iframe.style.bottom = '0';
+    iframe.style.right = '0';
+    iframe.style.width = '1024px';
+    iframe.style.height = '1024px';
     iframe.style.border = '0';
+    iframe.style.zIndex = '-9999';
+    iframe.style.opacity = '0';
+    iframe.style.pointerEvents = 'none';
     document.body.appendChild(iframe);
     
     if (!iframe.contentWindow) return;
@@ -1859,6 +1864,7 @@ function OrdersTab({
                margin: 0;
                padding: 0;
              }
+             #print-area { display: block !important; visibility: visible !important; width: 100% !important; height: auto !important; }
              @media print {
                #print-area { padding: 0 !important; }
                .print-compact-header { font-size: 12pt !important; }
@@ -1892,7 +1898,7 @@ function OrdersTab({
     
     setTimeout(() => {
       if (iframe.parentNode) iframe.parentNode.removeChild(iframe);
-    }, 10000);
+    }, 15000);
   };
 
   return (

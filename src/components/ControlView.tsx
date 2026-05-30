@@ -1537,8 +1537,24 @@ export default function ControlView({
     };
     onUpdateMaintenance([...equipmentMaintenance, newMaintenance]);
 
-    // Create a purchase request if there are items
-    if (maintenanceItems.length > 0) {
+    // Create a purchase request if there are items or a free-text specification
+    if (maintenanceItems.length > 0 || maintenanceRequestedItems.trim().length > 0) {
+      const prItems = maintenanceItems.length > 0 
+        ? maintenanceItems.map(item => ({
+            id: crypto.randomUUID(),
+            description: item.description,
+            quantity: item.quantity,
+            unit: 'un'
+          })) 
+        : [
+            {
+              id: crypto.randomUUID(),
+              description: maintenanceRequestedItems.trim(),
+              quantity: 1,
+              unit: 'un'
+            }
+          ];
+
       const newPurchaseRequest: PurchaseRequest = {
         id: crypto.randomUUID(),
         companyId: currentUser.companyId,
@@ -1549,12 +1565,7 @@ export default function ControlView({
         category: 'PEÇAS/MANUTENÇÃO',
         sector: 'CONTROLADOR',
         status: 'Pendente',
-        items: maintenanceItems.map(item => ({
-          id: crypto.randomUUID(),
-          description: item.description,
-          quantity: item.quantity,
-          unit: 'un'
-        }))
+        items: prItems
       };
       onUpdatePurchaseRequests([newPurchaseRequest, ...purchaseRequests]);
     }
