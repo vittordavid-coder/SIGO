@@ -3452,9 +3452,18 @@ function EstoqueTab({
   onUpdateEquipments?: (val: any[]) => void
 }) {
   const stockItems = requests
-    .filter(r => r.status === 'Recebido')
-    .flatMap(r => r.items.map(item => ({ ...item, requestId: r.id, sector: r.sector, requestDesc: r.description, contractId: r.contractId })))
-    .filter(item => (item.quantity - (item.appliedQuantity || 0)) > 0);
+    .flatMap(r => (r.items || []).map(item => {
+      const finalStatus = item.status || (r.status === 'Recebido' ? 'Recebido' : r.status === 'Comprado' ? 'Comprado' : 'Pendente');
+      return { 
+        ...item, 
+        status: finalStatus,
+        requestId: r.id, 
+        sector: r.sector || r.category || 'Geral', 
+        requestDesc: r.description, 
+        contractId: r.contractId 
+      };
+    }))
+    .filter(item => (item.status === 'Recebido' || item.status === 'Comprado') && (item.quantity - (item.appliedQuantity || 0)) > 0);
 
   const [selectedItem, setSelectedItem] = useState<any | null>(null);
   const [applyQty, setApplyQty] = useState(1);

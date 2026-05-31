@@ -1349,25 +1349,43 @@ export default function ControlView({
       return;
     }
     
-    const newRequest: PurchaseRequest = {
-      ...currentRequest,
-      id: crypto.randomUUID(),
-      companyId: currentUser?.companyId,
-      contractId: selectedContractId || undefined,
-      date: new Date().toISOString().split('T')[0],
-      description: currentRequest.description || `Solicitação do Controlador: ${(currentRequest.items || []).map(i => i.description).join(', ')}`,
-      category: newRequestCategory,
-      sector: 'CONTROLADOR',
-      status: currentRequest.status || 'Pendente',
-      priority: currentRequest.priority || 'Normal',
-      items: (currentRequest.items || []).map(item => ({
-        ...item,
-        id: item.id || crypto.randomUUID(),
-        status: item.status || 'Pendente'
-      }))
-    } as PurchaseRequest;
+    const exists = purchaseRequests.some(r => r.id === currentRequest.id);
 
-    onUpdatePurchaseRequests([newRequest, ...purchaseRequests]);
+    if (exists) {
+      const updatedRequests = purchaseRequests.map(r => 
+        r.id === currentRequest.id ? {
+          ...r,
+          ...currentRequest,
+          category: newRequestCategory,
+          items: (currentRequest.items || []).map(item => ({
+            ...item,
+            id: item.id || crypto.randomUUID(),
+            status: item.status || 'Pendente'
+          }))
+        } : r
+      );
+      onUpdatePurchaseRequests(updatedRequests);
+    } else {
+      const newRequest: PurchaseRequest = {
+        ...currentRequest,
+        id: currentRequest.id || crypto.randomUUID(),
+        companyId: currentUser?.companyId,
+        contractId: currentRequest.contractId || (selectedContractId !== 'all' ? selectedContractId : undefined),
+        date: currentRequest.date || new Date().toISOString().split('T')[0],
+        description: currentRequest.description || `Solicitação do Controlador: ${(currentRequest.items || []).map(i => i.description).join(', ')}`,
+        category: newRequestCategory,
+        sector: 'CONTROLADOR',
+        status: currentRequest.status || 'Pendente',
+        priority: currentRequest.priority || 'Normal',
+        items: (currentRequest.items || []).map(item => ({
+          ...item,
+          id: item.id || crypto.randomUUID(),
+          status: item.status || 'Pendente'
+        }))
+      } as PurchaseRequest;
+
+      onUpdatePurchaseRequests([newRequest, ...purchaseRequests]);
+    }
     
     if (newRequestCategory && !savedCategories.includes(newRequestCategory)) {
       setSavedCategories([...savedCategories, newRequestCategory]);
@@ -1463,9 +1481,23 @@ export default function ControlView({
       setMaintenanceEquipment(equipment);
       setMaintenanceEntryDate(new Date().toISOString().split('T')[0]);
       setMaintenanceType('preventive');
-      setMaintenanceRequestedItems('');
-      setMaintenanceItems([]);
       setNewMaintenanceItem({description: '', quantity: 1, value: 0, discount: false});
+
+      // Show pre-existing pending purchase request items if they exist
+      const preExistingReq = purchaseRequests.find(r => r.equipmentId === equipment.id && r.status === 'Pendente');
+      if (preExistingReq) {
+        setMaintenanceRequestedItems(preExistingReq.description || '');
+        setMaintenanceItems((preExistingReq.items || []).map(item => ({
+          description: item.description,
+          quantity: item.quantity,
+          value: 0,
+          discount: false
+        })));
+      } else {
+        setMaintenanceRequestedItems('');
+        setMaintenanceItems([]);
+      }
+
       setIsMaintenanceModalOpen(true);
     } else {
       // Closing maintenance - show confirmation modal
@@ -1511,6 +1543,17 @@ export default function ControlView({
   const handleConfirmMaintenance = () => {
     if (!maintenanceEquipment || !currentUser) return;
     
+    // In case the user typed in the description input but did not hit the "+" button
+    let finalPrItemsToSend = [...maintenanceItems];
+    if (newMaintenanceItem.description.trim()) {
+      finalPrItemsToSend.push({
+        description: newMaintenanceItem.description.trim(),
+        quantity: newMaintenanceItem.quantity || 1,
+        value: newMaintenanceItem.value || 0,
+        discount: newMaintenanceItem.discount || false
+      });
+    }
+
     onUpdateEquipments(equipments.map(e => 
       e.id === maintenanceEquipment.id ? { 
         ...e, 
@@ -1521,26 +1564,42 @@ export default function ControlView({
       } : e
     ));
 
-    const itemsSummary = maintenanceItems.length > 0 
-      ? maintenanceItems.map(i => `${i.quantity}x ${i.description}`).join(', ')
+    const itemsSummary = finalPrItemsToSend.length > 0 
+      ? finalPrItemsToSend.map(i => `${i.quantity}x ${i.description}`).join(', ')
       : maintenanceRequestedItems;
 
-    // Create history record
-    const newMaintenance: EquipmentMaintenance = {
-      id: uuidv4(),
-      equipmentId: maintenanceEquipment.id,
-      companyId: currentUser.companyId || '',
-      entryDate: maintenanceEntryDate,
-      type: maintenanceType,
-      requestedItems: itemsSummary,
-      items: maintenanceItems.length > 0 ? maintenanceItems : undefined
-    };
-    onUpdateMaintenance([...equipmentMaintenance, newMaintenance]);
+    // We can update the existing maintenance history if this equipment is already in maintenance, or create a new entry
+    const existingMaintenanceIndex = equipmentMaintenance.findIndex(
+      m => m.equipmentId === maintenanceEquipment.id && !m.exitDate
+    );
 
-    // Create a purchase request if there are items or a free-text specification
-    if (maintenanceItems.length > 0 || maintenanceRequestedItems.trim().length > 0) {
-      const prItems = maintenanceItems.length > 0 
-        ? maintenanceItems.map(item => ({
+    let updatedMaintenance = [...equipmentMaintenance];
+    if (maintenanceEquipment.inMaintenance && existingMaintenanceIndex > -1) {
+      updatedMaintenance[existingMaintenanceIndex] = {
+        ...updatedMaintenance[existingMaintenanceIndex],
+        entryDate: maintenanceEntryDate,
+        type: maintenanceType,
+        requestedItems: itemsSummary,
+        items: finalPrItemsToSend.length > 0 ? finalPrItemsToSend : undefined
+      };
+    } else {
+      const newMaintenance: EquipmentMaintenance = {
+        id: uuidv4(),
+        equipmentId: maintenanceEquipment.id,
+        companyId: currentUser.companyId || '',
+        entryDate: maintenanceEntryDate,
+        type: maintenanceType,
+        requestedItems: itemsSummary,
+        items: finalPrItemsToSend.length > 0 ? finalPrItemsToSend : undefined
+      };
+      updatedMaintenance = [newMaintenance, ...equipmentMaintenance];
+    }
+    onUpdateMaintenance(updatedMaintenance);
+
+    // Create or update a purchase request if there are items or a free-text specification
+    if (finalPrItemsToSend.length > 0 || maintenanceRequestedItems.trim().length > 0) {
+      const prItems = finalPrItemsToSend.length > 0 
+        ? finalPrItemsToSend.map(item => ({
             id: crypto.randomUUID(),
             description: item.description,
             quantity: item.quantity,
@@ -1555,25 +1614,43 @@ export default function ControlView({
             }
           ];
 
-      const newPurchaseRequest: PurchaseRequest = {
-        id: crypto.randomUUID(),
-        companyId: currentUser.companyId,
-        contractId: maintenanceEquipment.contractId,
-        equipmentId: maintenanceEquipment.id,
-        date: new Date().toISOString().split('T')[0],
-        description: `Manutenção ${maintenanceType === 'preventive' ? 'Preventiva' : 'Corretiva'}: ${maintenanceEquipment.name} (${maintenanceEquipment.plate})`,
-        category: 'PEÇAS/MANUTENÇÃO',
-        sector: 'CONTROLADOR',
-        status: 'Pendente',
-        items: prItems
-      };
-      onUpdatePurchaseRequests([newPurchaseRequest, ...purchaseRequests]);
+      const preExistingRequest = purchaseRequests.find(
+        r => r.equipmentId === maintenanceEquipment.id && r.status === 'Pendente' && r.sector === 'CONTROLADOR'
+      );
+
+      if (preExistingRequest) {
+        // Update pre-existing purchase request
+        const updatedRequests = purchaseRequests.map(r => 
+          r.id === preExistingRequest.id ? {
+            ...r,
+            description: `Manutenção ${maintenanceType === 'preventive' ? 'Preventiva' : 'Corretiva'}: ${maintenanceEquipment.name} (${maintenanceEquipment.plate})`,
+            items: prItems
+          } : r
+        );
+        onUpdatePurchaseRequests(updatedRequests);
+      } else {
+        // Create a new purchase request
+        const newPurchaseRequest: PurchaseRequest = {
+          id: crypto.randomUUID(),
+          companyId: currentUser.companyId,
+          contractId: maintenanceEquipment.contractId,
+          equipmentId: maintenanceEquipment.id,
+          date: new Date().toISOString().split('T')[0],
+          description: `Manutenção ${maintenanceType === 'preventive' ? 'Preventiva' : 'Corretiva'}: ${maintenanceEquipment.name} (${maintenanceEquipment.plate})`,
+          category: 'PEÇAS/MANUTENÇÃO',
+          sector: 'CONTROLADOR',
+          status: 'Pendente',
+          items: prItems
+        };
+        onUpdatePurchaseRequests([newPurchaseRequest, ...purchaseRequests]);
+      }
     }
     
     setIsMaintenanceModalOpen(false);
     setMaintenanceEquipment(null);
     setMaintenanceRequestedItems('');
     setMaintenanceItems([]);
+    setNewMaintenanceItem({description: '', quantity: 1, value: 0, discount: false});
   };
 
   const handleConfirmDeleteFuelLog = () => {
@@ -1705,15 +1782,15 @@ export default function ControlView({
         isOpen={isMaintenanceModalOpen}
         onClose={() => setIsMaintenanceModalOpen(false)} 
         maxWidth="custom"
-        className="p-0 border-none sm:max-w-[800px] h-[600px] flex flex-col overflow-hidden"
+        className="p-0 border-none sm:max-w-[800px] h-[700px] max-h-[90vh] flex flex-col overflow-hidden"
         headerClassName="hidden"
       >
-        <div className="bg-emerald-600 p-6 text-white relative overflow-hidden">
+        <div className="bg-emerald-600 p-6 text-white relative overflow-hidden shrink-0">
           <Wrench className="absolute -right-4 -bottom-4 w-24 h-24 opacity-20 rotate-12" />
           <div className="relative z-10">
             <h2 className="text-xl font-black flex items-center gap-2">
               <Wrench className="w-5 h-5 text-emerald-200" />
-              Enviar para Manutenção
+              {maintenanceEquipment?.inMaintenance ? "Gerenciar Manutenção e Peças" : "Enviar para Manutenção"}
             </h2>
             <p className="text-base text-emerald-100 font-bold uppercase tracking-widest mt-1">
               {maintenanceEquipment?.name} - {maintenanceEquipment?.plate}
@@ -1721,7 +1798,7 @@ export default function ControlView({
           </div>
         </div>
 
-        <div className="p-6 space-y-6">
+        <div className="p-6 space-y-6 flex-1 overflow-y-auto">
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="maintenance_date" className="text-base uppercase font-black text-gray-500 tracking-tight">Data de Entrada</Label>
@@ -1829,10 +1906,10 @@ export default function ControlView({
           </div>
         </div>
 
-        <div className="p-6 bg-gray-50 border-t flex flex-col sm:flex-row gap-3 rounded-b-2xl">
+        <div className="p-6 bg-gray-50 border-t flex flex-col sm:flex-row gap-3 rounded-b-2xl shrink-0">
           <Button variant="ghost" className="rounded-xl font-black uppercase text-base tracking-widest h-12 flex-1" onClick={() => setIsMaintenanceModalOpen(false)}>Cancelar</Button>
           <Button className="rounded-xl font-black uppercase text-base tracking-widest bg-emerald-600 hover:bg-emerald-700 h-12 flex-[2] shadow-xl shadow-emerald-100" onClick={handleConfirmMaintenance}>
-            Confirmar Envio para Oficina
+            {maintenanceEquipment?.inMaintenance ? "Salvar Alterações" : "Confirmar Envio para Oficina"}
           </Button>
         </div>
       </Modal>
@@ -2721,6 +2798,20 @@ export default function ControlView({
                           <div>
                             <p className="font-bold text-gray-900">{e.name}</p>
                             <p className="text-base text-gray-500 uppercase">{e.model} - {e.plate}</p>
+                            {(() => {
+                              const pendingReq = purchaseRequests.find(r => r.equipmentId === e.id && r.status === 'Pendente');
+                              if (pendingReq && pendingReq.items && pendingReq.items.length > 0) {
+                                return (
+                                  <div className="mt-1 flex flex-wrap gap-1 items-center">
+                                    <span className="inline-flex items-center gap-1 bg-amber-50 text-amber-700 border border-amber-100 font-bold text-xs px-2 py-0.5 rounded-lg">
+                                      <ShoppingCart className="w-3 h-3" />
+                                      Solicitado: {pendingReq.items.map(item => `${item.quantity}x ${item.description}`).join(', ')}
+                                    </span>
+                                  </div>
+                                );
+                              }
+                              return null;
+                            })()}
                           </div>
                         </div>
                       </TableCell>
@@ -2760,27 +2851,39 @@ export default function ControlView({
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center justify-end gap-1">
-                          <Button 
-                            variant="ghost" 
-                            size="icon" 
-                            onClick={() => {
-                              setCurrentRequest({ 
-                                id: uuidv4(),
-                                date: new Date().toISOString().split('T')[0],
-                                status: 'Pendente',
-                                priority: 'Normal',
-                                sector: 'CONTROLADOR',
-                                description: `${e.name} (${e.plate})`,
-                                contractId: e.contractId || (selectedContractId !== 'all' ? selectedContractId : undefined),
-                                items: [{ id: uuidv4(), description: '', quantity: 1, unit: 'un' }]
-                              });
-                              setIsMaterialRequestModalOpen(true);
-                            }} 
-                            className="text-gray-300 hover:text-emerald-500"
-                            title="Solicitar Peças/Material"
-                          >
-                            <ShoppingCart className="w-4 h-4" />
-                          </Button>
+                          {(() => {
+                            const existingReq = purchaseRequests.find(r => r.equipmentId === e.id && r.status === 'Pendente');
+                            return (
+                              <Button 
+                                variant="ghost" 
+                                size="icon" 
+                                onClick={() => {
+                                  if (existingReq) {
+                                    setCurrentRequest(existingReq);
+                                    setNewRequestCategory(existingReq.category || 'PEÇAS/MANUTENÇÃO');
+                                  } else {
+                                    setCurrentRequest({ 
+                                      id: uuidv4(),
+                                      date: new Date().toISOString().split('T')[0],
+                                      status: 'Pendente',
+                                      priority: 'Normal',
+                                      sector: 'CONTROLADOR',
+                                      description: `${e.name} (${e.plate})`,
+                                      contractId: e.contractId || (selectedContractId !== 'all' ? selectedContractId : undefined),
+                                      equipmentId: e.id,
+                                      items: [{ id: uuidv4(), description: '', quantity: 1, unit: 'un' }]
+                                    });
+                                    setNewRequestCategory('PEÇAS/MANUTENÇÃO');
+                                  }
+                                  setIsMaterialRequestModalOpen(true);
+                                }} 
+                                className={cn("text-gray-300 hover:text-blue-600", existingReq && "text-amber-500 hover:text-amber-600")}
+                                title={existingReq ? "Ver / Editar Solicitação de Compra" : "Criar Solicitação de Compra"}
+                              >
+                                <ShoppingCart className="w-4 h-4" />
+                              </Button>
+                            );
+                          })()}
                           <Button 
                             variant="outline" 
                             size="sm" 
@@ -4535,10 +4638,10 @@ export default function ControlView({
         isOpen={isMaterialRequestModalOpen}
         onClose={() => setIsMaterialRequestModalOpen(false)}
         maxWidth="custom"
-        className="p-0 border-none sm:max-w-[800px] h-[600px] flex flex-col overflow-hidden"
+        className="p-0 border-none sm:max-w-[800px] h-[750px] max-h-[90vh] flex flex-col overflow-hidden"
         headerClassName="hidden"
       >
-        <div className="bg-blue-600 p-8 text-white relative overflow-hidden rounded-t-2xl">
+        <div className="bg-blue-600 p-8 text-white relative overflow-hidden rounded-t-2xl shrink-0">
           <ShoppingCart className="absolute -right-8 -bottom-8 w-40 h-40 opacity-10 rotate-12" />
           <div className="relative z-10 text-left">
             <h2 className="text-3xl font-black tracking-tight">Solicitação de Compra</h2>
@@ -4546,7 +4649,7 @@ export default function ControlView({
           </div>
         </div>
 
-        <div className="p-8 space-y-8">
+        <div className="p-8 space-y-8 flex-1 overflow-y-auto">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-2">
               <Label className="text-base uppercase font-bold text-gray-400">Data da Solicitação</Label>
@@ -4746,12 +4849,12 @@ export default function ControlView({
           </div>
         </div>
 
-        <div className="px-8 pb-8 pt-2">
+        <div className="px-8 pb-8 pt-4 shrink-0 border-t border-gray-100 bg-white">
           <Button 
             onClick={handleCreateMaterialRequest} 
             className="w-full h-14 rounded-2xl bg-blue-600 hover:bg-blue-700 shadow-xl shadow-blue-100 font-black uppercase text-base tracking-widest transition-all active:scale-[0.98]"
           >
-            Enviar Solicitação
+            {purchaseRequests.some(r => r.id === currentRequest.id) ? "Salvar Solicitação" : "Enviar Solicitação"}
           </Button>
           <Button 
             variant="ghost" 
