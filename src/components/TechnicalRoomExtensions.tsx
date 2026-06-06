@@ -2735,36 +2735,53 @@ interface ScheduleCellInputProps {
   disabled?: boolean;
   className?: string;
   placeholder?: string;
+  decimals?: number;
 }
 
-const ScheduleCellInput = React.memo(({ value, onChange, disabled, className, placeholder }: ScheduleCellInputProps) => {
-  const [localValue, setLocalValue] = useState<string>(value.toString());
+const ScheduleCellInput = React.memo(({ value, onChange, disabled, className, placeholder, decimals = 3 }: ScheduleCellInputProps) => {
+  const [localValue, setLocalValue] = useState<string>('');
   const [isFocused, setIsFocused] = useState(false);
 
-  // Sync with prop value if it changes from outside AND we are not focused
   React.useEffect(() => {
     if (!isFocused) {
-      setLocalValue(value.toString());
+      if (value === undefined || value === null || isNaN(value)) {
+        setLocalValue('');
+      } else {
+        setLocalValue(formatNumber(value, decimals));
+      }
     }
-  }, [value, isFocused]);
+  }, [value, isFocused, decimals]);
 
   const handleBlur = () => {
     setIsFocused(false);
-    const normalized = localValue.replace(',', '.');
-    const numericValue = normalized === '' ? 0 : parseFloat(normalized);
-    if (!isNaN(numericValue) && numericValue !== value) {
-      onChange(numericValue);
+    let cleaned = localValue
+      .replace(/\./g, '')
+      .replace(',', '.');
+
+    const parsed = cleaned === '' ? 0 : parseFloat(cleaned);
+    if (!isNaN(parsed)) {
+      if (parsed !== value) {
+        onChange(parsed);
+      }
+      setLocalValue(formatNumber(parsed, decimals));
     } else {
-      // Revert to original string if invalid or same value
-      setLocalValue(value.toString());
+      setLocalValue(formatNumber(value || 0, decimals));
     }
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value;
-    // Allow digits, decimal points, commas, and negative sign
     if (/^-?[0-9.,]*$/.test(val) || val === '') {
       setLocalValue(val);
+    }
+  };
+
+  const handleFocus = () => {
+    setIsFocused(true);
+    if (!value) {
+      setLocalValue('');
+    } else {
+      setLocalValue(value.toString().replace('.', ','));
     }
   };
 
@@ -2776,7 +2793,7 @@ const ScheduleCellInput = React.memo(({ value, onChange, disabled, className, pl
       className={cn("h-7 text-right text-sm font-mono border-none bg-transparent focus:ring-1 px-2 select-all", className)}
       value={localValue}
       onChange={handleChange}
-      onFocus={() => setIsFocused(true)}
+      onFocus={handleFocus}
       onBlur={handleBlur}
       onKeyDown={(e) => {
         if (e.key === 'Enter') {
@@ -2790,7 +2807,8 @@ const ScheduleCellInput = React.memo(({ value, onChange, disabled, className, pl
 }, (prevProps, nextProps) => {
   return prevProps.value === nextProps.value && 
          prevProps.disabled === nextProps.disabled && 
-         prevProps.className === nextProps.className;
+         prevProps.className === nextProps.className &&
+         prevProps.decimals === nextProps.decimals;
 });
 
 interface ScheduleServiceRowProps {
@@ -2862,6 +2880,7 @@ const ScheduleServiceRow = React.memo(({
                 onChange={(val) => updateDayValue(bi.serviceId, p, 'plannedQty', val)}
                 className="focus:ring-blue-400"
                 disabled={readonly}
+                decimals={3}
               />
             </TableCell>
           ))}
@@ -2905,6 +2924,7 @@ const ScheduleServiceRow = React.memo(({
                 onChange={(val) => updateDayValue(bi.serviceId, p, 'actualQty', val)}
                 className="font-bold text-blue-700 focus:ring-blue-500"
                 disabled={readonly}
+                decimals={3}
               />
             </TableCell>
           ))}
@@ -2944,6 +2964,7 @@ const ScheduleServiceRow = React.memo(({
                   onChange={(val) => updateDayValue(bi.serviceId, p, 'plannedPerc', val)}
                   className="text-amber-700 focus:ring-amber-400"
                   disabled={readonly}
+                  decimals={1}
                 />
               </TableCell>
             );
@@ -2981,6 +3002,7 @@ const ScheduleServiceRow = React.memo(({
                   onChange={(val) => updateDayValue(bi.serviceId, p, 'actualPerc', val)}
                   className="font-bold text-amber-900 focus:ring-amber-500"
                   disabled={readonly}
+                  decimals={1}
                 />
               </TableCell>
             );
@@ -3983,53 +4005,45 @@ export function TechnicalScheduleView({
                   <div key={p} className="grid grid-cols-[1fr_repeat(6,120px)] gap-4 items-center p-2 rounded-lg hover:bg-gray-50/50 transition-colors border-b border-gray-50">
                     <div className="text-sm font-bold text-gray-700">{getPeriodLabel(p)}</div>
                     <div className="flex justify-center">
-                      <Input 
-                        type="number"
-                        step="0.001"
-                        className="h-10 text-center text-base font-mono w-full"
-                        value={getDayValue(editingServiceId!, p, 'plannedQty') ?? ''}
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          updateDayValue(editingServiceId!, p, 'plannedQty', val === '' ? 0 : parseFloat(val));
+                      <ScheduleCellInput 
+                        decimals={3}
+                        className="h-10 text-center text-base font-mono w-full border border-gray-200 bg-white focus:ring-2 focus:ring-blue-500 rounded-md shadow-sm"
+                        value={getDayValue(editingServiceId!, p, 'plannedQty') ?? 0}
+                        onChange={(val) => {
+                          updateDayValue(editingServiceId!, p, 'plannedQty', val);
                         }}
                         disabled={readonly}
                       />
                     </div>
                     <div className="flex justify-center">
-                      <Input 
-                        type="number"
-                        step="0.1"
-                        className="h-10 text-center text-base font-mono w-full text-amber-600"
-                        value={totalQty > 0 ? ((getDayValue(editingServiceId!, p, 'plannedQty') / totalQty) * 100).toFixed(1) : 0}
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          updateDayValue(editingServiceId!, p, 'plannedPerc', val === '' ? 0 : parseFloat(val));
+                      <ScheduleCellInput 
+                        decimals={1}
+                        className="h-10 text-center text-base font-mono w-full text-amber-600 border border-gray-200 bg-white focus:ring-2 focus:ring-blue-500 rounded-md shadow-sm"
+                        value={totalQty > 0 ? parseFloat(((getDayValue(editingServiceId!, p, 'plannedQty') / totalQty) * 100).toFixed(1)) : 0}
+                        onChange={(val) => {
+                          updateDayValue(editingServiceId!, p, 'plannedPerc', val);
                         }}
                         disabled={readonly}
                       />
                     </div>
                     <div className="flex justify-center">
-                      <Input 
-                        type="number"
-                        step="0.001"
-                        className="h-10 text-center text-base font-mono font-bold text-blue-700 w-full"
-                        value={getDayValue(editingServiceId!, p, 'actualQty') ?? ''}
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          updateDayValue(editingServiceId!, p, 'actualQty', val === '' ? 0 : parseFloat(val));
+                      <ScheduleCellInput 
+                        decimals={3}
+                        className="h-10 text-center text-base font-mono font-bold text-blue-700 w-full border border-gray-200 bg-white focus:ring-2 focus:ring-blue-500 rounded-md shadow-sm"
+                        value={getDayValue(editingServiceId!, p, 'actualQty') ?? 0}
+                        onChange={(val) => {
+                          updateDayValue(editingServiceId!, p, 'actualQty', val);
                         }}
                         disabled={readonly}
                       />
                     </div>
                     <div className="flex justify-center">
-                      <Input 
-                        type="number"
-                        step="0.1"
-                        className="h-10 text-center text-base font-mono font-bold text-amber-800 w-full"
-                        value={totalQty > 0 ? ((getDayValue(editingServiceId!, p, 'actualQty') / totalQty) * 100).toFixed(1) : 0}
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          updateDayValue(editingServiceId!, p, 'actualPerc', val === '' ? 0 : parseFloat(val));
+                      <ScheduleCellInput 
+                        decimals={1}
+                        className="h-10 text-center text-base font-mono font-bold text-amber-800 w-full border border-gray-200 bg-white focus:ring-2 focus:ring-blue-500 rounded-md shadow-sm"
+                        value={totalQty > 0 ? parseFloat(((getDayValue(editingServiceId!, p, 'actualQty') / totalQty) * 100).toFixed(1)) : 0}
+                        onChange={(val) => {
+                          updateDayValue(editingServiceId!, p, 'actualPerc', val);
                         }}
                         disabled={readonly}
                       />

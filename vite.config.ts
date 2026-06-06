@@ -19,11 +19,21 @@ export default defineConfig(({mode}) => {
       chunkSizeWarningLimit: 2000,
       rollupOptions: {
         output: {
-          manualChunks: {
-            'vendor-react': ['react', 'react-dom', 'motion'],
-            'vendor-files': ['exceljs', 'file-saver', 'xlsx', 'jspdf'],
-            'vendor-ui': ['lucide-react', 'recharts', '@radix-ui/react-dialog', '@radix-ui/react-popover'],
-            'vendor-db': ['@supabase/supabase-js']
+          manualChunks(id) {
+            if (id.includes('node_modules')) {
+              if (id.includes('exceljs') || id.includes('file-saver') || id.includes('xlsx') || id.includes('jspdf') || id.includes('jszip')) {
+                return 'vendor-files';
+              }
+              // Let Vite handle other node_modules automatically
+              return 'vendor';
+            }
+            if (id.includes('src/components/')) {
+              const file = id.split('src/components/')[1];
+              if (file) {
+                const name = file.split('/')[0].replace('.tsx', '').replace('.ts', '').toLowerCase();
+                return `view-${name}`;
+              }
+            }
           }
         }
       }

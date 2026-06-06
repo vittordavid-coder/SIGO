@@ -421,6 +421,7 @@ export interface StationGroup {
   materialIds: string[];
   volume: number;
   serviceId: string; // Linked service
+  operationType?: 'corte' | 'aterro' | '';
 }
 
 export interface CubationRow {

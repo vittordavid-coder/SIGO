@@ -1054,11 +1054,11 @@ export function MeasurementsView({
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
-      <div className="flex h-full">
+      <div className="flex h-full min-h-0 w-full">
         {/* Área de Conteúdo */}
         <div className={cn(
-          "flex-1 p-8 custom-scrollbar bg-[#F5F5F5]",
-          activeSubTab === 'schedule' ? "overflow-hidden flex flex-col h-full" : "overflow-y-auto"
+          "flex-1 p-8 custom-scrollbar bg-[#F5F5F5] min-h-0",
+          (activeSubTab === 'schedule' || (activeSubTab === 'measure' && activeMeasureType !== null)) ? "overflow-hidden flex flex-col h-full min-h-0" : "overflow-y-auto"
         )}>
           <AnimatePresence mode="wait">
             {activeSubTab === 'contracts' && (
@@ -3971,6 +3971,192 @@ function MeasureTypeCard({ title, description, icon, onClick }: { title: string,
   );
 }
 
+const generateCubationRowsFromStations = (initialStation: string, finalStation: string): CubationRow[] => {
+  const parseStationParts = (stationStr: string) => {
+    if (!stationStr) return { estaca: 0, frac: 0 };
+    const cleanStr = stationStr.trim();
+    if (cleanStr.includes('+')) {
+      const parts = cleanStr.split('+');
+      const estacaPart = parseInt(parts[0].replace(/\./g, '').trim(), 10) || 0;
+      const fracPart = parseFloat(parts[1].trim().replace(',', '.')) || 0;
+      return { estaca: estacaPart, frac: fracPart };
+    } else {
+      const num = parseFloat(cleanStr.replace(/\./g, '').replace(',', '.')) || 0;
+      return { estaca: Math.floor(num), frac: 0 };
+    }
+  };
+
+  const start = parseStationParts(initialStation);
+  const end = parseStationParts(finalStation);
+
+  const startMeters = start.estaca * 20 + start.frac;
+  const endMeters = end.estaca * 20 + end.frac;
+
+  const isReverse = startMeters > endMeters;
+  const pStart = isReverse ? end : start;
+  const pEnd = isReverse ? start : end;
+
+  const pStartMeters = pStart.estaca * 20 + pStart.frac;
+  const pEndMeters = pEnd.estaca * 20 + pEnd.frac;
+
+  const points: { estaca: number; frac: number; meters: number }[] = [];
+
+  // Add starter point
+  points.push({ estaca: pStart.estaca, frac: pStart.frac, meters: pStartMeters });
+
+  // First whole station meters (multiple of 20 after pStartMeters)
+  let currentMeters = Math.floor((pStartMeters + 0.001) / 20) * 20 + 20;
+  while (currentMeters < pEndMeters) {
+    const estacaNum = Math.round(currentMeters / 20);
+    points.push({
+      estaca: estacaNum,
+      frac: 0,
+      meters: currentMeters
+    });
+    currentMeters += 20;
+  }
+
+  // Add end point (if it's not already close to the last point)
+  const lastPoint = points[points.length - 1];
+  if (!lastPoint || Math.abs(pEndMeters - lastPoint.meters) > 0.001) {
+    points.push({ estaca: pEnd.estaca, frac: pEnd.frac, meters: pEndMeters });
+  }
+
+  if (isReverse) {
+    points.reverse();
+  }
+
+  return points.map(pt => ({
+    id: uuidv4(),
+    estaca: pt.estaca.toString(),
+    frac: pt.frac,
+    acFc: '',
+    area: 0,
+    somaAreas: 0,
+    semiDistancia: 0,
+    volume: 0,
+    observacao: ''
+  }));
+};
+
+const recalculateCubationRows = (rows: CubationRow[]): CubationRow[] => {
+  const parseStation = (s: string, f: number) => {
+    const parts = (s || '0+0').split('+');
+    const km = parseInt(parts[0]) || 0;
+    return (km * 20) + (parseFloat(f.toString()) || 0);
+  };
+
+  return rows.map((row, idx) => {
+    if (idx === 0) {
+      return {
+        ...row,
+        somaAreas: 0,
+        semiDistancia: 0,
+        volume: 0
+      };
+    }
+    const prevRow = rows[idx - 1];
+    const areaCurrent = parseFloat(row.area?.toString() || '0') || 0;
+    const areaPrev = parseFloat(prevRow.area?.toString() || '0') || 0;
+    const somaAreas = areaCurrent + areaPrev;
+
+    const currentDist = parseStation(row.estaca, row.frac);
+    const prevDist = parseStation(prevRow.estaca, prevRow.frac);
+    const dist = Math.abs(currentDist - prevDist);
+    const semiDistancia = dist / 2;
+    const volume = somaAreas * semiDistancia;
+
+    return {
+      ...row,
+      somaAreas,
+      semiDistancia,
+      volume
+    };
+  });
+};
+
+interface PrecisionInputProps {
+  value: number;
+  onChange: (val: number) => void;
+  decimals?: number;
+  className?: string;
+  disabled?: boolean;
+  placeholder?: string;
+}
+
+function PrecisionInput({
+  value,
+  onChange,
+  decimals = 3,
+  className,
+  disabled = false,
+  placeholder = ''
+}: PrecisionInputProps) {
+  const [localValue, setLocalValue] = useState<string>('');
+  const [isFocused, setIsFocused] = useState(false);
+
+  useEffect(() => {
+    if (!isFocused) {
+      if (value === undefined || value === null || isNaN(value)) {
+        setLocalValue('');
+      } else {
+        setLocalValue(formatNumber(value, decimals));
+      }
+    }
+  }, [value, decimals, isFocused]);
+
+  const handleFocus = () => {
+    setIsFocused(true);
+    if (!value) {
+      setLocalValue('');
+    } else {
+      setLocalValue(value.toString().replace('.', ','));
+    }
+  };
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const text = e.target.value;
+    if (/^-?[0-9.,]*$/.test(text) || text === '') {
+      setLocalValue(text);
+    }
+  };
+
+  const handleBlur = () => {
+    setIsFocused(false);
+    let cleaned = localValue
+      .replace(/\./g, '')
+      .replace(',', '.');
+
+    const parsed = cleaned === '' ? 0 : parseFloat(cleaned);
+    if (!isNaN(parsed)) {
+      onChange(parsed);
+      setLocalValue(formatNumber(parsed, decimals));
+    } else {
+      setLocalValue(formatNumber(value || 0, decimals));
+    }
+  };
+
+  return (
+    <Input
+      type="text"
+      inputMode="decimal"
+      placeholder={placeholder}
+      className={className}
+      value={localValue}
+      onChange={handleChange}
+      onFocus={handleFocus}
+      onBlur={handleBlur}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') {
+          handleBlur();
+          (e.target as HTMLInputElement).blur();
+        }
+      }}
+      disabled={disabled}
+    />
+  );
+}
+
 function CubationView({ contract, measurement, stationGroups, cubationData, onUpdateCubationData, onBack, services, allMeasurements }: {
   contract: Contract, 
   measurement: Measurement | undefined, 
@@ -3985,6 +4171,9 @@ function CubationView({ contract, measurement, stationGroups, cubationData, onUp
   const [selectedGroupId, setSelectedGroupId] = useState<string>('');
   const [localCubation, setLocalCubation] = useState<CubationData | null>(null);
 
+  const lastLoadedGroupId = useRef<string>('');
+  const lastLoadedCubationMeasurementId = useRef<string>('');
+
   // Sync browsingMeasurementId if measurement changes (e.g. on mount)
   useEffect(() => {
     if (measurement && !browsingMeasurementId) {
@@ -3995,22 +4184,34 @@ function CubationView({ contract, measurement, stationGroups, cubationData, onUp
   useEffect(() => {
     if (!browsingMeasurementId || !selectedGroupId) {
       setLocalCubation(null);
+      lastLoadedGroupId.current = '';
+      lastLoadedCubationMeasurementId.current = '';
       return;
     }
-    const found = cubationData.find(d => d.measurementId === browsingMeasurementId && d.stationGroupId === selectedGroupId);
-    if (found) {
-      setLocalCubation(JSON.parse(JSON.stringify(found)));
-    } else {
-      setLocalCubation({
-        id: uuidv4(),
-        contractId: contract.id,
-        measurementId: browsingMeasurementId,
-        stationGroupId: selectedGroupId,
-        serviceId: stationGroups.find(g => g.id === selectedGroupId)?.serviceId || '',
-        rows: []
-      } as CubationData);
+
+    const groupChanged = lastLoadedGroupId.current !== selectedGroupId;
+    const measurementChanged = lastLoadedCubationMeasurementId.current !== browsingMeasurementId;
+
+    if (groupChanged || measurementChanged || !localCubation) {
+      const found = cubationData.find(d => d.measurementId === browsingMeasurementId && d.stationGroupId === selectedGroupId);
+      if (found) {
+        setLocalCubation(JSON.parse(JSON.stringify(found)));
+      } else {
+        const targetGroup = stationGroups.find(g => g.id === selectedGroupId);
+        const autoRows = targetGroup ? generateCubationRowsFromStations(targetGroup.initialStation, targetGroup.finalStation) : [];
+        setLocalCubation({
+          id: uuidv4(),
+          contractId: contract.id,
+          measurementId: browsingMeasurementId,
+          stationGroupId: selectedGroupId,
+          serviceId: targetGroup?.serviceId || '',
+          rows: autoRows
+        } as CubationData);
+      }
+      lastLoadedGroupId.current = selectedGroupId;
+      lastLoadedCubationMeasurementId.current = browsingMeasurementId;
     }
-  }, [browsingMeasurementId, selectedGroupId, cubationData, contract.id, stationGroups]);
+  }, [browsingMeasurementId, selectedGroupId, cubationData, contract.id, stationGroups, localCubation]);
 
   const isBrowsingCurrent = browsingMeasurementId === measurement?.id;
   const browsingMeasurement = allMeasurements.find(m => m.id === browsingMeasurementId);
@@ -4035,58 +4236,32 @@ function CubationView({ contract, measurement, stationGroups, cubationData, onUp
       volume: 0,
       observacao: ''
     };
+    const updatedRows = [...localCubation.rows, newRow];
+    const recalculated = recalculateCubationRows(updatedRows);
     setLocalCubation({
       ...localCubation,
-      rows: [...localCubation.rows, newRow]
+      rows: recalculated
     });
   };
 
   const updateRow = (rowId: string, field: keyof CubationRow, value: any) => {
     if (!localCubation) return;
-    const newRows = localCubation.rows.map((row, idx) => {
+    const updatedRows = localCubation.rows.map(row => {
       if (row.id !== rowId) return row;
-      
-      const updatedRow = { ...row, [field]: value };
-      
-      // Recalculate based on previous row
-      if (idx > 0) {
-        const prevRow = localCubation.rows[idx - 1];
-        
-        // Soma das Áreas
-        const somaAreas = (parseFloat(updatedRow.area.toString()) || 0) + (parseFloat(prevRow.area.toString()) || 0);
-        updatedRow.somaAreas = somaAreas;
-        
-        // Semi-Distancia Calculation (Approximate based on stations)
-        const parseStation = (s: string, f: number) => {
-          const parts = (s || '0+0').split('+');
-          const km = parseInt(parts[0]) || 0;
-          return (km * 20) + (parseFloat(f.toString()) || 0);
-        };
-        
-        const currentDist = parseStation(updatedRow.estaca, updatedRow.frac);
-        const prevDist = parseStation(prevRow.estaca, prevRow.frac);
-        const dist = Math.abs(currentDist - prevDist);
-        updatedRow.semiDistancia = dist / 2;
-        
-        // Volume
-        updatedRow.volume = updatedRow.somaAreas * updatedRow.semiDistancia;
-      } else {
-        updatedRow.somaAreas = 0;
-        updatedRow.semiDistancia = 0;
-        updatedRow.volume = 0;
-      }
-      
-      return updatedRow;
+      return { ...row, [field]: value };
     });
 
-    setLocalCubation({ ...localCubation, rows: newRows });
+    const recalculated = recalculateCubationRows(updatedRows);
+    setLocalCubation({ ...localCubation, rows: recalculated });
   };
 
   const deleteRow = (id: string) => {
     if (!localCubation) return;
+    const filteredRows = localCubation.rows.filter(r => r.id !== id);
+    const recalculated = recalculateCubationRows(filteredRows);
     setLocalCubation({
       ...localCubation,
-      rows: localCubation.rows.filter(r => r.id !== id)
+      rows: recalculated
     });
   };
 
@@ -4097,6 +4272,55 @@ function CubationView({ contract, measurement, stationGroups, cubationData, onUp
   };
 
   const totalVolume = localCubation?.rows.reduce((sum, r) => sum + r.volume, 0) || 0;
+
+  const serviceStats = useMemo(() => {
+    if (!selectedGroupId) return null;
+    const sId = stationGroups.find(g => g.id === selectedGroupId)?.serviceId;
+    if (!sId) return null;
+    const service = services.find(s => s.id === sId);
+    if (!service) return null;
+
+    // 1. Budget Quantity
+    let budgetQty = 0;
+    if (contract.services) {
+      const found = contract.services.find(s => s.serviceId === sId);
+      if (found) budgetQty = found.quantity;
+    }
+    if (budgetQty === 0 && contract.groups) {
+      for (const g of contract.groups) {
+        const found = g.services.find(s => s.serviceId === sId);
+        if (found) {
+          budgetQty = found.quantity;
+          break;
+        }
+      }
+    }
+
+    // 2. Previous Accumulated
+    const prevMeasurements = allMeasurements.filter(m => m.contractId === contract.id && m.number < (measurement?.number || 0));
+    const prevAccumulated = prevMeasurements.reduce((sum, m) => {
+      const item = m.items?.find(i => i.serviceId === sId);
+      return sum + (item?.quantity || 0);
+    }, 0);
+
+    // 3. Current Measured Quantity (other groups volume + this group volume)
+    const otherGroupsTotal = cubationData
+      .filter(d => d.measurementId === browsingMeasurementId && d.serviceId === sId && d.stationGroupId !== selectedGroupId)
+      .reduce((sum, d) => sum + (d.rows || []).reduce((rowSum, r) => rowSum + r.volume, 0), 0);
+
+    const currentMeasuredQty = otherGroupsTotal + totalVolume;
+    const totalAccumulated = prevAccumulated + currentMeasuredQty;
+    const balance = budgetQty - totalAccumulated;
+
+    return {
+      service,
+      budgetQty,
+      prevAccumulated,
+      currentMeasuredQty,
+      totalAccumulated,
+      balance
+    };
+  }, [selectedGroupId, stationGroups, services, contract, allMeasurements, measurement, cubationData, browsingMeasurementId, totalVolume]);
 
   return (
     <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="space-y-6 h-full flex flex-col min-h-0">
@@ -4161,6 +4385,23 @@ function CubationView({ contract, measurement, stationGroups, cubationData, onUp
            </div>
            {selectedGroupId && isBrowsingCurrent && measurement?.status !== 'closed' && (
              <div className="flex gap-2">
+               <Button 
+                 onClick={() => {
+                   const group = stationGroups.find(g => g.id === selectedGroupId);
+                   if (group) {
+                     const generated = generateCubationRowsFromStations(group.initialStation, group.finalStation);
+                     setLocalCubation({
+                       ...localCubation!,
+                       rows: generated
+                     });
+                   }
+                 }} 
+                 variant="outline" 
+                 size="sm" 
+                 className="border-blue-200 text-blue-600 hover:bg-blue-50 h-8"
+               >
+                 <Layers className="w-4 h-4 mr-2" /> Gerar Estacas (Trecho)
+               </Button>
                <Button onClick={addRow} variant="outline" size="sm" className="border-emerald-200 text-emerald-600 hover:bg-emerald-50 h-8">
                  <Plus className="w-4 h-4 mr-2" /> Adicionar Estaca
                </Button>
@@ -4219,14 +4460,14 @@ function CubationView({ contract, measurement, stationGroups, cubationData, onUp
            </Card>
 
            <Card className="col-span-1 lg:col-span-2 border-[10px] border-gray-100 shadow-sm p-12 flex flex-col items-center justify-center bg-white border-dashed min-h-[300px]">
-              <Layers className="w-16 h-16 text-gray-100 mb-4" />
-              <h4 className="text-lg font-bold text-gray-400 select-none">Selecione um grupo para detalhamento</h4>
-              <p className="text-base text-gray-300 max-w-xs text-center select-none">Escolha um item na lista ao lado ou na seleção acima para visualizar a planilha de cubação.</p>
-           </Card>
+               <Layers className="w-16 h-16 text-gray-100 mb-4" />
+               <h4 className="text-lg font-bold text-gray-400 select-none">Selecione um grupo para detalhamento</h4>
+               <p className="text-base text-gray-300 max-w-xs text-center select-none">Escolha um item na lista ao lado ou na seleção acima para visualizar a planilha de cubação.</p>
+            </Card>
         </div>
       ) : (
         <Card className="border-[10px] border-gray-100 shadow-sm overflow-hidden flex flex-col flex-1 bg-white min-h-0">
-          <ScrollArea className="flex-1">
+          <div className="flex-1 overflow-auto custom-scrollbar">
             <div className="min-w-[1200px]">
               <Table>
               <TableHeader className="bg-gray-50 sticky top-0 z-10 shadow-sm">
@@ -4251,19 +4492,25 @@ function CubationView({ contract, measurement, stationGroups, cubationData, onUp
                         onChange={e => updateRow(row.id, 'estaca', e.target.value)} 
                         className="h-8 text-sm font-mono" 
                         placeholder="0+0"
+                        disabled={!isBrowsingCurrent || measurement?.status === 'closed'}
                       />
                     </TableCell>
                     <TableCell>
-                      <Input 
-                        type="number" 
-                        step="0.01" 
-                        value={row.frac ?? ''} 
-                        onChange={e => updateRow(row.id, 'frac', e.target.value)} 
+                      <PrecisionInput 
+                        decimals={2}
+                        value={Number(row.frac) || 0} 
+                        onChange={val => updateRow(row.id, 'frac', val)} 
                         className="h-8 text-sm text-center font-mono"
+                        placeholder="0,00"
+                        disabled={!isBrowsingCurrent || measurement?.status === 'closed'}
                       />
                     </TableCell>
                     <TableCell>
-                      <Select value={row.acFc} onValueChange={v => updateRow(row.id, 'acFc', v)}>
+                      <Select 
+                        value={row.acFc} 
+                        onValueChange={v => updateRow(row.id, 'acFc', v)}
+                        disabled={!isBrowsingCurrent || measurement?.status === 'closed'}
+                      >
                          <SelectTrigger className="h-8 text-sm font-bold">
                             <SelectValue placeholder="-" />
                          </SelectTrigger>
@@ -4275,12 +4522,13 @@ function CubationView({ contract, measurement, stationGroups, cubationData, onUp
                       </Select>
                     </TableCell>
                     <TableCell>
-                      <Input 
-                        type="number" 
-                        step="0.001" 
-                        value={row.area ?? ''} 
-                        onChange={e => updateRow(row.id, 'area', e.target.value)} 
+                      <PrecisionInput 
+                        decimals={3}
+                        value={Number(row.area) || 0} 
+                        onChange={val => updateRow(row.id, 'area', val)} 
                         className="h-8 text-sm text-right font-mono text-blue-600"
+                        placeholder="0,000"
+                        disabled={!isBrowsingCurrent || measurement?.status === 'closed'}
                       />
                     </TableCell>
                     <TableCell>
@@ -4303,10 +4551,17 @@ function CubationView({ contract, measurement, stationGroups, cubationData, onUp
                         value={row.observacao || ''} 
                         onChange={e => updateRow(row.id, 'observacao', e.target.value)} 
                         className="h-8 text-sm" 
+                        disabled={!isBrowsingCurrent || measurement?.status === 'closed'}
                       />
                     </TableCell>
                     <TableCell>
-                       <Button variant="ghost" size="icon" onClick={() => deleteRow(row.id)} className="h-8 w-8 text-gray-300 hover:text-red-500">
+                       <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        onClick={() => deleteRow(row.id)} 
+                        className="h-8 w-8 text-gray-300 hover:text-red-500"
+                        disabled={!isBrowsingCurrent || measurement?.status === 'closed'}
+                       >
                          <Trash2 className="w-3.5 h-3.5" />
                        </Button>
                     </TableCell>
@@ -4315,7 +4570,36 @@ function CubationView({ contract, measurement, stationGroups, cubationData, onUp
               </TableBody>
             </Table>
             </div>
-          </ScrollArea>
+          </div>
+          {serviceStats && (
+            <div className="bg-blue-50/40 p-4 border-t border-b grid grid-cols-2 md:grid-cols-5 gap-4 shrink-0 text-gray-705 border-gray-100">
+               <div>
+                  <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-1">Qtd. Orçada (Contrato)</p>
+                  <p className="text-base font-black font-mono text-gray-700">{formatNumber(serviceStats.budgetQty, 3)} {serviceStats.service.unit}</p>
+               </div>
+               <div>
+                  <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-1">Medido Anterior</p>
+                  <p className="text-base font-black font-mono text-gray-700">{formatNumber(serviceStats.prevAccumulated, 3)} {serviceStats.service.unit}</p>
+               </div>
+               <div>
+                  <p className="text-xs font-bold text-blue-600 uppercase tracking-widest mb-1">Medido Atual (Mês)</p>
+                  <p className="text-base font-black font-mono text-blue-700">{formatNumber(serviceStats.currentMeasuredQty, 3)} {serviceStats.service.unit}</p>
+               </div>
+               <div>
+                  <p className="text-xs font-bold text-indigo-600 uppercase tracking-widest mb-1">Medido Acumulado</p>
+                  <p className="text-base font-black font-mono text-indigo-700">{formatNumber(serviceStats.totalAccumulated, 3)} {serviceStats.service.unit}</p>
+               </div>
+               <div>
+                  <p className="text-xs font-bold text-amber-600 uppercase tracking-widest mb-1">Saldo do Contrato</p>
+                  <p className={cn(
+                    "text-base font-black font-mono",
+                    serviceStats.balance < 0 ? "text-red-600" : "text-amber-700"
+                  )}>
+                    {formatNumber(serviceStats.balance, 3)} {serviceStats.service.unit}
+                  </p>
+               </div>
+            </div>
+          )}
           <div className="bg-gray-50 p-4 border-t flex flex-wrap gap-4 justify-between items-center shrink-0">
              <div className="flex gap-8">
                 <div>
@@ -4543,7 +4827,8 @@ function StationGroupsView({ contract, groups, onUpdate, onDelete, onBack, resou
     finalStation: '',
     materialIds: [],
     volume: 0,
-    serviceId: ''
+    serviceId: '',
+    operationType: ''
   });
   const [searchMaterial, setSearchMaterial] = useState('');
   const [searchService, setSearchService] = useState('');
@@ -4558,11 +4843,23 @@ function StationGroupsView({ contract, groups, onUpdate, onDelete, onBack, resou
   }, [resources, searchMaterial]);
 
   const contractServices = useMemo(() => {
-    return (contract.services || []).map(cs => {
-      const s = services.find(serv => serv.id === cs.serviceId) || services.find(serv => serv.code === (cs as any).code);
-      return { ...cs, name: s?.name, code: s?.code };
-    });
-  }, [contract.services, services]);
+    const allServices: any[] = [];
+    if (contract.services) {
+      allServices.push(...contract.services);
+    }
+    if (contract.groups) {
+      contract.groups.forEach(g => {
+        allServices.push(...g.services);
+      });
+    }
+    // Filter to only include services configured as cubation
+    return allServices
+      .filter(cs => cs.worksheetType === 'cubation')
+      .map(cs => {
+        const s = services.find(serv => serv.id === cs.serviceId) || services.find(serv => serv.code === (cs as any).code);
+        return { ...cs, name: s?.name, code: s?.code };
+      });
+  }, [contract.services, contract.groups, services]);
 
   const filteredServices = useMemo(() => {
     if (!searchService) return contractServices;
@@ -4581,7 +4878,7 @@ function StationGroupsView({ contract, groups, onUpdate, onDelete, onBack, resou
     }
     setIsAddOpen(false);
     setEditingGroup(null);
-    setFormData({ name: '', initialStation: '', finalStation: '', materialIds: [], volume: 0, serviceId: '' });
+    setFormData({ name: '', initialStation: '', finalStation: '', materialIds: [], volume: 0, serviceId: '', operationType: '' });
   };
 
   return (
@@ -4596,7 +4893,7 @@ function StationGroupsView({ contract, groups, onUpdate, onDelete, onBack, resou
         </div>
         <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
           <DialogTrigger asChild>
-            <Button onClick={() => { setEditingGroup(null); setFormData({ name: '', initialStation: '', finalStation: '', materialIds: [], volume: 0, serviceId: '' }); setSearchMaterial(''); setSearchService(''); }} className="bg-emerald-600 hover:bg-emerald-700">
+            <Button onClick={() => { setEditingGroup(null); setFormData({ name: '', initialStation: '', finalStation: '', materialIds: [], volume: 0, serviceId: '', operationType: '' }); setSearchMaterial(''); setSearchService(''); }} className="bg-emerald-600 hover:bg-emerald-700">
               <Plus className="w-4 h-4 mr-2" /> Novo Grupo
             </Button>
           </DialogTrigger>
@@ -4610,6 +4907,19 @@ function StationGroupsView({ contract, groups, onUpdate, onDelete, onBack, resou
                   <Label>Identificação do Grupo</Label>
                   <Input placeholder="Ex: Trecho A - Corte 01" value={formData.name || ''} onChange={e => setFormData({...formData, name: e.target.value})} required />
                 </div>
+                
+                <div className="space-y-2">
+                  <Label>Tipo de Movimentação (Corte / Aterro)</Label>
+                  <Select value={formData.operationType || ''} onValueChange={(v: 'corte' | 'aterro' | '') => setFormData({...formData, operationType: v})}>
+                    <SelectTrigger><SelectValue placeholder="Selecione se é Corte ou Aterro..." /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Não definido</SelectItem>
+                      <SelectItem value="corte">Corte</SelectItem>
+                      <SelectItem value="aterro">Aterro</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label>Estaca Inicial</Label>
@@ -4723,11 +5033,35 @@ function StationGroupsView({ contract, groups, onUpdate, onDelete, onBack, resou
           <Card key={group.id} className="border-[10px] border-gray-100 shadow-sm hover:shadow-md transition-all">
             <CardContent className="p-6">
               <div className="flex justify-between items-start mb-4">
-                <div className="bg-emerald-50 p-3 rounded-xl">
-                  <Layers className="w-6 h-6 text-emerald-600" />
+                <div className="flex items-center gap-2">
+                  <div className="bg-emerald-50 p-3 rounded-xl">
+                    <Layers className="w-6 h-6 text-emerald-600" />
+                  </div>
+                  {group.operationType && group.operationType !== 'none' && (
+                    <span className={cn(
+                      "px-2.5 py-1 rounded-full text-xs font-bold uppercase tracking-wider border",
+                      group.operationType === 'corte'
+                        ? "bg-red-50 text-red-700 border-red-200"
+                        : "bg-blue-50 text-blue-700 border-blue-200"
+                    )}>
+                      {group.operationType === 'corte' ? 'Corte' : 'Aterro'}
+                    </span>
+                  )}
                 </div>
                 <div className="flex gap-1">
-                  <Button variant="ghost" size="icon" onClick={() => { setEditingGroup(group); setFormData(group); setIsAddOpen(true); }} className="h-8 w-8 text-gray-400 hover:text-emerald-600"><Edit className="w-4 h-4" /></Button>
+                  <Button variant="ghost" size="icon" onClick={() => { 
+                    setEditingGroup(group); 
+                    setFormData({
+                      name: group.name || '',
+                      initialStation: group.initialStation || '',
+                      finalStation: group.finalStation || '',
+                      materialIds: group.materialIds || [],
+                      volume: group.volume || 0,
+                      serviceId: group.serviceId || '',
+                      operationType: group.operationType || ''
+                    }); 
+                    setIsAddOpen(true); 
+                  }} className="h-8 w-8 text-gray-400 hover:text-emerald-600"><Edit className="w-4 h-4" /></Button>
                   <Button variant="ghost" size="icon" onClick={() => onDelete(group.id)} className="h-8 w-8 text-gray-400 hover:text-red-600"><Trash2 className="w-4 h-4" /></Button>
                 </div>
               </div>
@@ -4768,6 +5102,110 @@ function StationGroupsView({ contract, groups, onUpdate, onDelete, onBack, resou
   );
 }
 
+interface HighPrecisionInputProps {
+  value: number | string;
+  onChange: (val: number) => void;
+  disabled?: boolean;
+  step?: number;
+  className?: string;
+  placeholder?: string;
+}
+
+function HighPrecisionInput({
+  value,
+  onChange,
+  disabled = false,
+  className = '',
+  placeholder = '0,000'
+}: HighPrecisionInputProps) {
+  const numericValue = typeof value === 'string' ? parseFloat(value) || 0 : value || 0;
+
+  const [localVal, setLocalVal] = useState<string>('');
+  const [isFocused, setIsFocused] = useState<boolean>(false);
+
+  // Formatter: '.' for thousands, ',' for decimal, 3 decimal places
+  const formatThreeDecimals = (val: number): string => {
+    if (isNaN(val) || val === null || val === undefined) return '0,000';
+    const fixed = val.toFixed(3);
+    const parts = fixed.split('.');
+    const integerPart = parts[0];
+    const decimalPart = parts[1];
+    const formattedInteger = integerPart.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+    return `${formattedInteger},${decimalPart}`;
+  };
+
+  // Parser: handles dots as thousands and commas/dots as decimals
+  const parseBrazilianNumber = (str: string): number => {
+    if (!str) return 0;
+    let cleaned = str.trim();
+    if (cleaned.includes('.') && cleaned.includes(',')) {
+      cleaned = cleaned.replace(/\./g, '').replace(',', '.');
+    } else if (cleaned.includes(',')) {
+      cleaned = cleaned.replace(',', '.');
+    }
+    const parsed = parseFloat(cleaned);
+    return isNaN(parsed) ? 0 : parsed;
+  };
+
+  // Sync value when external value changes and we are not editing
+  useEffect(() => {
+    if (!isFocused) {
+      setLocalVal(formatThreeDecimals(numericValue));
+    }
+  }, [numericValue, isFocused]);
+
+  const handleFocus = () => {
+    setIsFocused(true);
+    // On focus, show clean decimal format (comma separated, no thousands dots) for easy editing
+    if (numericValue !== undefined && numericValue !== null) {
+      const cleanVal = numericValue.toFixed(3).replace('.', ',');
+      setLocalVal(cleanVal);
+    } else {
+      setLocalVal('');
+    }
+  };
+
+  const handleBlur = () => {
+    setIsFocused(false);
+    const parsed = parseBrazilianNumber(localVal);
+    onChange(parsed);
+    setLocalVal(formatThreeDecimals(parsed));
+  };
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setLocalVal(e.target.value);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      const parsed = parseBrazilianNumber(localVal);
+      onChange(parsed);
+      setLocalVal(formatThreeDecimals(parsed));
+      e.currentTarget.blur();
+    }
+  };
+
+  return (
+    <Input
+      type="text"
+      value={isFocused ? localVal : formatThreeDecimals(numericValue)}
+      onChange={handleChange}
+      onFocus={handleFocus}
+      onBlur={handleBlur}
+      onKeyDown={handleKeyDown}
+      disabled={disabled}
+      placeholder={placeholder}
+      className={cn(
+        "h-8 text-sm text-right font-mono font-semibold bg-white ring-offset-background",
+        "border-gray-200 transition-all duration-150",
+        "focus-visible:ring-1 focus-visible:ring-blue-500 focus-visible:border-blue-500",
+        "disabled:cursor-not-allowed disabled:opacity-50",
+        className
+      )}
+    />
+  );
+}
+
 function TransportView({ contract, measurement, locations, transportData, onUpdateTransportData, onBack, services, allMeasurements, resources, onUpdateMeasurement }: {
   contract: Contract,
   measurement: Measurement | undefined,
@@ -4784,6 +5222,9 @@ function TransportView({ contract, measurement, locations, transportData, onUpda
   const [selectedServiceId, setSelectedServiceId] = useState<string>('');
   const [localTransport, setLocalTransport] = useState<TransportData | null>(null);
 
+  const lastLoadedServiceId = useRef<string>('');
+  const lastLoadedTransportMeasurementId = useRef<string>('');
+
   useEffect(() => {
     if (measurement && !browsingMeasurementId) {
       setBrowsingMeasurementId(measurement.id);
@@ -4793,21 +5234,31 @@ function TransportView({ contract, measurement, locations, transportData, onUpda
   useEffect(() => {
     if (!browsingMeasurementId || !selectedServiceId) {
       setLocalTransport(null);
+      lastLoadedServiceId.current = '';
+      lastLoadedTransportMeasurementId.current = '';
       return;
     }
-    const found = transportData.find(d => d.measurementId === browsingMeasurementId && d.serviceId === selectedServiceId);
-    if (found) {
-      setLocalTransport(JSON.parse(JSON.stringify(found)));
-    } else {
-      setLocalTransport({
-        id: uuidv4(),
-        contractId: contract.id,
-        measurementId: browsingMeasurementId,
-        serviceId: selectedServiceId,
-        rows: []
-      } as TransportData);
+
+    const serviceChanged = lastLoadedServiceId.current !== selectedServiceId;
+    const measurementChanged = lastLoadedTransportMeasurementId.current !== browsingMeasurementId;
+
+    if (serviceChanged || measurementChanged || !localTransport) {
+      const found = transportData.find(d => d.measurementId === browsingMeasurementId && d.serviceId === selectedServiceId);
+      if (found) {
+        setLocalTransport(JSON.parse(JSON.stringify(found)));
+      } else {
+        setLocalTransport({
+          id: uuidv4(),
+          contractId: contract.id,
+          measurementId: browsingMeasurementId,
+          serviceId: selectedServiceId,
+          rows: []
+        } as TransportData);
+      }
+      lastLoadedServiceId.current = selectedServiceId;
+      lastLoadedTransportMeasurementId.current = browsingMeasurementId;
     }
-  }, [browsingMeasurementId, selectedServiceId, transportData, contract.id]);
+  }, [browsingMeasurementId, selectedServiceId, transportData, contract.id, localTransport]);
 
   const isBrowsingCurrent = browsingMeasurementId === measurement?.id;
   const browsingMeasurement = allMeasurements.find(m => m.id === browsingMeasurementId);
@@ -5039,29 +5490,29 @@ function TransportView({ contract, measurement, locations, transportData, onUpda
       ) : (
         <Card className="border-[10px] border-gray-100 shadow-xl overflow-hidden flex flex-col flex-1 bg-white min-h-0 ring-1 ring-gray-100">
            <ScrollArea className="flex-1">
-              <div className="min-w-[1500px]">
+              <div className="min-w-[1850px]">
                  <Table>
-                    <TableHeader className="bg-gray-50 sticky top-0 z-10 shadow-sm">
+                    <TableHeader className="bg-gray-100 sticky top-0 z-10 shadow-sm border-b border-gray-200">
                        <TableRow>
-                          <TableHead className="w-48 text-sm font-bold uppercase pl-6 text-gray-500">Local de Origem</TableHead>
-                          <TableHead className="w-32 text-sm font-bold uppercase text-center text-gray-500">Início (Estaca+Fr)</TableHead>
-                          <TableHead className="w-32 text-sm font-bold uppercase text-center text-gray-500">Fim (Estaca+Fr)</TableHead>
-                          <TableHead className="w-32 text-sm font-bold uppercase text-right text-gray-500">Volume (m³)</TableHead>
-                          <TableHead className="w-24 text-sm font-bold uppercase text-right text-gray-500">Dens. (t/m³)</TableHead>
-                          <TableHead className="w-32 text-sm font-bold uppercase text-right text-gray-500">Peso Total (t)</TableHead>
-                          <TableHead className="w-48 text-sm font-bold uppercase text-gray-500">Cálculo DMT</TableHead>
-                          <TableHead className="w-28 text-sm font-bold uppercase text-right text-gray-500">DMT Calc (km)</TableHead>
-                          <TableHead className="w-36 text-sm font-bold uppercase text-right text-gray-500">Momento Transp.</TableHead>
-                          <TableHead className="text-sm font-bold uppercase text-gray-500">Observações</TableHead>
+                          <TableHead className="w-72 text-sm font-bold uppercase pl-6 text-gray-700">Local de Origem</TableHead>
+                          <TableHead className="w-52 text-sm font-bold uppercase text-center text-gray-700">Início (Estaca + Frac)</TableHead>
+                          <TableHead className="w-52 text-sm font-bold uppercase text-center text-gray-700">Fim (Estaca + Frac)</TableHead>
+                          <TableHead className="w-36 text-sm font-bold uppercase text-right text-gray-700">Volume (m³)</TableHead>
+                          <TableHead className="w-32 text-sm font-bold uppercase text-right text-gray-700">Dens. (t/m³)</TableHead>
+                          <TableHead className="w-36 text-sm font-bold uppercase text-right text-gray-700">Peso Total (t)</TableHead>
+                          <TableHead className="w-72 text-sm font-bold uppercase text-gray-700">Cálculo DMT</TableHead>
+                          <TableHead className="w-36 text-sm font-bold uppercase text-right text-gray-700">DMT Calc (km)</TableHead>
+                          <TableHead className="w-40 text-sm font-bold uppercase text-right text-gray-700">Momento Transp.</TableHead>
+                          <TableHead className="text-sm font-bold uppercase text-gray-700 pl-4">Observações</TableHead>
                           <TableHead className="w-14 pr-6"></TableHead>
                        </TableRow>
                     </TableHeader>
                     <TableBody>
                        {localTransport?.rows.map(row => (
-                          <TableRow key={row.id} className="hover:bg-blue-50/20 transition-colors">
-                             <TableCell className="pl-6">
+                          <TableRow key={row.id} className="hover:bg-blue-50/20 transition-colors border-b border-gray-100">
+                             <TableCell className="pl-6 py-2">
                                 <Select value={row.locationId} onValueChange={v => updateRow(row.id, 'locationId', v)} disabled={!isBrowsingCurrent}>
-                                   <SelectTrigger className="h-8 text-sm bg-gray-50/50"><SelectValue placeholder="Selecione local...">
+                                   <SelectTrigger className="h-8 text-sm bg-gray-50/50 hover:bg-white border-gray-200 transition-colors"><SelectValue placeholder="Selecione local...">
                                          {row.locationId && locations.find(l => l.id === row.locationId) 
                                            ? (() => {
                                                const l = locations.find(x => x.id === row.locationId);
@@ -5076,112 +5527,112 @@ function TransportView({ contract, measurement, locations, transportData, onUpda
                                    </SelectContent>
                                 </Select>
                              </TableCell>
-                             <TableCell>
-                                <div className="flex gap-1 justify-center">
+                             <TableCell className="py-2">
+                                <div className="flex gap-1.5 justify-center items-center">
                                    <Input 
                                       value={row.initialStation ?? ''} 
                                       onChange={e => updateRow(row.id, 'initialStation', e.target.value)} 
                                       disabled={!isBrowsingCurrent}
-                                      className="h-8 text-sm w-16 px-1.5 text-center bg-transparent border-gray-200" 
+                                      className="h-8 text-sm w-20 px-1.5 text-center bg-gray-50/30 font-semibold border-gray-200 focus:border-blue-500 focus:ring-1 focus:ring-blue-500" 
                                       placeholder="0+00" 
                                    />
-                                   <Input 
-                                      type="number" step="0.01" 
-                                      value={row.initialFrac ?? ''} 
-                                      onChange={e => updateRow(row.id, 'initialFrac', e.target.value)} 
+                                   <HighPrecisionInput 
+                                      value={row.initialFrac ?? 0} 
+                                      onChange={v => updateRow(row.id, 'initialFrac', v)} 
                                       disabled={!isBrowsingCurrent}
-                                      className="h-8 text-sm w-14 px-1 text-center bg-transparent border-gray-200" 
+                                      step={0.0001}
+                                      className="w-24 text-center font-mono" 
                                    />
                                 </div>
                              </TableCell>
-                             <TableCell>
-                                <div className="flex gap-1 justify-center">
+                             <TableCell className="py-2">
+                                <div className="flex gap-1.5 justify-center items-center">
                                    <Input 
                                       value={row.finalStation ?? ''} 
                                       onChange={e => updateRow(row.id, 'finalStation', e.target.value)} 
                                       disabled={!isBrowsingCurrent}
-                                      className="h-8 text-sm w-16 px-1.5 text-center bg-transparent border-gray-200" 
+                                      className="h-8 text-sm w-20 px-1.5 text-center bg-gray-50/30 font-semibold border-gray-200 focus:border-blue-500 focus:ring-1 focus:ring-blue-500" 
                                       placeholder="0+00" 
                                    />
-                                   <Input 
-                                      type="number" step="0.01" 
-                                      value={row.finalFrac ?? ''} 
-                                      onChange={e => updateRow(row.id, 'finalFrac', e.target.value)}
-                                      disabled={!isBrowsingCurrent} 
-                                      className="h-8 text-sm w-14 px-1 text-center bg-transparent border-gray-200" 
+                                   <HighPrecisionInput 
+                                      value={row.finalFrac ?? 0} 
+                                      onChange={v => updateRow(row.id, 'finalFrac', v)} 
+                                      disabled={!isBrowsingCurrent}
+                                      step={0.0001}
+                                      className="w-24 text-center font-mono" 
                                    />
                                 </div>
                              </TableCell>
-                             <TableCell>
-                                <Input 
-                                   type="number" step="0.01" 
-                                   value={row.volume ?? ''} 
-                                   onChange={e => updateRow(row.id, 'volume', e.target.value)} 
+                             <TableCell className="py-2">
+                                <HighPrecisionInput 
+                                   value={row.volume ?? 0} 
+                                   onChange={v => updateRow(row.id, 'volume', v)} 
                                    disabled={!isBrowsingCurrent}
-                                   className="h-8 text-sm text-right font-medium text-gray-700 bg-transparent border-gray-200 px-2" 
+                                   step={0.001}
+                                   className="w-full text-right font-semibold text-gray-800" 
                                 />
                              </TableCell>
-                             <TableCell>
-                                <Input 
-                                   type="number" step="0.01" 
+                             <TableCell className="py-2">
+                                <HighPrecisionInput 
                                    value={row.density || 0} 
-                                   onChange={e => updateRow(row.id, 'density', e.target.value)} 
+                                   onChange={v => updateRow(row.id, 'density', v)} 
                                    disabled={!isBrowsingCurrent}
-                                   className="h-8 text-sm text-right font-medium text-gray-500 bg-transparent border-gray-200 px-2" 
+                                   step={0.001}
+                                   className="w-full text-right font-medium text-gray-500" 
                                 />
                              </TableCell>
-                             <TableCell className="text-right text-sm font-bold text-gray-500 pr-4">
-                                {formatNumber(row.weight, 2)}
+                             <TableCell className="text-right text-sm font-bold text-gray-700 pr-4 font-mono select-all">
+                                {formatNumber(row.weight, 3)}
                              </TableCell>
-                             <TableCell>
+                             <TableCell className="py-2">
                                 <div className="flex flex-col gap-1.5 py-1">
                                    <Select 
                                       value={row.dmtCalculationMode} 
                                       onValueChange={v => updateRow(row.id, 'dmtCalculationMode', v)}
                                       disabled={!isBrowsingCurrent}
                                    >
-                                      <SelectTrigger className="h-7 text-sm font-bold uppercase bg-gray-50 ring-offset-0 focus:ring-1"><SelectValue /></SelectTrigger>
+                                      <SelectTrigger className="h-8 text-xs font-bold uppercase bg-gray-50 border-gray-200 ring-offset-0 focus:ring-1"><SelectValue /></SelectTrigger>
                                       <SelectContent>
-                                         <SelectItem value="average"><span className="text-sm font-bold">ESTACA MÉDIA</span></SelectItem>
-                                         <SelectItem value="center_of_mass"><span className="text-sm font-bold">CENTRO DE MASSA</span></SelectItem>
+                                         <SelectItem value="average"><span className="text-xs font-bold">ESTACA MÉDIA</span></SelectItem>
+                                         <SelectItem value="center_of_mass"><span className="text-xs font-bold">CENTRO DE MASSA</span></SelectItem>
                                       </SelectContent>
                                    </Select>
                                    {row.dmtCalculationMode === 'center_of_mass' && (
-                                      <div className="flex gap-1">
+                                      <div className="flex gap-1.5 items-center">
                                          <Input 
                                             value={row.centerOfMassStake ?? ''} 
                                             onChange={e => updateRow(row.id, 'centerOfMassStake', e.target.value)} 
                                             disabled={!isBrowsingCurrent}
-                                            className="h-6 text-sm w-16 px-1.5 bg-amber-50/30 border-amber-200 placeholder:text-amber-300" 
+                                            className="h-8 text-sm w-20 px-1.5 bg-amber-50/10 font-semibold border-amber-200 focus:border-amber-500 placeholder:text-amber-300" 
                                             placeholder="Est" 
                                          />
-                                         <Input 
-                                            type="number" step="0.01" 
-                                            value={row.centerOfMassFrac || 0} 
-                                            onChange={e => updateRow(row.id, 'centerOfMassFrac', e.target.value)} 
+                                         <HighPrecisionInput 
+                                            value={row.centerOfMassFrac ?? 0} 
+                                            onChange={v => updateRow(row.id, 'centerOfMassFrac', v)} 
                                             disabled={!isBrowsingCurrent}
-                                            className="h-6 text-sm w-12 px-1 text-center bg-amber-50/30 border-amber-200" 
+                                            step={0.0001}
+                                            className="w-24" 
                                          />
                                       </div>
                                    )}
                                 </div>
                              </TableCell>
-                             <TableCell className="text-right text-sm font-black text-blue-600 pr-4 italic">
-                                {formatNumber(row.dmt, 3)}
+                             <TableCell className="text-right text-sm font-black text-blue-700 pr-4 italic font-mono select-all">
+                                {formatNumber(row.dmt, 4)}
                              </TableCell>
-                             <TableCell className="text-right text-sm font-black text-emerald-600 bg-emerald-50/10 pr-4">
-                                {formatNumber(row.moment, 2)}
+                             <TableCell className="text-right text-sm font-black text-emerald-700 bg-emerald-50/20 pr-4 font-mono select-all">
+                                {formatNumber(row.moment, 3)}
                              </TableCell>
-                             <TableCell>
+                             <TableCell className="py-2 pl-4">
                                 <Input 
                                    value={row.observacao || ''} 
                                    onChange={e => updateRow(row.id, 'observacao', e.target.value)} 
                                    disabled={!isBrowsingCurrent}
-                                   className="h-8 text-sm bg-transparent border-gray-100 italic" 
+                                   className="h-8 text-sm bg-transparent border-gray-200 hover:border-gray-300 focus:bg-white italic" 
                                    placeholder="Notas..." 
                                 />
                              </TableCell>
-                             <TableCell className="pr-6">
+                             <TableCell className="pr-6 py-2">
                                 {isBrowsingCurrent && (
                                   <Button 
                                      variant="ghost" 
@@ -5189,7 +5640,7 @@ function TransportView({ contract, measurement, locations, transportData, onUpda
                                      onClick={() => {
                                         setLocalTransport({ ...localTransport, rows: localTransport.rows.filter(r => r.id !== row.id) });
                                      }} 
-                                     className="h-8 w-8 text-red-300 hover:text-red-500 hover:bg-red-50"
+                                     className="h-8 w-8 text-red-400 hover:text-red-600 hover:bg-red-50"
                                   >
                                      <Trash2 className="w-4 h-4" />
                                   </Button>

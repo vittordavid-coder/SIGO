@@ -2466,8 +2466,28 @@ export default function App() {
   const updateCubationData = (data: CubationData) => {
     setCubationData(prev => {
       const existing = prev.findIndex(d => d.id === data.id || (d.contractId === data.contractId && d.measurementId === data.measurementId && d.stationGroupId === data.stationGroupId && d.serviceId === data.serviceId));
-      if (existing >= 0) return prev.map((d, i) => i === existing ? data : d);
-      return [...prev, data];
+      const nextList = existing >= 0 ? prev.map((d, i) => i === existing ? data : d) : [...prev, data];
+      
+      // Sync total calculated volume with the corresponding service inside the target measurement
+      const serviceId = data.serviceId;
+      const measurementId = data.measurementId;
+      if (serviceId && measurementId) {
+        const totalVolume = nextList
+          .filter(d => d.measurementId === measurementId && d.serviceId === serviceId)
+          .reduce((sum, d) => sum + (d.rows || []).reduce((rowSum, r) => rowSum + (Number(r.volume) || 0), 0), 0);
+
+        setMeasurements(mPrev => mPrev.map(m => {
+          if (m.id !== measurementId) return m;
+          const itemsList = m.items || [];
+          const exists = itemsList.some(i => i.serviceId === serviceId);
+          const updatedItems = exists
+            ? itemsList.map(i => i.serviceId === serviceId ? { ...i, quantity: totalVolume } : i)
+            : [...itemsList, { serviceId, quantity: totalVolume }];
+          return { ...m, items: updatedItems };
+        }));
+      }
+
+      return nextList;
     });
   };
 

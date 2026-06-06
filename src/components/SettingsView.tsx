@@ -586,7 +586,7 @@ export function SettingsView({
           />
         </TabsContent>
 
-        <TabsContent value="backup" className="mt-0">
+        <TabsContent value="backup" className="mt-0 space-y-6">
           <Card className="border-none shadow-sm">
             <CardHeader>
               <div className="flex justify-between items-center">

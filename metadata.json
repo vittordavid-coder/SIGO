@@ -1,5 +1,6 @@
 {
   "name": "SYNERA SISTEMA DE GESTÃO",
   "description": "Sistema completo para gestão de obras com interface padronizada, controle de orçamentos, medições, RH e suprimentos.",
-  "requestFramePermissions": []
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }
