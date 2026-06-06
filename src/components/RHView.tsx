@@ -49,7 +49,7 @@ import {
   DropdownMenuItem, 
   DropdownMenuTrigger 
 } from '@/components/ui/dropdown-menu';
-import { Employee, TimeRecord, User, Dependent, ControllerManpower, ManpowerMonthlyData, Contract } from '../types';
+import { Employee, TimeRecord, User, Dependent, ControllerManpower, ManpowerMonthlyData, Contract, ControllerTeam, TeamAssignment } from '../types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -117,6 +117,8 @@ interface RHViewProps {
   onUpdateRecords: (records: TimeRecord[]) => void;
   initialTab?: string;
   controllerTeams?: ControllerTeam[];
+  teamAssignments?: TeamAssignment[];
+  onUpdateAssignments?: (assignments: TeamAssignment[]) => void;
 }
 
 export default function RHView({ 
@@ -129,7 +131,9 @@ export default function RHView({
   onUpdateEmployees, 
   onUpdateRecords,
   initialTab,
-  controllerTeams = []
+  controllerTeams = [],
+  teamAssignments = [],
+  onUpdateAssignments
 }: RHViewProps) {
   const [activeTab, setActiveTab] = useState(initialTab || 'employees');
   const [searchTerm, setSearchTerm] = useState('');
@@ -141,6 +145,18 @@ export default function RHView({
     }
   }, [initialTab]);
   const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7)); // YYYY-MM
+
+  const getEmployeeTeamName = (emp: Employee) => {
+    const currentMonth = selectedMonth || new Date().toISOString().slice(0, 7);
+    const assign = (teamAssignments || []).find(
+      a => a.memberId === emp.id && a.type === 'manpower' && a.month === currentMonth
+    );
+    if (assign) {
+      const team = (controllerTeams || []).find(t => t.id === assign.teamId);
+      if (team) return team.name;
+    }
+    return emp.team;
+  };
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string | null>(null);
   const [showCPF, setShowCPF] = useState<Record<string, boolean>>({});
   const [privacyAccepted, setPrivacyAccepted] = useState(false);
@@ -528,6 +544,7 @@ export default function RHView({
               commuterCity2: String(getVal(['vt - cidade 2']) || ''),
               chargesPercentage: parseFloat(String(getVal(['encargos percentual', 'encargos_percentual', 'charges_percentage', 'encargos']) || '0').replace(/[^0-9,-]+/g,"").replace(",", ".")) || 0,
               overtimePercentage: parseFloat(String(getVal(['horas extras percentual', 'he_percentual', 'overtime_percentage', 'he']) || '0').replace(/[^0-9,-]+/g,"").replace(",", ".")) || 0,
+              team: String(getVal(['equipe', 'equipe vinculada', 'team', 'frente', 'grupo']) || '') || undefined,
             };
             importedEmployees.push(employee);
           } catch (rowErr) {
@@ -545,6 +562,33 @@ export default function RHView({
 
         if (window.confirm(`✅ ${importedEmployees.length} colaboradores encontrados. Deseja importá-los para o contrato atual?`)) {
           onUpdateEmployees([...employees, ...importedEmployees]);
+
+          if (teamAssignments && onUpdateAssignments) {
+            let updatedAssignments = [...teamAssignments];
+            const currentMonth = selectedMonth || new Date().toISOString().slice(0, 7);
+            importedEmployees.forEach(emp => {
+              if (emp.team && emp.team !== '') {
+                const team = (controllerTeams || []).find(t => t.name === emp.team);
+                if (team) {
+                  const exists = updatedAssignments.some(
+                    a => a.memberId === emp.id && a.type === 'manpower' && a.month === currentMonth
+                  );
+                  if (!exists) {
+                    updatedAssignments.push({
+                      id: generateUUID(),
+                      teamId: team.id,
+                      memberId: emp.id,
+                      type: 'manpower',
+                      month: currentMonth,
+                      companyId: emp.companyId || currentUser.companyId,
+                      contractId: emp.contractId
+                    });
+                  }
+                }
+              }
+            });
+            onUpdateAssignments(updatedAssignments);
+          }
 
           let supabaseSuccess = false;
           const config = getSupabaseConfig();
@@ -691,6 +735,9 @@ export default function RHView({
     };
 
     const getFieldValue = (emp: Employee, field: string) => {
+      if (field === 'team') {
+        return getEmployeeTeamName(emp) || '-';
+      }
       const val = (emp as any)[field];
       if (field === 'status') {
         return val === 'active' ? 'Ativo' : 'Desligado';
@@ -848,6 +895,7 @@ export default function RHView({
     cpf: '',
     status: 'active',
     role: '',
+    team: '',
     admissionDate: new Date().toISOString().split('T')[0],
     salary: 0,
     paymentType: 'month',
@@ -888,6 +936,45 @@ export default function RHView({
 
   const [newEmployee, setNewEmployee] = useState<Partial<Employee>>(initialEmployeeValue);
 
+  const syncEmployeeTeamAssignment = (employeeId: string, teamName: string | undefined, contractId?: string, companyId?: string) => {
+    if (!teamAssignments || !onUpdateAssignments) return;
+    const currentMonth = selectedMonth || new Date().toISOString().slice(0, 7);
+    const team = teamName && teamName !== 'none' ? (controllerTeams || []).find(t => t.name === teamName) : null;
+    let updatedAssignments = [...teamAssignments];
+    const existingIdx = updatedAssignments.findIndex(
+      a => a.memberId === employeeId && a.type === 'manpower' && a.month === currentMonth
+    );
+
+    if (team) {
+      if (existingIdx >= 0) {
+        if (updatedAssignments[existingIdx].teamId !== team.id) {
+          updatedAssignments[existingIdx] = {
+            ...updatedAssignments[existingIdx],
+            teamId: team.id,
+            contractId: contractId || updatedAssignments[existingIdx].contractId
+          };
+          onUpdateAssignments(updatedAssignments);
+        }
+      } else {
+        updatedAssignments.push({
+          id: generateUUID(),
+          teamId: team.id,
+          memberId: employeeId,
+          type: 'manpower',
+          month: currentMonth,
+          companyId: companyId || currentUser.companyId,
+          contractId: contractId
+        });
+        onUpdateAssignments(updatedAssignments);
+      }
+    } else {
+      if (existingIdx >= 0) {
+        updatedAssignments.splice(existingIdx, 1);
+        onUpdateAssignments(updatedAssignments);
+      }
+    }
+  };
+
   const handleAddEmployee = () => {
     if (!newEmployee.name || !newEmployee.cpf) {
       alert('Nome e CPF são campos obrigatórios.');
@@ -902,17 +989,20 @@ export default function RHView({
           : e
       );
       onUpdateEmployees(updatedEmployees);
+      syncEmployeeTeamAssignment(editingEmployeeId, newEmployee.team, newEmployee.contractId, currentUser.companyId);
       setIsDialogOpen(false);
       setEditingEmployeeId(null);
     } else {
       // Create new employee
+      const employeeId = generateUUID();
       const employee: Employee = {
-        id: generateUUID(),
+        id: employeeId,
         status: 'active',
         companyId: currentUser.companyId,
         name: newEmployee.name!,
         cpf: newEmployee.cpf!,
         role: newEmployee.role || 'Colaborador',
+        team: newEmployee.team || undefined,
         admissionDate: newEmployee.admissionDate!,
         salary: newEmployee.salary || 0,
         paymentType: newEmployee.paymentType as any || 'month',
@@ -951,6 +1041,7 @@ export default function RHView({
         commuterCity2: newEmployee.commuterCity2,
       };
       onUpdateEmployees([...employees, employee]);
+      syncEmployeeTeamAssignment(employeeId, newEmployee.team, newEmployee.contractId, currentUser.companyId);
     }
     
     resetForm();
@@ -972,7 +1063,7 @@ export default function RHView({
   };
 
   const startEdit = (employee: Employee) => {
-    setNewEmployee({ ...initialEmployeeValue, ...employee });
+    setNewEmployee({ ...initialEmployeeValue, ...employee, team: getEmployeeTeamName(employee) || undefined });
     setEditingEmployeeId(employee.id);
     setIsDialogOpen(true);
   };
@@ -1003,7 +1094,7 @@ export default function RHView({
   };
 
   return (
-    <div className="p-6 max-w-7xl mx-auto space-y-6">
+    <div className="p-6 max-w-[1700px] mx-auto space-y-6">
       <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Recursos Humanos</h1>
@@ -1787,7 +1878,8 @@ export default function RHView({
               </div>
             </CardHeader>
             <CardContent className="p-0">
-              <Table>
+              <div className="overflow-x-auto w-full">
+                <Table>
                 <TableHeader className="bg-gray-50/50">
                   <TableRow>
                     <TableHead 
@@ -1907,14 +1999,41 @@ export default function RHView({
                           );
                         })()}
                       </TableCell>
-                      <TableCell className="text-center">
-                        {e.team ? (
-                          <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200 font-bold uppercase tracking-wide text-[11px] whitespace-nowrap">
-                            {e.team}
-                          </Badge>
-                        ) : (
-                          <span className="text-gray-400 italic text-sm">Sem Equipe</span>
-                        )}
+                      <TableCell className="text-center min-w-[140px]">
+                        <div className="inline-block relative w-full max-w-[150px]">
+                          <select
+                            value={getEmployeeTeamName(e) || 'none'}
+                            onChange={(ev) => {
+                              const val = ev.target.value;
+                              const teamVal = val === 'none' ? undefined : val;
+                              
+                              // Update employee locally
+                              const updatedEmployees = employees.map(emp => 
+                                emp.id === e.id ? { ...emp, team: teamVal } : emp
+                              );
+                              onUpdateEmployees(updatedEmployees);
+                              
+                              // Synchronize assignment
+                              syncEmployeeTeamAssignment(e.id, teamVal, e.contractId, e.companyId || currentUser.companyId);
+                            }}
+                            className={cn(
+                              "w-full text-center font-bold uppercase tracking-wide text-[11px] h-8 rounded-lg px-2 border transition-colors cursor-pointer appearance-none",
+                              getEmployeeTeamName(e) 
+                                ? "bg-purple-50 text-purple-700 border-purple-200 hover:bg-purple-100 hover:border-purple-300"
+                                : "bg-gray-100 text-gray-500 border-gray-200 hover:bg-gray-200 hover:border-gray-300"
+                            )}
+                          >
+                            <option value="none" className="text-gray-500 bg-white font-normal capitalize">-- Sem Equipe --</option>
+                            {(controllerTeams || [])
+                              .filter(t => !e.contractId || t.contractId === e.contractId)
+                              .map(t => (
+                                <option key={t.id} value={t.name} className="text-purple-900 bg-white font-bold uppercase text-[11px]">
+                                  {t.name}
+                                </option>
+                              ))
+                            }
+                          </select>
+                        </div>
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex items-center justify-end gap-1">
@@ -1964,6 +2083,9 @@ export default function RHView({
                               ev.stopPropagation();
                               if (confirm(`Excluir ${e.name}?`)) {
                                 onUpdateEmployees(employees.filter(item => item.id !== e.id));
+                                if (teamAssignments && onUpdateAssignments) {
+                                  onUpdateAssignments(teamAssignments.filter(a => a.memberId !== e.id));
+                                }
                               }
                             }}
                             title="Excluir Colaborador"
@@ -1976,6 +2098,7 @@ export default function RHView({
                   ))}
                 </TableBody>
               </Table>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>

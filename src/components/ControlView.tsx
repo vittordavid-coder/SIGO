@@ -112,6 +112,9 @@ interface ControlViewProps {
   companyLogo?: string;
   companyLogoRight?: string;
   logoMode?: 'left' | 'right' | 'both' | 'none';
+  controllerTeams?: any[];
+  teamAssignments?: any[];
+  onUpdateAssignments?: (val: any[]) => void;
 }
 
 export default function ControlView({
@@ -137,7 +140,10 @@ export default function ControlView({
   initialTab,
   companyLogo,
   companyLogoRight,
-  logoMode = 'left'
+  logoMode = 'left',
+  controllerTeams = [],
+  teamAssignments = [],
+  onUpdateAssignments = () => {}
 }: ControlViewProps) {
   const [activeTab, setActiveTab] = React.useState(initialTab || 'list');
 
@@ -216,7 +222,7 @@ export default function ControlView({
   const [searchTerm, setSearchTerm] = useState('');
   const [priceDisplayMode, setPriceDisplayMode] = useState<'monthly' | 'measurement'>('monthly');
   const [showApplied, setShowApplied] = useState(false);
-  const [sortField, setSortField] = useState<'name' | 'category' | 'origin' | 'cost'>('name');
+  const [sortField, setSortField] = useState<'name' | 'category' | 'origin' | 'cost' | 'team'>('name');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
   const [filterOnlyActive, setFilterOnlyActive] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -485,6 +491,8 @@ export default function ControlView({
         comparison = a.name.localeCompare(b.name);
       } else if (sortField === 'category') {
         comparison = (a.category || '').localeCompare(b.category || '');
+      } else if (sortField === 'team') {
+        comparison = (a.team || '').localeCompare(b.team || '');
       } else if (sortField === 'origin') {
         comparison = (a.origin || '').localeCompare(b.origin || '');
       } else if (sortField === 'cost') {
@@ -500,7 +508,7 @@ export default function ControlView({
     });
   }, [equipments, currentUser, searchTerm, filterOnlyActive, sortField, sortOrder, selectedContractId, equipmentMonthly, selectedMonth, priceDisplayMode]);
 
-  const handleSort = (field: 'name' | 'category' | 'origin' | 'cost') => {
+  const handleSort = (field: 'name' | 'category' | 'origin' | 'cost' | 'team') => {
     if (sortField === field) {
       setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
     } else {
@@ -2544,6 +2552,15 @@ export default function ControlView({
                       </div>
                     </TableHead>
                     <TableHead 
+                      className="font-black text-base h-8 uppercase tracking-widest text-slate-500 cursor-pointer hover:bg-slate-100/50 transition-colors"
+                      onClick={() => handleSort('team')}
+                    >
+                      <div className="flex items-center gap-2">
+                        Equipe
+                        {sortField === 'team' && (sortOrder === 'asc' ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />)}
+                      </div>
+                    </TableHead>
+                    <TableHead 
                       className="font-black text-base h-8 uppercase tracking-widest text-slate-500 text-center cursor-pointer hover:bg-slate-100/50 transition-colors"
                       onClick={() => handleSort('origin')}
                     >
@@ -2603,6 +2620,80 @@ export default function ControlView({
                         <span className="text-base font-bold text-blue-600 uppercase tracking-tighter truncate max-w-[150px] inline-block">{getContractName(e.contractId)}</span>
                       </TableCell>
                       <TableCell className="py-0.5 text-base font-bold text-slate-500 uppercase tracking-tight">{e.category}</TableCell>
+                      <TableCell className="py-0.5">
+                        {(() => {
+                          const currentTeamName = (() => {
+                            if (e.team) return e.team;
+                            const assign = (teamAssignments || []).find(a => a.memberId === e.id && a.type === 'equipment' && a.month === selectedMonth);
+                            if (assign) {
+                              const match = (controllerTeams || []).find(t => t.id === assign.teamId);
+                              if (match) return match.name;
+                            }
+                            return 'none';
+                          })();
+
+                          return (
+                            <Select
+                              value={currentTeamName || 'none'}
+                              onValueChange={(val) => {
+                                const updatedTeam = val === 'none' ? undefined : val;
+                                // 1. Update equipment team properties
+                                onUpdateEquipments(
+                                  equipments.map(item =>
+                                    item.id === e.id ? { ...item, team: updatedTeam } : item
+                                  )
+                                );
+
+                                // 2. Update teamAssignments in SALA TÉCNICA
+                                const targetTeam = (controllerTeams || []).find(t => t.name === val);
+                                if (targetTeam) {
+                                  const isAssigned = (teamAssignments || []).some(a => a.memberId === e.id && a.type === 'equipment' && a.month === selectedMonth);
+                                  if (isAssigned) {
+                                    onUpdateAssignments(
+                                      (teamAssignments || []).map(a =>
+                                        (a.memberId === e.id && a.type === 'equipment' && a.month === selectedMonth)
+                                          ? { ...a, teamId: targetTeam.id }
+                                          : a
+                                      )
+                                    );
+                                  } else {
+                                    onUpdateAssignments([
+                                      ...(teamAssignments || []),
+                                      {
+                                        id: crypto.randomUUID(),
+                                        contractId: e.contractId || selectedContractId || undefined,
+                                        teamId: targetTeam.id,
+                                        memberId: e.id,
+                                        type: 'equipment',
+                                        month: selectedMonth
+                                      }
+                                    ]);
+                                  }
+                                } else {
+                                  // chosen "none"
+                                  onUpdateAssignments(
+                                    (teamAssignments || []).filter(a => !(a.memberId === e.id && a.type === 'equipment' && a.month === selectedMonth))
+                                  );
+                                }
+                              }}
+                            >
+                              <SelectTrigger className="w-40 h-8 bg-white border-slate-200 rounded-lg text-xs font-semibold py-0 focus:ring-1 focus:ring-blue-500">
+                                <SelectValue placeholder="Sem equipe" />
+                              </SelectTrigger>
+                              <SelectContent className="bg-white max-h-56 overflow-auto">
+                                <SelectItem value="none" className="text-xs">Sem equipe</SelectItem>
+                                {(controllerTeams || [])
+                                  .filter(t => !e.contractId || t.contractId === e.contractId)
+                                  .map((team: any) => (
+                                    <SelectItem key={team.id} value={team.name} className="text-xs font-semibold text-slate-800">
+                                      {team.name}
+                                    </SelectItem>
+                                  ))}
+                              </SelectContent>
+                            </Select>
+                          );
+                        })()}
+                      </TableCell>
                       <TableCell className="py-0.5 text-center font-black uppercase text-sm tracking-widest"><Badge variant="outline" className={cn("rounded-lg h-5 px-2", e.origin === 'Próprio' ? "bg-blue-50 text-blue-700 border-blue-100" : "bg-amber-50 text-amber-700 border-amber-100")}>{e.origin}</Badge></TableCell>
                       <TableCell className="py-0.5 text-right font-mono text-base font-black text-slate-700">
                         {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(

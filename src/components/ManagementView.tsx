@@ -1071,7 +1071,7 @@ export const ManagementView = ({
   const [sCurveContractId, setSCurveContractId] = useState<string>("all");
   const [clickedMonthIndex, setClickedMonthIndex] = useState<number | null>(null);
 
-  const [selectedRoleFilter, setSelectedRoleFilter] = useState<string | null>(
+  const [selectedTeamFilter, setSelectedTeamFilter] = useState<string | null>(
     null,
   );
   const [selectedTypeFilter, setSelectedTypeFilter] = useState<string | null>(
@@ -1083,6 +1083,18 @@ export const ManagementView = ({
   const [eqTreemapMetric, setEqTreemapMetric] = useState<"count" | "value">(
     "count",
   );
+
+  const [rhSortCol, setRhSortCol] = useState<string>("name");
+  const [rhSortDir, setRhSortDir] = useState<"asc" | "desc">("asc");
+
+  const [eqSortCol, setEqSortCol] = useState<string>("name");
+  const [eqSortDir, setEqSortDir] = useState<"asc" | "desc">("asc");
+
+  const [revSortCol, setRevSortCol] = useState<string>("name");
+  const [revSortDir, setRevSortDir] = useState<"asc" | "desc">("asc");
+
+  const [curvaSSortCol, setCurvaSSortCol] = useState<string>("name");
+  const [curvaSSortDir, setCurvaSSortDir] = useState<"asc" | "desc">("asc");
   const [localSelectedContractId, setLocalSelectedContractId] =
     useState<string>("all");
   const selectedContractId = propSelectedContractId || localSelectedContractId;
@@ -1369,15 +1381,16 @@ export const ManagementView = ({
 
   if (activeView === "RH") {
     const rhData = stats.details["RH"] || [];
-    const roleStatsMap = new Map<string, { count: number; value: number }>();
+    const teamStatsMap = new Map<string, { count: number; value: number }>();
     rhData.forEach((item: any) => {
-      const role = item.meta?.role || "Não Informado";
-      const current = roleStatsMap.get(role) || { count: 0, value: 0 };
+      const team = item.meta?.team || "Sem Equipe";
+      const current = teamStatsMap.get(team) || { count: 0, value: 0 };
       current.count += 1;
       current.value += item.value || 0;
-      roleStatsMap.set(role, current);
+      teamStatsMap.set(team, current);
     });
-    const rolesTreemapData = Array.from(roleStatsMap.entries())
+
+    const teamBubbleData = Array.from(teamStatsMap.entries())
       .map(([name, stats]) => ({
         name,
         size:
@@ -1390,17 +1403,163 @@ export const ManagementView = ({
         b.size === a.size ? a.name.localeCompare(b.name) : b.size - a.size,
       );
 
+    // Dynamic Circle Packing algorithm in 2D space:
+    const width = 800;
+    const height = 480;
+    const center = { x: width / 2, y: height / 2 };
+    
+    // Allocate radii proportional to sizes - scaled up for better legibility
+    const totalSize = teamBubbleData.reduce((acc, curr) => acc + curr.size, 0) || 1;
+    const targetArea = width * height * 0.45; // target 45% area filled for larger bubbles
+
+    const packedBubbles = teamBubbleData.map((item, idx) => {
+      const fraction = item.size / totalSize;
+      const area = targetArea * fraction;
+      // enforce min and max bounds for larger representation
+      const r = Math.max(50, Math.min(130, Math.sqrt(area / Math.PI) * 1.3));
+      return {
+        ...item,
+        r,
+        x: center.x,
+        y: center.y,
+        colorIndex: idx,
+      };
+    });
+
+    // Spiral/force packing layout simulation
+    if (packedBubbles.length > 0) {
+      packedBubbles[0].x = center.x;
+      packedBubbles[0].y = center.y;
+    }
+
+    for (let i = 1; i < packedBubbles.length; i++) {
+      const curr = packedBubbles[i];
+      let placed = false;
+      let angle = 0;
+      let distance = packedBubbles[0].r + curr.r;
+
+      while (!placed && distance < Math.max(width, height)) {
+        for (let step = 0; step < 16; step++) {
+          const theta = angle + (step * Math.PI) / 8;
+          const testX = center.x + distance * Math.cos(theta);
+          const testY = center.y + distance * Math.sin(theta);
+
+          let overlap = false;
+          for (let j = 0; j < i; j++) {
+            const prev = packedBubbles[j];
+            const dist = Math.hypot(testX - prev.x, testY - prev.y);
+            if (dist < (prev.r + curr.r - 2)) {
+              overlap = true;
+              break;
+            }
+          }
+
+          if (!overlap) {
+            curr.x = testX;
+            curr.y = testY;
+            placed = true;
+            break;
+          }
+        }
+        distance += 6;
+        angle += 0.35;
+      }
+    }
+
+    // High contrast, highly vibrant colors for super readability
+    const colorGradients = [
+      { from: "#3b82f6", to: "#1d4ed8", text: "#ffffff" }, // Sapphire Blue
+      { from: "#10b981", to: "#047857", text: "#ffffff" }, // Emerald Green
+      { from: "#8b5cf6", to: "#6d28d9", text: "#ffffff" }, // Royal Violet
+      { from: "#f59e0b", to: "#b45309", text: "#ffffff" }, // Rich Amber
+      { from: "#ec4899", to: "#be185d", text: "#ffffff" }, // Vibrant Magenta
+      { from: "#06b6d4", to: "#0e7490", text: "#ffffff" }, // Cool Teal/Cyan
+      { from: "#f97316", to: "#c2410c", text: "#ffffff" }, // Dark Orange
+    ];
+
+    // Compute sorted collaborator table data
+    const sortedRhData = (rhData: any[]) => {
+      let filtered = rhData.filter(
+        (item: any) =>
+          !selectedTeamFilter ||
+          (item.meta?.team || "Sem Equipe") === selectedTeamFilter
+      );
+      
+      return [...filtered].sort((a: any, b: any) => {
+        let valA = "";
+        let valB = "";
+        if (rhSortCol === "name") {
+          valA = a.name || "";
+          valB = b.name || "";
+        } else if (rhSortCol === "team") {
+          valA = a.meta?.team || "Sem Equipe";
+          valB = b.meta?.team || "Sem Equipe";
+        } else if (rhSortCol === "role") {
+          valA = a.meta?.role || "";
+          valB = b.meta?.role || "";
+        } else if (rhSortCol === "salary") {
+          const numA = a.value || 0;
+          const numB = b.value || 0;
+          return rhSortDir === "asc" ? numA - numB : numB - numA;
+        }
+        
+        const cmp = valA.localeCompare(valB, "pt", { sensitivity: "base" });
+        return rhSortDir === "asc" ? cmp : -cmp;
+      });
+    };
+
+    const finalSortedRhList = sortedRhData(rhData);
+
+    const handleSortRH = (col: string) => {
+      if (rhSortCol === col) {
+        setRhSortDir(rhSortDir === "asc" ? "desc" : "asc");
+      } else {
+        setRhSortCol(col);
+        setRhSortDir("asc");
+      }
+    };
+
+    const renderSortIconRH = (col: string) => {
+      if (rhSortCol !== col) return <span className="text-slate-300 ml-1">↕</span>;
+      return rhSortDir === "asc" ? <span className="text-slate-800 font-bold ml-1">↑</span> : <span className="text-slate-800 font-bold ml-1">↓</span>;
+    };
+
+    // Calculate column chart data for selected team roles
+    let roleChartData: any[] = [];
+    if (selectedTeamFilter) {
+      const teamEmployees = rhData.filter(
+        (item: any) => (item.meta?.team || "Sem Equipe") === selectedTeamFilter
+      );
+      const roleMap = new Map<string, { count: number; value: number }>();
+      teamEmployees.forEach((emp: any) => {
+        const role = emp.meta?.role || "Não Informado";
+        const cur = roleMap.get(role) || { count: 0, value: 0 };
+        cur.count += 1;
+        cur.value += emp.value || 0;
+        roleMap.set(role, cur);
+      });
+      roleChartData = Array.from(roleMap.entries()).map(([name, rStats]) => ({
+        name,
+        count: rStats.count,
+        value: Math.round(rStats.value),
+        displayValue: rhTreemapMetric === "count" ? rStats.count : Math.round(rStats.value)
+      })).sort((a, b) => b.displayValue - a.displayValue);
+    }
+
     return (
       <div className="p-6 space-y-6 bg-slate-50 min-h-screen">
         <div className="flex items-center gap-4">
           <button
-            onClick={() => setActiveView("overview")}
+            onClick={() => {
+              setActiveView("overview");
+              setSelectedTeamFilter(null);
+            }}
             className="p-2 bg-white rounded-full shadow hover:bg-slate-100 transition-colors"
           >
             <ArrowLeft className="w-5 h-5 text-slate-600" />
           </button>
           <h1 className="text-2xl font-bold">
-            Gestão Global - Detalhamento RH
+            Gestão Global - Detalhamento das Equipes de RH
           </h1>
         </div>
 
@@ -1433,103 +1592,258 @@ export const ManagementView = ({
 
         <div className="grid grid-cols-1 gap-6">
           <Card className="shadow-lg">
-            <CardHeader className="flex flex-row items-center justify-between items-start">
-              <div className="space-y-2">
-                <CardTitle>Colaboradores por Função</CardTitle>
-                <div className="flex gap-2">
+            <CardHeader className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+              <div className="space-y-1">
+                <CardTitle>Gráfico de Bolhas de Impacto</CardTitle>
+                <p className="text-sm text-gray-500">
+                  Tamanho proporcional à escala escolhida (Toque em uma bolha para ver os detalhes da equipe abaixo)
+                </p>
+                <div className="flex gap-2 mt-2">
                   <button
                     onClick={() => setRhTreemapMetric("count")}
-                    className={`text-xs px-2 py-1 rounded-md transition-colors ${rhTreemapMetric === "count" ? "bg-emerald-100 text-emerald-800 font-bold" : "bg-slate-100 text-slate-500 hover:bg-slate-200"}`}
+                    className={`text-xs px-3 py-1.5 rounded-md transition-all font-bold ${rhTreemapMetric === "count" ? "bg-emerald-600 text-white shadow" : "bg-slate-100 text-slate-500 hover:bg-slate-200"}`}
                   >
-                    Quantidade
+                    Quantidade de Colaboradores
                   </button>
                   <button
                     onClick={() => setRhTreemapMetric("value")}
-                    className={`text-xs px-2 py-1 rounded-md transition-colors ${rhTreemapMetric === "value" ? "bg-emerald-100 text-emerald-800 font-bold" : "bg-slate-100 text-slate-500 hover:bg-slate-200"}`}
+                    className={`text-xs px-3 py-1.5 rounded-md transition-all font-bold ${rhTreemapMetric === "value" ? "bg-emerald-600 text-white shadow" : "bg-slate-100 text-slate-500 hover:bg-slate-200"}`}
                   >
-                    Valor
+                    Valor Salarial Acumulado
                   </button>
                 </div>
               </div>
-              {selectedRoleFilter && (
+              {selectedTeamFilter && (
                 <button
-                  onClick={() => setSelectedRoleFilter(null)}
-                  className="text-xs text-blue-600 hover:underline"
+                  onClick={() => setSelectedTeamFilter(null)}
+                  className="text-xs font-bold text-emerald-600 hover:text-emerald-800 bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded-lg hover:underline transition-all shadow-sm flex items-center gap-1"
                 >
-                  Limpar Filtro
+                  Ver Todas as Equipes
                 </button>
               )}
             </CardHeader>
-            <CardContent className="h-[600px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <Treemap
-                  data={rolesTreemapData}
-                  dataKey="size"
-                  aspectRatio={4 / 3}
-                  stroke="#fff"
-                  isAnimationActive={false}
-                  content={
-                    <CustomTreemapContent
-                      treeMapType={rhTreemapMetric}
-                      treeMapSuffix="func."
-                      activeFilter={selectedRoleFilter}
-                      onClick={(name: string) =>
-                        setSelectedRoleFilter(
-                          name === selectedRoleFilter ? null : name,
-                        )
+            <CardContent className="flex justify-center items-center py-6 bg-white rounded-b-xl border-t border-slate-50">
+              <div className="relative w-full max-w-[850px] aspect-[800/480] bg-slate-50/50 rounded-2xl border border-dashed border-slate-200 flex items-center justify-center p-2">
+                {packedBubbles.length === 0 ? (
+                  <div className="text-slate-400 italic text-sm font-medium">Nenhuma equipe ou dados encontrados.</div>
+                ) : (
+                  <svg viewBox="0 0 800 480" className="w-full h-full select-none">
+                    <style>{`
+                      .bubble-text-contour {
+                        paint-order: stroke;
+                        stroke: rgba(15, 23, 42, 0.9);
+                        stroke-width: 4px;
+                        stroke-linejoin: round;
                       }
-                    />
-                  }
-                >
-                  <Tooltip
-                    wrapperStyle={{ fontFamily: "Arial", fontSize: 12 }}
-                    formatter={(value: any) =>
-                      rhTreemapMetric === "value"
-                        ? `R$ ${(value || 0).toLocaleString()}`
-                        : `${value || 0} func.`
-                    }
-                  />
-                </Treemap>
-              </ResponsiveContainer>
+                    `}</style>
+                    <defs>
+                      {colorGradients.map((grad, gIdx) => (
+                        <radialGradient id={`bubbleGrad-${gIdx}`} key={gIdx} cx="30%" cy="30%" r="70%">
+                          <stop offset="0%" stopColor={grad.from} stopOpacity={0.98} />
+                          <stop offset="100%" stopColor={grad.to} stopOpacity={0.95} />
+                        </radialGradient>
+                      ))}
+                      <radialGradient id="bubbleGrad-neutral" cx="30%" cy="30%" r="70%">
+                        <stop offset="0%" stopColor="#94a3b8" />
+                        <stop offset="100%" stopColor="#475569" />
+                      </radialGradient>
+                    </defs>
+
+                    {packedBubbles.map((item, idx) => {
+                      const isSelected = selectedTeamFilter === item.name;
+                      const hasActiveFilter = selectedTeamFilter !== null;
+                      const isNeutral = item.name === "Sem Equipe";
+                      const gradId = isNeutral ? "neutral" : idx % colorGradients.length;
+                      const sizeLabel = rhTreemapMetric === "value"
+                        ? `R$ ${Math.round(item.value).toLocaleString()}`
+                        : `${item.count} colab.`;
+
+                      return (
+                        <g
+                          key={idx}
+                          transform={`translate(${item.x}, ${item.y})`}
+                          onClick={() => setSelectedTeamFilter(isSelected ? null : item.name)}
+                          className="cursor-pointer transition-all duration-300"
+                        >
+                          {isSelected && (
+                            <circle
+                              r={item.r + 9}
+                              fill="none"
+                              stroke={isNeutral ? "#475569" : colorGradients[idx % colorGradients.length].to}
+                              strokeWidth={4}
+                              className="animate-pulse"
+                              opacity={0.85}
+                            />
+                          )}
+                          <circle
+                            r={item.r}
+                            fill={`url(#bubbleGrad-${gradId})`}
+                            className="transition-all duration-300 hover:scale-[1.03] origin-center"
+                            style={{
+                              filter: isSelected
+                                ? "drop-shadow(0 16px 24px rgba(0,0,0,0.22))"
+                                : hasActiveFilter
+                                ? "opacity(0.35) drop-shadow(0 4px 6px rgba(0,0,0,0.02))"
+                                : "drop-shadow(0 10px 16px rgba(0,0,0,0.12))",
+                            }}
+                          />
+                          {/* Super high contrast outlined text */}
+                          <text
+                            textAnchor="middle"
+                            y={-5}
+                            fill="#ffffff"
+                            className="font-extrabold uppercase tracking-wider pointer-events-none select-none bubble-text-contour"
+                            style={{ fontSize: Math.max(12, Math.min(22, item.r / 4)) }}
+                          >
+                            {item.name.length > item.r / 3.8 
+                              ? `${item.name.slice(0, Math.floor(item.r / 3.8))}...` 
+                              : item.name}
+                          </text>
+                          <text
+                            textAnchor="middle"
+                            y={14}
+                            fill="#ffffff"
+                            className="font-black font-mono tracking-wider pointer-events-none select-none bubble-text-contour text-teal-300"
+                            style={{ fontSize: Math.max(10, Math.min(15, item.r / 6)) }}
+                          >
+                            {sizeLabel}
+                          </text>
+                          {item.r > 65 && (
+                            <text
+                              textAnchor="middle"
+                              y={31}
+                              fill="#ffffff"
+                              className="font-extrabold opacity-95 pointer-events-none select-none bubble-text-contour text-slate-100"
+                              style={{ fontSize: Math.max(9, Math.min(13, item.r / 7.5)) }}
+                            >
+                              {rhTreemapMetric === "value" ? `${item.count} colab.` : `R$ ${Math.round(item.value).toLocaleString()}`}
+                            </text>
+                          )}
+                        </g>
+                      );
+                    })}
+                  </svg>
+                )}
+              </div>
             </CardContent>
           </Card>
+
+          {/* AnimatePresence for transitions */}
+          <AnimatePresence mode="wait">
+            {selectedTeamFilter && (
+              <motion.div
+                key={selectedTeamFilter}
+                initial={{ opacity: 0, height: 0, y: 15 }}
+                animate={{ opacity: 1, height: "auto", y: 0 }}
+                exit={{ opacity: 0, height: 0, y: -15 }}
+                transition={{ duration: 0.35, ease: "easeOut" }}
+                className="overflow-hidden"
+              >
+                <Card className="shadow-lg border-t-4 border-blue-600 bg-white">
+                  <CardHeader className="flex flex-row items-center justify-between pb-3">
+                    <div className="space-y-1">
+                      <CardTitle className="text-md font-bold flex items-center gap-2">
+                        <span className="w-2.5 h-2.5 rounded-full bg-blue-600 animate-ping inline-block" />
+                        Funções dos Colaboradores da Equipe: <span className="text-blue-600 font-extrabold">{selectedTeamFilter}</span>
+                      </CardTitle>
+                      <p className="text-xs text-slate-500">
+                        Cargos ativos quantificados por colaboradores ou valores de custo salarial
+                      </p>
+                    </div>
+                    <div className="flex bg-slate-100/80 p-0.5 rounded-lg border border-slate-200 gap-0.5">
+                      <button
+                        onClick={() => setRhTreemapMetric("count")}
+                        className={`text-[10px] uppercase font-black tracking-wider px-2.5 py-1.5 rounded-md transition-all ${rhTreemapMetric === "count" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-950"}`}
+                      >
+                        Quantidade
+                      </button>
+                      <button
+                        onClick={() => setRhTreemapMetric("value")}
+                        className={`text-[10px] uppercase font-black tracking-wider px-2.5 py-1.5 rounded-md transition-all ${rhTreemapMetric === "value" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-950"}`}
+                      >
+                        Valores
+                      </button>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="h-[280px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={roleChartData}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                        <XAxis dataKey="name" stroke="#64748b" fontSize={11} fontWeight={600} tickLine={false} />
+                        <YAxis stroke="#64748b" fontSize={11} fontWeight={600} tickLine={false} />
+                        <Tooltip
+                          cursor={{ fill: 'rgba(241, 245, 249, 0.5)' }}
+                          contentStyle={{ borderRadius: '8px', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
+                          formatter={(value: any) =>
+                            rhTreemapMetric === "value"
+                              ? [`R$ ${Number(value).toLocaleString()}`, 'Custo Total']
+                              : [`${value} colab.`, 'Colaboradores']
+                          }
+                        />
+                        <Bar dataKey="displayValue" fill="#2563eb" radius={[6, 6, 0, 0]}>
+                          {roleChartData.map((entry, idx) => (
+                            <Cell key={`cell-${idx}`} fill={colorGradients[idx % colorGradients.length].from} />
+                          ))}
+                        </Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </CardContent>
+                </Card>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
           <Card className="shadow-lg flex flex-col">
             <CardHeader>
               <CardTitle>
-                {selectedRoleFilter
-                  ? `Colaboradores (${selectedRoleFilter})`
-                  : "Lista de Colaboradores"}
+                {selectedTeamFilter
+                  ? `Colaboradores da Equipe: ${selectedTeamFilter}`
+                  : "Todos os Colaboradores por Equipe"}
               </CardTitle>
             </CardHeader>
             <CardContent className="flex-1 overflow-auto max-h-[600px]">
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Nome</TableHead>
-                    <TableHead>Função</TableHead>
-                    <TableHead className="text-right">Salário</TableHead>
+                    <TableHead className="cursor-pointer select-none hover:bg-slate-50 font-bold" onClick={() => handleSortRH("name")}>
+                      Nome {renderSortIconRH("name")}
+                    </TableHead>
+                    <TableHead className="cursor-pointer select-none hover:bg-slate-50 font-bold" onClick={() => handleSortRH("team")}>
+                      Equipe {renderSortIconRH("team")}
+                    </TableHead>
+                    <TableHead className="cursor-pointer select-none hover:bg-slate-50 font-bold" onClick={() => handleSortRH("role")}>
+                      Função {renderSortIconRH("role")}
+                    </TableHead>
+                    <TableHead className="text-right cursor-pointer select-none hover:bg-slate-50 font-bold" onClick={() => handleSortRH("salary")}>
+                      Salário {renderSortIconRH("salary")}
+                    </TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {rhData
-                    .filter(
-                      (item: any) =>
-                        !selectedRoleFilter ||
-                        (item.meta?.role || "Não Informado") ===
-                          selectedRoleFilter,
-                    )
-                    .map((item: any, idx: number) => (
+                  {finalSortedRhList.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={4} className="text-center py-8 text-slate-400 italic">
+                        Nenhum colaborador encontrado para o filtro ativo.
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    finalSortedRhList.map((item: any, idx: number) => (
                       <TableRow key={idx}>
-                        <TableCell className="font-medium">
+                        <TableCell className="font-semibold text-slate-900">
                           {item.name}
                         </TableCell>
-                        <TableCell>{item.meta?.role || "-"}</TableCell>
-                        <TableCell className="text-right">
+                        <TableCell>
+                          <span className={`inline-flex items-center px-2 py-1 rounded-md text-xs font-bold uppercase ${item.meta?.team ? 'bg-purple-100 text-purple-700' : 'bg-slate-100 text-slate-500'}`}>
+                            {item.meta?.team || "Sem Equipe"}
+                          </span>
+                        </TableCell>
+                        <TableCell className="font-medium text-slate-600">{item.meta?.role || "-"}</TableCell>
+                        <TableCell className="text-right font-mono font-bold text-slate-800">
                           R$ {(item.value || 0).toLocaleString()}
                         </TableCell>
                       </TableRow>
-                    ))}
+                    ))
+                  )}
                 </TableBody>
               </Table>
             </CardContent>
@@ -1676,38 +1990,85 @@ export const ManagementView = ({
               </CardTitle>
             </CardHeader>
             <CardContent className="flex-1 overflow-auto max-h-[600px]">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Nome</TableHead>
-                    <TableHead>Tipo</TableHead>
-                    <TableHead className="text-right">Custo Mensal</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {eqData
-                    .filter(
-                      (item: any) =>
-                        !selectedTypeFilter ||
-                        (item.meta?.category ||
-                          item.meta?.type ||
-                          "Não Informado") === selectedTypeFilter,
-                    )
-                    .map((item: any, idx: number) => (
-                      <TableRow key={idx}>
-                        <TableCell className="font-medium">
-                          {item.name}
-                        </TableCell>
-                        <TableCell>
-                          {item.meta?.category || item.meta?.type || "-"}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          R$ {(item.value || 0).toLocaleString()}
-                        </TableCell>
+              {(() => {
+                const handleSortEq = (col: string) => {
+                  if (eqSortCol === col) {
+                    setEqSortDir(eqSortDir === "asc" ? "desc" : "asc");
+                  } else {
+                    setEqSortCol(col);
+                    setEqSortDir("asc");
+                  }
+                };
+
+                const renderSortIconEq = (col: string) => {
+                  if (eqSortCol !== col) return <span className="text-slate-300 ml-1">↕</span>;
+                  return eqSortDir === "asc" ? <span className="text-slate-850 font-bold ml-1">↑</span> : <span className="text-slate-850 font-bold ml-1">↓</span>;
+                };
+
+                const filtered = eqData.filter(
+                  (item: any) =>
+                    !selectedTypeFilter ||
+                    (item.meta?.category || item.meta?.type || "Não Informado") === selectedTypeFilter
+                );
+
+                const sortedList = [...filtered].sort((a: any, b: any) => {
+                  let valA = "";
+                  let valB = "";
+                  if (eqSortCol === "name") {
+                    valA = a.name || "";
+                    valB = b.name || "";
+                  } else if (eqSortCol === "type") {
+                    valA = a.meta?.category || a.meta?.type || "Não Informado";
+                    valB = b.meta?.category || b.meta?.type || "Não Informado";
+                  } else if (eqSortCol === "value") {
+                    const numA = a.value || 0;
+                    const numB = b.value || 0;
+                    return eqSortDir === "asc" ? numA - numB : numB - numA;
+                  }
+                  return valA.localeCompare(valB, "pt", { sensitivity: "base" }) * (eqSortDir === "asc" ? 1 : -1);
+                });
+
+                return (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="cursor-pointer select-none hover:bg-slate-50 font-bold" onClick={() => handleSortEq("name")}>
+                          Nome {renderSortIconEq("name")}
+                        </TableHead>
+                        <TableHead className="cursor-pointer select-none hover:bg-slate-50 font-bold" onClick={() => handleSortEq("type")}>
+                          Tipo {renderSortIconEq("type")}
+                        </TableHead>
+                        <TableHead className="text-right cursor-pointer select-none hover:bg-slate-50 font-bold" onClick={() => handleSortEq("value")}>
+                          Custo Mensal {renderSortIconEq("value")}
+                        </TableHead>
                       </TableRow>
-                    ))}
-                </TableBody>
-              </Table>
+                    </TableHeader>
+                    <TableBody>
+                      {sortedList.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={3} className="text-center py-8 text-slate-400 italic font-medium">
+                            Nenhum equipamento encontrado.
+                          </TableCell>
+                        </TableRow>
+                      ) : (
+                        sortedList.map((item: any, idx: number) => (
+                          <TableRow key={idx}>
+                            <TableCell className="font-semibold text-slate-900">
+                              {item.name}
+                            </TableCell>
+                            <TableCell className="text-slate-600">
+                              {item.meta?.category || item.meta?.type || "-"}
+                            </TableCell>
+                            <TableCell className="text-right font-mono font-bold text-slate-800">
+                              R$ {(item.value || 0).toLocaleString()}
+                            </TableCell>
+                          </TableRow>
+                        ))
+                      )}
+                    </TableBody>
+                  </Table>
+                );
+              })()}
             </CardContent>
           </Card>
         </div>
@@ -1753,24 +2114,66 @@ export const ManagementView = ({
               <CardTitle>Histórico de Medições</CardTitle>
             </CardHeader>
             <CardContent className="flex-1 overflow-auto max-h-[400px]">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Contrato e Período</TableHead>
-                    <TableHead className="text-right">Valor Medido</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {revData.map((item: any, idx: number) => (
-                    <TableRow key={idx}>
-                      <TableCell className="font-medium">{item.name}</TableCell>
-                      <TableCell className="text-right text-emerald-600 font-bold">
-                        R$ {(item.value || 0).toLocaleString()}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+              {(() => {
+                const handleSortRev = (col: string) => {
+                  if (revSortCol === col) {
+                    setRevSortDir(revSortDir === "asc" ? "desc" : "asc");
+                  } else {
+                    setRevSortCol(col);
+                    setRevSortDir("asc");
+                  }
+                };
+
+                const renderSortIconRev = (col: string) => {
+                  if (revSortCol !== col) return <span className="text-slate-300 ml-1">↕</span>;
+                  return revSortDir === "asc" ? <span className="text-slate-850 font-bold ml-1">↑</span> : <span className="text-slate-850 font-bold ml-1">↓</span>;
+                };
+
+                const sortedList = [...revData].sort((a: any, b: any) => {
+                  if (revSortCol === "name") {
+                    const valA = a.name || "";
+                    const valB = b.name || "";
+                    return valA.localeCompare(valB, "pt", { sensitivity: "base" }) * (revSortDir === "asc" ? 1 : -1);
+                  } else {
+                    const numA = a.value || 0;
+                    const numB = b.value || 0;
+                    return revSortDir === "asc" ? numA - numB : numB - numA;
+                  }
+                });
+
+                return (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="cursor-pointer select-none hover:bg-slate-50 font-bold" onClick={() => handleSortRev("name")}>
+                          Contrato e Período {renderSortIconRev("name")}
+                        </TableHead>
+                        <TableHead className="text-right cursor-pointer select-none hover:bg-slate-50 font-bold" onClick={() => handleSortRev("value")}>
+                          Valor Medido {renderSortIconRev("value")}
+                        </TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {sortedList.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={2} className="text-center py-8 text-slate-400 italic font-medium">
+                            Nenhuma medição encontrada.
+                          </TableCell>
+                        </TableRow>
+                      ) : (
+                        sortedList.map((item: any, idx: number) => (
+                          <TableRow key={idx}>
+                            <TableCell className="font-semibold text-slate-900">{item.name}</TableCell>
+                            <TableCell className="text-right text-emerald-600 font-bold">
+                              R$ {(item.value || 0).toLocaleString()}
+                            </TableCell>
+                          </TableRow>
+                        ))
+                      )}
+                    </TableBody>
+                  </Table>
+                );
+              })()}
             </CardContent>
           </Card>
         </div>
@@ -1996,48 +2399,104 @@ export const ManagementView = ({
                       </div>
 
                       <div className="overflow-x-auto">
-                        <Table>
-                          <TableHeader>
-                            <TableRow className="bg-slate-50 border-none hover:bg-slate-50">
-                              <TableHead className="font-bold text-slate-600 uppercase">GRUPO DE SERVIÇO</TableHead>
-                              <TableHead className="font-bold text-slate-600 text-right uppercase">META ACUMULADA</TableHead>
-                              <TableHead className="font-bold text-slate-600 text-right uppercase">REALIZADO ACUMULADO</TableHead>
-                              <TableHead className="font-bold text-slate-600 text-right w-56 uppercase">AVALIAÇÃO DE AVANÇO</TableHead>
-                            </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                            {activeMonthData.groupsList?.map((item: any) => {
-                              const diff = item.actual - item.planned;
-                              const isAhead = diff >= 0;
-                              return (
-                                <TableRow key={item.groupId} className="border-slate-50 hover:bg-slate-50/50">
-                                  <TableCell className="font-bold text-slate-700 text-xs uppercase max-w-[325px] truncate">
-                                    {item.name}
-                                  </TableCell>
-                                  <TableCell className="text-right font-mono text-slate-600 font-bold">{item.planned}%</TableCell>
-                                  <TableCell className="text-right font-mono text-blue-600 font-bold">{item.actual}%</TableCell>
-                                  <TableCell className="text-right">
-                                    <div className="space-y-1">
-                                      <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden relative">
-                                        <div 
-                                          className="absolute left-0 top-0 h-full bg-slate-300 rounded-full" 
-                                          style={{ width: `${item.planned}%` }}
-                                        />
-                                        <div 
-                                          className="absolute left-0 top-0 h-full bg-blue-500 rounded-full shadow-inner" 
-                                          style={{ width: `${item.actual}%` }}
-                                        />
-                                      </div>
-                                      <span className={`text-[10px] font-mono font-bold uppercase leading-none block ${isAhead ? 'text-green-600' : 'text-red-500'}`}>
-                                        {diff >= 0 ? `Adiantado (+${diff}%)` : `Atrasado (${diff}%)`}
-                                      </span>
-                                    </div>
-                                  </TableCell>
+                        {(() => {
+                          const handleSortCurvaS = (col: string) => {
+                            if (curvaSSortCol === col) {
+                              setCurvaSSortDir(curvaSSortDir === "asc" ? "desc" : "asc");
+                            } else {
+                              setCurvaSSortCol(col);
+                              setRevSortDir("asc"); // clean fallback
+                              setCurvaSSortDir("asc");
+                            }
+                          };
+
+                          const renderSortIconCurvaS = (col: string) => {
+                            if (curvaSSortCol !== col) return <span className="text-slate-300 ml-1">↕</span>;
+                            return curvaSSortDir === "asc" ? <span className="text-slate-800 font-bold ml-1">↑</span> : <span className="text-slate-800 font-bold ml-1">↓</span>;
+                          };
+
+                          const sortedGroups = [...(activeMonthData.groupsList || [])].sort((a: any, b: any) => {
+                            if (curvaSSortCol === "name") {
+                              const valA = a.name || "";
+                              const valB = b.name || "";
+                              return valA.localeCompare(valB, "pt", { sensitivity: "base" }) * (curvaSSortDir === "asc" ? 1 : -1);
+                            } else if (curvaSSortCol === "planned") {
+                              const numA = a.planned || 0;
+                              const numB = b.planned || 0;
+                              return curvaSSortDir === "asc" ? numA - numB : numB - numA;
+                            } else if (curvaSSortCol === "actual") {
+                              const numA = a.actual || 0;
+                              const numB = b.actual || 0;
+                              return curvaSSortDir === "asc" ? numA - numB : numB - numA;
+                            } else if (curvaSSortCol === "diff") {
+                              const diffA = (a.actual || 0) - (a.planned || 0);
+                              const diffB = (b.actual || 0) - (b.planned || 0);
+                              return curvaSSortDir === "asc" ? diffA - diffB : diffB - diffA;
+                            }
+                            return 0;
+                          });
+
+                          return (
+                            <Table>
+                              <TableHeader>
+                                <TableRow className="bg-slate-50 border-none hover:bg-slate-50">
+                                  <TableHead className="font-bold text-slate-600 uppercase cursor-pointer select-none hover:bg-slate-100" onClick={() => handleSortCurvaS("name")}>
+                                    GRUPO DE SERVIÇO {renderSortIconCurvaS("name")}
+                                  </TableHead>
+                                  <TableHead className="font-bold text-slate-600 text-right uppercase cursor-pointer select-none hover:bg-slate-100" onClick={() => handleSortCurvaS("planned")}>
+                                    META ACUMULADA {renderSortIconCurvaS("planned")}
+                                  </TableHead>
+                                  <TableHead className="font-bold text-slate-600 text-right uppercase cursor-pointer select-none hover:bg-slate-100" onClick={() => handleSortCurvaS("actual")}>
+                                    REALIZADO ACUMULADO {renderSortIconCurvaS("actual")}
+                                  </TableHead>
+                                  <TableHead className="font-bold text-slate-600 text-right w-56 uppercase cursor-pointer select-none hover:bg-slate-100" onClick={() => handleSortCurvaS("diff")}>
+                                    AVALIAÇÃO DE AVANÇO {renderSortIconCurvaS("diff")}
+                                  </TableHead>
                                 </TableRow>
-                              );
-                            })}
-                          </TableBody>
-                        </Table>
+                              </TableHeader>
+                              <TableBody>
+                                {sortedGroups.length === 0 ? (
+                                  <TableRow>
+                                    <TableCell colSpan={4} className="text-center py-8 text-slate-400 italic font-medium">
+                                      Nenhum grupo de serviço encontrado.
+                                    </TableCell>
+                                  </TableRow>
+                                ) : (
+                                  sortedGroups.map((item: any) => {
+                                    const diff = item.actual - item.planned;
+                                    const isAhead = diff >= 0;
+                                    return (
+                                      <TableRow key={item.groupId} className="border-slate-50 hover:bg-slate-50/50">
+                                        <TableCell className="font-bold text-slate-700 text-xs uppercase max-w-[325px] truncate">
+                                          {item.name}
+                                        </TableCell>
+                                        <TableCell className="text-right font-mono text-slate-600 font-bold">{item.planned}%</TableCell>
+                                        <TableCell className="text-right font-mono text-blue-600 font-bold">{item.actual}%</TableCell>
+                                        <TableCell className="text-right">
+                                          <div className="space-y-1">
+                                            <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden relative">
+                                              <div 
+                                                className="absolute left-0 top-0 h-full bg-slate-300 rounded-full" 
+                                                style={{ width: `${item.planned}%` }}
+                                              />
+                                              <div 
+                                                className="absolute left-0 top-0 h-full bg-blue-500 rounded-full shadow-inner" 
+                                                style={{ width: `${item.actual}%` }}
+                                              />
+                                            </div>
+                                            <span className={`text-[10px] font-mono font-bold uppercase leading-none block ${isAhead ? 'text-green-600' : 'text-red-500'}`}>
+                                              {diff >= 0 ? `Adiantado (+${diff}%)` : `Atrasado (${diff}%)`}
+                                            </span>
+                                          </div>
+                                        </TableCell>
+                                      </TableRow>
+                                    );
+                                  })
+                                )}
+                              </TableBody>
+                            </Table>
+                          );
+                        })()}
                       </div>
                     </motion.div>
                   );

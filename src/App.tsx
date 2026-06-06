@@ -2587,6 +2587,61 @@ export default function App() {
   };
 
 
+  const updateEmployees = async (val: Employee[] | ((prev: Employee[]) => Employee[])) => {
+    lastLocalUpdate.current = Date.now();
+    let nextEmployees: Employee[];
+    if (typeof val === 'function') {
+      nextEmployees = val(employees);
+    } else {
+      nextEmployees = val;
+    }
+    
+    setEmployees(nextEmployees);
+
+    const config = getSupabaseConfig();
+    if (config.enabled && compId) {
+      const supabase = createSupabaseClient(config.url, config.key);
+      if (supabase) {
+        try {
+          const snakeData = nextEmployees.map(emp => {
+            const m = { ...mapToSnake(emp), company_id: emp.companyId || compId };
+            if (m.salary === undefined || m.salary === null) m.salary = 0;
+            if (m.payment_type === undefined || m.payment_type === null) m.payment_type = 'month';
+            if (m.status === undefined || m.status === null) m.status = 'active';
+            if (m.dependents && !Array.isArray(m.dependents)) {
+              m.dependents = [];
+            }
+            return m;
+          });
+
+          const currentIds = nextEmployees.map(e => e.id);
+          const { data: dbItems } = await supabase.from('employees').select('id, contract_id').eq('company_id', compId);
+          if (dbItems) {
+            const dbIds = dbItems.filter(item => !selectedContractId || item.contract_id === selectedContractId).map(d => d.id);
+            const toDelete = dbIds.filter(id => !currentIds.includes(id));
+            if (toDelete.length > 0) {
+              await supabase.from('employees').delete().in('id', toDelete);
+            }
+          }
+
+          if (snakeData.length > 0) {
+            const { error: upsertError } = await supabase.from('employees').upsert(snakeData);
+            if (upsertError) {
+              console.error('[Sync] Employees upsert failed:', upsertError);
+            }
+          }
+
+          await supabase.from('app_state').upsert({
+            id: `${compId}_sigo_employees`,
+            content: nextEmployees
+          });
+        } catch (err) {
+          console.warn('[Sync] Employees persist failed', err);
+        }
+      }
+    }
+  };
+
   const updateEquipmentTransfers = async (transfers: EquipmentTransfer[]) => {
     lastLocalUpdate.current = Date.now();
     setEquipmentTransfers(transfers);
@@ -3880,6 +3935,7 @@ export default function App() {
                   controllerManpower={filteredControllerManpower}
                   onUpdateManpower={updateTechnicalManpower}
                   employees={filteredEmployees}
+                  onUpdateEmployees={updateEmployees}
                   equipmentMonthly={equipmentMonthlyData}
                   manpowerMonthly={manpowerMonthlyData}
                   teamAssignments={teamAssignments}
@@ -3898,10 +3954,12 @@ export default function App() {
                   contracts={finalContracts}
                   selectedContractId={selectedContractId}
                   onUpdateContractId={(id) => setSelectedContractId(id || null)}
-                  onUpdateEmployees={setEmployees}
+                  onUpdateEmployees={updateEmployees}
                   onUpdateRecords={setTimeRecords}
                   initialTab={activeRHTab}
                   controllerTeams={finalControllerTeams}
+                  teamAssignments={teamAssignments}
+                  onUpdateAssignments={updateTeamAssignments}
                 />
               )}
 
@@ -4021,6 +4079,9 @@ export default function App() {
                 <ControlView
                   currentUser={currentUser}
                   equipments={finalControllerEquipments}
+                  controllerTeams={finalControllerTeams}
+                  teamAssignments={teamAssignments}
+                  onUpdateAssignments={updateTeamAssignments}
                   equipmentMonthly={equipmentMonthlyData}
                   contracts={finalContracts}
                   selectedContractId={selectedContractId}

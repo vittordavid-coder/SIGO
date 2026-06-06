@@ -252,6 +252,7 @@ interface MeasurementsViewProps {
   controllerManpower: ControllerManpower[];
   onUpdateManpower: (man: ControllerManpower[]) => void;
   employees: Employee[];
+  onUpdateEmployees?: (employees: Employee[]) => void;
   equipmentMonthly: EquipmentMonthlyData[];
   manpowerMonthly: ManpowerMonthlyData[];
   teamAssignments: TeamAssignment[];
@@ -284,6 +285,7 @@ export function MeasurementsView({
   controllerEquipments, onUpdateEquipments,
   controllerManpower, onUpdateManpower,
   employees,
+  onUpdateEmployees,
   equipmentMonthly, manpowerMonthly,
   teamAssignments, onUpdateAssignments,
   chargesPerc, otPerc,
@@ -316,6 +318,16 @@ export function MeasurementsView({
 
   const handleAddAssignment = (teamId: string, memberId: string, type: 'manpower' | 'equipment') => {
     if (teamAssignments.some(a => a.teamId === teamId && a.memberId === memberId && a.type === type)) return;
+    
+    if (type === 'manpower' && onUpdateEmployees) {
+      const team = controllerTeams.find(t => t.id === teamId);
+      if (team) {
+        onUpdateEmployees(employees.map(emp => 
+          emp.id === memberId ? { ...emp, team: team.name } : emp
+        ));
+      }
+    }
+
     onUpdateAssignments([...teamAssignments, {
       id: uuidv4(),
       teamId,
@@ -328,6 +340,17 @@ export function MeasurementsView({
   };
 
   const handleRemoveAssignment = (assignmentId: string) => {
+    const assignment = teamAssignments.find(a => a.id === assignmentId);
+    
+    if (assignment && assignment.type === 'manpower' && onUpdateEmployees) {
+      const team = controllerTeams.find(t => t.id === assignment.teamId);
+      if (team) {
+        onUpdateEmployees(employees.map(emp => 
+          emp.id === assignment.memberId && emp.team === team.name ? { ...emp, team: undefined } : emp
+        ));
+      }
+    }
+
     onUpdateAssignments(teamAssignments.filter(a => a.id !== assignmentId));
   };
 
@@ -1019,6 +1042,11 @@ export function MeasurementsView({
                                   if (confirm("Excluir esta equipe permanentemente?")) {
                                     onUpdateTeams(controllerTeams.filter(t => t.id !== team.id));
                                     onUpdateAssignments(teamAssignments.filter(a => a.teamId !== team.id));
+                                    if (onUpdateEmployees) {
+                                      onUpdateEmployees(employees.map(emp => 
+                                        emp.team === team.name ? { ...emp, team: undefined } : emp
+                                      ));
+                                    }
                                   }
                                 }}
                               >

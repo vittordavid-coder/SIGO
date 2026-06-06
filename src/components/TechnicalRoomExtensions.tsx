@@ -2736,9 +2736,11 @@ interface ScheduleCellInputProps {
   className?: string;
   placeholder?: string;
   decimals?: number;
+  id?: string;
+  onKeyDown?: (e: React.KeyboardEvent<HTMLInputElement>) => void;
 }
 
-const ScheduleCellInput = React.memo(({ value, onChange, disabled, className, placeholder, decimals = 3 }: ScheduleCellInputProps) => {
+const ScheduleCellInput = React.memo(({ value, onChange, disabled, className, placeholder, decimals = 3, id, onKeyDown }: ScheduleCellInputProps) => {
   const [localValue, setLocalValue] = useState<string>('');
   const [isFocused, setIsFocused] = useState(false);
 
@@ -2787,6 +2789,7 @@ const ScheduleCellInput = React.memo(({ value, onChange, disabled, className, pl
 
   return (
     <Input
+      id={id}
       type="text"
       inputMode="decimal"
       placeholder={placeholder}
@@ -2800,6 +2803,9 @@ const ScheduleCellInput = React.memo(({ value, onChange, disabled, className, pl
           handleBlur();
           (e.target as HTMLInputElement).blur();
         }
+        if (onKeyDown) {
+          onKeyDown(e);
+        }
       }}
       disabled={disabled}
     />
@@ -2808,6 +2814,7 @@ const ScheduleCellInput = React.memo(({ value, onChange, disabled, className, pl
   return prevProps.value === nextProps.value && 
          prevProps.disabled === nextProps.disabled && 
          prevProps.className === nextProps.className &&
+         prevProps.id === nextProps.id &&
          prevProps.decimals === nextProps.decimals;
 });
 
@@ -3484,6 +3491,25 @@ export function TechnicalScheduleView({
 
   const periods = React.useMemo(() => Array.from({ length: localSchedule.duration }, (_, i) => i), [localSchedule.duration]);
 
+  const handleQuickEditKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, col: string, periodIdx: number) => {
+    if (e.key === 'Tab') {
+      const direction = e.shiftKey ? -1 : 1;
+      const targetPeriodIdx = periodIdx + direction;
+      
+      if (targetPeriodIdx >= 0 && targetPeriodIdx < periods.length) {
+        e.preventDefault();
+        const targetId = `quick-edit-${col}-${targetPeriodIdx}`;
+        setTimeout(() => {
+          const targetElement = document.getElementById(targetId);
+          if (targetElement) {
+            (targetElement as HTMLInputElement).focus();
+            (targetElement as HTMLInputElement).select();
+          }
+        }, 10);
+      }
+    }
+  };
+
   const monthGroups = React.useMemo(() => {
     const groups: { monthYear: string; duration: number; startIndex: number }[] = [];
     if (!localSchedule.startDate || (localSchedule.timeUnit !== 'days' && localSchedule.timeUnit !== 'weeks')) return [];
@@ -3995,7 +4021,7 @@ export function TechnicalScheduleView({
                 <div className="text-sm font-bold uppercase text-emerald-800 text-right pr-4">Vlr. Exec.</div>
               </div>
               
-              {periods.map(p => {
+              {periods.map((p, periodIdx) => {
                 const bi = budgetItems.find(i => i.serviceId === editingServiceId);
                 const s = (editingServiceId ? globalServicesMap.idMap[editingServiceId] : undefined);
                 const unitCost = editingServiceId ? (unitCostsMap[editingServiceId] || 0) : 0;
@@ -4006,6 +4032,8 @@ export function TechnicalScheduleView({
                     <div className="text-sm font-bold text-gray-700">{getPeriodLabel(p)}</div>
                     <div className="flex justify-center">
                       <ScheduleCellInput 
+                        id={`quick-edit-plannedQty-${periodIdx}`}
+                        onKeyDown={(e) => handleQuickEditKeyDown(e, 'plannedQty', periodIdx)}
                         decimals={3}
                         className="h-10 text-center text-base font-mono w-full border border-gray-200 bg-white focus:ring-2 focus:ring-blue-500 rounded-md shadow-sm"
                         value={getDayValue(editingServiceId!, p, 'plannedQty') ?? 0}
@@ -4017,6 +4045,8 @@ export function TechnicalScheduleView({
                     </div>
                     <div className="flex justify-center">
                       <ScheduleCellInput 
+                        id={`quick-edit-plannedPerc-${periodIdx}`}
+                        onKeyDown={(e) => handleQuickEditKeyDown(e, 'plannedPerc', periodIdx)}
                         decimals={1}
                         className="h-10 text-center text-base font-mono w-full text-amber-600 border border-gray-200 bg-white focus:ring-2 focus:ring-blue-500 rounded-md shadow-sm"
                         value={totalQty > 0 ? parseFloat(((getDayValue(editingServiceId!, p, 'plannedQty') / totalQty) * 100).toFixed(1)) : 0}
@@ -4028,6 +4058,8 @@ export function TechnicalScheduleView({
                     </div>
                     <div className="flex justify-center">
                       <ScheduleCellInput 
+                        id={`quick-edit-actualQty-${periodIdx}`}
+                        onKeyDown={(e) => handleQuickEditKeyDown(e, 'actualQty', periodIdx)}
                         decimals={3}
                         className="h-10 text-center text-base font-mono font-bold text-blue-700 w-full border border-gray-200 bg-white focus:ring-2 focus:ring-blue-500 rounded-md shadow-sm"
                         value={getDayValue(editingServiceId!, p, 'actualQty') ?? 0}
@@ -4039,6 +4071,8 @@ export function TechnicalScheduleView({
                     </div>
                     <div className="flex justify-center">
                       <ScheduleCellInput 
+                        id={`quick-edit-actualPerc-${periodIdx}`}
+                        onKeyDown={(e) => handleQuickEditKeyDown(e, 'actualPerc', periodIdx)}
                         decimals={1}
                         className="h-10 text-center text-base font-mono font-bold text-amber-800 w-full border border-gray-200 bg-white focus:ring-2 focus:ring-blue-500 rounded-md shadow-sm"
                         value={totalQty > 0 ? parseFloat(((getDayValue(editingServiceId!, p, 'actualQty') / totalQty) * 100).toFixed(1)) : 0}

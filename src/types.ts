@@ -782,6 +782,7 @@ export interface ControllerEquipment {
   photos?: string[]; // URLs das fotos (Supabase Storage)
   history?: ServiceHistoryEntry[];
   measurements?: EquipmentMeasurement[];
+  team?: string;
 }
 
 export interface ServiceHistoryEntry {
