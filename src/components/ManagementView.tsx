@@ -1231,6 +1231,8 @@ export const ManagementView = ({
   const [eqTreemapMetric, setEqTreemapMetric] = useState<"count" | "value">(
     "count",
   );
+  const [rhZoom, setRhZoom] = useState(1);
+  const [eqZoom, setEqZoom] = useState(1);
 
   const [rhSortCol, setRhSortCol] = useState<string>("name");
   const [rhSortDir, setRhSortDir] = useState<"asc" | "desc">("asc");
@@ -1444,10 +1446,10 @@ export const ManagementView = ({
         : measurements?.filter((m: any) => m.contractId === selectedContractId);
 
     const equipments = (controllerEquipments || []).filter(
-      (e: any) => !e.situation || e.situation === "Ativo",
+      (e: any) => (!e.situation || e.situation === "Ativo" || e.situation === "active") && !e.exitDate
     );
     const rh = (employees || []).filter(
-      (e: any) => e.status === "active" || e.status === "Ativo" || !e.status,
+      (e: any) => (!e.status || e.status === "active" || e.status === "Ativo") && !e.dismissalDate && !e.exitDate
     );
 
     const equipmentCost = equipments.reduce(
@@ -1569,12 +1571,12 @@ export const ManagementView = ({
     setActiveView(name as DetailViewType);
   };
 
+  // Get current month to lookup team assignments
+  const currentMonth = new Date().toISOString().slice(0, 7);
+
   if (activeView === "RH") {
     const rhData = stats.details["RH"] || [];
     const teamStatsMap = new Map<string, { count: number; value: number }>();
-
-    // Get current month to lookup team assignments
-    const currentMonth = new Date().toISOString().slice(0, 7);
 
     rhData.forEach((item: any) => {
       let team = "Sem Equipe";
@@ -1658,7 +1660,7 @@ export const ManagementView = ({
       let angle = 0;
       let distance = packedBubbles[0].r + curr.r;
 
-      while (!placed && distance < Math.max(width, height)) {
+      while (!placed && distance < 3000) {
         for (let step = 0; step < 16; step++) {
           const theta = angle + (step * Math.PI) / 8;
           const testX = center.x + distance * Math.cos(theta);
@@ -1684,6 +1686,23 @@ export const ManagementView = ({
         distance += 6;
         angle += 0.35;
       }
+    }
+
+    let rhViewBox = "0 0 800 480";
+    if (packedBubbles.length > 0) {
+      const minX = Math.min(...packedBubbles.map(b => b.x - b.r));
+      const maxX = Math.max(...packedBubbles.map(b => b.x + b.r));
+      const minY = Math.min(...packedBubbles.map(b => b.y - b.r));
+      const maxY = Math.max(...packedBubbles.map(b => b.y + b.r));
+      const bWidth = Math.max(800, maxX - minX);
+      const bHeight = Math.max(480, maxY - minY);
+      
+      const centerX = (minX + maxX) / 2;
+      const centerY = (minY + maxY) / 2;
+      
+      const padX = bWidth * 0.05 + 10;
+      const padY = bHeight * 0.05 + 10;
+      rhViewBox = `${centerX - bWidth/2 - padX} ${centerY - bHeight/2 - padY} ${bWidth + padX * 2} ${bHeight + padY * 2}`;
     }
 
     // High contrast, highly vibrant colors for super readability
@@ -1854,15 +1873,21 @@ export const ManagementView = ({
               )}
             </CardHeader>
             <CardContent className="flex justify-center items-center py-6 bg-white rounded-b-xl border-t border-slate-50">
-              <div className="relative w-full max-w-[850px] aspect-[800/480] bg-slate-50/50 rounded-2xl border border-dashed border-slate-200 flex items-center justify-center p-2">
+              <div className="relative w-full max-w-full overflow-hidden aspect-[800/480] bg-slate-50/50 rounded-2xl border border-dashed border-slate-200 flex items-center justify-center p-2 group">
+                <div className="absolute top-4 right-4 flex flex-col gap-1 z-10 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <button onClick={() => setRhZoom((z) => Math.min(3, z + 0.2))} className="bg-white w-8 h-8 rounded-lg border border-slate-200 shadow-sm hover:bg-slate-50 text-slate-600 font-bold flex items-center justify-center text-lg leading-none transition-colors">+</button>
+                  <button onClick={() => setRhZoom((z) => Math.max(0.4, z - 0.2))} className="bg-white w-8 h-8 rounded-lg border border-slate-200 shadow-sm hover:bg-slate-50 text-slate-600 font-bold flex items-center justify-center text-lg leading-none transition-colors">-</button>
+                  <button onClick={() => setRhZoom(1)} className="bg-white w-8 h-8 rounded-lg border border-slate-200 shadow-sm hover:bg-slate-50 text-slate-500 font-bold text-xs uppercase transition-colors">1x</button>
+                </div>
                 {packedBubbles.length === 0 ? (
                   <div className="text-slate-400 italic text-sm font-medium">
                     Nenhuma equipe ou dados encontrados.
                   </div>
                 ) : (
                   <svg
-                    viewBox="0 0 800 480"
+                    viewBox={rhViewBox}
                     className="w-full h-full select-none"
+                    style={{ transform: `scale(${rhZoom})`, transformOrigin: 'center', transition: 'transform 0.3s ease' }}
                   >
                     <style>{`
                       .bubble-text-contour {
@@ -2320,7 +2345,7 @@ export const ManagementView = ({
       let angle = 0;
       let distance = packedEqBubbles[0].r + curr.r;
 
-      while (!placed && distance < Math.max(width, height)) {
+      while (!placed && distance < 3000) {
         for (let step = 0; step < 16; step++) {
           const theta = angle + (step * Math.PI) / 8;
           const testX = center.x + distance * Math.cos(theta);
@@ -2346,6 +2371,23 @@ export const ManagementView = ({
         angle += 0.4;
         distance += 12;
       }
+    }
+
+    let eqViewBox = "0 0 800 480";
+    if (packedEqBubbles.length > 0) {
+      const minX = Math.min(...packedEqBubbles.map((b: any) => b.x - b.r));
+      const maxX = Math.max(...packedEqBubbles.map((b: any) => b.x + b.r));
+      const minY = Math.min(...packedEqBubbles.map((b: any) => b.y - b.r));
+      const maxY = Math.max(...packedEqBubbles.map((b: any) => b.y + b.r));
+      const bWidth = Math.max(800, maxX - minX);
+      const bHeight = Math.max(480, maxY - minY);
+      
+      const centerX = (minX + maxX) / 2;
+      const centerY = (minY + maxY) / 2;
+      
+      const padX = bWidth * 0.05 + 10;
+      const padY = bHeight * 0.05 + 10;
+      eqViewBox = `${centerX - bWidth/2 - padX} ${centerY - bHeight/2 - padY} ${bWidth + padX * 2} ${bHeight + padY * 2}`;
     }
 
     // Colors
@@ -2435,15 +2477,21 @@ export const ManagementView = ({
               )}
             </CardHeader>
             <CardContent className="flex justify-center items-center py-6 bg-white rounded-b-xl border-t border-slate-50">
-              <div className="relative w-full max-w-[850px] aspect-[800/480] bg-slate-50/50 rounded-2xl border border-dashed border-slate-200 flex items-center justify-center p-2">
+              <div className="relative w-full max-w-full overflow-hidden aspect-[800/480] bg-slate-50/50 rounded-2xl border border-dashed border-slate-200 flex items-center justify-center p-2 group">
+                <div className="absolute top-4 right-4 flex flex-col gap-1 z-10 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <button onClick={() => setEqZoom((z) => Math.min(3, z + 0.2))} className="bg-white w-8 h-8 rounded-lg border border-slate-200 shadow-sm hover:bg-slate-50 text-slate-600 font-bold flex items-center justify-center text-lg leading-none transition-colors">+</button>
+                  <button onClick={() => setEqZoom((z) => Math.max(0.4, z - 0.2))} className="bg-white w-8 h-8 rounded-lg border border-slate-200 shadow-sm hover:bg-slate-50 text-slate-600 font-bold flex items-center justify-center text-lg leading-none transition-colors">-</button>
+                  <button onClick={() => setEqZoom(1)} className="bg-white w-8 h-8 rounded-lg border border-slate-200 shadow-sm hover:bg-slate-50 text-slate-500 font-bold text-xs uppercase transition-colors">1x</button>
+                </div>
                 {packedEqBubbles.length === 0 ? (
                   <div className="text-slate-400 italic text-sm font-medium">
                     Nenhuma categoria encontrada.
                   </div>
                 ) : (
                   <svg
-                    viewBox="0 0 800 480"
+                    viewBox={eqViewBox}
                     className="w-full h-full select-none"
+                    style={{ transform: `scale(${eqZoom})`, transformOrigin: 'center', transition: 'transform 0.3s ease' }}
                   >
                     <style>{`
                       .bubble-text-contour {

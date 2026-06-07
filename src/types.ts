@@ -742,6 +742,7 @@ export interface ControllerTeam {
   name: string;
   supervisorId: string; // ID of the manpower/employee
   color?: string;
+  displayOrder?: number;
 }
 
 export interface EquipmentAttribute {

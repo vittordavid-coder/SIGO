@@ -32,7 +32,6 @@ import {
   UserCheck,
   HardHat,
   Construction,
-  Map,
   Clock,
   ArrowRightLeft,
   Briefcase,
@@ -458,6 +457,7 @@ export function MeasurementsView({
   const [activeControlType, setActiveControlType] = useState<
     "production" | null
   >(null);
+  const [draggedTeamId, setDraggedTeamId] = useState<string | null>(null);
   const [serviceCodeInput, setServiceCodeInput] = useState("");
   const [memoryModalServiceId, setMemoryModalServiceId] = useState<
     string | null
@@ -503,6 +503,7 @@ export function MeasurementsView({
   const [supervisorSearch, setSupervisorSearch] = useState("");
   const [isSupDropdownOpen, setIsSupDropdownOpen] = useState(false);
   const [teamsSortField, setTeamsSortField] = useState<
+    | "order"
     | "name"
     | "supervisor"
     | "manCount"
@@ -510,7 +511,7 @@ export function MeasurementsView({
     | "equipCount"
     | "equipValue"
     | "total"
-  >("name");
+  >("order");
   const [teamsSortOrder, setTeamsSortOrder] = useState<"asc" | "desc">("asc");
 
   const handleAddAssignment = (
@@ -642,10 +643,10 @@ export function MeasurementsView({
         !selectedContractId ||
         !t.contractId ||
         t.contractId === selectedContractId,
-    );
+    ).sort((a, b) => (a.displayOrder || 0) - (b.displayOrder || 0));
 
-    const allPoolManpower = filteredManpower.filter((m) => !m.exitDate);
-    const allPoolEquipments = filteredEquipments.filter((e) => !e.exitDate);
+    const allPoolManpower = filteredManpower.filter((m) => !m.exitDate && (!m.dismissalDate) && (!m.status || m.status === 'active' || m.status === 'Ativo'));
+    const allPoolEquipments = filteredEquipments.filter((e) => !e.exitDate && (!e.situation || e.situation === 'Ativo' || e.situation === 'active'));
 
     const poolManpower = resourceSearchInput.trim()
       ? allPoolManpower.filter(
@@ -751,6 +752,11 @@ export function MeasurementsView({
       .sort((a, b) => {
         let comparison = 0;
         switch (teamsSortField) {
+          case "order":
+            const teamA = controllerTeams.find(t => t.id === a.id);
+            const teamB = controllerTeams.find(t => t.id === b.id);
+            comparison = (teamA?.displayOrder || 0) - (teamB?.displayOrder || 0);
+            break;
           case "name":
             comparison = a.name.localeCompare(b.name);
             break;
@@ -994,6 +1000,49 @@ export function MeasurementsView({
                       </TableCell>
                     </TableRow>
                   ))
+                )}
+                {summaryData.length > 0 && (
+                  <TableRow className="bg-slate-800 hover:bg-slate-800 transition-colors border-t-2 border-slate-900 border-b-0 group">
+                    <TableCell colSpan={2} className="font-black text-white text-right uppercase tracking-widest text-xs py-5 rounded-bl-lg">
+                      Totais Geral:
+                    </TableCell>
+                    <TableCell className="text-center font-bold text-white text-lg group-hover:text-amber-400 transition-colors">
+                      {summaryData.reduce((acc, row) => acc + row.manCount, 0)}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="font-mono text-sm font-semibold text-white">
+                        R$ {summaryData.reduce((acc, row) => acc + row.manValue, 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                        <span className="text-slate-400 text-xs font-normal">/mês</span>
+                      </div>
+                      <div className="font-mono text-xs text-slate-300">
+                        R$ {summaryData.reduce((acc, row) => acc + row.manDailyValue, 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                        <span className="text-xs font-normal">/dia</span>
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-center font-bold text-white text-lg group-hover:text-amber-400 transition-colors">
+                      {summaryData.reduce((acc, row) => acc + row.equipCount, 0)}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="font-mono text-sm font-semibold text-white">
+                        R$ {summaryData.reduce((acc, row) => acc + row.equipValue, 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                        <span className="text-slate-400 text-xs font-normal">/mês</span>
+                      </div>
+                      <div className="font-mono text-xs text-slate-300">
+                        R$ {summaryData.reduce((acc, row) => acc + row.equipDailyValue, 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                        <span className="text-xs font-normal">/dia</span>
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-right bg-slate-900 rounded-br-lg">
+                      <div className="font-mono text-sm font-black text-emerald-400">
+                        R$ {summaryData.reduce((acc, row) => acc + row.total, 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                        <span className="text-emerald-600 text-xs font-normal">/mês</span>
+                      </div>
+                      <div className="font-mono text-xs text-emerald-500 font-bold">
+                        R$ {summaryData.reduce((acc, row) => acc + row.totalDaily, 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                        <span className="text-xs font-normal">/dia</span>
+                      </div>
+                    </TableCell>
+                  </TableRow>
                 )}
               </TableBody>
             </Table>
@@ -1462,14 +1511,36 @@ export function MeasurementsView({
                       initial={{ opacity: 0, scale: 0.9 }}
                       animate={{ opacity: 1, scale: 1 }}
                       exit={{ opacity: 0, scale: 0.9 }}
+                      draggable={true}
+                      onDragStart={(e) => {
+                        setDraggedTeamId(team.id);
+                        e.dataTransfer.effectAllowed = "move";
+                      }}
+                      onDragEnd={() => setDraggedTeamId(null)}
                       onDragOver={(e) => e.preventDefault()}
-                      onDrop={() => {
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
                         if (draggedItem) {
                           handleAddAssignment(
                             team.id,
                             draggedItem.id,
                             draggedItem.type,
                           );
+                        } else if (draggedTeamId && draggedTeamId !== team.id) {
+                          const dragIndex = filteredTeams.findIndex(t => t.id === draggedTeamId);
+                          const dropIndex = filteredTeams.findIndex(t => t.id === team.id);
+                          if (dragIndex < 0 || dropIndex < 0) return;
+                          
+                          const newTeams = [...filteredTeams];
+                          const [draggedTeam] = newTeams.splice(dragIndex, 1);
+                          newTeams.splice(dropIndex, 0, draggedTeam);
+                          
+                          const reordered = newTeams.map((t, idx) => ({...t, displayOrder: idx}));
+                          const updatedTeamsMap = new Map(reordered.map(t => [t.id, t]));
+                          const finalControllerTeams = controllerTeams.map(t => updatedTeamsMap.get(t.id) || t);
+                          onUpdateTeams(finalControllerTeams);
+                          setDraggedTeamId(null);
                         }
                       }}
                       className={cn(
