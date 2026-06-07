@@ -741,6 +741,7 @@ export interface ControllerTeam {
   contractId?: string;
   name: string;
   supervisorId: string; // ID of the manpower/employee
+  color?: string;
 }
 
 export interface EquipmentAttribute {

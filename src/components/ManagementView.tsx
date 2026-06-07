@@ -39,7 +39,18 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { Landmark, ArrowLeft, Users, HardHat, TrendingUp, AlertCircle, ListTodo, CheckCircle2, Clock, ShieldAlert } from "lucide-react";
+import {
+  Landmark,
+  ArrowLeft,
+  Users,
+  HardHat,
+  TrendingUp,
+  AlertCircle,
+  ListTodo,
+  CheckCircle2,
+  Clock,
+  ShieldAlert,
+} from "lucide-react";
 
 const CustomTreemapContent = (props: any) => {
   const {
@@ -290,9 +301,13 @@ const AporteFinanceiroTab = ({
   setActiveView,
   stats,
 }: any) => {
-  const [selectedTypeFilter, setSelectedTypeFilter] = useState<string | null>(null);
+  const [selectedTypeFilter, setSelectedTypeFilter] = useState<string | null>(
+    null,
+  );
   const [hoveredCategory, setHoveredCategory] = useState<string | null>(null);
-  const [selectedAporteCategorias, setSelectedAporteCategorias] = useState<Record<string, boolean>>({});
+  const [selectedAporteCategorias, setSelectedAporteCategorias] = useState<
+    Record<string, boolean>
+  >({});
   const [itemsSortConfig, setItemsSortConfig] = useState<{
     key: string;
     direction: "asc" | "desc";
@@ -303,7 +318,9 @@ const AporteFinanceiroTab = ({
     direction: "asc" | "desc";
   }>({ key: "value", direction: "desc" });
 
-  const [selectedMonthFilter, setSelectedMonthFilter] = useState<string | null>(null);
+  const [selectedMonthFilter, setSelectedMonthFilter] = useState<string | null>(
+    null,
+  );
 
   const COLORS = [
     "#ef4444",
@@ -338,7 +355,20 @@ const AporteFinanceiroTab = ({
 
   const allAporteItems = useMemo(() => {
     let items: any[] = [];
-    const ptMonthsAbbr = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
+    const ptMonthsAbbr = [
+      "Jan",
+      "Fev",
+      "Mar",
+      "Abr",
+      "Mai",
+      "Jun",
+      "Jul",
+      "Ago",
+      "Set",
+      "Out",
+      "Nov",
+      "Dez",
+    ];
 
     aportes
       .filter((a: any) => {
@@ -353,7 +383,7 @@ const AporteFinanceiroTab = ({
       .forEach((a: any) => {
         (a.items || []).forEach((i: any) => {
           let parsedMonth = null;
-          
+
           // Prioritize competence month (mes_competencia or mesCompetencia)
           const comp = i.mes_competencia || i.mesCompetencia;
           if (comp && comp.length >= 4) {
@@ -498,7 +528,12 @@ const AporteFinanceiroTab = ({
     }
 
     return items;
-  }, [aporteItemsForView, selectedAporteCategorias, selectedTypeFilter, itemsSortConfig]);
+  }, [
+    aporteItemsForView,
+    selectedAporteCategorias,
+    selectedTypeFilter,
+    itemsSortConfig,
+  ]);
 
   const handleItemsSort = (key: string) => {
     let direction: "asc" | "desc" = "asc";
@@ -525,27 +560,56 @@ const AporteFinanceiroTab = ({
 
   // Monthly logic combining Receita and Gasto
   const monthlyChartData = useMemo(() => {
-    const monthlyMap: Record<string, { monthLabel: string; monthKey: string; sortKey: number; receita: number; gasto: number }> = {};
-    const ptMonthsAbbr = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
+    const monthlyMap: Record<
+      string,
+      {
+        monthLabel: string;
+        monthKey: string;
+        sortKey: number;
+        receita: number;
+        gasto: number;
+      }
+    > = {};
+    const ptMonthsAbbr = [
+      "Jan",
+      "Fev",
+      "Mar",
+      "Abr",
+      "Mai",
+      "Jun",
+      "Jul",
+      "Ago",
+      "Set",
+      "Out",
+      "Nov",
+      "Dez",
+    ];
 
-    const filteredM = selectedContractId === "all"
-      ? measurements
-      : measurements?.filter((m: any) => m.contractId === selectedContractId);
+    const filteredM =
+      selectedContractId === "all"
+        ? measurements
+        : measurements?.filter((m: any) => m.contractId === selectedContractId);
 
     (filteredM || []).forEach((m: any) => {
       let mTotal = 0;
-      const contract = (contracts || []).find((c: any) => c.id === m.contractId);
-      const quotation = (quotations || []).find((q: any) => q.id === contract?.quotationId);
+      const contract = (contracts || []).find(
+        (c: any) => c.id === m.contractId,
+      );
+      const quotation = (quotations || []).find(
+        (q: any) => q.id === contract?.quotationId,
+      );
       const priceMap = new Map<string, number>();
-      
+
       const addPrices = (srvs: any[]) => {
         for (const srv of srvs || []) {
           if (srv.price) priceMap.set(srv.serviceId || srv.code, srv.price);
         }
       };
-      
+
       addPrices(quotation?.services || []);
-      (quotation?.groups || []).forEach((g: any) => addPrices(g.services || []));
+      (quotation?.groups || []).forEach((g: any) =>
+        addPrices(g.services || []),
+      );
       addPrices(contract?.services || []);
       (contract?.groups || []).forEach((g: any) => addPrices(g.services || []));
 
@@ -565,7 +629,10 @@ const AporteFinanceiroTab = ({
       if (!parsedMonth && m.period) {
         const match = m.period.match(/(\d{2})\/(\d{4})/);
         if (match) {
-          parsedMonth = { year: parseInt(match[2], 10), month: parseInt(match[1], 10) };
+          parsedMonth = {
+            year: parseInt(match[2], 10),
+            month: parseInt(match[1], 10),
+          };
         }
       }
 
@@ -595,7 +662,9 @@ const AporteFinanceiroTab = ({
           monthlyMap[key] = {
             monthLabel: i.monthLabel,
             monthKey: key,
-            sortKey: parseInt(key.split("-")[0], 10) * 12 + parseInt(key.split("-")[1], 10),
+            sortKey:
+              parseInt(key.split("-")[0], 10) * 12 +
+              parseInt(key.split("-")[1], 10),
             receita: 0,
             gasto: 0,
           };
@@ -606,7 +675,14 @@ const AporteFinanceiroTab = ({
 
     const lst = Object.values(monthlyMap);
     return lst.sort((a, b) => a.sortKey - b.sortKey);
-  }, [selectedContractId, measurements, contracts, quotations, allAporteItems, selectedAporteCategorias]);
+  }, [
+    selectedContractId,
+    measurements,
+    contracts,
+    quotations,
+    allAporteItems,
+    selectedAporteCategorias,
+  ]);
 
   return (
     <div className="p-4 md:p-6 space-y-6 bg-slate-50 min-h-screen">
@@ -630,9 +706,14 @@ const AporteFinanceiroTab = ({
         <div className="flex flex-wrap items-center justify-between gap-3 bg-red-50 border border-red-200 text-red-800 px-4 py-2.5 rounded-lg text-sm font-semibold shadow-sm animate-fadeIn">
           <div className="flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
-            <span>Mês selecionado no gráfico: <strong>{
-              monthlyChartData.find(m => m.monthKey === selectedMonthFilter)?.monthLabel || selectedMonthFilter
-            }</strong></span>
+            <span>
+              Mês selecionado no gráfico:{" "}
+              <strong>
+                {monthlyChartData.find(
+                  (m) => m.monthKey === selectedMonthFilter,
+                )?.monthLabel || selectedMonthFilter}
+              </strong>
+            </span>
           </div>
           <button
             onClick={() => setSelectedMonthFilter(null)}
@@ -649,7 +730,8 @@ const AporteFinanceiroTab = ({
           <Card className="shadow-lg border-t-4 border-red-500 overflow-hidden">
             <CardHeader className="pb-2">
               <CardTitle className="text-xs uppercase text-slate-500 font-semibold tracking-wider flex items-center gap-2">
-                <TrendingUp className="w-4 h-4 text-red-500" /> Total Aportado {selectedMonthFilter && "no Mês"}
+                <TrendingUp className="w-4 h-4 text-red-500" /> Total Aportado{" "}
+                {selectedMonthFilter && "no Mês"}
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -687,9 +769,13 @@ const AporteFinanceiroTab = ({
                     <input
                       type="checkbox"
                       className="rounded text-red-600 focus:ring-red-500 w-4 h-4 cursor-pointer"
-                      checked={(aporteCategorias || []).length > 0 && (aporteCategorias || []).every(
-                        (c: any) => selectedAporteCategorias[c.name] !== false,
-                      )}
+                      checked={
+                        (aporteCategorias || []).length > 0 &&
+                        (aporteCategorias || []).every(
+                          (c: any) =>
+                            selectedAporteCategorias[c.name] !== false,
+                        )
+                      }
                       readOnly
                     />
                     <span className="text-sm font-semibold text-slate-700">
@@ -704,19 +790,30 @@ const AporteFinanceiroTab = ({
                     onClick={() => handleCategorySort("name")}
                     className="hover:text-slate-600 flex items-center gap-1 min-w-0 flex-1 justify-start font-bold focus:outline-none"
                   >
-                    Categoria {categorySort.key === "name" ? (categorySort.direction === "asc" ? "▲" : "▼") : "↕"}
+                    Categoria{" "}
+                    {categorySort.key === "name"
+                      ? categorySort.direction === "asc"
+                        ? "▲"
+                        : "▼"
+                      : "↕"}
                   </button>
                   <button
                     onClick={() => handleCategorySort("value")}
                     className="hover:text-slate-600 flex items-center gap-1 flex-shrink-0 justify-end ml-2 font-bold focus:outline-none"
                   >
-                    Valor {categorySort.key === "value" ? (categorySort.direction === "asc" ? "▲" : "▼") : "↕"}
+                    Valor{" "}
+                    {categorySort.key === "value"
+                      ? categorySort.direction === "asc"
+                        ? "▲"
+                        : "▼"
+                      : "↕"}
                   </button>
                 </div>
 
                 <div className="max-h-[350px] overflow-y-auto pr-1 space-y-1">
                   {sortedAporteCategorias.map((cat, idx) => {
-                    const isChecked = selectedAporteCategorias[cat.name] !== false;
+                    const isChecked =
+                      selectedAporteCategorias[cat.name] !== false;
                     const isSelectedInChart = selectedTypeFilter === cat.name;
                     const isHoveredInChart = hoveredCategory === cat.name;
 
@@ -832,103 +929,143 @@ const AporteFinanceiroTab = ({
                       </div>
                     ) : (
                       <ResponsiveContainer width="100%" height="100%">
-                        <ComposedChart 
-                          data={monthlyChartData} 
+                        <ComposedChart
+                          data={monthlyChartData}
                           margin={{ top: 10, right: 10, left: 0, bottom: 5 }}
                           onClick={(state: any) => {
                             if (state) {
                               let key = null;
                               // 1. Try tooltip index
-                              if (state.activeTooltipIndex !== undefined && state.activeTooltipIndex >= 0) {
-                                const item = monthlyChartData[state.activeTooltipIndex];
+                              if (
+                                state.activeTooltipIndex !== undefined &&
+                                state.activeTooltipIndex >= 0
+                              ) {
+                                const item =
+                                  monthlyChartData[state.activeTooltipIndex];
                                 if (item) key = item.monthKey;
                               }
                               // 2. Try active payload
-                              if (!key && state.activePayload && state.activePayload.length > 0) {
+                              if (
+                                !key &&
+                                state.activePayload &&
+                                state.activePayload.length > 0
+                              ) {
                                 key = state.activePayload[0].payload?.monthKey;
                               }
                               // 3. Try matching state.activeLabel
                               if (!key && state.activeLabel) {
-                                const match = monthlyChartData.find((m: any) => m.monthLabel === state.activeLabel);
+                                const match = monthlyChartData.find(
+                                  (m: any) =>
+                                    m.monthLabel === state.activeLabel,
+                                );
                                 if (match) key = match.monthKey;
                               }
-                              
+
                               if (key) {
-                                setSelectedMonthFilter((prev) => 
-                                  prev === key ? null : key
+                                setSelectedMonthFilter((prev) =>
+                                  prev === key ? null : key,
                                 );
                               }
                             }
                           }}
                           style={{ cursor: "pointer" }}
                         >
-                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                          <XAxis 
-                            dataKey="monthLabel" 
+                          <CartesianGrid
+                            strokeDasharray="3 3"
+                            vertical={false}
+                            stroke="#f1f5f9"
+                          />
+                          <XAxis
+                            dataKey="monthLabel"
                             tickLine={false}
                             axisLine={false}
-                            stroke="#94a3b8" 
+                            stroke="#94a3b8"
                             style={{ fontSize: "11px", fontWeight: 500 }}
                           />
-                          <YAxis 
+                          <YAxis
                             tickLine={false}
                             axisLine={false}
                             stroke="#94a3b8"
                             style={{ fontSize: "10px", fontWeight: 500 }}
-                            tickFormatter={(v) => `R$ ${v >= 1000 ? `${(v/1000).toFixed(0)}k` : v}`}
+                            tickFormatter={(v) =>
+                              `R$ ${v >= 1000 ? `${(v / 1000).toFixed(0)}k` : v}`
+                            }
                           />
-                          <Tooltip 
+                          <Tooltip
                             formatter={(value: number, name: string) => [
-                              `R$ ${value.toLocaleString()}`, 
-                              name === "receita" ? "Receita" : "Gastos"
+                              `R$ ${value.toLocaleString()}`,
+                              name === "receita" ? "Receita" : "Gastos",
                             ]}
-                            contentStyle={{ 
-                              borderRadius: "12px", 
-                              border: "none", 
+                            contentStyle={{
+                              borderRadius: "12px",
+                              border: "none",
                               boxShadow: "0 10px 15px -3px rgb(0 0 0 / 0.1)",
                               fontSize: "11px",
                             }}
                           />
-                          <Bar 
-                            dataKey="receita" 
-                            name="receita" 
-                            radius={[4, 4, 0, 0]} 
-                            maxBarSize={40} 
+                          <Bar
+                            dataKey="receita"
+                            name="receita"
+                            radius={[4, 4, 0, 0]}
+                            maxBarSize={40}
                             isAnimationActive={false}
                           >
-                            {monthlyChartData.map((entry: any, index: number) => {
-                              const isSelected = selectedMonthFilter === entry.monthKey;
-                              const hasSelection = selectedMonthFilter !== null;
-                              return (
-                                <Cell 
-                                  key={`cell-${index}`} 
-                                  fill={isSelected ? "#059669" : (hasSelection ? "#d1fae5" : "#10b981")}
-                                  style={{ cursor: "pointer" }}
-                                  onClick={(e: any) => {
-                                    if (e && e.stopPropagation) {
-                                      e.stopPropagation();
+                            {monthlyChartData.map(
+                              (entry: any, index: number) => {
+                                const isSelected =
+                                  selectedMonthFilter === entry.monthKey;
+                                const hasSelection =
+                                  selectedMonthFilter !== null;
+                                return (
+                                  <Cell
+                                    key={`cell-${index}`}
+                                    fill={
+                                      isSelected
+                                        ? "#059669"
+                                        : hasSelection
+                                          ? "#d1fae5"
+                                          : "#10b981"
                                     }
-                                    setSelectedMonthFilter((prev) => 
-                                      prev === entry.monthKey ? null : entry.monthKey
-                                    );
-                                  }}
-                                />
-                              );
-                            })}
+                                    style={{ cursor: "pointer" }}
+                                    onClick={(e: any) => {
+                                      if (e && e.stopPropagation) {
+                                        e.stopPropagation();
+                                      }
+                                      setSelectedMonthFilter((prev) =>
+                                        prev === entry.monthKey
+                                          ? null
+                                          : entry.monthKey,
+                                      );
+                                    }}
+                                  />
+                                );
+                              },
+                            )}
                           </Bar>
-                          <Line 
-                            type="monotone" 
-                            dataKey="gasto" 
-                            name="gasto" 
-                            stroke="#ef4444" 
-                            strokeWidth={3} 
-                            dot={{ r: 4, stroke: "#ef4444", strokeWidth: 2, fill: "#fff" }}
+                          <Line
+                            type="monotone"
+                            dataKey="gasto"
+                            name="gasto"
+                            stroke="#ef4444"
+                            strokeWidth={3}
+                            dot={{
+                              r: 4,
+                              stroke: "#ef4444",
+                              strokeWidth: 2,
+                              fill: "#fff",
+                            }}
                             activeDot={{ r: 6 }}
                             isAnimationActive={false}
                             onClick={(data: any) => {
-                              if (data && data.payload && data.payload.monthKey) {
-                                setSelectedMonthFilter((prev) => 
-                                  prev === data.payload.monthKey ? null : data.payload.monthKey
+                              if (
+                                data &&
+                                data.payload &&
+                                data.payload.monthKey
+                              ) {
+                                setSelectedMonthFilter((prev) =>
+                                  prev === data.payload.monthKey
+                                    ? null
+                                    : data.payload.monthKey,
                                 );
                               }
                             }}
@@ -1005,20 +1142,28 @@ const AporteFinanceiroTab = ({
                           </TableRow>
                         ) : (
                           filteredAporteItems.map((item: any, idx: number) => (
-                            <TableRow key={idx} className="hover:bg-slate-50/80 transition-colors">
+                            <TableRow
+                              key={idx}
+                              className="hover:bg-slate-50/80 transition-colors"
+                            >
                               <TableCell className="font-semibold text-xs text-slate-800 whitespace-nowrap">
                                 {item.aporteNumero}
                               </TableCell>
                               <TableCell className="whitespace-nowrap text-xs text-slate-600">
                                 {item.aporteData
-                                  ? new Date(item.aporteData).toLocaleDateString(
-                                      "pt-BR",
-                                      { timeZone: "UTC" },
-                                    )
+                                  ? new Date(
+                                      item.aporteData,
+                                    ).toLocaleDateString("pt-BR", {
+                                      timeZone: "UTC",
+                                    })
                                   : "-"}
                               </TableCell>
-                              <TableCell className="text-xs text-slate-600 break-words whitespace-normal max-w-[150px]">{item.categoria || "-"}</TableCell>
-                              <TableCell className="text-xs text-slate-600 break-words whitespace-normal max-w-[180px]">{item.fornecedor || "-"}</TableCell>
+                              <TableCell className="text-xs text-slate-600 break-words whitespace-normal max-w-[150px]">
+                                {item.categoria || "-"}
+                              </TableCell>
+                              <TableCell className="text-xs text-slate-600 break-words whitespace-normal max-w-[180px]">
+                                {item.fornecedor || "-"}
+                              </TableCell>
                               <TableCell
                                 className="text-xs text-slate-600 break-words whitespace-normal max-w-[300px]"
                                 title={item.descricao}
@@ -1050,6 +1195,7 @@ export const ManagementView = ({
   quotations,
   controllerEquipments,
   controllerTeams,
+  teamAssignments = [],
   manpowerRecords,
   employees,
   selectedContractId: propSelectedContractId,
@@ -1069,7 +1215,9 @@ export const ManagementView = ({
     | "CurvaS";
   const [activeView, setActiveView] = useState<DetailViewType>("overview");
   const [sCurveContractId, setSCurveContractId] = useState<string>("all");
-  const [clickedMonthIndex, setClickedMonthIndex] = useState<number | null>(null);
+  const [clickedMonthIndex, setClickedMonthIndex] = useState<number | null>(
+    null,
+  );
 
   const [selectedTeamFilter, setSelectedTeamFilter] = useState<string | null>(
     null,
@@ -1110,7 +1258,7 @@ export const ManagementView = ({
     if (sCurveContractId === "all") {
       // Find the first contract that actually has a technical schedule
       const firstWithSchedule = contracts?.find((c: any) =>
-        technicalSchedules?.some((s: any) => s.contractId === c.id)
+        technicalSchedules?.some((s: any) => s.contractId === c.id),
       );
       return firstWithSchedule?.id || contracts?.[0]?.id || "";
     }
@@ -1118,30 +1266,40 @@ export const ManagementView = ({
   }, [selectedContractId, sCurveContractId, contracts, technicalSchedules]);
 
   const activeSCurveSchedule = useMemo(() => {
-    return technicalSchedules?.find((s: any) => s.contractId === activeSCurveContractId);
+    return technicalSchedules?.find(
+      (s: any) => s.contractId === activeSCurveContractId,
+    );
   }, [technicalSchedules, activeSCurveContractId]);
 
   // Compute physical groups for the active SCurve contract
   const activeSCurveGroups = useMemo(() => {
-    const actContract = contracts?.find((c: any) => c.id === activeSCurveContractId);
+    const actContract = contracts?.find(
+      (c: any) => c.id === activeSCurveContractId,
+    );
     if (!actContract) return [];
-    
+
     const groups = [...(actContract.groups || [])];
-    const directServices = (actContract.services || []).filter((item: any) => item && item.serviceId);
-    
+    const directServices = (actContract.services || []).filter(
+      (item: any) => item && item.serviceId,
+    );
+
     if (directServices.length > 0) {
       groups.push({
-        id: 'standalone',
-        name: 'Serviços Gerais',
-        services: directServices
+        id: "standalone",
+        name: "Serviços Gerais",
+        services: directServices,
       });
     }
-    
-    return groups.filter(g => g.services.length > 0);
+
+    return groups.filter((g) => g.services.length > 0);
   }, [contracts, activeSCurveContractId]);
 
   const sCurveTimelineData = useMemo(() => {
-    if (!activeSCurveSchedule || !activeSCurveSchedule.services || activeSCurveSchedule.services.length === 0) {
+    if (
+      !activeSCurveSchedule ||
+      !activeSCurveSchedule.services ||
+      activeSCurveSchedule.services.length === 0
+    ) {
       return [];
     }
     const duration = activeSCurveSchedule.duration || 6;
@@ -1149,7 +1307,7 @@ export const ManagementView = ({
 
     for (let i = 0; i < duration; i++) {
       const monthNum = i + 1;
-      const periodName = `Mês ${monthNum.toString().padStart(2, '0')}`;
+      const periodName = `Mês ${monthNum.toString().padStart(2, "0")}`;
 
       let globalTotalValSum = 0;
       let globalCumulativePlanVal = 0;
@@ -1169,7 +1327,9 @@ export const ManagementView = ({
         let groupActualQty = 0;
 
         group.services.forEach((gSvc: any) => {
-          const sSched = activeSCurveSchedule.services.find((s: any) => s.serviceId === gSvc.serviceId);
+          const sSched = activeSCurveSchedule.services.find(
+            (s: any) => s.serviceId === gSvc.serviceId,
+          );
           if (!sSched) return;
 
           sSched.distribution?.forEach((dist: any) => {
@@ -1198,11 +1358,23 @@ export const ManagementView = ({
         let actualPercent = 0;
 
         if (groupTotalVal > 0) {
-          plannedPercent = Math.min(100, Math.round((groupPlannedVal / groupTotalVal) * 100));
-          actualPercent = Math.min(100, Math.round((groupActualVal / groupTotalVal) * 100));
+          plannedPercent = Math.min(
+            100,
+            Math.round((groupPlannedVal / groupTotalVal) * 100),
+          );
+          actualPercent = Math.min(
+            100,
+            Math.round((groupActualVal / groupTotalVal) * 100),
+          );
         } else if (groupTotalQty > 0) {
-          plannedPercent = Math.min(100, Math.round((groupPlannedQty / groupTotalQty) * 100));
-          actualPercent = Math.min(100, Math.round((groupActualQty / groupTotalQty) * 100));
+          plannedPercent = Math.min(
+            100,
+            Math.round((groupPlannedQty / groupTotalQty) * 100),
+          );
+          actualPercent = Math.min(
+            100,
+            Math.round((groupActualQty / groupTotalQty) * 100),
+          );
         }
 
         return {
@@ -1212,7 +1384,7 @@ export const ManagementView = ({
           actual: actualPercent,
           plannedVal: groupPlannedVal,
           actualVal: groupActualVal,
-          totalVal: groupTotalVal
+          totalVal: groupTotalVal,
         };
       });
 
@@ -1220,14 +1392,32 @@ export const ManagementView = ({
       let overallActual = 0;
 
       if (globalTotalValSum > 0) {
-        overallPlanned = Math.min(100, Math.round((globalCumulativePlanVal / globalTotalValSum) * 100));
-        overallActual = Math.min(100, Math.round((globalCumulativeActVal / globalTotalValSum) * 100));
+        overallPlanned = Math.min(
+          100,
+          Math.round((globalCumulativePlanVal / globalTotalValSum) * 100),
+        );
+        overallActual = Math.min(
+          100,
+          Math.round((globalCumulativeActVal / globalTotalValSum) * 100),
+        );
       } else if (globalTotalQtySum > 0) {
-        overallPlanned = Math.min(100, Math.round((globalCumulativePlanQty / globalTotalQtySum) * 100));
-        overallActual = Math.min(100, Math.round((globalCumulativeActQty / globalTotalQtySum) * 100));
+        overallPlanned = Math.min(
+          100,
+          Math.round((globalCumulativePlanQty / globalTotalQtySum) * 100),
+        );
+        overallActual = Math.min(
+          100,
+          Math.round((globalCumulativeActQty / globalTotalQtySum) * 100),
+        );
       } else if (groupsList.length > 0) {
-        const sumPlan = groupsList.reduce((sum: number, g: any) => sum + g.planned, 0);
-        const sumAct = groupsList.reduce((sum: number, g: any) => sum + g.actual, 0);
+        const sumPlan = groupsList.reduce(
+          (sum: number, g: any) => sum + g.planned,
+          0,
+        );
+        const sumAct = groupsList.reduce(
+          (sum: number, g: any) => sum + g.actual,
+          0,
+        );
         overallPlanned = Math.min(100, Math.round(sumPlan / groupsList.length));
         overallActual = Math.min(100, Math.round(sumAct / groupsList.length));
       }
@@ -1240,7 +1430,7 @@ export const ManagementView = ({
         "Realizado Acumulado (%)": overallActual,
         planned: overallPlanned,
         actual: overallActual,
-        groupsList
+        groupsList,
       });
     }
 
@@ -1382,8 +1572,33 @@ export const ManagementView = ({
   if (activeView === "RH") {
     const rhData = stats.details["RH"] || [];
     const teamStatsMap = new Map<string, { count: number; value: number }>();
+
+    // Get current month to lookup team assignments
+    const currentMonth = new Date().toISOString().slice(0, 7);
+
     rhData.forEach((item: any) => {
-      const team = item.meta?.team || "Sem Equipe";
+      let team = "Sem Equipe";
+      if (item.meta) {
+        // Find if they are assigned to a team this month
+        const assign = teamAssignments.find(
+          (a: any) =>
+            a.memberId === item.meta.id &&
+            a.type === "manpower" &&
+            a.month === currentMonth,
+        );
+        if (assign) {
+          const matchTeam = (controllerTeams || []).find(
+            (t: any) => t.id === assign.teamId,
+          );
+          if (matchTeam) team = matchTeam.name;
+        } else if (item.meta.team) {
+          // Fallback to name mapped natively
+          team = item.meta.team;
+        }
+      }
+      
+      item.resolvedTeam = team;
+
       const current = teamStatsMap.get(team) || { count: 0, value: 0 };
       current.count += 1;
       current.value += item.value || 0;
@@ -1391,13 +1606,17 @@ export const ManagementView = ({
     });
 
     const teamBubbleData = Array.from(teamStatsMap.entries())
-      .map(([name, stats]) => ({
-        name,
-        size:
-          rhTreemapMetric === "count" ? stats.count : Math.round(stats.value),
-        count: stats.count,
-        value: stats.value,
-      }))
+      .map(([name, stats]) => {
+        const teamObj = (controllerTeams || []).find((t) => t.name === name);
+        return {
+          name,
+          color: teamObj?.color,
+          size:
+            rhTreemapMetric === "count" ? stats.count : Math.round(stats.value),
+          count: stats.count,
+          value: stats.value,
+        };
+      })
       .filter((x) => x.size > 0)
       .sort((a, b) =>
         b.size === a.size ? a.name.localeCompare(b.name) : b.size - a.size,
@@ -1407,9 +1626,10 @@ export const ManagementView = ({
     const width = 800;
     const height = 480;
     const center = { x: width / 2, y: height / 2 };
-    
+
     // Allocate radii proportional to sizes - scaled up for better legibility
-    const totalSize = teamBubbleData.reduce((acc, curr) => acc + curr.size, 0) || 1;
+    const totalSize =
+      teamBubbleData.reduce((acc, curr) => acc + curr.size, 0) || 1;
     const targetArea = width * height * 0.45; // target 45% area filled for larger bubbles
 
     const packedBubbles = teamBubbleData.map((item, idx) => {
@@ -1448,7 +1668,7 @@ export const ManagementView = ({
           for (let j = 0; j < i; j++) {
             const prev = packedBubbles[j];
             const dist = Math.hypot(testX - prev.x, testY - prev.y);
-            if (dist < (prev.r + curr.r - 2)) {
+            if (dist < prev.r + curr.r - 2) {
               overlap = true;
               break;
             }
@@ -1482,9 +1702,9 @@ export const ManagementView = ({
       let filtered = rhData.filter(
         (item: any) =>
           !selectedTeamFilter ||
-          (item.meta?.team || "Sem Equipe") === selectedTeamFilter
+          (item.resolvedTeam || "Sem Equipe") === selectedTeamFilter,
       );
-      
+
       return [...filtered].sort((a: any, b: any) => {
         let valA = "";
         let valB = "";
@@ -1492,8 +1712,8 @@ export const ManagementView = ({
           valA = a.name || "";
           valB = b.name || "";
         } else if (rhSortCol === "team") {
-          valA = a.meta?.team || "Sem Equipe";
-          valB = b.meta?.team || "Sem Equipe";
+          valA = a.resolvedTeam || "Sem Equipe";
+          valB = b.resolvedTeam || "Sem Equipe";
         } else if (rhSortCol === "role") {
           valA = a.meta?.role || "";
           valB = b.meta?.role || "";
@@ -1502,7 +1722,7 @@ export const ManagementView = ({
           const numB = b.value || 0;
           return rhSortDir === "asc" ? numA - numB : numB - numA;
         }
-        
+
         const cmp = valA.localeCompare(valB, "pt", { sensitivity: "base" });
         return rhSortDir === "asc" ? cmp : -cmp;
       });
@@ -1520,15 +1740,20 @@ export const ManagementView = ({
     };
 
     const renderSortIconRH = (col: string) => {
-      if (rhSortCol !== col) return <span className="text-slate-300 ml-1">↕</span>;
-      return rhSortDir === "asc" ? <span className="text-slate-800 font-bold ml-1">↑</span> : <span className="text-slate-800 font-bold ml-1">↓</span>;
+      if (rhSortCol !== col)
+        return <span className="text-slate-300 ml-1">↕</span>;
+      return rhSortDir === "asc" ? (
+        <span className="text-slate-800 font-bold ml-1">↑</span>
+      ) : (
+        <span className="text-slate-800 font-bold ml-1">↓</span>
+      );
     };
 
     // Calculate column chart data for selected team roles
     let roleChartData: any[] = [];
     if (selectedTeamFilter) {
       const teamEmployees = rhData.filter(
-        (item: any) => (item.meta?.team || "Sem Equipe") === selectedTeamFilter
+        (item: any) => (item.resolvedTeam || "Sem Equipe") === selectedTeamFilter,
       );
       const roleMap = new Map<string, { count: number; value: number }>();
       teamEmployees.forEach((emp: any) => {
@@ -1538,12 +1763,17 @@ export const ManagementView = ({
         cur.value += emp.value || 0;
         roleMap.set(role, cur);
       });
-      roleChartData = Array.from(roleMap.entries()).map(([name, rStats]) => ({
-        name,
-        count: rStats.count,
-        value: Math.round(rStats.value),
-        displayValue: rhTreemapMetric === "count" ? rStats.count : Math.round(rStats.value)
-      })).sort((a, b) => b.displayValue - a.displayValue);
+      roleChartData = Array.from(roleMap.entries())
+        .map(([name, rStats]) => ({
+          name,
+          count: rStats.count,
+          value: Math.round(rStats.value),
+          displayValue:
+            rhTreemapMetric === "count"
+              ? rStats.count
+              : Math.round(rStats.value),
+        }))
+        .sort((a, b) => b.displayValue - a.displayValue);
     }
 
     return (
@@ -1596,7 +1826,8 @@ export const ManagementView = ({
               <div className="space-y-1">
                 <CardTitle>Gráfico de Bolhas de Impacto</CardTitle>
                 <p className="text-sm text-gray-500">
-                  Tamanho proporcional à escala escolhida (Toque em uma bolha para ver os detalhes da equipe abaixo)
+                  Tamanho proporcional à escala escolhida (Toque em uma bolha
+                  para ver os detalhes da equipe abaixo)
                 </p>
                 <div className="flex gap-2 mt-2">
                   <button
@@ -1625,9 +1856,14 @@ export const ManagementView = ({
             <CardContent className="flex justify-center items-center py-6 bg-white rounded-b-xl border-t border-slate-50">
               <div className="relative w-full max-w-[850px] aspect-[800/480] bg-slate-50/50 rounded-2xl border border-dashed border-slate-200 flex items-center justify-center p-2">
                 {packedBubbles.length === 0 ? (
-                  <div className="text-slate-400 italic text-sm font-medium">Nenhuma equipe ou dados encontrados.</div>
+                  <div className="text-slate-400 italic text-sm font-medium">
+                    Nenhuma equipe ou dados encontrados.
+                  </div>
                 ) : (
-                  <svg viewBox="0 0 800 480" className="w-full h-full select-none">
+                  <svg
+                    viewBox="0 0 800 480"
+                    className="w-full h-full select-none"
+                  >
                     <style>{`
                       .bubble-text-contour {
                         paint-order: stroke;
@@ -1635,15 +1871,70 @@ export const ManagementView = ({
                         stroke-width: 4px;
                         stroke-linejoin: round;
                       }
+                      .bubble-container {
+                        transition: transform 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+                        transform-origin: 0 0;
+                      }
+                      .bubble-container:hover {
+                        transform: scale(1.15); /* bolha inflando */
+                      }
+                      .bubble-group {
+                        transition: filter 0.4s ease;
+                      }
                     `}</style>
                     <defs>
+                      {packedBubbles.map((item, bIdx) => {
+                        if (item.color) {
+                          const safeColor = item.color.replace("#", "");
+                          return (
+                            <radialGradient
+                              id={`bubbleGrad-custom-${bIdx}-${safeColor}`}
+                              key={`custom-${bIdx}`}
+                              cx="30%"
+                              cy="30%"
+                              r="70%"
+                            >
+                              <stop
+                                offset="0%"
+                                stopColor={item.color}
+                                stopOpacity={0.85}
+                              />
+                              <stop
+                                offset="100%"
+                                stopColor={item.color}
+                                stopOpacity={0.98}
+                              />
+                            </radialGradient>
+                          );
+                        }
+                        return null;
+                      })}
                       {colorGradients.map((grad, gIdx) => (
-                        <radialGradient id={`bubbleGrad-${gIdx}`} key={gIdx} cx="30%" cy="30%" r="70%">
-                          <stop offset="0%" stopColor={grad.from} stopOpacity={0.98} />
-                          <stop offset="100%" stopColor={grad.to} stopOpacity={0.95} />
+                        <radialGradient
+                          id={`bubbleGrad-${gIdx}`}
+                          key={gIdx}
+                          cx="30%"
+                          cy="30%"
+                          r="70%"
+                        >
+                          <stop
+                            offset="0%"
+                            stopColor={grad.from}
+                            stopOpacity={0.98}
+                          />
+                          <stop
+                            offset="100%"
+                            stopColor={grad.to}
+                            stopOpacity={0.95}
+                          />
                         </radialGradient>
                       ))}
-                      <radialGradient id="bubbleGrad-neutral" cx="30%" cy="30%" r="70%">
+                      <radialGradient
+                        id="bubbleGrad-neutral"
+                        cx="30%"
+                        cy="30%"
+                        r="70%"
+                      >
                         <stop offset="0%" stopColor="#94a3b8" />
                         <stop offset="100%" stopColor="#475569" />
                       </radialGradient>
@@ -1653,72 +1944,91 @@ export const ManagementView = ({
                       const isSelected = selectedTeamFilter === item.name;
                       const hasActiveFilter = selectedTeamFilter !== null;
                       const isNeutral = item.name === "Sem Equipe";
-                      const gradId = isNeutral ? "neutral" : idx % colorGradients.length;
-                      const sizeLabel = rhTreemapMetric === "value"
-                        ? `R$ ${Math.round(item.value).toLocaleString()}`
-                        : `${item.count} colab.`;
+                      const safeColor = item.color
+                        ? item.color.replace("#", "")
+                        : "";
+                      const gradId = item.color
+                        ? `custom-${idx}-${safeColor}`
+                        : isNeutral
+                          ? "neutral"
+                          : idx % colorGradients.length;
+                      const sizeLabel =
+                        rhTreemapMetric === "value"
+                          ? `R$ ${Math.round(item.value).toLocaleString()}`
+                          : `${item.count} colab.`;
 
                       return (
                         <g
                           key={idx}
                           transform={`translate(${item.x}, ${item.y})`}
-                          onClick={() => setSelectedTeamFilter(isSelected ? null : item.name)}
-                          className="cursor-pointer transition-all duration-300"
+                          onClick={() =>
+                            setSelectedTeamFilter(isSelected ? null : item.name)
+                          }
+                          className="cursor-pointer bubble-group transition-all duration-300"
                         >
-                          {isSelected && (
+                          <g className="bubble-container">
                             <circle
-                              r={item.r + 9}
-                              fill="none"
-                              stroke={isNeutral ? "#475569" : colorGradients[idx % colorGradients.length].to}
-                              strokeWidth={4}
-                              className="animate-pulse"
-                              opacity={0.85}
+                              r={item.r}
+                              fill={`url(#bubbleGrad-${gradId})`}
+                              className="transition-all duration-500 origin-center"
+                              style={{
+                                filter: isSelected
+                                  ? "drop-shadow(0 16px 24px rgba(0,0,0,0.22))"
+                                  : hasActiveFilter
+                                    ? "opacity(0.35) drop-shadow(0 4px 6px rgba(0,0,0,0.02))"
+                                    : "drop-shadow(0 10px 16px rgba(0,0,0,0.12))",
+                              }}
                             />
-                          )}
-                          <circle
-                            r={item.r}
-                            fill={`url(#bubbleGrad-${gradId})`}
-                            className="transition-all duration-300 hover:scale-[1.03] origin-center"
-                            style={{
-                              filter: isSelected
-                                ? "drop-shadow(0 16px 24px rgba(0,0,0,0.22))"
-                                : hasActiveFilter
-                                ? "opacity(0.35) drop-shadow(0 4px 6px rgba(0,0,0,0.02))"
-                                : "drop-shadow(0 10px 16px rgba(0,0,0,0.12))",
-                            }}
-                          />
-                          {/* Super high contrast outlined text */}
-                          <text
-                            textAnchor="middle"
-                            y={-5}
-                            fill="#ffffff"
-                            className="font-extrabold uppercase tracking-wider pointer-events-none select-none bubble-text-contour"
-                            style={{ fontSize: Math.max(12, Math.min(22, item.r / 4)) }}
-                          >
-                            {item.name.length > item.r / 3.8 
-                              ? `${item.name.slice(0, Math.floor(item.r / 3.8))}...` 
-                              : item.name}
-                          </text>
-                          <text
-                            textAnchor="middle"
-                            y={14}
-                            fill="#ffffff"
-                            className="font-black font-mono tracking-wider pointer-events-none select-none bubble-text-contour text-teal-300"
-                            style={{ fontSize: Math.max(10, Math.min(15, item.r / 6)) }}
-                          >
-                            {sizeLabel}
-                          </text>
-                          {item.r > 65 && (
+                            {/* Super high contrast outlined text */}
                             <text
                               textAnchor="middle"
-                              y={31}
+                              y={-5}
                               fill="#ffffff"
-                              className="font-extrabold opacity-95 pointer-events-none select-none bubble-text-contour text-slate-100"
-                              style={{ fontSize: Math.max(9, Math.min(13, item.r / 7.5)) }}
+                              className="font-extrabold uppercase tracking-wider pointer-events-none select-none bubble-text-contour"
+                              style={{
+                                fontSize: Math.max(
+                                  12,
+                                  Math.min(22, item.r / 4),
+                                ),
+                              }}
                             >
-                              {rhTreemapMetric === "value" ? `${item.count} colab.` : `R$ ${Math.round(item.value).toLocaleString()}`}
+                              {item.name.length > item.r / 3.8
+                                ? `${item.name.slice(0, Math.floor(item.r / 3.8))}...`
+                                : item.name}
                             </text>
-                          )}
+                            <text
+                              textAnchor="middle"
+                              y={14}
+                              fill="#ffffff"
+                              className="font-black font-mono tracking-wider pointer-events-none select-none bubble-text-contour text-teal-300"
+                              style={{
+                                fontSize: Math.max(
+                                  10,
+                                  Math.min(15, item.r / 6),
+                                ),
+                              }}
+                            >
+                              {sizeLabel}
+                            </text>
+                            {item.r > 65 && (
+                              <text
+                                textAnchor="middle"
+                                y={31}
+                                fill="#ffffff"
+                                className="font-extrabold opacity-95 pointer-events-none select-none bubble-text-contour text-slate-100"
+                                style={{
+                                  fontSize: Math.max(
+                                    9,
+                                    Math.min(13, item.r / 7.5),
+                                  ),
+                                }}
+                              >
+                                {rhTreemapMetric === "value"
+                                  ? `${item.count} colab.`
+                                  : `R$ ${Math.round(item.value).toLocaleString()}`}
+                              </text>
+                            )}
+                          </g>
                         </g>
                       );
                     })}
@@ -1744,10 +2054,14 @@ export const ManagementView = ({
                     <div className="space-y-1">
                       <CardTitle className="text-md font-bold flex items-center gap-2">
                         <span className="w-2.5 h-2.5 rounded-full bg-blue-600 animate-ping inline-block" />
-                        Funções dos Colaboradores da Equipe: <span className="text-blue-600 font-extrabold">{selectedTeamFilter}</span>
+                        Funções dos Colaboradores da Equipe:{" "}
+                        <span className="text-blue-600 font-extrabold">
+                          {selectedTeamFilter}
+                        </span>
                       </CardTitle>
                       <p className="text-xs text-slate-500">
-                        Cargos ativos quantificados por colaboradores ou valores de custo salarial
+                        Cargos ativos quantificados por colaboradores ou valores
+                        de custo salarial
                       </p>
                     </div>
                     <div className="flex bg-slate-100/80 p-0.5 rounded-lg border border-slate-200 gap-0.5">
@@ -1769,20 +2083,46 @@ export const ManagementView = ({
                     <ResponsiveContainer width="100%" height="100%">
                       <BarChart data={roleChartData}>
                         <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                        <XAxis dataKey="name" stroke="#64748b" fontSize={11} fontWeight={600} tickLine={false} />
-                        <YAxis stroke="#64748b" fontSize={11} fontWeight={600} tickLine={false} />
+                        <XAxis
+                          dataKey="name"
+                          stroke="#64748b"
+                          fontSize={11}
+                          fontWeight={600}
+                          tickLine={false}
+                        />
+                        <YAxis
+                          stroke="#64748b"
+                          fontSize={11}
+                          fontWeight={600}
+                          tickLine={false}
+                        />
                         <Tooltip
-                          cursor={{ fill: 'rgba(241, 245, 249, 0.5)' }}
-                          contentStyle={{ borderRadius: '8px', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
+                          cursor={{ fill: "rgba(241, 245, 249, 0.5)" }}
+                          contentStyle={{
+                            borderRadius: "8px",
+                            boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
+                          }}
                           formatter={(value: any) =>
                             rhTreemapMetric === "value"
-                              ? [`R$ ${Number(value).toLocaleString()}`, 'Custo Total']
-                              : [`${value} colab.`, 'Colaboradores']
+                              ? [
+                                  `R$ ${Number(value).toLocaleString()}`,
+                                  "Custo Total",
+                                ]
+                              : [`${value} colab.`, "Colaboradores"]
                           }
                         />
-                        <Bar dataKey="displayValue" fill="#2563eb" radius={[6, 6, 0, 0]}>
+                        <Bar
+                          dataKey="displayValue"
+                          fill="#2563eb"
+                          radius={[6, 6, 0, 0]}
+                        >
                           {roleChartData.map((entry, idx) => (
-                            <Cell key={`cell-${idx}`} fill={colorGradients[idx % colorGradients.length].from} />
+                            <Cell
+                              key={`cell-${idx}`}
+                              fill={
+                                colorGradients[idx % colorGradients.length].from
+                              }
+                            />
                           ))}
                         </Bar>
                       </BarChart>
@@ -1805,16 +2145,28 @@ export const ManagementView = ({
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="cursor-pointer select-none hover:bg-slate-50 font-bold" onClick={() => handleSortRH("name")}>
+                    <TableHead
+                      className="cursor-pointer select-none hover:bg-slate-50 font-bold"
+                      onClick={() => handleSortRH("name")}
+                    >
                       Nome {renderSortIconRH("name")}
                     </TableHead>
-                    <TableHead className="cursor-pointer select-none hover:bg-slate-50 font-bold" onClick={() => handleSortRH("team")}>
+                    <TableHead
+                      className="cursor-pointer select-none hover:bg-slate-50 font-bold"
+                      onClick={() => handleSortRH("team")}
+                    >
                       Equipe {renderSortIconRH("team")}
                     </TableHead>
-                    <TableHead className="cursor-pointer select-none hover:bg-slate-50 font-bold" onClick={() => handleSortRH("role")}>
+                    <TableHead
+                      className="cursor-pointer select-none hover:bg-slate-50 font-bold"
+                      onClick={() => handleSortRH("role")}
+                    >
                       Função {renderSortIconRH("role")}
                     </TableHead>
-                    <TableHead className="text-right cursor-pointer select-none hover:bg-slate-50 font-bold" onClick={() => handleSortRH("salary")}>
+                    <TableHead
+                      className="text-right cursor-pointer select-none hover:bg-slate-50 font-bold"
+                      onClick={() => handleSortRH("salary")}
+                    >
                       Salário {renderSortIconRH("salary")}
                     </TableHead>
                   </TableRow>
@@ -1822,7 +2174,10 @@ export const ManagementView = ({
                 <TableBody>
                   {finalSortedRhList.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={4} className="text-center py-8 text-slate-400 italic">
+                      <TableCell
+                        colSpan={4}
+                        className="text-center py-8 text-slate-400 italic"
+                      >
                         Nenhum colaborador encontrado para o filtro ativo.
                       </TableCell>
                     </TableRow>
@@ -1833,11 +2188,15 @@ export const ManagementView = ({
                           {item.name}
                         </TableCell>
                         <TableCell>
-                          <span className={`inline-flex items-center px-2 py-1 rounded-md text-xs font-bold uppercase ${item.meta?.team ? 'bg-purple-100 text-purple-700' : 'bg-slate-100 text-slate-500'}`}>
+                          <span
+                            className={`inline-flex items-center px-2 py-1 rounded-md text-xs font-bold uppercase ${item.meta?.team ? "bg-purple-100 text-purple-700" : "bg-slate-100 text-slate-500"}`}
+                          >
                             {item.meta?.team || "Sem Equipe"}
                           </span>
                         </TableCell>
-                        <TableCell className="font-medium text-slate-600">{item.meta?.role || "-"}</TableCell>
+                        <TableCell className="font-medium text-slate-600">
+                          {item.meta?.role || "-"}
+                        </TableCell>
                         <TableCell className="text-right font-mono font-bold text-slate-800">
                           R$ {(item.value || 0).toLocaleString()}
                         </TableCell>
@@ -1856,26 +2215,154 @@ export const ManagementView = ({
   if (activeView === "Equipamentos") {
     const eqData = stats.details["Equipamentos"] || [];
 
-    const typeStatsMap = new Map<string, { count: number; value: number }>();
+    const teamEqStatsMap = new Map<string, { count: number; value: number }>();
     eqData.forEach((item: any) => {
-      const t = item.meta?.category || item.meta?.type || "Não Informado";
-      const current = typeStatsMap.get(t) || { count: 0, value: 0 };
+      let team = "Sem Equipe";
+      if (item.meta) {
+        // Find if they are assigned to a team this month
+        const assign = teamAssignments.find(
+          (a: any) =>
+            a.memberId === item.meta.id &&
+            a.type === "equipment" &&
+            a.month === currentMonth,
+        );
+        if (assign) {
+          const matchTeam = (controllerTeams || []).find(
+            (t: any) => t.id === assign.teamId,
+          );
+          if (matchTeam) team = matchTeam.name;
+        } else if (item.meta.team) {
+          // Fallback to name mapped natively
+          team = item.meta.team;
+        }
+      }
+      
+      item.resolvedTeam = team;
+
+      const current = teamEqStatsMap.get(team) || { count: 0, value: 0 };
       current.count += 1;
       current.value += item.value || 0;
-      typeStatsMap.set(t, current);
+      teamEqStatsMap.set(team, current);
     });
-    const typeTreemapData = Array.from(typeStatsMap.entries())
-      .map(([name, stats]) => ({
-        name,
-        size:
-          eqTreemapMetric === "count" ? stats.count : Math.round(stats.value),
-        count: stats.count,
-        value: stats.value,
-      }))
+    const eqBubbleData = Array.from(teamEqStatsMap.entries())
+      .map(([name, stats]) => {
+        const teamObj = (controllerTeams || []).find((t: any) => t.name === name);
+        return {
+          name,
+          color: teamObj?.color,
+          size:
+            eqTreemapMetric === "count" ? stats.count : Math.round(stats.value),
+          count: stats.count,
+          value: stats.value,
+        };
+      })
       .filter((x) => x.size > 0)
       .sort((a, b) =>
         b.size === a.size ? a.name.localeCompare(b.name) : b.size - a.size,
       );
+
+    // Calculate column chart data for selected equipment categories
+    let typeChartData: any[] = [];
+    if (selectedTypeFilter) { // holding the Team Name!
+      const filteredEqs = eqData.filter(
+        (item: any) =>
+          (item.resolvedTeam || "Sem Equipe") === selectedTypeFilter,
+      );
+      const subTypeMap = new Map<string, { count: number; value: number }>();
+      filteredEqs.forEach((emp: any) => {
+        const sub = emp.meta?.category || emp.meta?.type || "Não Informado";
+        const cur = subTypeMap.get(sub) || { count: 0, value: 0 };
+        cur.count += 1;
+        cur.value += emp.value || 0;
+        subTypeMap.set(sub, cur);
+      });
+      typeChartData = Array.from(subTypeMap.entries())
+        .map(([name, rStats]) => ({
+          name: name.length > 20 ? name.slice(0, 20) + "..." : name,
+          count: rStats.count,
+          value: Math.round(rStats.value),
+          displayValue:
+            eqTreemapMetric === "count"
+              ? rStats.count
+              : Math.round(rStats.value),
+        }))
+        .sort((a, b) => b.displayValue - a.displayValue);
+    }
+
+    // Dynamic Circle Packing algorithm in 2D space:
+    const width = 800;
+    const height = 480;
+    const center = { x: width / 2, y: height / 2 };
+    const totalEqSize = eqBubbleData.reduce((acc, curr) => acc + curr.size, 0) || 1;
+    const targetEqArea = width * height * 0.45; // target 45% area filled
+
+    const packedEqBubbles = eqBubbleData.map((item, idx) => {
+      const fraction = item.size / totalEqSize;
+      const area = targetEqArea * fraction;
+      const r = Math.max(50, Math.min(130, Math.sqrt(area / Math.PI) * 1.3));
+      return {
+        ...item,
+        r,
+        x: center.x,
+        y: center.y,
+        colorIndex: idx,
+      };
+    });
+
+    if (packedEqBubbles.length > 0) {
+      packedEqBubbles[0].x = center.x;
+      packedEqBubbles[0].y = center.y;
+    }
+
+    for (let i = 1; i < packedEqBubbles.length; i++) {
+      const curr = packedEqBubbles[i];
+      let placed = false;
+      let angle = 0;
+      let distance = packedEqBubbles[0].r + curr.r;
+
+      while (!placed && distance < Math.max(width, height)) {
+        for (let step = 0; step < 16; step++) {
+          const theta = angle + (step * Math.PI) / 8;
+          const testX = center.x + distance * Math.cos(theta);
+          const testY = center.y + distance * Math.sin(theta);
+
+          let overlap = false;
+          for (let j = 0; j < i; j++) {
+            const prev = packedEqBubbles[j];
+            const dist = Math.hypot(testX - prev.x, testY - prev.y);
+            if (dist < prev.r + curr.r - 2) {
+              overlap = true;
+              break;
+            }
+          }
+
+          if (!overlap) {
+            curr.x = testX;
+            curr.y = testY;
+            placed = true;
+            break;
+          }
+        }
+        angle += 0.4;
+        distance += 12;
+      }
+    }
+
+    // Colors
+    const eqColorGradients = [
+      { from: "#4338ca", to: "#312e81" },
+      { from: "#0284c7", to: "#0c4a6e" },
+      { from: "#059669", to: "#064e3b" },
+      { from: "#d97706", to: "#78350f" },
+      { from: "#dc2626", to: "#7f1d1d" },
+      { from: "#7c3aed", to: "#4c1d95" },
+      { from: "#db2777", to: "#831843" },
+      { from: "#0891b2", to: "#164e63" },
+      { from: "#ea580c", to: "#7c2d12" },
+      { from: "#4f46e5", to: "#312e81" },
+      { from: "#65a30d", to: "#3f6212" },
+      { from: "#14b8a6", to: "#134e4a" },
+    ];
 
     return (
       <div className="p-6 space-y-6 bg-slate-50 min-h-screen">
@@ -1922,7 +2409,7 @@ export const ManagementView = ({
           <Card className="shadow-lg">
             <CardHeader className="flex flex-row items-center justify-between items-start">
               <div className="space-y-2">
-                <CardTitle>Equipamentos por Categoria</CardTitle>
+                <CardTitle>Equipamentos por Equipe</CardTitle>
                 <div className="flex gap-2">
                   <button
                     onClick={() => setEqTreemapMetric("count")}
@@ -1947,46 +2434,263 @@ export const ManagementView = ({
                 </button>
               )}
             </CardHeader>
-            <CardContent className="h-[600px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <Treemap
-                  data={typeTreemapData}
-                  dataKey="size"
-                  aspectRatio={4 / 3}
-                  stroke="#fff"
-                  isAnimationActive={false}
-                  content={
-                    <CustomTreemapContent
-                      treeMapType={eqTreemapMetric}
-                      treeMapSuffix="equip."
-                      activeFilter={selectedTypeFilter}
-                      onClick={(name: string) =>
-                        setSelectedTypeFilter(
-                          name === selectedTypeFilter ? null : name,
-                        )
+            <CardContent className="flex justify-center items-center py-6 bg-white rounded-b-xl border-t border-slate-50">
+              <div className="relative w-full max-w-[850px] aspect-[800/480] bg-slate-50/50 rounded-2xl border border-dashed border-slate-200 flex items-center justify-center p-2">
+                {packedEqBubbles.length === 0 ? (
+                  <div className="text-slate-400 italic text-sm font-medium">
+                    Nenhuma categoria encontrada.
+                  </div>
+                ) : (
+                  <svg
+                    viewBox="0 0 800 480"
+                    className="w-full h-full select-none"
+                  >
+                    <style>{`
+                      .bubble-text-contour {
+                        paint-order: stroke;
+                        stroke: rgba(15, 23, 42, 0.9);
+                        stroke-width: 4px;
+                        stroke-linejoin: round;
                       }
-                    />
-                  }
-                >
-                  <Tooltip
-                    wrapperStyle={{ fontFamily: "Arial", fontSize: 12 }}
-                    formatter={(value: any) =>
-                      eqTreemapMetric === "value"
-                        ? `R$ ${(value || 0).toLocaleString()}`
-                        : `${value || 0} equip.`
-                    }
-                  />
-                </Treemap>
-              </ResponsiveContainer>
+                      .bubble-container {
+                        transition: transform 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+                        transform-origin: 0 0;
+                      }
+                      .bubble-container:hover {
+                        transform: scale(1.15); /* bolha inflando */
+                      }
+                      .bubble-group {
+                        transition: filter 0.4s ease;
+                      }
+                    `}</style>
+                    <defs>
+                      {packedEqBubbles.map((item, bIdx) => {
+                        if (item.color) {
+                          const safeColor = item.color.replace("#", "");
+                          return (
+                            <radialGradient
+                              id={`eqBubbleGrad-custom-${bIdx}-${safeColor}`}
+                              key={`custom-${bIdx}`}
+                              cx="30%"
+                              cy="30%"
+                              r="70%"
+                            >
+                              <stop
+                                offset="0%"
+                                stopColor={item.color}
+                                stopOpacity={0.85}
+                              />
+                              <stop
+                                offset="100%"
+                                stopColor={item.color}
+                                stopOpacity={0.98}
+                              />
+                            </radialGradient>
+                          );
+                        }
+                        return null;
+                      })}
+                      {eqColorGradients.map((grad, gIdx) => (
+                        <radialGradient
+                          id={`eqBubbleGrad-${gIdx}`}
+                          key={gIdx}
+                          cx="30%"
+                          cy="30%"
+                          r="70%"
+                        >
+                          <stop offset="0%" stopColor={grad.from} stopOpacity={0.98} />
+                          <stop offset="100%" stopColor={grad.to} stopOpacity={0.95} />
+                        </radialGradient>
+                      ))}
+                      <radialGradient id="eqBubbleGrad-neutral" cx="30%" cy="30%" r="70%">
+                        <stop offset="0%" stopColor="#94a3b8" />
+                        <stop offset="100%" stopColor="#475569" />
+                      </radialGradient>
+                    </defs>
+
+                    {packedEqBubbles.map((item, idx) => {
+                      const isSelected = selectedTypeFilter === item.name;
+                      const hasActiveFilter = selectedTypeFilter !== null;
+                      const isNeutral = item.name === "Sem Equipe";
+                      const safeColor = item.color ? item.color.replace("#", "") : "";
+                      const gradId = item.color ? `custom-${idx}-${safeColor}` : (isNeutral ? "neutral" : idx % eqColorGradients.length);
+                      const sizeLabel =
+                        eqTreemapMetric === "value"
+                          ? `R$ ${Math.round(item.value).toLocaleString()}`
+                          : `${item.count} equip.`;
+
+                      return (
+                        <g
+                          key={idx}
+                          transform={`translate(${item.x}, ${item.y})`}
+                          onClick={() =>
+                            setSelectedTypeFilter(isSelected ? null : item.name)
+                          }
+                          className="cursor-pointer bubble-group transition-all duration-300"
+                        >
+                          <g className="bubble-container">
+                            <circle
+                              r={item.r}
+                              fill={`url(#eqBubbleGrad-${gradId})`}
+                              className="transition-all duration-500 origin-center"
+                              style={{
+                                filter: isSelected
+                                  ? "drop-shadow(0 16px 24px rgba(0,0,0,0.22))"
+                                  : hasActiveFilter
+                                  ? "opacity(0.35) drop-shadow(0 4px 6px rgba(0,0,0,0.02))"
+                                  : "drop-shadow(0 10px 16px rgba(0,0,0,0.12))",
+                              }}
+                            />
+                            <text
+                              textAnchor="middle"
+                              y={-5}
+                              fill="#ffffff"
+                              className="font-extrabold uppercase tracking-wider pointer-events-none select-none bubble-text-contour"
+                              style={{
+                                fontSize: Math.max(12, Math.min(22, item.r / 4)),
+                              }}
+                            >
+                              {item.name.length > item.r / 3.8
+                                ? `${item.name.slice(0, Math.floor(item.r / 3.8))}...`
+                                : item.name}
+                            </text>
+                            <text
+                              textAnchor="middle"
+                              y={14}
+                              fill="#ffffff"
+                              className="font-black font-mono tracking-wider pointer-events-none select-none bubble-text-contour text-blue-300"
+                              style={{
+                                fontSize: Math.max(10, Math.min(15, item.r / 6)),
+                              }}
+                            >
+                              {sizeLabel}
+                            </text>
+                            {item.r > 65 && (
+                              <text
+                                textAnchor="middle"
+                                y={31}
+                                fill="#ffffff"
+                                className="font-extrabold opacity-95 pointer-events-none select-none bubble-text-contour text-slate-100"
+                                style={{
+                                  fontSize: Math.max(9, Math.min(13, item.r / 7.5)),
+                                }}
+                              >
+                                {eqTreemapMetric === "value"
+                                  ? `${item.count} equip.`
+                                  : `R$ ${Math.round(item.value).toLocaleString()}`}
+                              </text>
+                            )}
+                          </g>
+                        </g>
+                      );
+                    })}
+                  </svg>
+                )}
+              </div>
             </CardContent>
           </Card>
+
+          {/* AnimatePresence for transitions */}
+          <AnimatePresence mode="wait">
+            {selectedTypeFilter && (
+              <motion.div
+                key={selectedTypeFilter}
+                initial={{ opacity: 0, height: 0, y: 15 }}
+                animate={{ opacity: 1, height: "auto", y: 0 }}
+                exit={{ opacity: 0, height: 0, y: -15 }}
+                transition={{ duration: 0.35, ease: "easeOut" }}
+                className="overflow-hidden"
+              >
+                <Card className="shadow-lg border-t-4 border-blue-600 bg-white">
+                  <CardHeader className="flex flex-row items-center justify-between pb-3">
+                    <div className="space-y-1">
+                      <CardTitle className="text-md font-bold flex items-center gap-2">
+                        <span className="w-2.5 h-2.5 rounded-full bg-blue-600 animate-ping inline-block" />
+                        Tipos de Equipamentos da Equipe:{" "}
+                        <span className="text-blue-600 font-extrabold">
+                          {selectedTypeFilter}
+                        </span>
+                      </CardTitle>
+                      <p className="text-xs text-slate-500">
+                        Equipamentos quantificados por contagem ou valores de
+                        custo mensal
+                      </p>
+                    </div>
+                    <div className="flex bg-slate-100/80 p-0.5 rounded-lg border border-slate-200 gap-0.5">
+                      <button
+                        onClick={() => setEqTreemapMetric("count")}
+                        className={`text-[10px] uppercase font-black tracking-wider px-2.5 py-1.5 rounded-md transition-all ${eqTreemapMetric === "count" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-950"}`}
+                      >
+                        Quantidade
+                      </button>
+                      <button
+                        onClick={() => setEqTreemapMetric("value")}
+                        className={`text-[10px] uppercase font-black tracking-wider px-2.5 py-1.5 rounded-md transition-all ${eqTreemapMetric === "value" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-950"}`}
+                      >
+                        Valores
+                      </button>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="h-[280px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={typeChartData}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                        <XAxis
+                          dataKey="name"
+                          stroke="#64748b"
+                          fontSize={11}
+                          fontWeight={600}
+                          tickLine={false}
+                        />
+                        <YAxis
+                          stroke="#64748b"
+                          fontSize={11}
+                          fontWeight={600}
+                          tickLine={false}
+                        />
+                        <Tooltip
+                          cursor={{ fill: "rgba(241, 245, 249, 0.5)" }}
+                          contentStyle={{
+                            borderRadius: "8px",
+                            boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
+                          }}
+                          formatter={(value: any, name: any, props: any) => {
+                            const val =
+                              eqTreemapMetric === "count"
+                                ? `${props.payload.count} equip.`
+                                : `R$ ${props.payload.value.toLocaleString()}`;
+                            return [val, props.payload.name];
+                          }}
+                        />
+                        <Bar
+                          dataKey="displayValue"
+                          radius={[6, 6, 0, 0]}
+                          maxBarSize={40}
+                          isAnimationActive={true}
+                        >
+                          {typeChartData.map((entry, idx) => (
+                            <Cell
+                              key={`cell-${idx}`}
+                              fill={
+                                eqColorGradients[idx % eqColorGradients.length].from
+                              }
+                            />
+                          ))}
+                        </Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </CardContent>
+                </Card>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
           <Card className="shadow-lg flex flex-col">
             <CardHeader>
               <CardTitle>
                 {selectedTypeFilter
-                  ? `Equipamentos (${selectedTypeFilter})`
-                  : "Lista de Equipamentos"}
+                  ? `Equipamentos da Equipe: ${selectedTypeFilter}`
+                  : "Todos os Equipamentos"}
               </CardTitle>
             </CardHeader>
             <CardContent className="flex-1 overflow-auto max-h-[600px]">
@@ -2001,14 +2705,19 @@ export const ManagementView = ({
                 };
 
                 const renderSortIconEq = (col: string) => {
-                  if (eqSortCol !== col) return <span className="text-slate-300 ml-1">↕</span>;
-                  return eqSortDir === "asc" ? <span className="text-slate-850 font-bold ml-1">↑</span> : <span className="text-slate-850 font-bold ml-1">↓</span>;
+                  if (eqSortCol !== col)
+                    return <span className="text-slate-300 ml-1">↕</span>;
+                  return eqSortDir === "asc" ? (
+                    <span className="text-slate-850 font-bold ml-1">↑</span>
+                  ) : (
+                    <span className="text-slate-850 font-bold ml-1">↓</span>
+                  );
                 };
 
                 const filtered = eqData.filter(
                   (item: any) =>
                     !selectedTypeFilter ||
-                    (item.meta?.category || item.meta?.type || "Não Informado") === selectedTypeFilter
+                    (item.resolvedTeam || "Sem Equipe") === selectedTypeFilter,
                 );
 
                 const sortedList = [...filtered].sort((a: any, b: any) => {
@@ -2025,20 +2734,32 @@ export const ManagementView = ({
                     const numB = b.value || 0;
                     return eqSortDir === "asc" ? numA - numB : numB - numA;
                   }
-                  return valA.localeCompare(valB, "pt", { sensitivity: "base" }) * (eqSortDir === "asc" ? 1 : -1);
+                  return (
+                    valA.localeCompare(valB, "pt", { sensitivity: "base" }) *
+                    (eqSortDir === "asc" ? 1 : -1)
+                  );
                 });
 
                 return (
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead className="cursor-pointer select-none hover:bg-slate-50 font-bold" onClick={() => handleSortEq("name")}>
+                        <TableHead
+                          className="cursor-pointer select-none hover:bg-slate-50 font-bold"
+                          onClick={() => handleSortEq("name")}
+                        >
                           Nome {renderSortIconEq("name")}
                         </TableHead>
-                        <TableHead className="cursor-pointer select-none hover:bg-slate-50 font-bold" onClick={() => handleSortEq("type")}>
+                        <TableHead
+                          className="cursor-pointer select-none hover:bg-slate-50 font-bold"
+                          onClick={() => handleSortEq("type")}
+                        >
                           Tipo {renderSortIconEq("type")}
                         </TableHead>
-                        <TableHead className="text-right cursor-pointer select-none hover:bg-slate-50 font-bold" onClick={() => handleSortEq("value")}>
+                        <TableHead
+                          className="text-right cursor-pointer select-none hover:bg-slate-50 font-bold"
+                          onClick={() => handleSortEq("value")}
+                        >
                           Custo Mensal {renderSortIconEq("value")}
                         </TableHead>
                       </TableRow>
@@ -2046,7 +2767,10 @@ export const ManagementView = ({
                     <TableBody>
                       {sortedList.length === 0 ? (
                         <TableRow>
-                          <TableCell colSpan={3} className="text-center py-8 text-slate-400 italic font-medium">
+                          <TableCell
+                            colSpan={3}
+                            className="text-center py-8 text-slate-400 italic font-medium"
+                          >
                             Nenhum equipamento encontrado.
                           </TableCell>
                         </TableRow>
@@ -2125,15 +2849,23 @@ export const ManagementView = ({
                 };
 
                 const renderSortIconRev = (col: string) => {
-                  if (revSortCol !== col) return <span className="text-slate-300 ml-1">↕</span>;
-                  return revSortDir === "asc" ? <span className="text-slate-850 font-bold ml-1">↑</span> : <span className="text-slate-850 font-bold ml-1">↓</span>;
+                  if (revSortCol !== col)
+                    return <span className="text-slate-300 ml-1">↕</span>;
+                  return revSortDir === "asc" ? (
+                    <span className="text-slate-850 font-bold ml-1">↑</span>
+                  ) : (
+                    <span className="text-slate-850 font-bold ml-1">↓</span>
+                  );
                 };
 
                 const sortedList = [...revData].sort((a: any, b: any) => {
                   if (revSortCol === "name") {
                     const valA = a.name || "";
                     const valB = b.name || "";
-                    return valA.localeCompare(valB, "pt", { sensitivity: "base" }) * (revSortDir === "asc" ? 1 : -1);
+                    return (
+                      valA.localeCompare(valB, "pt", { sensitivity: "base" }) *
+                      (revSortDir === "asc" ? 1 : -1)
+                    );
                   } else {
                     const numA = a.value || 0;
                     const numB = b.value || 0;
@@ -2145,10 +2877,16 @@ export const ManagementView = ({
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead className="cursor-pointer select-none hover:bg-slate-50 font-bold" onClick={() => handleSortRev("name")}>
+                        <TableHead
+                          className="cursor-pointer select-none hover:bg-slate-50 font-bold"
+                          onClick={() => handleSortRev("name")}
+                        >
                           Contrato e Período {renderSortIconRev("name")}
                         </TableHead>
-                        <TableHead className="text-right cursor-pointer select-none hover:bg-slate-50 font-bold" onClick={() => handleSortRev("value")}>
+                        <TableHead
+                          className="text-right cursor-pointer select-none hover:bg-slate-50 font-bold"
+                          onClick={() => handleSortRev("value")}
+                        >
                           Valor Medido {renderSortIconRev("value")}
                         </TableHead>
                       </TableRow>
@@ -2156,14 +2894,19 @@ export const ManagementView = ({
                     <TableBody>
                       {sortedList.length === 0 ? (
                         <TableRow>
-                          <TableCell colSpan={2} className="text-center py-8 text-slate-400 italic font-medium">
+                          <TableCell
+                            colSpan={2}
+                            className="text-center py-8 text-slate-400 italic font-medium"
+                          >
                             Nenhuma medição encontrada.
                           </TableCell>
                         </TableRow>
                       ) : (
                         sortedList.map((item: any, idx: number) => (
                           <TableRow key={idx}>
-                            <TableCell className="font-semibold text-slate-900">{item.name}</TableCell>
+                            <TableCell className="font-semibold text-slate-900">
+                              {item.name}
+                            </TableCell>
                             <TableCell className="text-right text-emerald-600 font-bold">
                               R$ {(item.value || 0).toLocaleString()}
                             </TableCell>
@@ -2207,7 +2950,9 @@ export const ManagementView = ({
             <ArrowLeft className="w-5 h-5 text-slate-600" />
           </button>
           <div>
-            <span className="text-[10px] font-black uppercase text-blue-600 tracking-widest bg-blue-50 px-2 py-0.5 rounded">Detalhamento Técnico</span>
+            <span className="text-[10px] font-black uppercase text-blue-600 tracking-widest bg-blue-50 px-2 py-0.5 rounded">
+              Detalhamento Técnico
+            </span>
             <h1 className="text-2xl font-black text-slate-800">
               Gestão Global - Avanço Físico (Curva-S)
             </h1>
@@ -2222,7 +2967,8 @@ export const ManagementView = ({
                 Avanço Físico do Cronograma por Grupo de Serviços
               </CardTitle>
               <p className="text-xs text-slate-400 uppercase tracking-wide font-black">
-                Gráfico acumulado comparando metas físico-financeiras x avanço real executado dos grupos
+                Gráfico acumulado comparando metas físico-financeiras x avanço
+                real executado dos grupos
               </p>
             </div>
 
@@ -2242,8 +2988,13 @@ export const ManagementView = ({
               {/* Contract Selector inside S-curve Card if global selection is 'all' */}
               {selectedContractId === "all" ? (
                 <div className="flex items-center gap-2">
-                  <span className="text-xs font-bold text-slate-400 uppercase">Filtrar Contrato S-Curve:</span>
-                  <Select value={activeSCurveContractId} onValueChange={setSCurveContractId}>
+                  <span className="text-xs font-bold text-slate-400 uppercase">
+                    Filtrar Contrato S-Curve:
+                  </span>
+                  <Select
+                    value={activeSCurveContractId}
+                    onValueChange={setSCurveContractId}
+                  >
                     <SelectTrigger className="w-[200px] h-9">
                       <SelectValue placeholder="Selecione um contrato" />
                     </SelectTrigger>
@@ -2258,7 +3009,9 @@ export const ManagementView = ({
                 </div>
               ) : (
                 <div className="bg-blue-50 text-blue-600 px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-wider font-mono">
-                  Contrato: {contracts?.find((c: any) => c.id === activeSCurveContractId)?.contractNumber || activeSCurveContractId}
+                  Contrato:{" "}
+                  {contracts?.find((c: any) => c.id === activeSCurveContractId)
+                    ?.contractNumber || activeSCurveContractId}
                 </div>
               )}
             </div>
@@ -2268,9 +3021,13 @@ export const ManagementView = ({
               <div className="py-24 text-center bg-white border border-slate-100 rounded-3xl space-y-4 shadow-sm">
                 <AlertCircle className="w-12 h-12 text-amber-500 mx-auto" />
                 <div className="space-y-2">
-                  <h4 className="font-bold text-slate-900 text-lg">Nenhum Cronograma Técnico Ativo</h4>
+                  <h4 className="font-bold text-slate-900 text-lg">
+                    Nenhum Cronograma Técnico Ativo
+                  </h4>
                   <p className="text-sm text-slate-400 max-w-md mx-auto leading-relaxed">
-                    Não foi encontrado um cronograma técnico estruturado para o contrato selecionado. Adicione metas na aba "Cronograma" na Sala Técnica para gerar a Curva-S correspondente.
+                    Não foi encontrado um cronograma técnico estruturado para o
+                    contrato selecionado. Adicione metas na aba "Cronograma" na
+                    Sala Técnica para gerar a Curva-S correspondente.
                   </p>
                 </div>
               </div>
@@ -2279,91 +3036,120 @@ export const ManagementView = ({
                 {/* Graphic container */}
                 <div className="h-[380px] w-full bg-slate-50/50 p-4 rounded-2xl border border-slate-100 relative">
                   <ResponsiveContainer width="100%" height="100%">
-                    <ComposedChart 
-                      data={sCurveTimelineData} 
+                    <ComposedChart
+                      data={sCurveTimelineData}
                       onClick={(state) => {
                         if (state && state.activeTooltipIndex !== undefined) {
                           setClickedMonthIndex(state.activeTooltipIndex);
                         }
                       }}
                     >
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                      <XAxis 
-                        dataKey="name" 
+                      <CartesianGrid
+                        strokeDasharray="3 3"
+                        vertical={false}
+                        stroke="#e2e8f0"
+                      />
+                      <XAxis
+                        dataKey="name"
                         axisLine={false}
                         tickLine={false}
-                        tick={{ fill: '#64748b', fontSize: 11, fontWeight: 'bold' }} 
+                        tick={{
+                          fill: "#64748b",
+                          fontSize: 11,
+                          fontWeight: "bold",
+                        }}
                       />
-                      <YAxis 
-                        domain={[0, 100]} 
+                      <YAxis
+                        domain={[0, 100]}
                         axisLine={false}
                         tickLine={false}
                         tickFormatter={(v) => `${v}%`}
-                        tick={{ fill: '#64748b', fontSize: 11, fontWeight: 'bold' }} 
+                        tick={{
+                          fill: "#64748b",
+                          fontSize: 11,
+                          fontWeight: "bold",
+                        }}
                       />
-                      <Tooltip 
-                        cursor={{ fill: 'rgba(226, 232, 240, 0.4)' }}
+                      <Tooltip
+                        cursor={{ fill: "rgba(226, 232, 240, 0.4)" }}
                         formatter={(v: number, name: string) => [`${v}%`, name]}
-                        contentStyle={{ borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '12px' }}
+                        contentStyle={{
+                          borderRadius: "8px",
+                          border: "1px solid #e2e8f0",
+                          fontSize: "12px",
+                        }}
                       />
-                      <Line 
-                        type="monotone" 
-                        dataKey="Planejado Acumulado (%)" 
-                        stroke="#94a3b8" 
-                        strokeWidth={2.5} 
-                        strokeDasharray="5 4" 
-                        dot={{ r: 4, stroke: '#94a3b8', strokeWidth: 2, fill: '#fff' }}
-                        activeDot={{ r: 6 }} 
+                      <Line
+                        type="monotone"
+                        dataKey="Planejado Acumulado (%)"
+                        stroke="#94a3b8"
+                        strokeWidth={2.5}
+                        strokeDasharray="5 4"
+                        dot={{
+                          r: 4,
+                          stroke: "#94a3b8",
+                          strokeWidth: 2,
+                          fill: "#fff",
+                        }}
+                        activeDot={{ r: 6 }}
                       />
-                      <Line 
-                        type="monotone" 
-                        dataKey="Realizado Acumulado (%)" 
-                        stroke="#2563eb" 
-                        strokeWidth={3} 
-                        dot={{ r: 5, stroke: '#2563eb', strokeWidth: 2.5, fill: '#fff' }}
-                        activeDot={{ r: 8 }} 
+                      <Line
+                        type="monotone"
+                        dataKey="Realizado Acumulado (%)"
+                        stroke="#2563eb"
+                        strokeWidth={3}
+                        dot={{
+                          r: 5,
+                          stroke: "#2563eb",
+                          strokeWidth: 2.5,
+                          fill: "#fff",
+                        }}
+                        activeDot={{ r: 8 }}
                       />
                     </ComposedChart>
                   </ResponsiveContainer>
-                  
+
                   <div className="absolute top-4 left-4 bg-white/90 backdrop-blur-sm border border-slate-100 rounded-lg px-2.5 py-1 text-[10px] font-bold text-slate-500 uppercase tracking-widest leading-none select-none">
-                    💡 Clique nos meses do gráfico para detalhar progresso de serviços ou grupos correspondentes
+                    💡 Clique nos meses do gráfico para detalhar progresso de
+                    serviços ou grupos correspondentes
                   </div>
                 </div>
 
                 {/* Detalhes do mês selecionado por GRUPO */}
                 {(() => {
-                  const activeMonthData = clickedMonthIndex !== null 
-                    ? sCurveTimelineData[clickedMonthIndex] 
-                    : sCurveTimelineData[sCurveTimelineData.length - 1]; // defaults to last period
+                  const activeMonthData =
+                    clickedMonthIndex !== null
+                      ? sCurveTimelineData[clickedMonthIndex]
+                      : sCurveTimelineData[sCurveTimelineData.length - 1]; // defaults to last period
 
                   if (!activeMonthData) return null;
 
-                  const deviation = activeMonthData.actual - activeMonthData.planned;
+                  const deviation =
+                    activeMonthData.actual - activeMonthData.planned;
                   const statusBadge = (() => {
                     if (deviation >= 2) {
                       return {
-                        label: 'Avançado',
-                        class: 'bg-green-100 text-green-700 border-green-200',
+                        label: "Avançado",
+                        class: "bg-green-100 text-green-700 border-green-200",
                         icon: CheckCircle2,
                       };
                     } else if (deviation < -4) {
                       return {
-                        label: 'Atrasado',
-                        class: 'bg-red-100 text-red-700 border-red-200',
+                        label: "Atrasado",
+                        class: "bg-red-100 text-red-700 border-red-200",
                         icon: ShieldAlert,
                       };
                     } else {
                       return {
-                        label: 'No Cronograma',
-                        class: 'bg-blue-100 text-blue-700 border-blue-200',
+                        label: "No Cronograma",
+                        class: "bg-blue-100 text-blue-700 border-blue-200",
                         icon: Clock,
                       };
                     }
                   })();
 
                   return (
-                    <motion.div 
+                    <motion.div
                       layout
                       initial={{ opacity: 0, y: 10 }}
                       animate={{ opacity: 1, y: 0 }}
@@ -2374,26 +3160,43 @@ export const ManagementView = ({
                         <div>
                           <h4 className="font-extrabold text-slate-800 text-base uppercase tracking-tight flex items-center gap-1.5">
                             <ListTodo className="w-5 h-5 text-blue-500" />
-                            Progresso Físico dos Grupos de Serviços no {activeMonthData.periodName}
+                            Progresso Físico dos Grupos de Serviços no{" "}
+                            {activeMonthData.periodName}
                           </h4>
                           <p className="text-xs text-slate-400">
-                            Acompanhamento do cronograma acumulado comparando metas de grupos planejadas x progresso executado real
+                            Acompanhamento do cronograma acumulado comparando
+                            metas de grupos planejadas x progresso executado
+                            real
                           </p>
                         </div>
 
                         <div className="flex items-center gap-2">
-                          <span className={`px-2.5 py-1 rounded-full text-xs font-bold border flex items-center gap-1 uppercase ${statusBadge.class}`}>
+                          <span
+                            className={`px-2.5 py-1 rounded-full text-xs font-bold border flex items-center gap-1 uppercase ${statusBadge.class}`}
+                          >
                             <statusBadge.icon className="w-3.5 h-3.5" />
-                            {statusBadge.label} ({deviation >= 0 ? `+${deviation}%` : `${deviation}%`})
+                            {statusBadge.label} (
+                            {deviation >= 0
+                              ? `+${deviation}%`
+                              : `${deviation}%`}
+                            )
                           </span>
-                          
+
                           <div className="bg-slate-50 border border-slate-100 rounded-lg px-3 py-1 text-center font-mono text-xs">
-                            <span className="text-[9px] text-slate-400 font-bold block uppercase">Meta Global</span>
-                            <span className="font-bold text-slate-700">{activeMonthData.planned}%</span>
+                            <span className="text-[9px] text-slate-400 font-bold block uppercase">
+                              Meta Global
+                            </span>
+                            <span className="font-bold text-slate-700">
+                              {activeMonthData.planned}%
+                            </span>
                           </div>
                           <div className="bg-blue-50 border border-blue-100 rounded-lg px-3 py-1 text-center font-mono text-xs">
-                            <span className="text-[9px] text-blue-400 font-bold block uppercase">Realizado</span>
-                            <span className="font-bold text-blue-600">{activeMonthData.actual}%</span>
+                            <span className="text-[9px] text-blue-400 font-bold block uppercase">
+                              Realizado
+                            </span>
+                            <span className="font-bold text-blue-600">
+                              {activeMonthData.actual}%
+                            </span>
                           </div>
                         </div>
                       </div>
@@ -2402,7 +3205,9 @@ export const ManagementView = ({
                         {(() => {
                           const handleSortCurvaS = (col: string) => {
                             if (curvaSSortCol === col) {
-                              setCurvaSSortDir(curvaSSortDir === "asc" ? "desc" : "asc");
+                              setCurvaSSortDir(
+                                curvaSSortDir === "asc" ? "desc" : "asc",
+                              );
                             } else {
                               setCurvaSSortCol(col);
                               setRevSortDir("asc"); // clean fallback
@@ -2411,27 +3216,50 @@ export const ManagementView = ({
                           };
 
                           const renderSortIconCurvaS = (col: string) => {
-                            if (curvaSSortCol !== col) return <span className="text-slate-300 ml-1">↕</span>;
-                            return curvaSSortDir === "asc" ? <span className="text-slate-800 font-bold ml-1">↑</span> : <span className="text-slate-800 font-bold ml-1">↓</span>;
+                            if (curvaSSortCol !== col)
+                              return (
+                                <span className="text-slate-300 ml-1">↕</span>
+                              );
+                            return curvaSSortDir === "asc" ? (
+                              <span className="text-slate-800 font-bold ml-1">
+                                ↑
+                              </span>
+                            ) : (
+                              <span className="text-slate-800 font-bold ml-1">
+                                ↓
+                              </span>
+                            );
                           };
 
-                          const sortedGroups = [...(activeMonthData.groupsList || [])].sort((a: any, b: any) => {
+                          const sortedGroups = [
+                            ...(activeMonthData.groupsList || []),
+                          ].sort((a: any, b: any) => {
                             if (curvaSSortCol === "name") {
                               const valA = a.name || "";
                               const valB = b.name || "";
-                              return valA.localeCompare(valB, "pt", { sensitivity: "base" }) * (curvaSSortDir === "asc" ? 1 : -1);
+                              return (
+                                valA.localeCompare(valB, "pt", {
+                                  sensitivity: "base",
+                                }) * (curvaSSortDir === "asc" ? 1 : -1)
+                              );
                             } else if (curvaSSortCol === "planned") {
                               const numA = a.planned || 0;
                               const numB = b.planned || 0;
-                              return curvaSSortDir === "asc" ? numA - numB : numB - numA;
+                              return curvaSSortDir === "asc"
+                                ? numA - numB
+                                : numB - numA;
                             } else if (curvaSSortCol === "actual") {
                               const numA = a.actual || 0;
                               const numB = b.actual || 0;
-                              return curvaSSortDir === "asc" ? numA - numB : numB - numA;
+                              return curvaSSortDir === "asc"
+                                ? numA - numB
+                                : numB - numA;
                             } else if (curvaSSortCol === "diff") {
                               const diffA = (a.actual || 0) - (a.planned || 0);
                               const diffB = (b.actual || 0) - (b.planned || 0);
-                              return curvaSSortDir === "asc" ? diffA - diffB : diffB - diffA;
+                              return curvaSSortDir === "asc"
+                                ? diffA - diffB
+                                : diffB - diffA;
                             }
                             return 0;
                           });
@@ -2440,24 +3268,43 @@ export const ManagementView = ({
                             <Table>
                               <TableHeader>
                                 <TableRow className="bg-slate-50 border-none hover:bg-slate-50">
-                                  <TableHead className="font-bold text-slate-600 uppercase cursor-pointer select-none hover:bg-slate-100" onClick={() => handleSortCurvaS("name")}>
-                                    GRUPO DE SERVIÇO {renderSortIconCurvaS("name")}
+                                  <TableHead
+                                    className="font-bold text-slate-600 uppercase cursor-pointer select-none hover:bg-slate-100"
+                                    onClick={() => handleSortCurvaS("name")}
+                                  >
+                                    GRUPO DE SERVIÇO{" "}
+                                    {renderSortIconCurvaS("name")}
                                   </TableHead>
-                                  <TableHead className="font-bold text-slate-600 text-right uppercase cursor-pointer select-none hover:bg-slate-100" onClick={() => handleSortCurvaS("planned")}>
-                                    META ACUMULADA {renderSortIconCurvaS("planned")}
+                                  <TableHead
+                                    className="font-bold text-slate-600 text-right uppercase cursor-pointer select-none hover:bg-slate-100"
+                                    onClick={() => handleSortCurvaS("planned")}
+                                  >
+                                    META ACUMULADA{" "}
+                                    {renderSortIconCurvaS("planned")}
                                   </TableHead>
-                                  <TableHead className="font-bold text-slate-600 text-right uppercase cursor-pointer select-none hover:bg-slate-100" onClick={() => handleSortCurvaS("actual")}>
-                                    REALIZADO ACUMULADO {renderSortIconCurvaS("actual")}
+                                  <TableHead
+                                    className="font-bold text-slate-600 text-right uppercase cursor-pointer select-none hover:bg-slate-100"
+                                    onClick={() => handleSortCurvaS("actual")}
+                                  >
+                                    REALIZADO ACUMULADO{" "}
+                                    {renderSortIconCurvaS("actual")}
                                   </TableHead>
-                                  <TableHead className="font-bold text-slate-600 text-right w-56 uppercase cursor-pointer select-none hover:bg-slate-100" onClick={() => handleSortCurvaS("diff")}>
-                                    AVALIAÇÃO DE AVANÇO {renderSortIconCurvaS("diff")}
+                                  <TableHead
+                                    className="font-bold text-slate-600 text-right w-56 uppercase cursor-pointer select-none hover:bg-slate-100"
+                                    onClick={() => handleSortCurvaS("diff")}
+                                  >
+                                    AVALIAÇÃO DE AVANÇO{" "}
+                                    {renderSortIconCurvaS("diff")}
                                   </TableHead>
                                 </TableRow>
                               </TableHeader>
                               <TableBody>
                                 {sortedGroups.length === 0 ? (
                                   <TableRow>
-                                    <TableCell colSpan={4} className="text-center py-8 text-slate-400 italic font-medium">
+                                    <TableCell
+                                      colSpan={4}
+                                      className="text-center py-8 text-slate-400 italic font-medium"
+                                    >
                                       Nenhum grupo de serviço encontrado.
                                     </TableCell>
                                   </TableRow>
@@ -2466,26 +3313,41 @@ export const ManagementView = ({
                                     const diff = item.actual - item.planned;
                                     const isAhead = diff >= 0;
                                     return (
-                                      <TableRow key={item.groupId} className="border-slate-50 hover:bg-slate-50/50">
+                                      <TableRow
+                                        key={item.groupId}
+                                        className="border-slate-50 hover:bg-slate-50/50"
+                                      >
                                         <TableCell className="font-bold text-slate-700 text-xs uppercase max-w-[325px] truncate">
                                           {item.name}
                                         </TableCell>
-                                        <TableCell className="text-right font-mono text-slate-600 font-bold">{item.planned}%</TableCell>
-                                        <TableCell className="text-right font-mono text-blue-600 font-bold">{item.actual}%</TableCell>
+                                        <TableCell className="text-right font-mono text-slate-600 font-bold">
+                                          {item.planned}%
+                                        </TableCell>
+                                        <TableCell className="text-right font-mono text-blue-600 font-bold">
+                                          {item.actual}%
+                                        </TableCell>
                                         <TableCell className="text-right">
                                           <div className="space-y-1">
                                             <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden relative">
-                                              <div 
-                                                className="absolute left-0 top-0 h-full bg-slate-300 rounded-full" 
-                                                style={{ width: `${item.planned}%` }}
+                                              <div
+                                                className="absolute left-0 top-0 h-full bg-slate-300 rounded-full"
+                                                style={{
+                                                  width: `${item.planned}%`,
+                                                }}
                                               />
-                                              <div 
-                                                className="absolute left-0 top-0 h-full bg-blue-500 rounded-full shadow-inner" 
-                                                style={{ width: `${item.actual}%` }}
+                                              <div
+                                                className="absolute left-0 top-0 h-full bg-blue-500 rounded-full shadow-inner"
+                                                style={{
+                                                  width: `${item.actual}%`,
+                                                }}
                                               />
                                             </div>
-                                            <span className={`text-[10px] font-mono font-bold uppercase leading-none block ${isAhead ? 'text-green-600' : 'text-red-500'}`}>
-                                              {diff >= 0 ? `Adiantado (+${diff}%)` : `Atrasado (${diff}%)`}
+                                            <span
+                                              className={`text-[10px] font-mono font-bold uppercase leading-none block ${isAhead ? "text-green-600" : "text-red-500"}`}
+                                            >
+                                              {diff >= 0
+                                                ? `Adiantado (+${diff}%)`
+                                                : `Atrasado (${diff}%)`}
                                             </span>
                                           </div>
                                         </TableCell>
@@ -2563,7 +3425,8 @@ export const ManagementView = ({
                 Curva-S Comparativa (Evolução Física do Contrato)
               </CardTitle>
               <p className="text-xs text-slate-400 uppercase tracking-wide font-black">
-                Acompanhamento físico de metas x executado real por grupo de serviços — Clique para detalhamento completo ↗
+                Acompanhamento físico de metas x executado real por grupo de
+                serviços — Clique para detalhamento completo ↗
               </p>
             </div>
           </CardHeader>
@@ -2571,43 +3434,77 @@ export const ManagementView = ({
             {sCurveTimelineData.length === 0 ? (
               <div className="py-8 text-center bg-slate-50 border border-slate-100 rounded-xl space-y-2 animate-pulse">
                 <AlertCircle className="w-8 h-8 text-amber-500 mx-auto" />
-                <h4 className="font-bold text-slate-900 text-sm">Nenhum Cronograma Técnico Ativo</h4>
+                <h4 className="font-bold text-slate-900 text-sm">
+                  Nenhum Cronograma Técnico Ativo
+                </h4>
                 <p className="text-[11px] text-slate-400 max-w-sm mx-auto">
-                  Adicione metas físicas e financeiras na Sala Técnica para gerar a Curva-S.
+                  Adicione metas físicas e financeiras na Sala Técnica para
+                  gerar a Curva-S.
                 </p>
               </div>
-            ) : (() => {
-              const lastPeriod = sCurveTimelineData[sCurveTimelineData.length - 1];
-              const deviation = lastPeriod.actual - lastPeriod.planned;
-              return (
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-center">
-                  <div className="col-span-1 space-y-3 bg-slate-50 p-4 rounded-xl border border-slate-100">
-                    <span className="text-[10px] uppercase text-slate-400 font-black tracking-wider block">Último Período Acumulado</span>
-                    <div className="text-3xl font-extrabold text-blue-600 font-mono">
-                      {lastPeriod.actual}% <span className="text-xs font-bold text-slate-400 font-sans uppercase">Realizado</span>
+            ) : (
+              (() => {
+                const lastPeriod =
+                  sCurveTimelineData[sCurveTimelineData.length - 1];
+                const deviation = lastPeriod.actual - lastPeriod.planned;
+                return (
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-center">
+                    <div className="col-span-1 space-y-3 bg-slate-50 p-4 rounded-xl border border-slate-100">
+                      <span className="text-[10px] uppercase text-slate-400 font-black tracking-wider block">
+                        Último Período Acumulado
+                      </span>
+                      <div className="text-3xl font-extrabold text-blue-600 font-mono">
+                        {lastPeriod.actual}%{" "}
+                        <span className="text-xs font-bold text-slate-400 font-sans uppercase">
+                          Realizado
+                        </span>
+                      </div>
+                      <div className="text-xs font-bold text-slate-600">
+                        Desvio:{" "}
+                        <span
+                          className={
+                            deviation >= 0 ? "text-green-600" : "text-red-500"
+                          }
+                        >
+                          {deviation >= 0 ? `+${deviation}%` : `${deviation}%`}
+                        </span>{" "}
+                        (Meta: {lastPeriod.planned}%)
+                      </div>
                     </div>
-                    <div className="text-xs font-bold text-slate-600">
-                      Desvio: <span className={deviation >= 0 ? 'text-green-600' : 'text-red-500'}>
-                        {deviation >= 0 ? `+${deviation}%` : `${deviation}%`}
-                      </span> (Meta: {lastPeriod.planned}%)
+
+                    <div className="col-span-2 h-[100px] w-full bg-slate-50/20 rounded-xl border border-dashed border-slate-200 flex items-center justify-center p-2 relative overflow-hidden">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <ComposedChart data={sCurveTimelineData}>
+                          <CartesianGrid
+                            strokeDasharray="3 3"
+                            vertical={false}
+                            stroke="#f1f5f9"
+                          />
+                          <XAxis dataKey="name" hide />
+                          <YAxis hide />
+                          <Line
+                            type="monotone"
+                            dataKey="Planejado Acumulado (%)"
+                            stroke="#94a3b8"
+                            strokeWidth={1.5}
+                            strokeDasharray="3 3"
+                            dot={false}
+                          />
+                          <Line
+                            type="monotone"
+                            dataKey="Realizado Acumulado (%)"
+                            stroke="#2563eb"
+                            strokeWidth={2.5}
+                            dot={false}
+                          />
+                        </ComposedChart>
+                      </ResponsiveContainer>
+                      <div className="absolute inset-0 bg-gradient-to-t from-white/30 to-transparent pointer-events-none" />
                     </div>
                   </div>
-                  
-                  <div className="col-span-2 h-[100px] w-full bg-slate-50/20 rounded-xl border border-dashed border-slate-200 flex items-center justify-center p-2 relative overflow-hidden">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <ComposedChart data={sCurveTimelineData}>
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                        <XAxis dataKey="name" hide />
-                        <YAxis hide />
-                        <Line type="monotone" dataKey="Planejado Acumulado (%)" stroke="#94a3b8" strokeWidth={1.5} strokeDasharray="3 3" dot={false} />
-                        <Line type="monotone" dataKey="Realizado Acumulado (%)" stroke="#2563eb" strokeWidth={2.5} dot={false} />
-                      </ComposedChart>
-                    </ResponsiveContainer>
-                    <div className="absolute inset-0 bg-gradient-to-t from-white/30 to-transparent pointer-events-none" />
-                  </div>
-                </div>
-              );
-            })()}
+                );
+              })()
+            )}
           </CardContent>
         </Card>
       </motion.div>

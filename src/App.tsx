@@ -809,6 +809,69 @@ export default function App() {
     }
   };
 
+  const updateAportes = async (val: Aporte[] | ((prev: Aporte[]) => Aporte[])) => {
+    lastLocalUpdate.current = Date.now();
+    const newVal = typeof val === 'function' ? val(aportes) : val;
+    setAportes(newVal);
+
+    const config = getSupabaseConfig();
+    if (config.enabled && compId) {
+      const supabase = createSupabaseClient(config.url, config.key);
+      if (supabase) {
+        try {
+          const mappedData = newVal.map(a => mapToSnake({ ...a, companyId: compId }));
+          const chunkSize = 50;
+          for (let i = 0; i < mappedData.length; i += chunkSize) {
+            const chunk = mappedData.slice(i, i + chunkSize);
+            const chunkToUpsert = chunk.map(({ items, ...rest }: any) => rest);
+            
+            const { error: tError } = await supabase.from('aportes').upsert(chunkToUpsert);
+            if (tError) {
+              console.error('[Sync] Erro ao sincronizar pedaço da tabela aportes:', tError);
+              continue;
+            }
+            
+            for (const aporte of chunk) {
+               if (aporte.items && Array.isArray(aporte.items)) {
+                 const currentItemIds = aporte.items.map((i: any) => i.id);
+                 if (currentItemIds.length > 0) {
+                   await supabase.from('aporte_items')
+                     .delete()
+                     .eq('aporte_id', aporte.id)
+                     .not('id', 'in', `(${currentItemIds.join(',')})`);
+                 } else {
+                   await supabase.from('aporte_items')
+                     .delete()
+                     .eq('aporte_id', aporte.id);
+                 }
+                 
+                 const itemsToInsert = aporte.items.map((item: any) => ({
+                    id: item.id,
+                    aporte_id: aporte.id,
+                    categoria: item.categoria,
+                    subcategoria: item.subcategoria,
+                    fornecedor: item.fornecedor,
+                    descricao: item.descricao,
+                    mes_competencia: item.mes_competencia || item.mesCompetencia,
+                    data_vencimento: item.data_vencimento || item.dataVencimento,
+                    valor: item.valor
+                 }));
+                 
+                 if (itemsToInsert.length > 0) {
+                    const { error: tsErr } = await supabase.from('aporte_items').upsert(itemsToInsert);
+                    if (tsErr) console.error('[Sync] Erro ao sincronizar aporte_items:', tsErr);
+                 }
+               }
+            }
+          }
+          console.log('[Supabase] Aportes e items persisted immediately');
+        } catch (err) {
+          console.warn('[Sync] Aportes persist failed', err);
+        }
+      }
+    }
+  };
+
   const updatePurchaseOrders = async (val: PurchaseOrder[] | ((prev: PurchaseOrder[]) => PurchaseOrder[])) => {
     lastLocalUpdate.current = Date.now();
     const newVal = typeof val === 'function' ? val(purchaseOrders) : val;
@@ -4113,6 +4176,7 @@ export default function App() {
                   quotations={finalQuotations}
                   controllerEquipments={finalControllerEquipments}
                   controllerTeams={finalControllerTeams}
+                  teamAssignments={teamAssignments}
                   manpowerRecords={filteredControllerManpower}
                   employees={filteredEmployees}
                   selectedContractId={selectedContractId}
@@ -4130,7 +4194,7 @@ export default function App() {
                   selectedContractId={selectedContractId}
                   onUpdateContractId={(id) => setSelectedContractId(id)}
                   aportes={aportes}
-                  setAportes={setAportes}
+                  setAportes={updateAportes}
                   currentUser={currentUser}
                   purchaseOrders={finalPurchaseOrders}
                   setPurchaseOrders={updatePurchaseOrders}
