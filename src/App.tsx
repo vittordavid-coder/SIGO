@@ -1164,7 +1164,10 @@ export default function App() {
 
   const handleSyncAllToSupabase = async () => {
     const config = getSupabaseConfig();
-    if (!config.enabled || !config.url || !config.key || !currentUser) return;
+    if (!config.enabled || !config.url || !config.key || !currentUser || !isSupabaseSynced || supabaseSyncError) {
+      console.warn('[Sync] Sincronização bloqueada: Pendente de carregamento ou erro de conexão.');
+      return;
+    }
     const supabase = createSupabaseClient(config.url, config.key);
     if (!supabase) return;
 
@@ -3048,7 +3051,7 @@ export default function App() {
   // --- Auto-Sync Logic ---
   useEffect(() => {
     const config = getSupabaseConfig();
-    if (!config.enabled || !currentUser) return;
+    if (!config.enabled || !currentUser || !isSupabaseSynced || supabaseSyncError) return;
 
     const timeout = setTimeout(() => {
       console.log('[Auto-Save] Triggering synchronization...');

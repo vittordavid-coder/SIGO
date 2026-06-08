@@ -22,7 +22,7 @@ import {
   Contract, DailyReport, DailyReportActivity, 
   PluviometryRecord, TechnicalSchedule, TechnicalServiceSchedule,
   ServiceComposition, Resource, Schedule, TimeUnit, Quotation,
-  ControllerManpower, ControllerEquipment
+  ControllerManpower, ControllerEquipment, Measurement
 } from '../types';
 import { 
   DropdownMenu, 
@@ -2727,6 +2727,7 @@ interface TechnicalScheduleViewProps {
   schedules: Schedule[];
   onUpdate: (s: TechnicalSchedule) => Promise<void> | void;
   readonly?: boolean;
+  measurements?: Measurement[];
 }
 
 interface ScheduleCellInputProps {
@@ -2881,7 +2882,7 @@ const ScheduleServiceRow = React.memo(({
           <TableCell className="text-xs font-bold text-gray-400 uppercase border-r sticky left-[180px] bg-gray-50/20 z-20 shadow-[1px_0_0_0_rgba(0,0,0,0.1)] px-3">Qtd. Prev.</TableCell>
           <TableCell className="text-right text-sm font-mono border-r bg-gray-50/10 px-4 font-bold text-gray-600">{formatNumber(bi.quantity, 3)}</TableCell>
           {periods.map(p => (
-            <TableCell key={p} className="p-0 border-r w-[80px] min-w-[80px]">
+            <TableCell key={p} className="p-0 border-r w-[110px] min-w-[110px]">
               <ScheduleCellInput 
                 value={getDayValue(p, 'plannedQty')}
                 onChange={(val) => updateDayValue(bi.serviceId, p, 'plannedQty', val)}
@@ -2925,7 +2926,7 @@ const ScheduleServiceRow = React.memo(({
           <TableCell className="text-xs font-bold text-blue-600 uppercase border-r sticky left-[180px] bg-blue-50/10 z-20 shadow-[1px_0_0_0_rgba(0,0,0,0.1)] px-3">Qtd. Exec.</TableCell>
           <TableCell className="text-right text-sm font-mono border-r bg-blue-50/5 text-blue-300 italic px-4">--</TableCell>
           {periods.map(p => (
-            <TableCell key={p} className="p-0 border-r bg-blue-50/5 w-[80px] min-w-[80px]">
+            <TableCell key={p} className="p-0 border-r bg-blue-50/5 w-[110px] min-w-[110px]">
               <ScheduleCellInput 
                 value={getDayValue(p, 'actualQty')}
                 onChange={(val) => updateDayValue(bi.serviceId, p, 'actualQty', val)}
@@ -2965,7 +2966,7 @@ const ScheduleServiceRow = React.memo(({
             const qtyVal = getDayValue(p, 'plannedQty');
             const percValue = bi.quantity > 0 ? ((qtyVal / bi.quantity) * 100) : 0;
             return (
-              <TableCell key={p} className="p-0 border-r bg-amber-50/5 w-[80px] min-w-[80px]">
+              <TableCell key={p} className="p-0 border-r bg-amber-50/5 w-[110px] min-w-[110px]">
                 <ScheduleCellInput 
                   value={parseFloat(percValue.toFixed(1))}
                   onChange={(val) => updateDayValue(bi.serviceId, p, 'plannedPerc', val)}
@@ -3003,7 +3004,7 @@ const ScheduleServiceRow = React.memo(({
             const qtyVal = getDayValue(p, 'actualQty');
             const percValue = bi.quantity > 0 ? ((qtyVal / bi.quantity) * 100) : 0;
             return (
-              <TableCell key={p} className="p-0 border-r bg-amber-100/10 w-[80px] min-w-[80px]">
+              <TableCell key={p} className="p-0 border-r bg-amber-100/10 w-[110px] min-w-[110px]">
                 <ScheduleCellInput 
                   value={parseFloat(percValue.toFixed(1))}
                   onChange={(val) => updateDayValue(bi.serviceId, p, 'actualPerc', val)}
@@ -3154,7 +3155,7 @@ const GlobalFooters = React.memo(({
 });
 
 export function TechnicalScheduleView({ 
-  contract, services, resources, quotations, technicalSchedules, schedules, onUpdate, readonly 
+  contract, services, resources, quotations, technicalSchedules, schedules, onUpdate, readonly, measurements = []
 }: TechnicalScheduleViewProps) {
   const existingSchedule = technicalSchedules.find(s => s.contractId === contract.id);
   const [editingServiceId, setEditingServiceId] = useState<string | null>(null);
@@ -3424,15 +3425,44 @@ export function TechnicalScheduleView({
     });
   };
 
+  const computedActuals = React.useMemo(() => {
+    const start = new Date(localSchedule.startDate + 'T12:00:00');
+    const map: Record<string, Record<number, number>> = {};
+    measurements.forEach(m => {
+       const d = new Date(m.date + 'T12:00:00');
+       let periodIndex = 0;
+       if (localSchedule.timeUnit === 'months') {
+          periodIndex = (d.getFullYear() - start.getFullYear()) * 12 + d.getMonth() - start.getMonth();
+       } else if (localSchedule.timeUnit === 'weeks') {
+          periodIndex = Math.floor((d.getTime() - start.getTime()) / (1000 * 60 * 60 * 24 * 7));
+       } else {
+          periodIndex = Math.floor((d.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+       }
+       if (periodIndex >= 0) {
+         m.items.forEach(item => {
+           if (!map[item.serviceId]) map[item.serviceId] = {};
+           if (!map[item.serviceId][periodIndex]) map[item.serviceId][periodIndex] = 0;
+           map[item.serviceId][periodIndex] += item.quantity;
+         });
+       }
+    });
+    return map;
+  }, [measurements, localSchedule.startDate, localSchedule.timeUnit]);
+
   const getDayValue = React.useCallback((serviceId: string, periodIndex: number, field: 'plannedQty' | 'actualQty' | 'plannedValue' | 'actualValue') => {
+    const unitCost = unitCostsMap[serviceId] || 0;
+    if (field === 'actualQty') return computedActuals[serviceId]?.[periodIndex] || 0;
+    if (field === 'actualValue') return (computedActuals[serviceId]?.[periodIndex] || 0) * unitCost;
+
     const s = localSchedule.services.find(s => s.serviceId === serviceId);
     if (!s) return 0;
     const dist = s.distribution.find(d => d.periodIndex === periodIndex);
     return dist ? dist[field] : 0;
-  }, [localSchedule.services]);
+  }, [localSchedule.services, computedActuals, unitCostsMap]);
 
   const updateDayValue = React.useCallback((serviceId: string, periodIndex: number, field: 'plannedQty' | 'actualQty' | 'plannedPerc' | 'actualPerc', value: number) => {
     if (readonly) return;
+    if (field === 'actualQty' || field === 'actualPerc') return; // Cannot edit actual quantities here
     isDirty.current = true;
     setHasUnsavedChanges(true);
     
@@ -3583,10 +3613,14 @@ export function TechnicalScheduleView({
   };
 
   const getServiceAccumulated = React.useCallback((serviceId: string, field: 'plannedQty' | 'actualQty' | 'plannedValue' | 'actualValue') => {
+    const unitCost = unitCostsMap[serviceId] || 0;
+    if (field === 'actualQty') return Object.values(computedActuals[serviceId] || {}).reduce((a, b) => a + b, 0);
+    if (field === 'actualValue') return Object.values(computedActuals[serviceId] || {}).reduce((a, b) => a + b, 0) * unitCost;
+
     const s = localSchedule.services.find(s => s.serviceId === serviceId);
     if (!s) return 0;
     return s.distribution.reduce((acc, d) => acc + (d[field] || 0), 0);
-  }, [localSchedule.services]);
+  }, [localSchedule.services, computedActuals, unitCostsMap]);
 
   const { periodPlannedTotals, periodActualTotals, totalPlannedSum, totalActualSum, budgetTotalSum } = React.useMemo(() => {
     const planned = new Array(periods.length).fill(0);
@@ -3598,10 +3632,20 @@ export function TechnicalScheduleView({
       s.distribution.forEach(d => {
         if (d.periodIndex >= 0 && d.periodIndex < periods.length) {
           planned[d.periodIndex] += d.plannedValue || 0;
-          actual[d.periodIndex] += d.actualValue || 0;
           plannedSum += d.plannedValue || 0;
-          actualSum += d.actualValue || 0;
         }
+      });
+    });
+
+    Object.keys(computedActuals).forEach(serviceId => {
+      const unitCost = unitCostsMap[serviceId] || 0;
+      Object.entries(computedActuals[serviceId]).forEach(([pIdxStr, qty]) => {
+         const pIdx = parseInt(pIdxStr);
+         if (pIdx >= 0 && pIdx < periods.length) {
+            const val = qty * unitCost;
+            actual[pIdx] += val;
+            actualSum += val;
+         }
       });
     });
 
@@ -3617,7 +3661,7 @@ export function TechnicalScheduleView({
       totalActualSum: actualSum,
       budgetTotalSum: bSum
     };
-  }, [localSchedule.services, periods.length, budgetItems, unitCostsMap]);
+  }, [localSchedule.services, periods.length, budgetItems, unitCostsMap, computedActuals]);
 
   const getPeriodTotalValue = React.useCallback((periodIndex: number, field: 'plannedValue' | 'actualValue') => {
     if (field === 'plannedValue') return periodPlannedTotals[periodIndex] || 0;
@@ -3768,11 +3812,28 @@ export function TechnicalScheduleView({
                         <TableHead className="w-[180px] sticky left-0 bg-gray-50/95 backdrop-blur-md z-50 shadow-[1px_0_0_0_rgba(0,0,0,0.1)] border-b py-3 font-bold text-gray-700">Serviço / Item</TableHead>
                         <TableHead className="w-[80px] border-r sticky left-[180px] bg-gray-50 z-30 border-b font-bold text-gray-600 shadow-[1px_0_0_0_rgba(0,0,0,0.1)]">Tipo</TableHead>
                         <TableHead className="w-[100px] text-right border-r bg-gray-50 z-30 border-b font-bold text-gray-600 px-4">Total</TableHead>
-                        {periods.map(p => (
-                          <TableHead key={p} className="w-[80px] min-w-[80px] text-center border-r bg-gray-50 border-b py-3 font-bold text-gray-600 px-2">
-                            {getPeriodLabel(p)}
-                          </TableHead>
-                        ))}
+                        {periods.map(p => {
+                          const now = new Date();
+                          const startDate = new Date(localSchedule.startDate + 'T12:00:00');
+                          let isCurrentMonth = false;
+                          if (localSchedule.timeUnit === 'months') {
+                            const currentPeriodIndex = (now.getFullYear() - startDate.getFullYear()) * 12 + now.getMonth() - startDate.getMonth();
+                            isCurrentMonth = p === currentPeriodIndex;
+                          } else if (localSchedule.timeUnit === 'weeks') {
+                            const currentPeriodIndex = Math.floor((now.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24 * 7));
+                            isCurrentMonth = p === currentPeriodIndex;
+                          } else {
+                            const currentPeriodIndex = Math.floor((now.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+                            isCurrentMonth = p === currentPeriodIndex;
+                          }
+                          
+                          return (
+                            <TableHead key={p} className={`w-[110px] min-w-[110px] text-center border-r border-b py-3 font-bold px-2 ${isCurrentMonth ? "bg-amber-100 text-amber-900 border-amber-300" : "bg-gray-50 text-gray-600"}`}>
+                              {getPeriodLabel(p)}
+                              {isCurrentMonth && <div className="text-[9px] uppercase font-black text-amber-700 bg-amber-200/50 rounded-full px-2 py-0.5 w-fit mx-auto mt-1">Atual</div>}
+                            </TableHead>
+                          );
+                        })}
                         <TableHead className="w-[100px] min-w-[100px] text-right bg-blue-50/50 border-b font-bold text-blue-800 px-4">Acum.</TableHead>
                         <TableHead className="w-[100px] min-w-[100px] text-right border-l bg-gray-50 border-b font-bold text-gray-600 px-4">Saldo</TableHead>
                       </TableRow>
@@ -4230,6 +4291,19 @@ export function TechnicalScheduleView({
             
             <div className="grid grid-cols-4 gap-4 mt-8">
                {(() => {
+                 const now = new Date();
+                 const startDate = new Date(localSchedule.startDate + 'T12:00:00');
+                 let currentPeriodIndex = 0;
+                 if (localSchedule.timeUnit === 'months') {
+                   currentPeriodIndex = (now.getFullYear() - startDate.getFullYear()) * 12 + now.getMonth() - startDate.getMonth();
+                 } else if (localSchedule.timeUnit === 'weeks') {
+                   currentPeriodIndex = Math.floor((now.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24 * 7));
+                 } else {
+                   currentPeriodIndex = Math.floor((now.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+                 }
+                 
+                 const deviationPeriodMax = currentPeriodIndex - 1;
+
                  const filterServices = chartGroupFilter === 'all' 
                    ? budgetItems 
                    : groupsToRender.find(g => g.id === chartGroupFilter)?.services || [];
@@ -4247,26 +4321,48 @@ export function TechnicalScheduleView({
                      return acc + (dist ? dist.actualValue : 0);
                    }, 0);
 
-                   return { planned, actual };
+                   return { p, planned, actual };
                  });
 
                  const totalPlanned = currentChartData.reduce((acc, d) => acc + d.planned, 0);
                  const totalActual = currentChartData.reduce((acc, d) => acc + d.actual, 0);
+
+                 let deviationPlanned = totalPlanned;
+                 let deviationActual = totalActual;
+                 
+                 if (chartPeriodFilter === null) {
+                   const devData = periods.filter(p => p <= deviationPeriodMax).map(p => {
+                     const planned = filterServices.reduce((acc, bi) => {
+                       const dist = localServicesMap[bi.serviceId]?.distribution.find(d => d.periodIndex === p);
+                       return acc + (dist ? dist.plannedValue : 0);
+                     }, 0);
+                     const actual = filterServices.reduce((acc, bi) => {
+                       const dist = localServicesMap[bi.serviceId]?.distribution.find(d => d.periodIndex === p);
+                       return acc + (dist ? dist.actualValue : 0);
+                     }, 0);
+                     return { planned, actual };
+                   });
+                   deviationPlanned = devData.reduce((acc, d) => acc + d.planned, 0);
+                   deviationActual = devData.reduce((acc, d) => acc + d.actual, 0);
+                 }
+
                  const performance = totalPlanned > 0 ? (totalActual / totalPlanned) * 100 : 0;
-                 const deviation = totalActual - totalPlanned;
+                 const deviation = deviationActual - deviationPlanned;
 
                  return (
                    <>
                     <div className="p-4 bg-blue-50/50 rounded-2xl border border-blue-100">
-                      <p className="text-xs font-black text-blue-600 uppercase mb-1">Total Planejado</p>
+                      <p className="text-xs font-black text-blue-600 uppercase mb-1">Total Planejado {chartPeriodFilter === null && '(Global)'}</p>
                       <p className="text-xl font-black text-blue-900">{formatCurrency(totalPlanned)}</p>
                     </div>
                     <div className="p-4 bg-emerald-50/50 rounded-2xl border border-emerald-100">
-                      <p className="text-xs font-black text-emerald-600 uppercase mb-1">Total Executado</p>
+                      <p className="text-xs font-black text-emerald-600 uppercase mb-1">Total Executado {chartPeriodFilter === null && '(Global)'}</p>
                       <p className="text-xl font-black text-emerald-900">{formatCurrency(totalActual)}</p>
                     </div>
-                    <div className={cn("p-4 rounded-2xl border transition-all", deviation >= 0 ? "bg-emerald-100/30 border-emerald-200" : "bg-red-50/50 border-red-100")}>
-                      <p className={cn("text-xs font-black uppercase mb-1", deviation >= 0 ? "text-emerald-700" : "text-gray-500")}>Desvio Financeiro</p>
+                    <div className={cn("p-4 rounded-2xl border transition-all relative overflow-hidden", deviation >= 0 ? "bg-emerald-100/30 border-emerald-200" : "bg-red-50/50 border-red-100")}>
+                      <p className={cn("text-xs font-black uppercase mb-1", deviation >= 0 ? "text-emerald-700" : "text-gray-500")} title="Calculado até o período anterior ao atual">
+                        Desvio Fin. {chartPeriodFilter === null && <span className="opacity-70 text-[9px]">(Acumulado)</span>}
+                      </p>
                       <p className={cn("text-xl font-black", deviation >= 0 ? "text-emerald-900" : "text-gray-900")}>{formatCurrency(deviation)}</p>
                     </div>
                     <div className="p-4 bg-slate-900 rounded-2xl border border-slate-800 shadow-xl shadow-slate-100 text-right">
@@ -4397,27 +4493,51 @@ export function TechnicalScheduleView({
                                   <Bar 
                                     dataKey="per_planned" 
                                     name="Previsto (Período)" 
-                                    fill="#3b82f6" 
                                     radius={[4, 4, 0, 0]} 
                                     barSize={20} 
-                                    opacity={0.3} 
                                     style={{ cursor: 'pointer' }}
                                     onMouseDown={(data: any) => {
                                       if (data && typeof data.periodIndex === 'number') setChartPeriodFilter(data.periodIndex);
                                     }}
-                                  />
+                                  >
+                                    {periods.map((p, index) => {
+                                      const now = new Date();
+                                      const startDate = new Date(localSchedule.startDate + 'T12:00:00');
+                                      let highlightIndex = 0;
+                                      if (localSchedule.timeUnit === 'months') {
+                                        highlightIndex = (now.getFullYear() - startDate.getFullYear()) * 12 + now.getMonth() - startDate.getMonth() + 1;
+                                      } else if (localSchedule.timeUnit === 'weeks') {
+                                        highlightIndex = Math.floor((now.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24 * 7)) + 1;
+                                      } else {
+                                        highlightIndex = Math.floor((now.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+                                      }
+                                      return <Cell key={`planned-${index}`} fill={index === highlightIndex ? '#eab308' : '#3b82f6'} fillOpacity={index === highlightIndex ? 0.7 : 0.3} />;
+                                    })}
+                                  </Bar>
                                   <Bar 
                                     dataKey="per_actual" 
                                     name="Executado (Período)" 
-                                    fill="#10b981" 
                                     radius={[4, 4, 0, 0]} 
                                     barSize={20} 
-                                    opacity={0.3} 
                                     style={{ cursor: 'pointer' }}
                                     onMouseDown={(data: any) => {
                                       if (data && typeof data.periodIndex === 'number') setChartPeriodFilter(data.periodIndex);
                                     }}
-                                  />
+                                  >
+                                    {periods.map((p, index) => {
+                                      const now = new Date();
+                                      const startDate = new Date(localSchedule.startDate + 'T12:00:00');
+                                      let highlightIndex = 0;
+                                      if (localSchedule.timeUnit === 'months') {
+                                        highlightIndex = (now.getFullYear() - startDate.getFullYear()) * 12 + now.getMonth() - startDate.getMonth() + 1;
+                                      } else if (localSchedule.timeUnit === 'weeks') {
+                                        highlightIndex = Math.floor((now.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24 * 7)) + 1;
+                                      } else {
+                                        highlightIndex = Math.floor((now.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+                                      }
+                                      return <Cell key={`actual-${index}`} fill={index === highlightIndex ? '#eab308' : '#10b981'} fillOpacity={index === highlightIndex ? 0.9 : 0.3} />;
+                                    })}
+                                  </Bar>
                                   <Area 
                                     type="monotone" 
                                     dataKey="acc_planned" 
@@ -4660,7 +4780,7 @@ export function TechnicalScheduleView({
                                   />
                                   <Legend verticalAlign="top" align="right" iconType="circle" wrapperStyle={{ paddingBottom: '30px', fontSize: '10px', fontWeight: 'black', textTransform: 'uppercase' }} />
                                   <Bar dataKey="planned" name="Total Planejado" fill="#3b82f6" radius={[0, 8, 8, 0]} barSize={20} />
-                                  <Bar dataKey="actual" name="Total Realizado" fill="#10b981" radius={[0, 8, 8, 0]} barSize={20} />
+                                  <Bar dataKey="actual" name="Total Executado" fill="#10b981" radius={[0, 8, 8, 0]} barSize={20} />
                                 </BarChart>
                               </motion.div>
                             )}

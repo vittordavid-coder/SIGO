@@ -2010,6 +2010,7 @@ export function MeasurementsView({
                   services={services}
                   resources={resources}
                   quotations={quotations}
+                  measurements={measurements.filter(m => m.contractId === selectedContract.id)}
                   technicalSchedules={technicalSchedules}
                   schedules={schedules}
                   onUpdate={onUpdateTechnicalSchedule}

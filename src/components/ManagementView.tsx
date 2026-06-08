@@ -1979,7 +1979,7 @@ export const ManagementView = ({
                           : idx % colorGradients.length;
                       const sizeLabel =
                         rhTreemapMetric === "value"
-                          ? `R$ ${Math.round(item.value).toLocaleString()}`
+                          ? `R$ ${(item.value || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
                           : `${item.count} colab.`;
 
                       return (
@@ -2050,7 +2050,7 @@ export const ManagementView = ({
                               >
                                 {rhTreemapMetric === "value"
                                   ? `${item.count} colab.`
-                                  : `R$ ${Math.round(item.value).toLocaleString()}`}
+                                  : `R$ ${(item.value || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
                               </text>
                             )}
                           </g>
@@ -2130,7 +2130,7 @@ export const ManagementView = ({
                           formatter={(value: any) =>
                             rhTreemapMetric === "value"
                               ? [
-                                  `R$ ${Number(value).toLocaleString()}`,
+                                  `R$ ${(Number(value) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
                                   "Custo Total",
                                 ]
                               : [`${value} colab.`, "Colaboradores"]
@@ -2214,16 +2214,16 @@ export const ManagementView = ({
                         </TableCell>
                         <TableCell>
                           <span
-                            className={`inline-flex items-center px-2 py-1 rounded-md text-xs font-bold uppercase ${item.meta?.team ? "bg-purple-100 text-purple-700" : "bg-slate-100 text-slate-500"}`}
+                            className={`inline-flex items-center px-2 py-1 rounded-md text-xs font-bold uppercase ${item.resolvedTeam && item.resolvedTeam !== "Sem Equipe" ? "bg-purple-100 text-purple-700" : "bg-slate-100 text-slate-500"}`}
                           >
-                            {item.meta?.team || "Sem Equipe"}
+                            {item.resolvedTeam || "Sem Equipe"}
                           </span>
                         </TableCell>
                         <TableCell className="font-medium text-slate-600">
                           {item.meta?.role || "-"}
                         </TableCell>
                         <TableCell className="text-right font-mono font-bold text-slate-800">
-                          R$ {(item.value || 0).toLocaleString()}
+                          R$ {(item.value || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </TableCell>
                       </TableRow>
                     ))
@@ -2564,7 +2564,7 @@ export const ManagementView = ({
                       const gradId = item.color ? `custom-${idx}-${safeColor}` : (isNeutral ? "neutral" : idx % eqColorGradients.length);
                       const sizeLabel =
                         eqTreemapMetric === "value"
-                          ? `R$ ${Math.round(item.value).toLocaleString()}`
+                          ? `R$ ${(item.value || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
                           : `${item.count} equip.`;
 
                       return (
@@ -2625,7 +2625,7 @@ export const ManagementView = ({
                               >
                                 {eqTreemapMetric === "value"
                                   ? `${item.count} equip.`
-                                  : `R$ ${Math.round(item.value).toLocaleString()}`}
+                                  : `R$ ${(item.value || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
                               </text>
                             )}
                           </g>
@@ -2706,7 +2706,7 @@ export const ManagementView = ({
                             const val =
                               eqTreemapMetric === "count"
                                 ? `${props.payload.count} equip.`
-                                : `R$ ${props.payload.value.toLocaleString()}`;
+                                : `R$ ${(props.payload.value || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
                             return [val, props.payload.name];
                           }}
                         />
@@ -2804,6 +2804,9 @@ export const ManagementView = ({
                         >
                           Tipo {renderSortIconEq("type")}
                         </TableHead>
+                        <TableHead className="font-bold">
+                          Equipe
+                        </TableHead>
                         <TableHead
                           className="text-right cursor-pointer select-none hover:bg-slate-50 font-bold"
                           onClick={() => handleSortEq("value")}
@@ -2816,7 +2819,7 @@ export const ManagementView = ({
                       {sortedList.length === 0 ? (
                         <TableRow>
                           <TableCell
-                            colSpan={3}
+                            colSpan={4}
                             className="text-center py-8 text-slate-400 italic font-medium"
                           >
                             Nenhum equipamento encontrado.
@@ -2831,8 +2834,15 @@ export const ManagementView = ({
                             <TableCell className="text-slate-600">
                               {item.meta?.category || item.meta?.type || "-"}
                             </TableCell>
+                            <TableCell>
+                              <span
+                                className={`inline-flex items-center px-2 py-1 rounded-md text-xs font-bold uppercase ${item.resolvedTeam && item.resolvedTeam !== "Sem Equipe" ? "bg-purple-100 text-purple-700" : "bg-slate-100 text-slate-500"}`}
+                              >
+                                {item.resolvedTeam || "Sem Equipe"}
+                              </span>
+                            </TableCell>
                             <TableCell className="text-right font-mono font-bold text-slate-800">
-                              R$ {(item.value || 0).toLocaleString()}
+                              R$ {(item.value || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                             </TableCell>
                           </TableRow>
                         ))
