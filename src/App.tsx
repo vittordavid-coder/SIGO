@@ -702,7 +702,26 @@ export default function App() {
           const parsedBlobData = blobData ? (Array.isArray(blobData) ? blobData : [blobData]) : [];
 
           if (!hasError && allData.length > 0) {
-            const camelData = allData.map(mapToCamel);
+            let camelData = allData.map(mapToCamel);
+            
+            if (tableName === 'aportes') {
+              try {
+                const { data: itemsData, error: itemsError } = await supabase
+                  .from('aporte_items')
+                  .select('*');
+                if (!itemsError && itemsData) {
+                  const mappedItems = itemsData.map(mapToCamel);
+                  camelData = camelData.map((aporte: any) => ({
+                    ...aporte,
+                    items: mappedItems.filter((i: any) => i.aporteId === aporte.id)
+                  }));
+                } else if (itemsError) {
+                  console.warn('[Sync] Error fetching aporte_items:', itemsError);
+                }
+              } catch (itemErr) {
+                console.warn('[Sync] Exception fetching aporte_items:', itemErr);
+              }
+            }
             
             // Union both sources: keep all from DB, and add those from Blob that are missing in DB
             const dbIds = new Set(camelData.map(item => item.id));
@@ -823,7 +842,10 @@ export default function App() {
           const chunkSize = 50;
           for (let i = 0; i < mappedData.length; i += chunkSize) {
             const chunk = mappedData.slice(i, i + chunkSize);
-            const chunkToUpsert = chunk.map(({ items, ...rest }: any) => rest);
+            const chunkToUpsert = chunk.map(({ items, ...rest }: any) => {
+              if (rest.data === '') rest.data = null;
+              return rest;
+            });
             
             const { error: tError } = await supabase.from('aportes').upsert(chunkToUpsert);
             if (tError) {
@@ -835,10 +857,11 @@ export default function App() {
                if (aporte.items && Array.isArray(aporte.items)) {
                  const currentItemIds = aporte.items.map((i: any) => i.id);
                  if (currentItemIds.length > 0) {
+                   const formattedIdsList = `(${currentItemIds.map((id: string) => `"${id}"`).join(',')})`;
                    await supabase.from('aporte_items')
                      .delete()
                      .eq('aporte_id', aporte.id)
-                     .not('id', 'in', `(${currentItemIds.join(',')})`);
+                     .not('id', 'in', formattedIdsList);
                  } else {
                    await supabase.from('aporte_items')
                      .delete()
@@ -848,13 +871,13 @@ export default function App() {
                  const itemsToInsert = aporte.items.map((item: any) => ({
                     id: item.id,
                     aporte_id: aporte.id,
-                    categoria: item.categoria,
-                    subcategoria: item.subcategoria,
-                    fornecedor: item.fornecedor,
-                    descricao: item.descricao,
-                    mes_competencia: item.mes_competencia || item.mesCompetencia,
-                    data_vencimento: item.data_vencimento || item.dataVencimento,
-                    valor: item.valor
+                    categoria: item.categoria || item.Categoria || '',
+                    subcategoria: item.subcategoria || item.Subcategoria || '',
+                    fornecedor: item.fornecedor || item.Fornecedor || '',
+                    descricao: item.descricao || item.Descrição || item.Descricao || '',
+                    mes_competencia: item.mes_competencia || item.mesCompetencia || '',
+                    data_vencimento: (item.data_vencimento || item.dataVencimento || '').trim() !== '' ? (item.data_vencimento || item.dataVencimento) : null,
+                    valor: Number(item.valor) || 0
                  }));
                  
                  if (itemsToInsert.length > 0) {
@@ -1403,7 +1426,10 @@ export default function App() {
                 
                 let chunkToUpsert = chunk;
                 if (targetTable === 'aportes') {
-                   chunkToUpsert = chunk.map(({ items, ...rest }: any) => rest);
+                   chunkToUpsert = chunk.map(({ items, ...rest }: any) => {
+                     if (rest.data === '') rest.data = null;
+                     return rest;
+                   });
                 }
                 const { error: tError } = await supabase.from(targetTable).upsert(chunkToUpsert);
                 
@@ -1448,10 +1474,11 @@ export default function App() {
                      if (aporte.items && Array.isArray(aporte.items)) {
                        const currentItemIds = aporte.items.map((i: any) => i.id);
                        if (currentItemIds.length > 0) {
+                         const formattedIdsList = `(${currentItemIds.map((id: string) => `"${id}"`).join(',')})`;
                          await supabase.from('aporte_items')
                            .delete()
                            .eq('aporte_id', aporte.id)
-                           .not('id', 'in', `(${currentItemIds.join(',')})`);
+                           .not('id', 'in', formattedIdsList);
                        } else {
                          await supabase.from('aporte_items')
                            .delete()
@@ -1461,13 +1488,13 @@ export default function App() {
                        const itemsToInsert = aporte.items.map((item: any) => ({
                           id: item.id,
                           aporte_id: aporte.id,
-                          categoria: item.categoria,
-                          subcategoria: item.subcategoria,
-                          fornecedor: item.fornecedor,
-                          descricao: item.descricao,
-                          mes_competencia: item.mes_competencia || item.mesCompetencia,
-                          data_vencimento: item.data_vencimento || item.dataVencimento,
-                          valor: item.valor
+                          categoria: item.categoria || item.Categoria || '',
+                          subcategoria: item.subcategoria || item.Subcategoria || '',
+                          fornecedor: item.fornecedor || item.Fornecedor || '',
+                          descricao: item.descricao || item.Descrição || item.Descricao || '',
+                          mes_competencia: item.mes_competencia || item.mesCompetencia || '',
+                          data_vencimento: (item.data_vencimento || item.dataVencimento || '').trim() !== '' ? (item.data_vencimento || item.dataVencimento) : null,
+                          valor: Number(item.valor) || 0
                        }));
                        
                        if (itemsToInsert.length > 0) {
