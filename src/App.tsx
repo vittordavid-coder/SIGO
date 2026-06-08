@@ -2733,8 +2733,9 @@ export default function App() {
     }
   };
 
-  const updateTechnicalEquipments = async (equips: ControllerEquipment[]) => {
+  const updateTechnicalEquipments = async (val: ControllerEquipment[] | ((prev: ControllerEquipment[]) => ControllerEquipment[])) => {
     lastLocalUpdate.current = Date.now();
+    const equips = typeof val === 'function' ? val(controllerEquipments) : val;
     setControllerEquipments(equips);
     const config = getSupabaseConfig();
     if (config.enabled && compId) {

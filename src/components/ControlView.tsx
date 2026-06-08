@@ -132,7 +132,7 @@ interface ControlViewProps {
   equipmentMaintenance: EquipmentMaintenance[];
   onUpdatePurchaseRequests: (requests: PurchaseRequest[]) => void;
   onUpdateContractId: (id: string) => void;
-  onUpdateEquipments: (equipments: ControllerEquipment[]) => void;
+  onUpdateEquipments: (val: ControllerEquipment[] | ((prev: ControllerEquipment[]) => ControllerEquipment[])) => void;
   onUpdateEquipmentMonthly: (data: EquipmentMonthlyData[]) => void;
   onUpdateTransfers: (transfers: EquipmentTransfer[]) => void;
   onUpdateMaintenance: (maintenance: EquipmentMaintenance[]) => void;
@@ -693,7 +693,7 @@ export default function ControlView({
         }
       });
 
-      onUpdateEquipments([...equipments, ...newEquips]);
+      onUpdateEquipments(prev => [...prev, ...newEquips]);
       if (newMonthly.length > 0)
         onUpdateEquipmentMonthly([...equipmentMonthly, ...newMonthly]);
       if (fileInputRef.current) fileInputRef.current.value = "";
@@ -1101,8 +1101,8 @@ export default function ControlView({
     if (!newEquip.name) return;
     const finalContractId = selectedContractId || newEquip.contractId;
 
-    onUpdateEquipments([
-      ...equipments,
+    onUpdateEquipments((prev) => [
+      ...prev,
       {
         ...(newEquip as ControllerEquipment),
         id: crypto.randomUUID(),
@@ -1111,7 +1111,7 @@ export default function ControlView({
         currentReading: Number(newEquip.currentReading) || 0,
         contractedPrice: Number(newEquip.contractedPrice) || 0,
         monthlyPrice: Number(newEquip.monthlyPrice) || 0,
-        year: Number(newEquip.year) || new Date().getFullYear(),
+        year: Number(newEquip.year) || undefined,
       },
     ]);
     setIsAddOpen(false);
@@ -1945,15 +1945,15 @@ export default function ControlView({
 
   const handleUpdateEquip = () => {
     if (!equipmentToEdit || !equipmentToEdit.name) return;
-    onUpdateEquipments(
-      equipments.map((e) =>
+    onUpdateEquipments((prev) =>
+      prev.map((e) =>
         e.id === equipmentToEdit.id
           ? {
               ...equipmentToEdit,
               currentReading: Number(equipmentToEdit.currentReading) || 0,
               contractedPrice: Number(equipmentToEdit.contractedPrice) || 0,
               monthlyPrice: Number(equipmentToEdit.monthlyPrice) || 0,
-              year: Number(equipmentToEdit.year) || new Date().getFullYear(),
+              year: Number(equipmentToEdit.year) || undefined,
             }
           : e,
       ),
@@ -1969,7 +1969,7 @@ export default function ControlView({
         `Tem certeza que deseja EXCLUIR PERMANENTEMENTE o equipamento ${equipmentToEdit.name}? Esta ação não pode ser desfeita.`,
       )
     ) {
-      onUpdateEquipments(equipments.filter((e) => e.id !== equipmentToEdit.id));
+      onUpdateEquipments((prev) => prev.filter((e) => e.id !== equipmentToEdit.id));
       setIsEditOpen(false);
       setEquipmentToEdit(null);
     }
@@ -1977,8 +1977,8 @@ export default function ControlView({
 
   const handleSoftDelete = () => {
     if (!equipmentToDelete) return;
-    onUpdateEquipments(
-      equipments.map((e) =>
+    onUpdateEquipments((prev) =>
+      prev.map((e) =>
         e.id === equipmentToDelete.id ? { ...e, exitDate: exitDateInput } : e,
       ),
     );
@@ -2008,8 +2008,8 @@ export default function ControlView({
   };
 
   const handleApproveTransfer = (transfer: EquipmentTransfer) => {
-    onUpdateEquipments(
-      equipments.map((e) =>
+    onUpdateEquipments((prev) =>
+      prev.map((e) =>
         e.id === transfer.equipmentId
           ? { ...e, contractId: transfer.targetContractId }
           : e,
@@ -2090,8 +2090,8 @@ export default function ControlView({
 
     const exitDate = maintenanceExitDate;
 
-    onUpdateEquipments(
-      equipments.map((e) =>
+    onUpdateEquipments((prev) =>
+      prev.map((e) =>
         e.id === equipmentToExit.id
           ? {
               ...e,
@@ -2142,8 +2142,8 @@ export default function ControlView({
       });
     }
 
-    onUpdateEquipments(
-      equipments.map((e) =>
+    onUpdateEquipments((prev) =>
+      prev.map((e) =>
         e.id === maintenanceEquipment.id
           ? {
               ...e,
@@ -3966,8 +3966,8 @@ export default function ControlView({
                                   const updatedTeam =
                                     val === "none" ? undefined : val;
                                   // 1. Update equipment team properties
-                                  onUpdateEquipments(
-                                    equipments.map((item) =>
+                                  onUpdateEquipments((prev) =>
+                                    prev.map((item) =>
                                       item.id === e.id
                                         ? { ...item, team: updatedTeam }
                                         : item,
