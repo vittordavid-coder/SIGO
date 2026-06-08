@@ -2870,7 +2870,7 @@ const ScheduleServiceRow = React.memo(({
             <div className="flex flex-col gap-1.5 pr-1">
               <span className="text-sm font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded w-fit uppercase leading-none border border-blue-100">{service?.code || '---'}</span>
               <span className="text-sm font-bold text-gray-900 leading-tight whitespace-normal" title={service?.name || (bi as any).name}>
-                {(service?.name || (bi as any).name || 'Serviço não encontrado').toLowerCase()}
+                {service?.name || (bi as any).name || 'Serviço não encontrado'}
               </span>
               <span className="text-sm text-gray-400 font-medium leading-tight flex items-center gap-1">
                 <Badge variant="outline" className="text-xs h-4 px-1 rounded-sm">{service?.unit || '---'}</Badge>
@@ -3690,19 +3690,31 @@ export function TechnicalScheduleView({
            ls.distribution.forEach(d => {
              if (d.periodIndex >= 0 && d.periodIndex < periods.length) {
                planned[d.periodIndex] += d.plannedValue || 0;
-               actual[d.periodIndex] += d.actualValue || 0;
                tPlanned += d.plannedValue || 0;
-               tActual += d.actualValue || 0;
              }
            });
          }
-         bSum += (bi.quantity || 0) * (unitCostsMap[bi.serviceId] || 0);
+         
+         const unitCost = unitCostsMap[bi.serviceId] || 0;
+         const actualsForService = computedActuals[bi.serviceId];
+         if (actualsForService) {
+           Object.entries(actualsForService).forEach(([pIdxStr, qty]) => {
+             const pIdx = parseInt(pIdxStr);
+             if (pIdx >= 0 && pIdx < periods.length) {
+               const val = qty * unitCost;
+               actual[pIdx] += val;
+               tActual += val;
+             }
+           });
+         }
+         
+         bSum += (bi.quantity || 0) * unitCost;
        });
        
        totals[g.id] = { planned, actual, totalPlanned: tPlanned, totalActual: tActual, budgetSum: bSum };
     });
     return totals;
-  }, [groupsToRender, localServicesMap, periods.length, unitCostsMap]);
+  }, [groupsToRender, localServicesMap, periods.length, unitCostsMap, computedActuals]);
 
   return (
     <div className="flex h-full min-h-0 overflow-hidden relative">
@@ -3905,7 +3917,7 @@ export function TechnicalScheduleView({
                       {/* Group Financial Total Row (Executed) */}
                       <TableRow className="bg-blue-50 font-black border-b-2 border-blue-200">
                         <TableCell className="sticky left-0 bg-blue-50 z-20 py-2 top-auto shadow-[1px_0_0_0_rgba(0,0,0,0.1)] text-sm uppercase text-blue-600 font-extrabold tracking-tighter">
-                          TOTAL PREVISTO R$
+                          TOTAL EXECUTADO R$
                         </TableCell>
                         <TableCell className="sticky left-[180px] bg-blue-50 z-20 shadow-[1px_0_0_0_rgba(0,0,0,0.1)] text-[10px] font-black text-blue-400 uppercase px-3">VALOR</TableCell>
                         <TableCell className="text-right text-sm font-mono px-4 text-blue-400 italic">--</TableCell>
@@ -4418,8 +4430,9 @@ export function TechnicalScheduleView({
                                       }, 0);
 
                                       const actual = filterServices.reduce((acc, bi) => {
-                                        const dist = localServicesMap[bi.serviceId]?.distribution.find(d => d.periodIndex === p);
-                                        return acc + (dist ? dist.actualValue : 0);
+                                        const unitCost = unitCostsMap[bi.serviceId] || 0;
+                                        const actualQty = computedActuals[bi.serviceId]?.[p] || 0;
+                                        return acc + (actualQty * unitCost);
                                       }, 0);
 
                                       // Accumulated logic
@@ -4432,8 +4445,9 @@ export function TechnicalScheduleView({
 
                                       const accActual = periods.slice(0, p + 1).reduce((sum, sp) => {
                                         return sum + filterServices.reduce((acc, bi) => {
-                                          const dist = localServicesMap[bi.serviceId]?.distribution.find(d => d.periodIndex === sp);
-                                          return acc + (dist ? dist.actualValue : 0);
+                                          const unitCost = unitCostsMap[bi.serviceId] || 0;
+                                          const actualQty = computedActuals[bi.serviceId]?.[sp] || 0;
+                                          return acc + (actualQty * unitCost);
                                         }, 0);
                                       }, 0);
 
