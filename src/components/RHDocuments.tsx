@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { motion } from 'motion/react';
 import { Employee, Contract, User } from '../types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -31,6 +32,13 @@ interface RHDocumentsProps {
   selectedContractId: string | null;
 }
 
+export interface GeneratingState {
+  isGenerating: boolean;
+  progress: number;
+  status: string;
+  employeeName: string;
+}
+
 export function RHDocuments({ employees, currentUser, selectedContractId }: RHDocumentsProps) {
   const [templates, setTemplates] = useState<RHTemplate[]>([]);
   const [mode, setMode] = useState<'individual' | 'malote'>('individual');
@@ -44,6 +52,13 @@ export function RHDocuments({ employees, currentUser, selectedContractId }: RHDo
   // Batch selection
   const [selectedEmployeeIds, setSelectedEmployeeIds] = useState<string[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
+
+  const [genState, setGenState] = useState<GeneratingState>({
+    isGenerating: false,
+    progress: 0,
+    status: '',
+    employeeName: ''
+  });
 
   const supabaseConfig = getSupabaseConfig();
   const supabase = createSupabaseClient(supabaseConfig.url, supabaseConfig.key);
@@ -344,29 +359,194 @@ export function RHDocuments({ employees, currentUser, selectedContractId }: RHDo
       const ctx = getEmployeeContext(emp);
       const filename = `${template.name.split('.')[0]} - ${emp.name}.${template.type === 'word'?'docx':'xlsx'}`;
       
-      if (template.type === 'word') await generateWordDocument(template, ctx, filename);
-       else await generateExcelDocument(template, ctx, filename);
+      try {
+        setGenState({
+          isGenerating: true,
+          progress: 5,
+          status: 'Iniciando processo de geração...',
+          employeeName: emp.name
+        });
+        await new Promise(r => setTimeout(r, 200));
+        
+        setGenState(prev => ({ ...prev, progress: 25, status: 'Conectando ao servidor para baixar arquivo modelo...' }));
+        const blob = await getBlobFromData(template.fileData);
+        
+        setGenState(prev => ({ ...prev, progress: 55, status: 'Lendo conteúdo do arquivo e inicializando compilador...' }));
+        await new Promise(r => setTimeout(r, 250));
+        
+        if (template.type === 'word') {
+          const arrayBuffer = await blob.arrayBuffer();
+          const zip = new PizZip(arrayBuffer);
+          const doc = new Docxtemplater(zip, {
+            paragraphLoop: true,
+            linebreaks: true,
+            delimiters: { start: '[', end: ']' },
+          });
+          
+          setGenState(prev => ({ ...prev, progress: 75, status: 'Substituindo tags [NOME], [CPF], [CARGO]...' }));
+          await new Promise(r => setTimeout(r, 200));
+          
+          doc.render(ctx);
+          
+          setGenState(prev => ({ ...prev, progress: 90, status: 'Reconstruindo pacote do Word (.docx)...' }));
+          await new Promise(r => setTimeout(r, 200));
+          
+          const out = doc.getZip().generate({
+            type: "blob",
+            mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+          });
+          
+          setGenState(prev => ({ ...prev, progress: 100, status: 'Carregamento finalizado!' }));
+          await new Promise(r => setTimeout(r, 300));
+          
+          saveAs(out, filename);
+        } else {
+          const arrayBuffer = await blob.arrayBuffer();
+          const workbook = new ExcelJS.Workbook();
+          await workbook.xlsx.load(arrayBuffer);
+
+          setGenState(prev => ({ ...prev, progress: 75, status: 'Substituindo tags nas células da planilha...' }));
+          await new Promise(r => setTimeout(r, 200));
+
+          workbook.eachSheet((worksheet) => {
+            worksheet.eachRow((row) => {
+              row.eachCell((cell) => {
+                if (typeof cell.value === 'string') {
+                   let str = cell.value;
+                   let changed = false;
+                   for (const key in ctx) {
+                     const replaceKey = `[${key}]`;
+                     if (str.includes(replaceKey)) {
+                       str = str.split(replaceKey).join(ctx[key]);
+                       changed = true;
+                     }
+                   }
+                   if (changed) cell.value = str;
+                }
+              });
+            });
+          });
+
+          setGenState(prev => ({ ...prev, progress: 90, status: 'Compilando planilha Excel (.xlsx)...' }));
+          await new Promise(r => setTimeout(r, 200));
+
+          const buffer = await workbook.xlsx.writeBuffer();
+          const outBlob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+          
+          setGenState(prev => ({ ...prev, progress: 100, status: 'Carregamento finalizado!' }));
+          await new Promise(r => setTimeout(r, 300));
+          
+          saveAs(outBlob, filename);
+        }
+      } catch (err) {
+        console.error(err);
+        alert('Erro ao gerar documento.');
+      } finally {
+        setGenState({ isGenerating: false, progress: 0, status: '', employeeName: '' });
+      }
        
     } else {
       if (selectedEmployeeIds.length === 0) { alert('Selecione pelo menos um colaborador.'); return; }
       
-      // Batch mode: in reality, malote could be one single merged document (Word) or zip.
-      // But we can generate multiple files or one zip. Using file-saver 10 times triggers browser multiple-download warning.
-      // For simplicity, we just trigger download for each if it's not too many (limit 20)
       if (selectedEmployeeIds.length > 20) {
          alert('Selecione no máximo 20 colaboradores por vez para não travar o navegador.'); return;
       }
       
-      for (const eid of selectedEmployeeIds) {
-        const emp = employees.find(e => e.id === eid);
-        if (emp) {
-          const ctx = getEmployeeContext(emp);
-          const filename = `${template.name.split('.')[0]} - ${emp.name}.${template.type === 'word'?'docx':'xlsx'}`;
-          if (template.type === 'word') await generateWordDocument(template, ctx, filename);
-          else await generateExcelDocument(template, ctx, filename);
-          
-          await new Promise(r => setTimeout(r, 600)); // Sleep between downloads
+      try {
+        setGenState({
+          isGenerating: true,
+          progress: 5,
+          status: 'Iniciando processamento em lote (Malote)...',
+          employeeName: `Lote de ${selectedEmployeeIds.length} colaboradores`
+        });
+        await new Promise(r => setTimeout(r, 300));
+        
+        setGenState({
+          isGenerating: true,
+          progress: 15,
+          status: 'Baixando modelo do servidor para otimização...',
+          employeeName: 'Buscando base única'
+        });
+        const blob = await getBlobFromData(template.fileData);
+        const arrayBuffer = await blob.arrayBuffer();
+
+        let count = 0;
+        const total = selectedEmployeeIds.length;
+        
+        for (const eid of selectedEmployeeIds) {
+          const emp = employees.find(e => e.id === eid);
+          if (emp) {
+            count++;
+            const percent = Math.round(15 + ((count / total) * 80)); // 15% to 95%
+            setGenState({
+              isGenerating: true,
+              progress: percent,
+              status: `Processando e compilando guia (${count} de ${total}):`,
+              employeeName: emp.name
+            });
+            await new Promise(r => setTimeout(r, 200));
+
+            const ctx = getEmployeeContext(emp);
+            const filename = `${template.name.split('.')[0]} - ${emp.name}.${template.type === 'word'?'docx':'xlsx'}`;
+            
+            if (template.type === 'word') {
+              const zip = new PizZip(arrayBuffer);
+              const doc = new Docxtemplater(zip, {
+                paragraphLoop: true,
+                linebreaks: true,
+                delimiters: { start: '[', end: ']' },
+              });
+              doc.render(ctx);
+              const out = doc.getZip().generate({
+                type: "blob",
+                mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+              });
+              saveAs(out, filename);
+            } else {
+              const workbook = new ExcelJS.Workbook();
+              await workbook.xlsx.load(arrayBuffer);
+
+              workbook.eachSheet((worksheet) => {
+                worksheet.eachRow((row) => {
+                  row.eachCell((cell) => {
+                    if (typeof cell.value === 'string') {
+                       let str = cell.value;
+                       let changed = false;
+                       for (const key in ctx) {
+                         const replaceKey = `[${key}]`;
+                         if (str.includes(replaceKey)) {
+                           str = str.split(replaceKey).join(ctx[key]);
+                           changed = true;
+                         }
+                       }
+                       if (changed) cell.value = str;
+                    }
+                  });
+                });
+              });
+
+              const buffer = await workbook.xlsx.writeBuffer();
+              const outBlob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+              saveAs(outBlob, filename);
+            }
+            
+            await new Promise(r => setTimeout(r, 300));
+          }
         }
+        
+        setGenState({
+          isGenerating: true,
+          progress: 100,
+          status: 'Todos os arquivos do lote foram baixados com sucesso!',
+          employeeName: 'Lote Concluído'
+        });
+        await new Promise(r => setTimeout(r, 800));
+        
+      } catch (err) {
+        console.error(err);
+        alert('Erro ao processar malote.');
+      } finally {
+        setGenState({ isGenerating: false, progress: 0, status: '', employeeName: '' });
       }
     }
   };
@@ -613,6 +793,61 @@ export function RHDocuments({ employees, currentUser, selectedContractId }: RHDo
           </Card>
         </div>
       </div>
+      
+      {/* Modern & Interactive Progress Bar Modal Overlay */}
+      {genState.isGenerating && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <motion.div 
+            initial={{ scale: 0.95, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            className="bg-white rounded-3xl p-8 max-w-md w-full shadow-2xl border border-gray-100 flex flex-col items-center text-center space-y-6"
+          >
+            <div className="relative flex items-center justify-center w-24 h-24">
+              <div className="absolute inset-0 rounded-full border-4 border-blue-50 border-t-blue-600 animate-spin" />
+              <div className="absolute inset-2 rounded-full border-4 border-emerald-50 border-b-emerald-500 animate-spin" style={{ animationDirection: 'reverse', animationDuration: '3s' }} />
+              
+              <div className="text-blue-600 z-10">
+                {genState.progress >= 100 ? (
+                  <motion.svg 
+                    initial={{ scale: 0.8 }} 
+                    animate={{ scale: 1 }} 
+                    className="w-10 h-10 text-emerald-500" 
+                    fill="none" 
+                    viewBox="0 0 24 24" 
+                    stroke="currentColor" 
+                    strokeWidth={3}
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                  </motion.svg>
+                ) : (
+                  <FileText className="w-10 h-10 animate-pulse text-blue-600" />
+                )}
+              </div>
+            </div>
+            
+            <div className="space-y-2 w-full">
+              <h4 className="text-xl font-extrabold text-gray-900">Gerando Documento</h4>
+              <p className="text-sm font-semibold text-blue-600 truncate px-4">{genState.employeeName}</p>
+              <p className="text-xs text-gray-400 font-medium">{genState.status}</p>
+            </div>
+
+            <div className="w-full space-y-2">
+              <div className="w-full bg-gray-100 h-3 rounded-full overflow-hidden p-0.5 border border-gray-200/50">
+                <motion.div 
+                  className="h-full bg-gradient-to-r from-blue-600 via-indigo-500 to-emerald-500 rounded-full"
+                  initial={{ width: '0%' }}
+                  animate={{ width: `${genState.progress}%` }}
+                  transition={{ duration: 0.15 }}
+                />
+              </div>
+              <div className="flex justify-between items-center text-[11px] font-bold text-gray-400 px-1 uppercase tracking-wider">
+                <span>{genState.progress < 100 ? 'Processando' : 'Pronto!'}</span>
+                <span className="font-mono text-gray-700">{genState.progress}%</span>
+              </div>
+            </div>
+          </motion.div>
+        </div>
+      )}
     </div>
   );
 }

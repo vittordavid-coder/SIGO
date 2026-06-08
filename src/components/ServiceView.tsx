@@ -34,6 +34,8 @@ export function ServiceView({ services, resources, onAdd, onDelete, onUpdate, co
   const [editingItemIndex, setEditingItemIndex] = useState<number | null>(null);
   const [resourceSearch, setResourceSearch] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
+  const [isDropdownOpenAdd, setIsDropdownOpenAdd] = useState(false);
+  const [isDropdownOpenEdit, setIsDropdownOpenEdit] = useState(false);
   const [newService, setNewService] = useState<Omit<ServiceComposition, 'id'>>({
     code: '',
     name: '',
@@ -199,44 +201,131 @@ export function ServiceView({ services, resources, onAdd, onDelete, onUpdate, co
                       <div className="space-y-4">
                         <Label>Adicionar Itens à Composição</Label>
                         <div className="flex gap-2">
-                          <div className="flex-1">
-                            <Select value={currentItem.resourceId} onValueChange={v => setCurrentItem({...currentItem, resourceId: v})}>
-                              <SelectTrigger>
-                                <SelectValue placeholder="Selecione um insumo ou serviço" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <div className="p-2">
-                                  <Input 
-                                    placeholder="Pesquisar..." 
-                                    value={resourceSearch} 
-                                    onChange={e => setResourceSearch(e.target.value)}
-                                    className="h-8 text-sm"
-                                    onClick={e => e.stopPropagation()}
-                                    onKeyDown={e => e.stopPropagation()}
-                                  />
+                          <div className="flex-1 relative">
+                            <div className="relative">
+                              <Input
+                                placeholder="Digite para buscar e selecione um insumo ou serviço..."
+                                value={
+                                  (!isDropdownOpenAdd && currentItem.resourceId)
+                                    ? (() => {
+                                        const res = resources.find(r => r.id === currentItem.resourceId) || services.find(s => s.id === currentItem.resourceId);
+                                        return res ? `${res.code} - ${res.name}` : '';
+                                      })()
+                                    : resourceSearch
+                                }
+                                onChange={(e) => {
+                                  setResourceSearch(e.target.value);
+                                  setIsDropdownOpenAdd(true);
+                                  if (!e.target.value) {
+                                    setCurrentItem(prev => ({ ...prev, resourceId: '' }));
+                                  }
+                                }}
+                                onFocus={() => {
+                                  setIsDropdownOpenAdd(true);
+                                  if (currentItem.resourceId) {
+                                    const res = resources.find(r => r.id === currentItem.resourceId) || services.find(s => s.id === currentItem.resourceId);
+                                    if (res) setResourceSearch(res.name);
+                                  }
+                                }}
+                                className="h-10 text-sm"
+                              />
+                              {(currentItem.resourceId || resourceSearch) && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setCurrentItem(prev => ({ ...prev, resourceId: '' }));
+                                    setResourceSearch('');
+                                    setIsDropdownOpenAdd(false);
+                                  }}
+                                  className="absolute right-3 top-3 text-gray-400 hover:text-gray-600 font-bold text-xs"
+                                >
+                                  ✕
+                                </button>
+                              )}
+                            </div>
+
+                            {isDropdownOpenAdd && (
+                              <>
+                                <div 
+                                  className="fixed inset-0 z-10" 
+                                  onClick={() => setIsDropdownOpenAdd(false)} 
+                                />
+                                <div className="absolute z-20 left-0 right-0 mt-1 max-h-60 overflow-y-auto bg-white border border-gray-200 rounded-xl shadow-lg p-2 space-y-1">
+                                  {/* Insumos */}
+                                  <div className="px-2 py-1 flex items-center justify-between">
+                                    <span className="text-xs font-black text-gray-400 uppercase tracking-wider">Insumos</span>
+                                    <span className="text-[10px] bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded-full font-bold">Total: {resources.length}</span>
+                                  </div>
+                                  {resources
+                                    .filter(r => 
+                                      r.name.toLowerCase().includes(resourceSearch.toLowerCase()) || 
+                                      r.code.toLowerCase().includes(resourceSearch.toLowerCase())
+                                    )
+                                    .map(r => (
+                                      <button
+                                        type="button"
+                                        key={r.id}
+                                        onClick={() => {
+                                          setCurrentItem({ ...currentItem, resourceId: r.id });
+                                          setResourceSearch(r.name);
+                                          setIsDropdownOpenAdd(false);
+                                        }}
+                                        className="w-full text-left px-3 py-2 text-sm rounded-lg hover:bg-gray-50 flex items-center justify-between group transition-colors"
+                                      >
+                                        <div className="flex flex-col">
+                                          <span className="font-semibold text-gray-950">{r.name}</span>
+                                          <span className="text-xs font-mono text-gray-500">{r.code} • {r.unit}</span>
+                                        </div>
+                                        <span className="text-xs font-bold text-gray-400 group-hover:text-blue-600">Selecionar</span>
+                                      </button>
+                                    ))}
+
+                                  {/* Serviços */}
+                                  <div className="px-2 py-1 mt-2 flex items-center justify-between border-t border-gray-100 pt-2">
+                                    <span className="text-xs font-black text-gray-400 uppercase tracking-wider">Serviços</span>
+                                    <span className="text-[10px] bg-purple-50 text-purple-600 px-1.5 py-0.5 rounded-full font-bold">Total: {services.length}</span>
+                                  </div>
+                                  {services
+                                    .filter(s => 
+                                      s.name.toLowerCase().includes(resourceSearch.toLowerCase()) || 
+                                      s.code.toLowerCase().includes(resourceSearch.toLowerCase())
+                                    )
+                                    .map(s => (
+                                      <button
+                                        type="button"
+                                        key={s.id}
+                                        onClick={() => {
+                                          setCurrentItem({ ...currentItem, resourceId: s.id });
+                                          setResourceSearch(s.name);
+                                          setIsDropdownOpenAdd(false);
+                                        }}
+                                        className="w-full text-left px-3 py-2 text-sm rounded-lg hover:bg-gray-50 flex items-center justify-between group transition-colors"
+                                      >
+                                        <div className="flex flex-col">
+                                          <span className="font-semibold text-gray-950">{s.name}</span>
+                                          <span className="text-xs font-mono text-gray-500">{s.code} • {s.unit}</span>
+                                        </div>
+                                        <span className="text-xs font-bold text-gray-400 group-hover:text-purple-600">Selecionar</span>
+                                      </button>
+                                    ))}
+
+                                  {(() => {
+                                    const filteredResources = resources.filter(r => 
+                                      r.name.toLowerCase().includes(resourceSearch.toLowerCase()) || 
+                                      r.code.toLowerCase().includes(resourceSearch.toLowerCase())
+                                    );
+                                    const filteredServices = services.filter(s => 
+                                      s.name.toLowerCase().includes(resourceSearch.toLowerCase()) || 
+                                      s.code.toLowerCase().includes(resourceSearch.toLowerCase())
+                                    );
+                                    if (filteredResources.length === 0 && filteredServices.length === 0) {
+                                      return <p className="text-center text-xs text-gray-400 py-4 font-medium animate-pulse">Nenhum insumo ou serviço encontrado.</p>;
+                                    }
+                                    return null;
+                                  })()}
                                 </div>
-                                <Separator className="mb-1" />
-                                <div className="px-2 py-1.5 text-sm font-bold text-gray-500 uppercase">Insumos</div>
-                                {resources
-                                  .filter(r => 
-                                    r.name.toLowerCase().includes(resourceSearch.toLowerCase()) || 
-                                    r.code.toLowerCase().includes(resourceSearch.toLowerCase())
-                                  )
-                                  .map(r => (
-                                    <SelectItem key={r.id} value={r.id}>{r.code} - {r.name}</SelectItem>
-                                  ))}
-                                <Separator className="my-1" />
-                                <div className="px-2 py-1.5 text-sm font-bold text-gray-500 uppercase">Serviços</div>
-                                {services
-                                  .filter(s => 
-                                    s.name.toLowerCase().includes(resourceSearch.toLowerCase()) || 
-                                    s.code.toLowerCase().includes(resourceSearch.toLowerCase())
-                                  )
-                                  .map(s => (
-                                    <SelectItem key={s.id} value={s.id}>{s.code} - {s.name}</SelectItem>
-                                  ))}
-                              </SelectContent>
-                            </Select>
+                              </>
+                            )}
                           </div>
                         <div className="w-32">
                           <NumericInput 
@@ -365,45 +454,134 @@ export function ServiceView({ services, resources, onAdd, onDelete, onUpdate, co
                     <div className="space-y-4">
                       <Label>Adicionar Itens à Composição</Label>
                       <div className="flex gap-2">
-                        <div className="flex-1">
-                          <Select value={currentItem.resourceId} onValueChange={v => setCurrentItem({...currentItem, resourceId: v})}>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Selecione um insumo ou serviço" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <div className="p-2">
-                                <Input 
-                                  placeholder="Pesquisar..." 
-                                  value={resourceSearch} 
-                                  onChange={e => setResourceSearch(e.target.value)}
-                                  className="h-8 text-sm"
-                                  onClick={e => e.stopPropagation()}
-                                  onKeyDown={e => e.stopPropagation()}
-                                />
+                        <div className="flex-1 relative">
+                          <div className="relative">
+                            <Input
+                              placeholder="Digite para buscar e selecione um insumo ou serviço..."
+                              value={
+                                (!isDropdownOpenEdit && currentItem.resourceId)
+                                  ? (() => {
+                                      const res = resources.find(r => r.id === currentItem.resourceId) || services.find(s => s.id === currentItem.resourceId);
+                                      return res ? `${res.code} - ${res.name}` : '';
+                                    })()
+                                  : resourceSearch
+                              }
+                              onChange={(e) => {
+                                setResourceSearch(e.target.value);
+                                setIsDropdownOpenEdit(true);
+                                if (!e.target.value) {
+                                  setCurrentItem(prev => ({ ...prev, resourceId: '' }));
+                                }
+                              }}
+                              onFocus={() => {
+                                setIsDropdownOpenEdit(true);
+                                if (currentItem.resourceId) {
+                                  const res = resources.find(r => r.id === currentItem.resourceId) || services.find(s => s.id === currentItem.resourceId);
+                                  if (res) setResourceSearch(res.name);
+                                }
+                              }}
+                              className="h-10 text-sm"
+                            />
+                            {(currentItem.resourceId || resourceSearch) && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setCurrentItem(prev => ({ ...prev, resourceId: '' }));
+                                  setResourceSearch('');
+                                  setIsDropdownOpenEdit(false);
+                                }}
+                                className="absolute right-3 top-3 text-gray-400 hover:text-gray-600 font-bold text-xs"
+                              >
+                                ✕
+                              </button>
+                            )}
+                          </div>
+
+                          {isDropdownOpenEdit && (
+                            <>
+                              <div 
+                                className="fixed inset-0 z-10" 
+                                onClick={() => setIsDropdownOpenEdit(false)} 
+                              />
+                              <div className="absolute z-20 left-0 right-0 mt-1 max-h-60 overflow-y-auto bg-white border border-gray-200 rounded-xl shadow-lg p-2 space-y-1">
+                                {/* Insumos */}
+                                <div className="px-2 py-1 flex items-center justify-between">
+                                  <span className="text-xs font-black text-gray-400 uppercase tracking-wider">Insumos</span>
+                                  <span className="text-[10px] bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded-full font-bold">Total: {resources.length}</span>
+                                </div>
+                                {resources
+                                  .filter(r => 
+                                    r.name.toLowerCase().includes(resourceSearch.toLowerCase()) || 
+                                    r.code.toLowerCase().includes(resourceSearch.toLowerCase())
+                                  )
+                                  .map(r => (
+                                    <button
+                                      type="button"
+                                      key={r.id}
+                                      onClick={() => {
+                                        setCurrentItem({ ...currentItem, resourceId: r.id });
+                                        setResourceSearch(r.name);
+                                        setIsDropdownOpenEdit(false);
+                                      }}
+                                      className="w-full text-left px-3 py-2 text-sm rounded-lg hover:bg-gray-50 flex items-center justify-between group transition-colors"
+                                    >
+                                      <div className="flex flex-col">
+                                        <span className="font-semibold text-gray-950">{r.name}</span>
+                                        <span className="text-xs font-mono text-gray-500">{r.code} • {r.unit}</span>
+                                      </div>
+                                      <span className="text-xs font-bold text-gray-400 group-hover:text-blue-600">Selecionar</span>
+                                    </button>
+                                  ))}
+
+                                {/* Serviços */}
+                                <div className="px-2 py-1 mt-2 flex items-center justify-between border-t border-gray-100 pt-2">
+                                  <span className="text-xs font-black text-gray-400 uppercase tracking-wider">Serviços</span>
+                                  <span className="text-[10px] bg-purple-50 text-purple-600 px-1.5 py-0.5 rounded-full font-bold">Total: {services.length}</span>
+                                </div>
+                                {services
+                                  .filter(s => s.id !== editingService.id)
+                                  .filter(s => 
+                                    s.name.toLowerCase().includes(resourceSearch.toLowerCase()) || 
+                                    s.code.toLowerCase().includes(resourceSearch.toLowerCase())
+                                  )
+                                  .map(s => (
+                                    <button
+                                      type="button"
+                                      key={s.id}
+                                      onClick={() => {
+                                        setCurrentItem({ ...currentItem, resourceId: s.id });
+                                        setResourceSearch(s.name);
+                                        setIsDropdownOpenEdit(false);
+                                      }}
+                                      className="w-full text-left px-3 py-2 text-sm rounded-lg hover:bg-gray-50 flex items-center justify-between group transition-colors"
+                                    >
+                                      <div className="flex flex-col">
+                                        <span className="font-semibold text-gray-950">{s.name}</span>
+                                        <span className="text-xs font-mono text-gray-500">{s.code} • {s.unit}</span>
+                                      </div>
+                                      <span className="text-xs font-bold text-gray-400 group-hover:text-purple-600">Selecionar</span>
+                                    </button>
+                                  ))}
+
+                                {(() => {
+                                  const filteredResources = resources.filter(r => 
+                                    r.name.toLowerCase().includes(resourceSearch.toLowerCase()) || 
+                                    r.code.toLowerCase().includes(resourceSearch.toLowerCase())
+                                  );
+                                  const filteredServices = services
+                                    .filter(s => s.id !== editingService.id)
+                                    .filter(s => 
+                                      s.name.toLowerCase().includes(resourceSearch.toLowerCase()) || 
+                                      s.code.toLowerCase().includes(resourceSearch.toLowerCase())
+                                    );
+                                  if (filteredResources.length === 0 && filteredServices.length === 0) {
+                                    return <p className="text-center text-xs text-gray-400 py-4 font-medium animate-pulse">Nenhum insumo ou serviço encontrado.</p>;
+                                  }
+                                  return null;
+                                })()}
                               </div>
-                              <Separator className="mb-1" />
-                              <div className="px-2 py-1.5 text-sm font-bold text-gray-500 uppercase">Insumos</div>
-                              {resources
-                                .filter(r => 
-                                  r.name.toLowerCase().includes(resourceSearch.toLowerCase()) || 
-                                  r.code.toLowerCase().includes(resourceSearch.toLowerCase())
-                                )
-                                .map(r => (
-                                  <SelectItem key={r.id} value={r.id}>{r.code} - {r.name}</SelectItem>
-                                ))}
-                              <Separator className="my-1" />
-                              <div className="px-2 py-1.5 text-sm font-bold text-gray-500 uppercase">Serviços</div>
-                              {services
-                                .filter(s => s.id !== editingService.id)
-                                .filter(s => 
-                                  s.name.toLowerCase().includes(resourceSearch.toLowerCase()) || 
-                                  s.code.toLowerCase().includes(resourceSearch.toLowerCase())
-                                )
-                                .map(s => (
-                                  <SelectItem key={s.id} value={s.id}>{s.code} - {s.name}</SelectItem>
-                                ))}
-                            </SelectContent>
-                          </Select>
+                            </>
+                          )}
                         </div>
                         <div className="w-32">
                           <NumericInput 
