@@ -922,8 +922,41 @@ export default function App() {
       const supabase = createSupabaseClient(config.url, config.key);
       if (supabase) {
         try {
-          const mapped = newVal.map(r => mapToSnake({ ...r, companyId: compId }));
-          await supabase.from('resources').upsert(mapped);
+          // Normalize and defensively cast values
+          const mapped = newVal.map(r => {
+            const snaked = { ...mapToSnake(r), company_id: compId };
+            snaked.base_price = Number(snaked.base_price) || 0;
+            snaked.encargos = Number(snaked.encargos) || 0;
+            return snaked;
+          });
+
+          // Deletion Sync
+          const { data: dbItems, error: selectError } = await supabase
+            .from('resources')
+            .select('id')
+            .eq('company_id', compId);
+
+          if (!selectError && dbItems) {
+            const dbIds = dbItems.map(d => d.id);
+            const currentIds = newVal.map(r => r.id);
+            const toDelete = dbIds.filter(id => !currentIds.includes(id));
+            if (toDelete.length > 0) {
+              const { error: deleteError } = await supabase
+                .from('resources')
+                .delete()
+                .in('id', toDelete);
+              if (deleteError) {
+                console.error('[Sync] Resources deletion sync failed:', deleteError);
+              }
+            }
+          }
+
+          if (mapped.length > 0) {
+            const { error: upsertError } = await supabase.from('resources').upsert(mapped);
+            if (upsertError) {
+              console.error('[Sync] Resources upsert failed:', upsertError);
+            }
+          }
         } catch (err) {
           console.warn('[Sync] Resources persist failed', err);
         }
@@ -941,8 +974,42 @@ export default function App() {
       const supabase = createSupabaseClient(config.url, config.key);
       if (supabase) {
         try {
-          const mapped = newVal.map(s => mapToSnake({ ...s, companyId: compId }));
-          await supabase.from('service_compositions').upsert(mapped);
+          // Normalize and defensively cast values
+          const mapped = newVal.map(s => {
+            const snaked = { ...mapToSnake(s), company_id: compId };
+            snaked.production = Number(snaked.production) || 1;
+            snaked.fit = Number(snaked.fit) || 1;
+            if (!snaked.items || !Array.isArray(snaked.items)) snaked.items = [];
+            return snaked;
+          });
+
+          // Deletion Sync
+          const { data: dbItems, error: selectError } = await supabase
+            .from('service_compositions')
+            .select('id')
+            .eq('company_id', compId);
+
+          if (!selectError && dbItems) {
+            const dbIds = dbItems.map(d => d.id);
+            const currentIds = newVal.map(s => s.id);
+            const toDelete = dbIds.filter(id => !currentIds.includes(id));
+            if (toDelete.length > 0) {
+              const { error: deleteError } = await supabase
+                .from('service_compositions')
+                .delete()
+                .in('id', toDelete);
+              if (deleteError) {
+                console.error('[Sync] Service Compositions deletion sync failed:', deleteError);
+              }
+            }
+          }
+
+          if (mapped.length > 0) {
+            const { error: upsertError } = await supabase.from('service_compositions').upsert(mapped);
+            if (upsertError) {
+              console.error('[Sync] Service Compositions upsert failed:', upsertError);
+            }
+          }
         } catch (err) {
           console.warn('[Sync] Services persist failed', err);
         }
