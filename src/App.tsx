@@ -2727,6 +2727,12 @@ export default function App() {
       const supabase = createSupabaseClient(config.url, config.key);
       if (supabase && teams.length >= 0) {
         try {
+          // Update blob for fallback FIRST!
+          await supabase.from('app_state').upsert({
+            id: `${compId}_sigo_controller_teams`,
+            content: teams
+          });
+
           const mapped = teams.map(t => ({ ...mapToSnake(t), company_id: compId }));
 
           // Sync Deletions
@@ -2838,6 +2844,7 @@ export default function App() {
         try {
           const mapped = equips.map(e => {
             const m = { ...mapToSnake(e), company_id: compId };
+            delete m.team;
             
             // Fix date issues (empty string to null)
             if (m.entry_date === "") m.entry_date = null;
@@ -2953,6 +2960,12 @@ export default function App() {
       const supabase = createSupabaseClient(config.url, config.key);
       if (supabase) {
         try {
+          // Update blob for fallback FIRST!
+          await supabase.from('app_state').upsert({
+            id: `${compId}_sigo_equipment_monthly`,
+            content: data
+          });
+
           const mapped = data.map(d => ({ ...mapToSnake(d), company_id: compId }));
           
           // Sync Deletions
@@ -2979,6 +2992,12 @@ export default function App() {
       const supabase = createSupabaseClient(config.url, config.key);
       if (supabase) {
         try {
+          // Update blob for fallback FIRST!
+          await supabase.from('app_state').upsert({
+            id: `${compId}_sigo_controller_manpower`,
+            content: man
+          });
+
           const mapped = man.map(m => {
             const sn = { ...mapToSnake(m), company_id: compId };
             if (sn.entry_date === "") sn.entry_date = null;
@@ -3010,6 +3029,12 @@ export default function App() {
       const supabase = createSupabaseClient(config.url, config.key);
       if (supabase) {
         try {
+          // Update blob for fallback FIRST!
+          await supabase.from('app_state').upsert({
+            id: `${compId}_sigo_manpower_monthly`,
+            content: data
+          });
+
           const mapped = data.map(d => ({ ...mapToSnake(d), company_id: compId }));
 
           // Sync Deletions
@@ -3043,6 +3068,12 @@ export default function App() {
       const supabase = createSupabaseClient(config.url, config.key);
       if (supabase) {
         try {
+          // Update blob for fallback FIRST!
+          await supabase.from('app_state').upsert({
+            id: `${compId}_sigo_team_assignments`,
+            content: uniqueAssignments
+          });
+          
           const mapped = uniqueAssignments.map(a => ({ ...mapToSnake(a), company_id: compId }));
 
           // Sync Deletions
