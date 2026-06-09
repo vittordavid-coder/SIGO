@@ -756,21 +756,7 @@ export default function ControlView({
       } else if (sortField === "category") {
         comparison = (a.category || "").localeCompare(b.category || "");
       } else if (sortField === "team") {
-        const getTeamName = (equip: ControllerEquipment) => {
-          const assign = (teamAssignments || []).find(
-            (a) =>
-              a.memberId === equip.id &&
-              a.type === "equipment" &&
-              a.month === selectedMonth,
-          );
-          if (assign) {
-            const match = (controllerTeams || []).find((t) => t.id === assign.teamId);
-            if (match) return match.name;
-          }
-          if (equip.team) return equip.team;
-          return "";
-        };
-        comparison = getTeamName(a).localeCompare(getTeamName(b));
+        comparison = (a.team || "").localeCompare(b.team || "");
       } else if (sortField === "origin") {
         comparison = (a.origin || "").localeCompare(b.origin || "");
       } else if (sortField === "cost") {
@@ -3950,6 +3936,7 @@ export default function ControlView({
                         <TableCell className="py-0.5">
                           {(() => {
                             const currentTeamName = (() => {
+                              if (e.team) return e.team;
                               const assign = (teamAssignments || []).find(
                                 (a) =>
                                   a.memberId === e.id &&
@@ -3961,13 +3948,6 @@ export default function ControlView({
                                   (t) => t.id === assign.teamId,
                                 );
                                 if (match) return match.name;
-                              }
-                              if (e.team) {
-                                // Try to match exact name first
-                                const directMatch = (controllerTeams || []).find(t => t.name === e.team);
-                                if (directMatch) return directMatch.name;
-                                // Fallback to raw string
-                                return e.team;
                               }
                               return "none";
                             })();
@@ -3990,8 +3970,18 @@ export default function ControlView({
                                 value={currentTeamName || "none"}
                                 onChange={(ev) => {
                                   const val = ev.target.value;
-                                  
-                                  // Update teamAssignments in SALA TÉCNICA
+                                  const updatedTeam =
+                                    val === "none" ? undefined : val;
+                                  // 1. Update equipment team properties
+                                  onUpdateEquipments((prev) =>
+                                    prev.map((item) =>
+                                      item.id === e.id
+                                        ? { ...item, team: updatedTeam }
+                                        : item,
+                                    ),
+                                  );
+
+                                  // 2. Update teamAssignments in SALA TÉCNICA
                                   const targetTeam = (
                                     controllerTeams || []
                                   ).find((t) => t.name === val);
