@@ -1,4 +1,5 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useEffect } from "react";
+import { getSupabaseConfig, createSupabaseClient } from "../lib/supabaseClient";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   BarChart,
@@ -50,6 +51,8 @@ import {
   CheckCircle2,
   Clock,
   ShieldAlert,
+  Plus,
+  Trash2,
 } from "lucide-react";
 
 const CustomTreemapContent = (props: any) => {
@@ -1204,16 +1207,803 @@ export const ManagementView = ({
   currentUser,
   technicalSchedules = [],
   services = [],
+  resources: propResources = [],
+  fuelLogs: propFuelLogs = [],
+  equipmentMaintenance: propEquipmentMaintenance = [],
+  purchaseOrders: propPurchaseOrders = [],
 }: any) => {
+  const [localSelectedContractId, setLocalSelectedContractId] =
+    useState<string>("all");
+  const selectedContractId = propSelectedContractId || localSelectedContractId;
+  const setSelectedContractId =
+    onUpdateContractId || setLocalSelectedContractId;
+
+  const companyId = currentUser?.companyId || 'default';
+
   type DetailViewType =
     | "overview"
-    | "RC"
-    | "Equipamentos"
     | "RH"
+    | "Equipamentos"
     | "Receita"
     | "Aporte Financeiro"
     | "CurvaS";
+
   const [activeView, setActiveView] = useState<DetailViewType>("overview");
+
+  // Safe helper to calculate unit cost of a service composition
+  const calculateServiceUnitCost = (
+    service: any,
+    resources: any[],
+    allServices: any[],
+    bdi?: number
+  ): number => {
+    let laborHorario = 0;
+    let materials = 0;
+    let equipment = 0;
+    let auxiliary = 0;
+
+    (service.items || []).forEach((item: any) => {
+      const resource = resources.find((r: any) => r.id === item.resourceId);
+      if (resource) {
+        const cost = (item.consumption || 0) * (resource.basePrice || 0);
+        if (resource.type === 'labor') {
+          laborHorario += cost;
+        } else if (resource.type === 'material') {
+          materials += cost;
+        } else if (resource.type === 'equipment') {
+          equipment += cost;
+        }
+      } else {
+        const subService = allServices.find((s: any) => s.id === item.resourceId);
+        if (subService) {
+          const subCost = calculateServiceUnitCost(subService, resources, allServices);
+          auxiliary += (item.consumption || 0) * subCost;
+        }
+      }
+    });
+
+    const laborUnit = service.production > 0 ? laborHorario / service.production : 0;
+    const equipmentUnit = service.production > 0 ? equipment / service.production : 0;
+    const fitValue = laborUnit * (service.fit || 0);
+    
+    const directCost = laborUnit + fitValue + materials + equipmentUnit + auxiliary;
+    
+    if (bdi !== undefined && bdi > 0) {
+      return directCost * (1 + bdi / 100);
+    }
+    
+    return directCost;
+  };
+
+  const localFuelLogs = useMemo(() => {
+    if (propFuelLogs && propFuelLogs.length > 0) return propFuelLogs;
+    try {
+      const saved = localStorage.getItem(`${companyId}_sigo_fuel_logs`) || localStorage.getItem('sigo_fuel_logs');
+      return saved ? JSON.parse(saved) : [];
+    } catch { return []; }
+  }, [propFuelLogs, companyId]);
+
+  const localMaint = useMemo(() => {
+    if (propEquipmentMaintenance && propEquipmentMaintenance.length > 0) return propEquipmentMaintenance;
+    try {
+      const saved = localStorage.getItem(`${companyId}_sigo_equipment_maintenance`) || localStorage.getItem('sigo_equipment_maintenance');
+      return saved ? JSON.parse(saved) : [];
+    } catch { return []; }
+  }, [propEquipmentMaintenance, companyId]);
+
+  const localOrders = useMemo(() => {
+    if (propPurchaseOrders && propPurchaseOrders.length > 0) return propPurchaseOrders;
+    try {
+      const saved = localStorage.getItem(`${companyId}_sigo_purchase_orders`) || localStorage.getItem('sigo_purchase_orders');
+      return saved ? JSON.parse(saved) : [];
+    } catch { return []; }
+  }, [propPurchaseOrders, companyId]);
+
+  const localResources = useMemo(() => {
+    if (propResources && propResources.length > 0) return propResources;
+    try {
+      const saved = localStorage.getItem(`${companyId}_sconet_resources`) || localStorage.getItem('sconet_resources');
+      return saved ? JSON.parse(saved) : [];
+    } catch { return []; }
+  }, [propResources, companyId]);
+
+  const [activeCustomDetail, setActiveCustomDetail] = useState<any | null>(null);
+
+  const [isAddCardOpen, setIsAddCardOpen] = useState(false);
+  const [newCardType, setNewCardType] = useState<'Material' | 'Equipamentos' | 'Serviços'>('Material');
+  const [newCardMaterial, setNewCardMaterial] = useState('');
+  const [newCardEqType, setNewCardEqType] = useState<'alugado' | 'proprio' | 'ambos'>('ambos');
+
+  const uniqueMaterials = useMemo(() => {
+    const mats = new Set<string>();
+    
+    // 1. From local purchase orders
+    localOrders.forEach((o: any) => {
+      (o.items || []).forEach((item: any) => {
+        if (item.description) {
+          mats.add(item.description.trim());
+        }
+      });
+    });
+
+    // 2. From all resources of type material in catalog (which represent Cotações insumos)
+    localResources.forEach((r: any) => {
+      if (r.type === 'material' && r.name) {
+        mats.add(r.name.trim());
+      }
+    });
+
+    // 3. Specifically from active company quotations and their composition items
+    (quotations || []).forEach((q: any) => {
+      const activeServices = [
+        ...(q.services || []),
+        ...(q.groups?.flatMap((g: any) => g.services || []) || [])
+      ];
+      activeServices.forEach((bi: any) => {
+        const comp = services.find((s: any) => s.id === bi.serviceId);
+        if (comp) {
+          (comp.items || []).forEach((item: any) => {
+            const res = localResources.find((r: any) => r.id === item.resourceId);
+            if (res && res.type === 'material' && res.name) {
+              mats.add(res.name.trim());
+            }
+          });
+        }
+      });
+    });
+
+    return Array.from(mats).sort();
+  }, [localOrders, localResources, quotations, services]);
+
+  const isAlugado = (eq: any) => {
+    const o = (eq.origin || '').toLowerCase();
+    return o.includes('alugad') || o.includes('rent') || o.includes('leas') || eq.ownerName || eq.ownerCnpj;
+  };
+  const isProprio = (eq: any) => {
+    const o = (eq.origin || '').toLowerCase();
+    return o.includes('própri') || o.includes('propri') || o.includes('own');
+  };
+
+  const materialTimeline = useMemo(() => {
+    if (!activeCustomDetail || activeCustomDetail.type !== 'Material') return [];
+    const matName = activeCustomDetail.materialName;
+    const monthlyDataMap = new Map<string, { monthKey: string, monthLabel: string, qty: number, totalVal: number, sortKey: number }>();
+    
+    const ptMonthsAbbr = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
+
+    localOrders.forEach((order: any) => {
+      (order.items || []).forEach((item: any) => {
+        if ((item.description || '').trim().toLowerCase() === (matName || '').trim().toLowerCase()) {
+          const dateStr = order.orderDate || order.deliveryDate;
+          if (dateStr) {
+            const dt = new Date(dateStr + 'T12:00:00');
+            if (!isNaN(dt.getTime())) {
+              const yr = dt.getFullYear();
+              const mon = dt.getMonth(); // 0-indexed
+              const monthKey = `${yr}-${(mon + 1).toString().padStart(2, '0')}`;
+              const label = `${ptMonthsAbbr[mon]}/${yr.toString().slice(-2)}`;
+              const existing = monthlyDataMap.get(monthKey);
+              const qty = Number(item.quantity) || 0;
+              const val = qty * (Number(item.price) || 0);
+              
+              if (existing) {
+                existing.qty += qty;
+                existing.totalVal += val;
+              } else {
+                monthlyDataMap.set(monthKey, {
+                  monthKey,
+                  monthLabel: label,
+                  qty,
+                  totalVal: val,
+                  sortKey: yr * 12 + mon
+                });
+              }
+            }
+          }
+        }
+      });
+    });
+
+    const sortedPoints = Array.from(monthlyDataMap.values()).sort((a, b) => a.sortKey - b.sortKey);
+    
+    let cumulativeQty = 0;
+    return sortedPoints.map(p => {
+      cumulativeQty += p.qty;
+      return {
+        ...p,
+        cumulativeQty
+      };
+    });
+  }, [activeCustomDetail, localOrders]);
+
+  const selectedEqsList = useMemo(() => {
+    if (!activeCustomDetail || activeCustomDetail.type !== 'Equipamentos') return [];
+    const eqType = activeCustomDetail.equipmentType || 'ambos';
+    
+    const selected = controllerEquipments.filter((eq: any) => {
+      if (eqType === 'alugado') return isAlugado(eq);
+      if (eqType === 'proprio') return isProprio(eq);
+      return true;
+    });
+
+    return selected.map((eq: any) => {
+      const baseCost = Number(eq.monthlyPrice || eq.contractedPrice || 0);
+      const maintCost = localMaint
+        .filter((m: any) => m.equipmentId === eq.id)
+        .reduce((sSum: number, m: any) => sSum + ((m.items || []).reduce((s: number, i: any) => s + (Number(i.value) * Number(i.quantity) || 0), 0) || m.totalCost || 0), 0);
+      const fuelCost = localFuelLogs
+        .filter((log: any) => log.equipmentId === eq.id && log.type === 'saida')
+        .reduce((fSum: number, log: any) => fSum + (log.cost || (Number(log.quantity) * Number(log.unitPrice) || 0)), 0);
+      const totalCost = baseCost + maintCost + fuelCost;
+
+      return {
+        ...eq,
+        baseCost,
+        maintCost,
+        fuelCost,
+        totalCost
+      };
+    });
+  }, [activeCustomDetail, controllerEquipments, localMaint, localFuelLogs]);
+
+  const top10Equipments = useMemo(() => {
+    return [...selectedEqsList].sort((a, b) => b.totalCost - a.totalCost).slice(0, 10);
+  }, [selectedEqsList]);
+
+  const classifiedServices = useMemo(() => {
+    const aggregatedMapList = new Map<string, { serviceId: string, quantity: number, priceSum: number, count: number }>();
+    contracts.forEach((c: any) => {
+      if (selectedContractId !== 'all' && c.id !== selectedContractId) return;
+      const processService = (item: any) => {
+        if (!item.serviceId) return;
+        const existing = aggregatedMapList.get(item.serviceId);
+        if (existing) {
+          existing.quantity += Number(item.quantity) || 0;
+          existing.priceSum += Number(item.price) || 0;
+          existing.count += 1;
+        } else {
+          aggregatedMapList.set(item.serviceId, {
+            serviceId: item.serviceId,
+            quantity: Number(item.quantity) || 0,
+            priceSum: Number(item.price) || 0,
+            count: 1
+          });
+        }
+      };
+      (c.services || []).forEach(processService);
+      (c.groups || []).forEach((g: any) => (g.services || []).forEach(processService));
+    });
+
+    const list = Array.from(aggregatedMapList.values()).map(item => {
+      const composition = services.find((s: any) => s.id === item.serviceId);
+      if (!composition) return null;
+
+      const avgPrice = item.count > 0 ? (item.priceSum / item.count) : 0;
+      const unitCost = calculateServiceUnitCost(composition, localResources, services);
+
+      const totalRev = item.quantity * avgPrice;
+      const totalCost = item.quantity * unitCost;
+      const rentabilidade = totalRev - totalCost;
+      const margin = totalRev > 0 ? (rentabilidade / totalRev) * 100 : 0;
+
+      return {
+        serviceId: item.serviceId,
+        code: composition.code || 'N/A',
+        name: composition.name,
+        unit: composition.unit || 'unid.',
+        quantity: item.quantity,
+        avgPrice,
+        unitCost,
+        totalRev,
+        totalCost,
+        rentabilidade,
+        margin
+      };
+    }).filter((i): i is NonNullable<typeof i> => i !== null && i.rentabilidade > 0);
+
+    list.sort((a, b) => b.rentabilidade - a.rentabilidade);
+    
+    const totalRent = list.reduce((acc, s) => acc + s.rentabilidade, 0);
+    let accAmount = 0;
+    const mapped = list.map(s => {
+      accAmount += s.rentabilidade;
+      const accumPct = totalRent > 0 ? (accAmount / totalRent) * 100 : 0;
+      return {
+        ...s,
+        percentage: totalRent > 0 ? (s.rentabilidade / totalRent) * 100 : 0,
+        accumPct,
+        category: accumPct <= 80 ? 'A' : accumPct <= 95 ? 'B' : 'C'
+      };
+    });
+
+    const classA = mapped.filter(s => s.category === 'A' || s.accumPct <= 80);
+    if (classA.length === 0 && mapped.length > 0) {
+      classA.push(mapped[0]);
+    }
+    return classA;
+  }, [contracts, selectedContractId, services, localResources]);
+
+  const handleAddCard = () => {
+    const cardId = Date.now().toString();
+    const card: any = {
+      id: cardId,
+      type: newCardType,
+      materialName: newCardType === 'Material' ? newCardMaterial : undefined,
+      equipmentType: newCardType === 'Equipamentos' ? newCardEqType : undefined
+    };
+    const updated = [...customCards, card];
+    saveCustomCards(updated);
+    setIsAddCardOpen(false);
+  };
+
+  const handleDeleteCard = (id: string) => {
+    const updated = customCards.filter((c: any) => c.id !== id);
+    saveCustomCards(updated);
+  };
+
+  const getMaterialCardProps = (matName: string) => {
+    const matchingItems = localOrders.flatMap((order: any) =>
+      (order.items || []).filter((item: any) =>
+        (item.description || '').trim().toLowerCase() === (matName || '').trim().toLowerCase()
+      )
+    );
+    const totalQty = matchingItems.reduce((acc: number, item: any) => acc + (Number(item.quantity) || 0), 0);
+    const totalVal = matchingItems.reduce((acc: number, item: any) => acc + (Number(item.quantity) * Number(item.price) || 0), 0);
+    const unit = matchingItems[0]?.unit || 'unid.';
+    return {
+      title: `Material: ${matName}`,
+      valueStr: `R$ ${totalVal.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+      secondaryStr: `${totalQty.toLocaleString()} ${unit}`,
+      color: '#3b82f6'
+    };
+  };
+
+  const getEquipmentCardProps = (eqType: 'alugado' | 'proprio' | 'ambos') => {
+    const selected = controllerEquipments.filter((eq: any) => {
+      if (eqType === 'alugado') return isAlugado(eq);
+      if (eqType === 'proprio') return isProprio(eq);
+      return true;
+    });
+
+    const totalCostVal = selected.reduce((sum: number, eq: any) => {
+      const baseCost = Number(eq.monthlyPrice || eq.contractedPrice || 0);
+      const maintCost = localMaint
+        .filter((m: any) => m.equipmentId === eq.id)
+        .reduce((sSum: number, m: any) => sSum + (m.items || []).reduce((s: number, i: any) => s + (Number(i.value) * Number(i.quantity) || 0), 0) || m.totalCost || 0, 0);
+      const fuelCost = localFuelLogs
+        .filter((log: any) => log.equipmentId === eq.id && log.type === 'saida')
+        .reduce((fSum: number, log: any) => fSum + (log.cost || (Number(log.quantity) * Number(log.unitPrice) || 0)), 0);
+      return sum + baseCost + maintCost + fuelCost;
+    }, 0);
+
+    const label = eqType === 'alugado' ? 'Alugados' : eqType === 'proprio' ? 'Próprios' : 'Ambos';
+    return {
+      title: `Custos: Equipamentos (${label})`,
+      valueStr: `R$ ${totalCostVal.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+      secondaryStr: `${selected.length} equipamentos`,
+      color: '#ef4444'
+    };
+  };
+
+  const getServicesCardProps = () => {
+    const totalRentVal = classifiedServices.reduce((acc: number, s: any) => acc + s.rentabilidade, 0);
+
+    return {
+      title: 'Serviços Classe A',
+      valueStr: `R$ ${totalRentVal.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+      secondaryStr: `${classifiedServices.length} serviços mais rentáveis`,
+      color: '#10b981'
+    };
+  };
+
+  const renderCustomDetail = (detail: any) => {
+    if (detail.type === 'Material') {
+      const matName = detail.materialName;
+      const matchingItemsMap = localOrders.flatMap((order: any) =>
+        (order.items || []).filter((item: any) => 
+          (item.description || '').trim().toLowerCase() === (matName || '').trim().toLowerCase()
+        ).map((item: any) => ({
+          ...item,
+          orderDate: order.orderDate,
+          orderNumber: order.orderNumber,
+          supplierName: order.supplierName,
+        }))
+      );
+
+      const totalQty = matchingItemsMap.reduce((acc, item) => acc + (Number(item.quantity) || 0), 0);
+      const totalVal = matchingItemsMap.reduce((acc, item) => acc + (Number(item.quantity) * Number(item.price) || 0), 0);
+      const avgPrice = totalQty > 0 ? totalVal / totalQty : 0;
+      const unit = matchingItemsMap[0]?.unit || 'unid.';
+
+      return (
+        <div className="p-6 space-y-6 bg-slate-50 min-h-screen">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => setActiveCustomDetail(null)}
+                className="p-2 hover:bg-slate-100 rounded-full transition-colors border border-slate-200 bg-white cursor-pointer pointer-events-auto"
+              >
+                <ArrowLeft className="w-5 h-5 text-slate-700" />
+              </button>
+              <div>
+                <span className="text-xs text-blue-600 font-bold uppercase tracking-wider block">Detalhes do Material</span>
+                <h1 className="text-2xl font-black text-slate-800 uppercase tracking-tight">{matName}</h1>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+            <Card className="bg-white shadow">
+              <CardContent className="pt-6">
+                <span className="text-xs font-bold text-slate-400 uppercase tracking-wide">Qtd. Total Adquirida</span>
+                <div className="text-2xl font-black text-blue-600 mt-1">{totalQty.toLocaleString()} {unit}</div>
+              </CardContent>
+            </Card>
+
+            <Card className="bg-white shadow">
+              <CardContent className="pt-6">
+                <span className="text-xs font-bold text-slate-400 uppercase tracking-wide font-black">Preço Unitário Médio</span>
+                <div className="text-2xl font-black text-emerald-600 mt-1">R$ {avgPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+              </CardContent>
+            </Card>
+
+            <Card className="bg-white shadow">
+              <CardContent className="pt-6">
+                <span className="text-xs font-bold text-slate-400 uppercase tracking-wide font-black">Custo Total Acumulado</span>
+                <div className="text-2xl font-black text-slate-900 mt-1">R$ {totalVal.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+              </CardContent>
+            </Card>
+
+            <Card className="bg-white shadow flex flex-col justify-center">
+              <CardContent className="pt-6">
+                <span className="text-xs font-bold text-slate-400 uppercase tracking-wide">No. de Pedidos de Compra</span>
+                <div className="text-2xl font-black text-purple-600 mt-1">{matchingItemsMap.length}</div>
+              </CardContent>
+            </Card>
+          </div>
+
+          <Card className="bg-white shadow">
+            <CardHeader>
+              <CardTitle className="text-lg font-bold text-slate-800">Evolução Mensal de Compras e Quantidade Acumulada</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="h-80 w-full">
+                {materialTimeline.length === 0 ? (
+                  <div className="flex items-center justify-center h-full text-slate-400 italic">Sem dados de movimentação para este material.</div>
+                ) : (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <ComposedChart data={materialTimeline} margin={{ top: 10, right: 30, left: 10, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                      <XAxis dataKey="monthLabel" stroke="#94a3b8" fontSize={11} fontStyle="bold" />
+                      <YAxis yAxisId="qty" stroke="#94a3b8" fontSize={11} />
+                      <Tooltip 
+                        formatter={(val: any, name: any) => [
+                          Number(val).toLocaleString(),
+                          name === 'qty' ? 'Qtd no Mês' : name === 'cumulativeQty' ? 'Qtd Acumulada' : name
+                        ]}
+                        contentStyle={{ borderRadius: '8px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                      />
+                      <Bar yAxisId="qty" dataKey="qty" fill="#3b82f6" name="Qtd no Mês" radius={[4, 4, 0, 0]} barSize={40} />
+                      <Line yAxisId="qty" type="monotone" dataKey="cumulativeQty" stroke="#f59e0b" name="Qtd Acumulada" strokeWidth={3} dot={{ r: 4 }} activeDot={{ r: 6 }} />
+                    </ComposedChart>
+                  </ResponsiveContainer>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-white shadow">
+            <CardHeader>
+              <CardTitle className="text-lg font-bold text-slate-800">Pedidos de Compra Referentes ao Material</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader className="bg-slate-50">
+                    <TableRow>
+                      <TableHead className="font-bold uppercase text-slate-600">Pedido</TableHead>
+                      <TableHead className="font-bold uppercase text-slate-600">Fornecedor</TableHead>
+                      <TableHead className="font-bold uppercase text-slate-600 text-center">Data</TableHead>
+                      <TableHead className="font-bold uppercase text-slate-600 text-right">Qtd Adquirida</TableHead>
+                      <TableHead className="font-bold uppercase text-slate-600 text-right">Preço Unitário</TableHead>
+                      <TableHead className="font-bold uppercase text-slate-600 text-right">Total Pedido</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {matchingItemsMap.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={6} className="text-center py-8 text-slate-400 italic">Nenhum pedido de compra encontrado.</TableCell>
+                      </TableRow>
+                    ) : (
+                      matchingItemsMap.map((item, idx) => {
+                        const mTotal = (Number(item.quantity) || 0) * (Number(item.price) || 0);
+                        return (
+                          <TableRow key={idx} className="hover:bg-slate-50/50">
+                            <TableCell className="font-mono text-xs font-bold text-blue-600">#{item.orderNumber}</TableCell>
+                            <TableCell className="font-semibold text-slate-700">{item.supplierName || 'Sem Fornecedor'}</TableCell>
+                            <TableCell className="text-center font-mono text-xs text-slate-500">
+                              {item.orderDate ? new Date(item.orderDate + 'T12:00:00').toLocaleDateString('pt-BR') : 'N/A'}
+                            </TableCell>
+                            <TableCell className="text-right font-mono font-bold text-slate-600">{Number(item.quantity).toLocaleString()} {item.unit || 'unid.'}</TableCell>
+                            <TableCell className="text-right font-mono text-emerald-600">R$ {Number(item.price).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
+                            <TableCell className="text-right font-mono font-bold text-slate-900">R$ {mTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
+                          </TableRow>
+                        );
+                      })
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      );
+    }
+
+    if (detail.type === 'Equipamentos') {
+      const eqType = detail.equipmentType || 'ambos';
+      const typeLabel = eqType === 'proprio' ? 'Próprios' : eqType === 'alugado' ? 'Alugados' : 'Ambos';
+
+      const baseTotal = top10Equipments.reduce((acc, eq) => acc + eq.baseCost, 0);
+      const maintTotal = top10Equipments.reduce((acc, eq) => acc + eq.maintCost, 0);
+      const fuelTotal = top10Equipments.reduce((acc, eq) => acc + eq.fuelCost, 0);
+      const grandTotal = top10Equipments.reduce((acc, eq) => acc + eq.totalCost, 0);
+
+      return (
+        <div className="p-6 space-y-6 bg-slate-50 min-h-screen">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => setActiveCustomDetail(null)}
+                className="p-2 hover:bg-slate-100 rounded-full transition-colors border border-slate-200 bg-white cursor-pointer pointer-events-auto"
+              >
+                <ArrowLeft className="w-5 h-5 text-slate-700" />
+              </button>
+              <div>
+                <span className="text-xs text-rose-500 font-bold uppercase tracking-wider block">Detalhes de Custos</span>
+                <h1 className="text-2xl font-black text-slate-800 uppercase tracking-tight">Equipamentos ({typeLabel})</h1>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+            <Card className="bg-white shadow">
+              <CardContent className="pt-6">
+                <span className="text-xs font-bold text-slate-400 uppercase tracking-wide">Preço Base/Mensal</span>
+                <div className="text-2xl font-black text-blue-600 mt-1">R$ {baseTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+              </CardContent>
+            </Card>
+
+            <Card className="bg-white shadow">
+              <CardContent className="pt-6">
+                <span className="text-xs font-bold text-slate-400 uppercase tracking-wide font-black">Custos de Manutenção</span>
+                <div className="text-2xl font-black text-rose-500 mt-1">R$ {maintTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+              </CardContent>
+            </Card>
+
+            <Card className="bg-white shadow">
+              <CardContent className="pt-6">
+                <span className="text-xs font-bold text-slate-400 uppercase tracking-wide font-black font-bold">Custos de Abastecimento</span>
+                <div className="text-2xl font-black text-amber-500 mt-1">R$ {fuelTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+              </CardContent>
+            </Card>
+
+            <Card className="bg-white shadow">
+              <CardContent className="pt-6">
+                <span className="text-xs font-bold text-slate-400 uppercase tracking-wide font-black font-bold">Custo Global Total</span>
+                <div className="text-2xl font-black text-slate-900 mt-1">R$ {grandTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+              </CardContent>
+            </Card>
+          </div>
+
+          <Card className="bg-white shadow">
+            <CardHeader>
+              <CardTitle className="text-lg font-bold text-slate-800">Top 10 Equipamentos com Maior Custo Integrado</CardTitle>
+              <p className="text-slate-400 text-xs font-bold uppercase tracking-wider">Mostra o preço base mensal somado a custos de manutenção e abastecimento</p>
+            </CardHeader>
+            <CardContent>
+              <div className="h-96 w-full">
+                {top10Equipments.length === 0 ? (
+                  <div className="flex items-center justify-center h-full text-slate-400 italic font-bold uppercase">Nenhum equipamento correspondente para exibir.</div>
+                ) : (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <ComposedChart data={top10Equipments} margin={{ top: 10, right: 30, left: 10, bottom: 40 }}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                      <XAxis dataKey="name" stroke="#94a3b8" fontSize={9} fontStyle="bold" />
+                      <YAxis stroke="#94a3b8" fontSize={11} />
+                      <Tooltip 
+                        formatter={(val: any) => [`R$ ${Number(val).toLocaleString()}`]}
+                        contentStyle={{ borderRadius: '8px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                      />
+                      <Bar dataKey="baseCost" stackId="a" fill="#3b82f6" name="Preço Mensal/Contratado" />
+                      <Bar dataKey="maintCost" stackId="a" fill="#ef4444" name="Itens de Manutenção" />
+                      <Bar dataKey="fuelCost" stackId="a" fill="#f59e0b" name="Custos de Abastecimento" />
+                    </ComposedChart>
+                  </ResponsiveContainer>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-white shadow">
+            <CardHeader>
+              <CardTitle className="text-lg font-bold text-slate-800">Tabela Geral de Custos de Equipamentos</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader className="bg-slate-50">
+                    <TableRow>
+                      <TableHead className="font-bold uppercase text-slate-600">Equipamento</TableHead>
+                      <TableHead className="font-bold uppercase text-slate-600 text-center">Placa</TableHead>
+                      <TableHead className="font-bold uppercase text-slate-600 text-center">Origem</TableHead>
+                      <TableHead className="font-bold uppercase text-slate-600 text-right">Preço Base/Mensal</TableHead>
+                      <TableHead className="font-bold uppercase text-slate-600 text-right">Com Manutenção</TableHead>
+                      <TableHead className="font-bold uppercase text-slate-600 text-right">Com Abastecimento</TableHead>
+                      <TableHead className="font-bold uppercase text-slate-600 text-right">Total Acumulado</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {selectedEqsList.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={7} className="text-center py-8 text-slate-400 italic">Nenhum equipamento encontrado.</TableCell>
+                      </TableRow>
+                    ) : (
+                      selectedEqsList.map((eq: any, idx: number) => (
+                        <TableRow key={idx} className="hover:bg-slate-50/50">
+                          <TableCell className="font-bold text-slate-700">{eq.name}</TableCell>
+                          <TableCell className="text-center font-mono text-xs text-slate-600 uppercase font-bold">{eq.plate || 'N/A'}</TableCell>
+                          <TableCell className="text-center">
+                            <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold select-none ${isAlugado(eq) ? "bg-amber-100 text-amber-800" : "bg-blue-100 text-blue-800"}`}>
+                              {isAlugado(eq) ? 'Alugado' : 'Próprio'}
+                            </span>
+                          </TableCell>
+                          <TableCell className="text-right font-mono font-medium text-slate-600">R$ {eq.baseCost.toLocaleString()}</TableCell>
+                          <TableCell className="text-right font-mono font-medium text-rose-500">R$ {eq.maintCost.toLocaleString()}</TableCell>
+                          <TableCell className="text-right font-mono font-medium text-amber-500">R$ {eq.fuelCost.toLocaleString()}</TableCell>
+                          <TableCell className="text-right font-mono font-bold text-slate-900">R$ {eq.totalCost.toLocaleString()}</TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      );
+    }
+
+    if (detail.type === 'Serviços') {
+      const topServices = classifiedServices.slice(0, 10);
+      const revTotal = classifiedServices.reduce((acc, s) => acc + s.totalRev, 0);
+      const costTotal = classifiedServices.reduce((acc, s) => acc + s.totalCost, 0);
+      const rentTotal = classifiedServices.reduce((acc, s) => acc + s.rentabilidade, 0);
+      const avgMargin = revTotal > 0 ? (rentTotal / revTotal) * 100 : 0;
+
+      return (
+        <div className="p-6 space-y-6 bg-slate-50 min-h-screen">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => setActiveCustomDetail(null)}
+                className="p-2 hover:bg-slate-100 rounded-full transition-colors border border-slate-200 bg-white cursor-pointer pointer-events-auto"
+              >
+                <ArrowLeft className="w-5 h-5 text-slate-700" />
+              </button>
+              <div>
+                <span className="text-xs text-emerald-600 font-bold uppercase tracking-wider block">Detalhes de Rentabilidade</span>
+                <h1 className="text-2xl font-black text-slate-800 uppercase tracking-tight">Serviços de Classe A (Curva ABC)</h1>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+            <Card className="bg-white shadow">
+              <CardContent className="pt-6">
+                <span className="text-xs font-bold text-slate-400 uppercase tracking-wide">Receita Global (Venda)</span>
+                <div className="text-2xl font-black text-blue-600 mt-1">R$ {revTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+              </CardContent>
+            </Card>
+
+            <Card className="bg-white shadow">
+              <CardContent className="pt-6">
+                <span className="text-xs font-bold text-slate-400 uppercase tracking-wide font-black">Custo Composição Estimado</span>
+                <div className="text-2xl font-black text-amber-600 mt-1">R$ {costTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+              </CardContent>
+            </Card>
+
+            <Card className="bg-white shadow">
+              <CardContent className="pt-6">
+                <span className="text-xs font-bold text-slate-400 uppercase tracking-wide font-black">Ganhos Rentáveis Líquidos</span>
+                <div className="text-2xl font-black text-emerald-600 mt-1">R$ {rentTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+              </CardContent>
+            </Card>
+
+            <Card className="bg-white shadow">
+              <CardContent className="pt-6">
+                <span className="text-xs font-bold text-slate-400 uppercase tracking-wide">Margem de Lucro Média</span>
+                <div className="text-2xl font-black text-purple-600 mt-1">{avgMargin.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%</div>
+              </CardContent>
+            </Card>
+          </div>
+
+          <Card className="bg-white shadow">
+            <CardHeader>
+              <CardTitle className="text-lg font-bold text-slate-800">Lucro Líquido vs Receita - Top 10 Serviços Classe A</CardTitle>
+              <p className="text-slate-400 text-xs font-bold uppercase tracking-wider font-black">Visualização comparativa de lucratividade do serviço com base na composição de custo</p>
+            </CardHeader>
+            <CardContent>
+              <div className="h-96 w-full">
+                {topServices.length === 0 ? (
+                  <div className="flex items-center justify-center h-full text-slate-400 italic">Não foram encontrados serviços de Classe A com rentabilidade positiva.</div>
+                ) : (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <ComposedChart data={topServices} margin={{ top: 10, right: 30, left: 10, bottom: 40 }}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                      <XAxis dataKey="code" stroke="#94a3b8" fontSize={11} fontStyle="bold" />
+                      <YAxis stroke="#94a3b8" fontSize={11} />
+                      <Tooltip 
+                        formatter={(val: any, name: any) => [`R$ ${Number(val).toLocaleString()}`, name === 'totalRev' ? 'Receita Venda' : name === 'totalCost' ? 'Custo Composição' : name === 'rentabilidade' ? 'Lucro Líquido' : name]}
+                        contentStyle={{ borderRadius: '8px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                      />
+                      <Bar dataKey="totalRev" fill="#3b82f6" name="Receita Venda" barSize={35} radius={[4, 4, 0, 0]} />
+                      <Bar dataKey="rentabilidade" fill="#10b981" name="Lucro Líquido" barSize={35} radius={[4, 4, 0, 0]} />
+                    </ComposedChart>
+                  </ResponsiveContainer>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-white shadow">
+            <CardHeader>
+              <CardTitle className="text-lg font-bold text-slate-800">Detalhamento dos Serviços Importantes de Classe A</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader className="bg-slate-50">
+                    <TableRow>
+                      <TableHead className="font-bold uppercase text-slate-600">Código</TableHead>
+                      <TableHead className="font-bold uppercase text-slate-600">Serviço</TableHead>
+                      <TableHead className="font-bold uppercase text-slate-600 text-center">Unid.</TableHead>
+                      <TableHead className="font-bold uppercase text-slate-600 text-right">Qtd Planilha</TableHead>
+                      <TableHead className="font-bold uppercase text-slate-600 text-right">Preço Unit. Venda</TableHead>
+                      <TableHead className="font-bold uppercase text-slate-600 text-right">Custo Composição</TableHead>
+                      <TableHead className="font-bold uppercase text-slate-600 text-right">Lucro Acumulado</TableHead>
+                      <TableHead className="font-bold uppercase text-slate-600 text-right">Margem (%)</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {classifiedServices.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={8} className="text-center py-8 text-slate-400 italic">Nenhum serviço de Classe A encontrado.</TableCell>
+                      </TableRow>
+                    ) : (
+                      classifiedServices.map((s, idx) => (
+                        <TableRow key={idx} className="hover:bg-slate-50/50">
+                          <TableCell className="font-mono text-xs font-bold text-emerald-600">{s.code}</TableCell>
+                          <TableCell className="font-semibold text-slate-700 max-w-[280px] truncate">{s.name}</TableCell>
+                          <TableCell className="text-center text-xs text-slate-500 font-bold uppercase">{s.unit}</TableCell>
+                          <TableCell className="text-right font-mono font-medium text-slate-600">{Number(s.quantity).toLocaleString()}</TableCell>
+                          <TableCell className="text-right font-mono font-medium text-blue-600">R$ {s.avgPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</TableCell>
+                          <TableCell className="text-right font-mono font-medium text-amber-600">R$ {s.unitCost.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</TableCell>
+                          <TableCell className="text-right font-mono font-bold text-emerald-600">R$ {s.rentabilidade.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</TableCell>
+                          <TableCell className="text-right font-mono font-bold text-indigo-600">{s.margin.toFixed(1)}%</TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      );
+    }
+    return null;
+  };
   const [sCurveContractId, setSCurveContractId] = useState<string>("all");
   const [clickedMonthIndex, setClickedMonthIndex] = useState<number | null>(
     null,
@@ -1245,11 +2035,122 @@ export const ManagementView = ({
 
   const [curvaSSortCol, setCurvaSSortCol] = useState<string>("name");
   const [curvaSSortDir, setCurvaSSortDir] = useState<"asc" | "desc">("asc");
-  const [localSelectedContractId, setLocalSelectedContractId] =
-    useState<string>("all");
-  const selectedContractId = propSelectedContractId || localSelectedContractId;
-  const setSelectedContractId =
-    onUpdateContractId || setLocalSelectedContractId;
+
+  const contractId = selectedContractId || 'all';
+
+  const [customCards, setCustomCards] = useState<any[]>([]);
+
+  // Load custom cards
+  useEffect(() => {
+    let isMounted = true;
+    const loadCards = async () => {
+      const storageKey = `sigo_management_custom_cards_${companyId}_${contractId}`;
+      let loadedCards: any[] = [];
+      
+      // Try to load from Supabase
+      const config = getSupabaseConfig();
+      if (config.enabled && currentUser?.companyId) {
+        const supabase = createSupabaseClient(config.url, config.key);
+        if (supabase) {
+          try {
+            const { data, error } = await supabase
+              .from('management_custom_cards')
+              .select('*')
+              .eq('company_id', companyId)
+              .eq('contract_id', contractId)
+              .order('display_order', { ascending: true });
+
+            if (!error && data) {
+              loadedCards = data.map((row: any) => ({
+                id: row.id,
+                type: row.type,
+                materialName: row.material_name || undefined,
+                equipmentType: row.equipment_type || undefined,
+              }));
+            } else if (error) {
+              console.error('Error fetching custom cards from Supabase:', error);
+            }
+          } catch (e) {
+            console.error('Failed to query Supabase for custom cards:', e);
+          }
+        }
+      }
+
+      // If no cards were loaded from Supabase (or not enabled/failed), fallback to local storage
+      if (loadedCards.length === 0) {
+        try {
+          // Check for contract-specific key first
+          let saved = localStorage.getItem(storageKey);
+          if (!saved) {
+            // Check legacy global key for backward compatibility
+            saved = localStorage.getItem('sigo_management_custom_cards');
+          }
+          loadedCards = saved ? JSON.parse(saved) : [];
+        } catch {
+          loadedCards = [];
+        }
+      }
+
+      if (isMounted) {
+        setCustomCards(loadedCards);
+      }
+    };
+
+    loadCards();
+    return () => {
+      isMounted = false;
+    };
+  }, [companyId, contractId, currentUser]);
+
+  const saveCustomCards = async (newCards: any[]) => {
+    setCustomCards(newCards);
+    const storageKey = `sigo_management_custom_cards_${companyId}_${contractId}`;
+    
+    // 1. Save to LocalStorage
+    try {
+      localStorage.setItem(storageKey, JSON.stringify(newCards));
+    } catch (err) {
+      console.error('Error saving custom cards to LocalStorage', err);
+    }
+
+    // 2. Save to Supabase (if enabled)
+    const config = getSupabaseConfig();
+    if (config.enabled && currentUser?.companyId) {
+      const supabase = createSupabaseClient(config.url, config.key);
+      if (supabase) {
+        try {
+          // First, delete existing custom cards for this contract/company
+          await supabase
+            .from('management_custom_cards')
+            .delete()
+            .eq('company_id', companyId)
+            .eq('contract_id', contractId);
+
+          if (newCards.length > 0) {
+            const rowsToInsert = newCards.map((card, index) => ({
+              id: card.id,
+              company_id: companyId,
+              contract_id: contractId,
+              type: card.type,
+              material_name: card.materialName || null,
+              equipment_type: card.equipmentType || null,
+              display_order: index,
+            }));
+
+            const { error } = await supabase
+              .from('management_custom_cards')
+              .insert(rowsToInsert);
+
+            if (error) {
+              console.error('Error inserting novel custom card configuration to Supabase:', error);
+            }
+          }
+        } catch (e) {
+          console.error('Failed to sync custom cards with Supabase:', e);
+        }
+      }
+    }
+  };
 
   // Active contract for the comparative S-curve:
   // if global filter is a specific contract, use it. Otherwise, use local state
@@ -3429,10 +4330,25 @@ export const ManagementView = ({
     );
   }
 
+  if (activeCustomDetail) {
+    return renderCustomDetail(activeCustomDetail);
+  }
+
   return (
     <div className="p-6 space-y-6 bg-slate-50 min-h-screen">
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-bold">Gestão Global</h1>
+        <button
+          onClick={() => {
+            setNewCardMaterial('');
+            setNewCardType('Material');
+            setIsAddCardOpen(true);
+          }}
+          className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-sm font-semibold shadow-sm transition-colors cursor-pointer"
+        >
+          <Plus className="w-4 h-4" />
+          Adicionar Card
+        </button>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
@@ -3466,7 +4382,177 @@ export const ManagementView = ({
             </Card>
           </motion.div>
         ))}
+
+        {customCards.map((card: any) => {
+          let title = '';
+          let valueStr = '';
+          let secondaryStr = '';
+          let color = '#3b82f6';
+
+          if (card.type === 'Material') {
+            const props = getMaterialCardProps(card.materialName || '');
+            title = props.title;
+            valueStr = props.valueStr;
+            secondaryStr = props.secondaryStr;
+            color = props.color;
+          } else if (card.type === 'Equipamentos') {
+            const props = getEquipmentCardProps(card.equipmentType || 'ambos');
+            title = props.title;
+            valueStr = props.valueStr;
+            secondaryStr = props.secondaryStr;
+            color = props.color;
+          } else if (card.type === 'Serviços') {
+            const props = getServicesCardProps();
+            title = props.title;
+            valueStr = props.valueStr;
+            secondaryStr = props.secondaryStr;
+            color = props.color;
+          }
+
+          return (
+            <motion.div
+              key={card.id}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              whileHover={{ scale: 1.02 }}
+              className="relative group cursor-pointer"
+              onClick={() => setActiveCustomDetail(card)}
+            >
+              <Card
+                className="shadow-lg hover:shadow-xl transition-shadow border-t-4 bg-white"
+                style={{ borderTopColor: color }}
+              >
+                <CardHeader className="flex flex-row justify-between items-start pb-2">
+                  <CardTitle className="text-xs uppercase text-slate-400 font-bold tracking-wider max-w-[80%] line-clamp-2">
+                    {title}
+                  </CardTitle>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDeleteCard(card.id);
+                    }}
+                    className="p-1 hover:bg-slate-100 rounded text-slate-400 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100 cursor-pointer pointer-events-auto"
+                    title="Excluir Painel"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </CardHeader>
+                <CardContent>
+                  <div
+                    className="text-2xl font-black tracking-tight font-black"
+                    style={{ color: color }}
+                  >
+                    {valueStr}
+                  </div>
+                  <div className="text-xs text-slate-500 font-semibold mt-1">
+                    {secondaryStr}
+                  </div>
+                </CardContent>
+              </Card>
+            </motion.div>
+          );
+        })}
       </div>
+
+      <Dialog open={isAddCardOpen} onOpenChange={setIsAddCardOpen}>
+        <DialogContent className="sm:max-w-[425px] bg-white">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold text-slate-800">Adicionar Painel Personalizado</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="card-type" className="font-bold text-slate-700">Qual informação deseja adicionar?</Label>
+              <Select value={newCardType} onValueChange={(val: any) => setNewCardType(val)}>
+                <SelectTrigger id="card-type" className="w-full">
+                  <SelectValue placeholder="Selecione o tipo" />
+                </SelectTrigger>
+                <SelectContent className="bg-white">
+                  <SelectItem value="Material">Material (Compras e Evolução)</SelectItem>
+                  <SelectItem value="Equipamentos">Equipamentos (Custos de Repasse)</SelectItem>
+                  <SelectItem value="Serviços">Serviços (Classe A Rentabilidade)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {newCardType === 'Material' && (
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="material-select" className="font-bold text-slate-700">Material de Interesse</Label>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      id="material-select"
+                      placeholder="Digite para filtrar materiais..."
+                      value={newCardMaterial}
+                      autoComplete="off"
+                      onChange={(e) => setNewCardMaterial(e.target.value)}
+                      className="w-full flex h-10 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                    />
+                    {newCardMaterial && (
+                      <div className="absolute z-50 left-0 right-0 max-h-40 overflow-y-auto bg-white border border-slate-200 shadow-lg rounded-md mt-1">
+                        {uniqueMaterials
+                          .filter(m => m.toLowerCase().includes(newCardMaterial.toLowerCase()))
+                          .slice(0, 10)
+                          .map((m, idx) => (
+                            <div
+                              key={idx}
+                              onClick={() => setNewCardMaterial(m)}
+                              className="p-2 hover:bg-slate-50 cursor-pointer text-sm text-slate-700 font-medium"
+                            >
+                              {m}
+                            </div>
+                          ))
+                        }
+                        {uniqueMaterials.filter(m => m.toLowerCase().includes(newCardMaterial.toLowerCase())).length === 0 && (
+                          <div className="p-2 text-xs text-slate-400 italic">Nenhum material correspondente.</div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {newCardType === 'Equipamentos' && (
+              <div className="space-y-2">
+                <Label htmlFor="eq-type-select" className="font-bold text-slate-700">Origem dos Equipamentos</Label>
+                <Select value={newCardEqType} onValueChange={(val: any) => setNewCardEqType(val)}>
+                  <SelectTrigger id="eq-type-select" className="w-full">
+                    <SelectValue placeholder="Selecione o tipo" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-white">
+                    <SelectItem value="alugado">Alugados</SelectItem>
+                    <SelectItem value="proprio">Próprios</SelectItem>
+                    <SelectItem value="ambos">Ambos</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            {newCardType === 'Serviços' && (
+              <div className="bg-emerald-50 border border-emerald-100 p-3 rounded-lg text-xs leading-relaxed text-emerald-800 font-medium">
+                Este card exibirá de forma consolidada os itens **Classe A** mais rentáveis de sua curva ABC de Serviços.
+              </div>
+            )}
+          </div>
+
+          <div className="flex gap-2 justify-end mt-4">
+            <button
+              onClick={() => setIsAddCardOpen(false)}
+              className="px-4 py-2 border border-slate-200 text-slate-600 rounded-md text-sm font-semibold hover:bg-slate-50 transition-colors pointer-events-auto cursor-pointer"
+            >
+              Cancelar
+            </button>
+            <button
+              onClick={handleAddCard}
+              disabled={newCardType === 'Material' && !newCardMaterial}
+              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-sm font-semibold shadow-sm transition-colors cursor-pointer pointer-events-auto disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Adicionar
+            </button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* PREVIEW DA CURVA-S COMPARATIVA */}
       <motion.div

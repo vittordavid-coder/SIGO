@@ -293,6 +293,13 @@ export default function ControlView({
   } | null>(null);
   const [applyQuantity, setApplyQuantity] = useState(1);
   const [applyEquipmentId, setApplyEquipmentId] = useState("");
+  const [applyEquipmentSearch, setApplyEquipmentSearch] = useState("");
+
+  React.useEffect(() => {
+    if (!isApplyStockOpen) {
+      setApplyEquipmentSearch("");
+    }
+  }, [isApplyStockOpen]);
 
   React.useEffect(() => {
     if (initialTab) {
@@ -8289,32 +8296,110 @@ export default function ControlView({
                   <Label className="text-base uppercase font-bold text-gray-400">
                     Equipamento de Destino
                   </Label>
-                  <Select
-                    value={applyEquipmentId}
-                    onValueChange={setApplyEquipmentId}
-                  >
-                    <SelectTrigger className="h-12 border-gray-200 rounded-xl focus:ring-blue-500">
-                      <SelectValue placeholder="Selecione o Equipamento" />
-                    </SelectTrigger>
-                    <SelectContent className="max-h-[300px]">
-                      {equipments
-                        .filter((e) => !e.exitDate)
-                        .map((e) => (
-                          <SelectItem
+                  <div className="relative">
+                    <Input
+                      placeholder="Digitar nome ou placa para buscar..."
+                      value={applyEquipmentSearch}
+                      onChange={(e) => {
+                        setApplyEquipmentSearch(e.target.value);
+                        if (applyEquipmentId) setApplyEquipmentId("");
+                      }}
+                      className="h-12 border-gray-200 rounded-xl focus:ring-blue-500 pr-10"
+                    />
+                    <Search className="w-5 h-5 text-gray-400 absolute right-3 top-3.5" />
+                  </div>
+                  
+                  {(() => {
+                    const activeEquips = equipments.filter((e) => !e.exitDate);
+                    const query = applyEquipmentSearch.toLowerCase().trim();
+                    const filtered = activeEquips.filter(
+                      (e) =>
+                        !query ||
+                        (e.name || "").toLowerCase().includes(query) ||
+                        (e.plate || "").toLowerCase().includes(query)
+                    );
+
+                    if (query && filtered.length > 0 && !applyEquipmentId) {
+                      return (
+                        <div className="border border-gray-100 rounded-xl max-h-48 overflow-y-auto divide-y divide-gray-50 bg-white shadow-lg z-50 relative">
+                          {filtered.map((e) => (
+                            <button
+                              key={e.id}
+                              type="button"
+                              onClick={() => {
+                                setApplyEquipmentId(e.id);
+                                setApplyEquipmentSearch(`${e.name} (${e.plate})`);
+                              }}
+                              className="w-full text-left px-4 py-3 hover:bg-blue-50 transition-colors flex justify-between items-center"
+                            >
+                              <div className="flex flex-col">
+                                <span className="text-sm font-bold text-slate-800">{e.name}</span>
+                                <span className="text-[11px] text-slate-500 font-mono uppercase font-bold">Placa: {e.plate}</span>
+                              </div>
+                            </button>
+                          ))}
+                        </div>
+                      );
+                    }
+
+                    if (applyEquipmentId) {
+                      const selectedEq = equipments.find(e => e.id === applyEquipmentId);
+                      if (selectedEq) {
+                        return (
+                          <div className="flex items-center justify-between p-3 bg-blue-50 rounded-xl border border-blue-100 mt-2">
+                            <div className="flex flex-col">
+                              <span className="text-sm font-black text-blue-900">{selectedEq.name}</span>
+                              <span className="text-xs text-blue-600 font-bold font-mono">PLACA: {selectedEq.plate}</span>
+                            </div>
+                            <Button 
+                              type="button" 
+                              variant="ghost" 
+                              size="sm"
+                              onClick={() => {
+                                setApplyEquipmentId("");
+                                setApplyEquipmentSearch("");
+                              }}
+                              className="h-8 text-xs text-red-500 font-bold hover:text-red-700 hover:bg-red-50"
+                            >
+                              Limpar
+                            </Button>
+                          </div>
+                        );
+                      }
+                    }
+
+                    if (query && filtered.length === 0) {
+                      return (
+                        <p className="text-xs text-red-500 italic mt-1 font-bold">Nenhum equipamento ativo encontrado com este termo.</p>
+                      );
+                    }
+
+                    return (
+                      <div className="border border-gray-100 rounded-xl max-h-40 overflow-y-auto divide-y divide-gray-50 bg-white shadow-inner mt-2">
+                        {activeEquips.slice(0, 5).map((e) => (
+                          <button
                             key={e.id}
-                            value={e.id}
-                            className="font-bold py-3"
+                            type="button"
+                            onClick={() => {
+                              setApplyEquipmentId(e.id);
+                              setApplyEquipmentSearch(`${e.name} (${e.plate})`);
+                            }}
+                            className="w-full text-left px-4 py-2 hover:bg-slate-50 transition-colors flex justify-between items-center"
                           >
                             <div className="flex flex-col">
-                              <span>{e.name}</span>
-                              <span className="text-base text-gray-400 uppercase tracking-tighter">
-                                Placa: {e.plate}
-                              </span>
+                              <span className="text-xs font-bold text-slate-700">{e.name}</span>
+                              <span className="text-[10px] text-slate-400 font-mono">Placa: {e.plate}</span>
                             </div>
-                          </SelectItem>
+                          </button>
                         ))}
-                    </SelectContent>
-                  </Select>
+                        {activeEquips.length > 5 && (
+                          <div className="p-2 text-center text-[10px] text-gray-400 font-semibold uppercase">
+                            Digite para ver todos os {activeEquips.length} equipamentos ativos
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
                 </div>
 
                 <div className="space-y-2">

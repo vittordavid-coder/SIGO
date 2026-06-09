@@ -26,7 +26,8 @@ import {
   Archive,
   ChevronUp,
   ChevronDown,
-  FileSpreadsheet
+  FileSpreadsheet,
+  ArrowLeft
 } from 'lucide-react';
 import { applyPhoneMask, applyCEPMask, cn, hashPassword } from '../lib/utils';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -83,6 +84,9 @@ interface PurchasesViewProps {
   onUpdateEquipments?: (val: any[]) => void;
   selectedContractId?: string | null;
   onUpdateContractId?: (id: string) => void;
+  resources?: any[];
+  services?: any[];
+  quotations?: any[];
 }
 
 export default function PurchasesView({ 
@@ -107,7 +111,10 @@ export default function PurchasesView({
   currentUser,
   onUpdateEquipments,
   selectedContractId: propSelectedContractId,
-  onUpdateContractId
+  onUpdateContractId,
+  resources = [],
+  services = [],
+  quotations = []
 }: PurchasesViewProps) {
   const [activeTab, setActiveTab] = useState<'requests' | 'suppliers' | 'quotations' | 'orders' | 'tracking' | 'estoque' | 'evaluation'>(initialTab || 'requests');
   const [localSelectedContractId, setLocalSelectedContractId] = useState<string>(contracts[0]?.id || 'all');
@@ -181,6 +188,9 @@ export default function PurchasesView({
                     // Logic to find and open the quotation could go here or in QuotationsTab
                   }}
                   currentUser={currentUser}
+                  resources={resources}
+                  services={services}
+                  quotations={quotations}
                 />
               </TabsContent>
               <TabsContent value="suppliers" className="mt-0 outline-none">
@@ -226,6 +236,9 @@ export default function PurchasesView({
                   logoMode={logoMode}
                   defaultOrganization={defaultOrganization}
                   currentUser={currentUser}
+                  resources={resources}
+                  services={services}
+                  quotations={quotations}
                 />
               </TabsContent>
               <TabsContent value="tracking" className="mt-0 outline-none">
@@ -270,7 +283,10 @@ function RequestsTab({
   contracts,
   setSelectedQuotationId,
   setActiveTab,
-  currentUser
+  currentUser,
+  resources = [],
+  services = [],
+  quotations = []
 }: { 
   requests: PurchaseRequest[], 
   setRequests: React.Dispatch<React.SetStateAction<PurchaseRequest[]>>,
@@ -285,6 +301,9 @@ function RequestsTab({
   setSelectedQuotationId: (id: string | null) => void;
   setActiveTab: (tab: any) => void;
   currentUser?: User | null;
+  resources?: any[];
+  services?: any[];
+  quotations?: any[];
 }) {
   const [selectedItemIds, setSelectedItemIds] = useState<string[]>([]);
   const [isQuotationDialogOpen, setIsQuotationDialogOpen] = useState(false);
@@ -293,6 +312,59 @@ function RequestsTab({
     items: []
   });
   const [selectedSuppliers, setSelectedSuppliers] = useState<string[]>([]);
+  const [activeItemFocusedIdx, setActiveItemFocusedIdx] = useState<number | null>(null);
+
+  const insumosObra = useMemo(() => {
+    const list: { name: string; unit: string; source: string }[] = [];
+    const seen = new Set<string>();
+
+    const addUnique = (name: string, unit: string, source: string) => {
+      const key = `${name.toLowerCase()}|${(unit || '').toLowerCase()}`;
+      if (name && !seen.has(key)) {
+        seen.add(key);
+        list.push({ name: name.trim(), unit: unit || 'un', source });
+      }
+    };
+
+    const contractId = currentRequest?.contractId;
+    if (contractId && contractId !== 'none' && contracts && quotations) {
+      const contract = contracts.find((c: any) => c.id === contractId);
+      if (contract && contract.quotationId) {
+        const quotation = quotations.find((q: any) => q.id === contract.quotationId);
+        if (quotation) {
+          const qServices = [
+            ...(quotation.services || []),
+            ...(quotation.groups?.flatMap((g: any) => g.services || []) || [])
+          ];
+          qServices.forEach((bi: any) => {
+            const comp = (services || []).find((s: any) => s.id === bi.serviceId);
+            if (comp) {
+              (comp.items || []).forEach((item: any) => {
+                const res = (resources || []).find((r: any) => r.id === item.resourceId);
+                if (res) {
+                  addUnique(res.name, res.unit, 'Orçamento da Obra');
+                }
+              });
+            }
+          });
+        }
+      }
+    }
+
+    const categoryLower = (currentRequest?.category || '').toLowerCase();
+    const typeFilter = categoryLower.includes('material') ? 'material' : 
+                       categoryLower.includes('equipamento') ? 'equipment' :
+                       categoryLower.includes('mão de obra') ? 'labor' : 
+                       categoryLower.includes('serviço') ? 'service' : null;
+
+    (resources || []).forEach((r: any) => {
+      if (!typeFilter || r.type === typeFilter) {
+        addUnique(r.name, r.unit, 'Insumo Geral');
+      }
+    });
+
+    return list;
+  }, [currentRequest?.contractId, currentRequest?.category, contracts, quotations, services, resources]);
 
   // Flatten requests into items for display
   const allItems = requests.flatMap(req => 
@@ -455,10 +527,279 @@ function RequestsTab({
     setCurrentRequest({ ...currentRequest, items: newItems });
   };
 
+  const updateItemFields = (index: number, fields: any) => {
+    const newItems = [...(currentRequest.items || [])];
+    newItems[index] = { ...newItems[index], ...fields };
+    setCurrentRequest({ ...currentRequest, items: newItems });
+  };
+
   const removeItem = (index: number) => {
     const newItems = (currentRequest.items || []).filter((_, i) => i !== index);
     setCurrentRequest({ ...currentRequest, items: newItems });
   };
+
+  if (isRequestDialogOpen) {
+    return (
+      <Card className="border-[10px] border-white shadow-xl rounded-3xl overflow-hidden">
+        <div className="bg-blue-600 p-8 text-white relative overflow-hidden">
+          <ShoppingCart className="absolute -right-8 -bottom-8 w-40 h-40 opacity-10 rotate-12" />
+          <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4 text-left">
+            <div>
+              <h2 className="text-3xl font-black tracking-tight flex items-center gap-2">
+                Solicitação de Compra
+              </h2>
+              <p className="text-blue-100 font-bold uppercase text-base tracking-widest mt-1">
+                Gerencie os detalhes e itens da solicitação
+              </p>
+            </div>
+            <Button 
+              type="button"
+              variant="outline" 
+              onClick={() => setIsRequestDialogOpen(false)} 
+              className="bg-white/10 hover:bg-white/20 border-white/20 text-white font-bold h-11 px-4 rounded-xl transition"
+            >
+              <ArrowLeft className="w-5 h-5 mr-2" /> Voltar para Solicitações
+            </Button>
+          </div>
+        </div>
+
+        <div className="p-8 space-y-8 bg-white">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="space-y-2">
+              <Label className="text-base uppercase font-bold text-gray-400">Data da Solicitação</Label>
+              <Input 
+                type="date" 
+                className="h-12 border-gray-200 rounded-xl focus:ring-blue-500 font-medium bg-gray-50/50"
+                value={currentRequest.date || ''} 
+                onChange={e => setCurrentRequest({...currentRequest, date: e.target.value})}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-base uppercase font-bold text-gray-400">Setor Solicitante</Label>
+              <Input 
+                placeholder="Ex: Engenharia/Obra" 
+                className="h-12 border-gray-200 rounded-xl focus:ring-blue-500 font-medium bg-gray-50/50"
+                value={currentRequest.sector || ''} 
+                onChange={e => setCurrentRequest({...currentRequest, sector: e.target.value})}
+              />
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label className="text-base uppercase font-bold text-gray-400">Descrição Geral / Motivo</Label>
+            <Input 
+              placeholder="Ex: Materiais para fundação" 
+              className="h-12 border-gray-200 rounded-xl focus:ring-blue-500 font-medium bg-gray-50/50"
+              value={currentRequest.description || ''} 
+              onChange={e => setCurrentRequest({...currentRequest, description: e.target.value})}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label className="text-base uppercase font-bold text-gray-400">Obra / Contrato Vinculado</Label>
+            <Select 
+              value={currentRequest.contractId || (selectedContractId !== 'all' ? selectedContractId : 'none')} 
+              onValueChange={v => setCurrentRequest({...currentRequest, contractId: v})}
+            >
+              <SelectTrigger className="h-12 border-gray-200 rounded-xl focus:ring-blue-500 font-bold text-blue-900 bg-gray-50/50">
+                <SelectValue placeholder="Vincular a uma obra...">
+                  {(() => {
+                    const val = currentRequest.contractId || (selectedContractId !== 'all' ? selectedContractId : 'none');
+                    if (val === 'none') return 'Sem vínculo específico';
+                    const c = contracts.find(curr => curr.id === val);
+                    if (!c) return null;
+                    return c.workName ? `${c.workName} ${c.contractNumber ? `(${c.contractNumber})` : ''}` : (c.contractNumber || c.client || 'Obra sem nome');
+                  })()}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent className="rounded-xl border-blue-100 shadow-2xl">
+                <SelectItem value="none" className="font-bold">Sem vínculo específico</SelectItem>
+                {contracts.map(c => {
+                  const label = c.workName ? `${c.workName} ${c.contractNumber ? `(${c.contractNumber})` : ''}` : (c.contractNumber || c.client || 'Obra sem nome');
+                  return (
+                    <SelectItem key={c.id} value={c.id} textValue={label} className="font-medium">
+                      {label}
+                    </SelectItem>
+                  );
+                })}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="space-y-2">
+              <Label className="text-base uppercase font-bold text-gray-400">Prioridade</Label>
+              <Select 
+                value={currentRequest.priority || 'Normal'}
+                onValueChange={(v: any) => setCurrentRequest({ ...currentRequest, priority: v })}
+              >
+                <SelectTrigger className="h-12 border-gray-200 rounded-xl focus:ring-blue-500 font-bold bg-gray-50/50">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="rounded-xl">
+                  <SelectItem value="Urgente" className="text-red-600 font-black">
+                    <div className="flex items-center gap-2">
+                      <AlertCircle className="w-4.5 h-4.5 text-red-600" />
+                      URGENTE
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="Alta" className="text-orange-600 font-bold">
+                    <div className="flex items-center gap-2">
+                      <AlertCircle className="w-4.5 h-4.5 text-orange-600" />
+                      ALTA
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="Normal" className="text-blue-600 font-bold">NORMAL</SelectItem>
+                  <SelectItem value="Baixa" className="text-gray-600 font-bold">BAIXA</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label className="text-base uppercase font-bold text-gray-400">Categoria</Label>
+              <Select 
+                value={currentRequest.category || ''}
+                onValueChange={(v) => setCurrentRequest({ ...currentRequest, category: v })}
+              >
+                <SelectTrigger className="h-12 border-gray-200 rounded-xl focus:ring-blue-500 font-bold bg-gray-50/50">
+                  <SelectValue placeholder="Selecione..." />
+                </SelectTrigger>
+                <SelectContent className="rounded-xl">
+                  <SelectItem value="Mão de Obra" className="font-bold">MÃO DE OBRA</SelectItem>
+                  <SelectItem value="Material" className="font-bold">MATERIAL</SelectItem>
+                  <SelectItem value="Equipamento" className="font-bold">EQUIPAMENTO</SelectItem>
+                  <SelectItem value="Serviço" className="font-bold">SERVIÇO</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div className="space-y-4 pt-4 border-t border-gray-100">
+            <div className="flex justify-between items-center mb-2">
+              <Label className="text-base uppercase font-black text-gray-400 tracking-widest">Itens da Solicitação</Label>
+              <Button 
+                type="button" 
+                size="sm" 
+                onClick={addItemInput}
+                className="bg-blue-50 text-blue-600 hover:bg-blue-100 border-none h-8 font-bold text-base rounded-lg"
+              >
+                <Plus className="w-3" /> Adicionar Item
+              </Button>
+            </div>
+
+            <div className="space-y-4">
+              {(currentRequest.items || []).map((item, idx) => (
+                <div key={item.id} className="grid grid-cols-12 gap-3 p-4 bg-gray-50/50 rounded-2xl border border-gray-100 group transition-all hover:bg-white hover:shadow-md hover:border-blue-100 relative">
+                  <div className="col-span-12 sm:col-span-7 space-y-1 relative">
+                    <Label className="text-sm font-black text-gray-400 uppercase tracking-tighter">Descrição do Material</Label>
+                    <Input 
+                      placeholder="Ex: Cimento CP II"
+                      value={item.description}
+                      onChange={e => {
+                        updateItem(idx, 'description', e.target.value);
+                        setActiveItemFocusedIdx(idx);
+                      }}
+                      onFocus={() => setActiveItemFocusedIdx(idx)}
+                      onBlur={() => {
+                        setTimeout(() => {
+                          setActiveItemFocusedIdx(prev => prev === idx ? null : prev);
+                        }, 250);
+                      }}
+                      className="h-11 border-gray-200 rounded-xl focus:ring-blue-500 bg-white"
+                    />
+                    
+                    {activeItemFocusedIdx === idx && (() => {
+                      const term = (item.description || '').toLowerCase().trim();
+                      if (term.length === 0) return null;
+                      const suggestions = insumosObra.filter(i => 
+                        i.name.toLowerCase().includes(term)
+                      ).slice(0, 10);
+
+                      if (suggestions.length === 0) return null;
+
+                      return (
+                        <div className="absolute left-0 right-0 top-[100%] mt-1 bg-white border border-gray-200 rounded-xl shadow-2xl z-50 max-h-60 overflow-y-auto divide-y divide-gray-50 text-left min-w-[320px]">
+                          {suggestions.map((suggestion, sIdx) => (
+                            <button
+                              key={sIdx}
+                              type="button"
+                              onMouseDown={() => {
+                                updateItemFields(idx, {
+                                  description: suggestion.name,
+                                  unit: suggestion.unit || 'un'
+                                });
+                                setActiveItemFocusedIdx(null);
+                              }}
+                              className="w-full text-left px-4 py-2 hover:bg-blue-50 transition-colors flex justify-between items-center"
+                            >
+                              <div className="flex flex-col">
+                                <span className="text-xs font-bold text-slate-800">{suggestion.name}</span>
+                                <span className="text-[10px] text-slate-400 font-semibold uppercase">{suggestion.source}</span>
+                              </div>
+                              <span className="text-[10px] bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded font-mono font-bold uppercase">{suggestion.unit}</span>
+                            </button>
+                          ))}
+                        </div>
+                      );
+                    })()}
+                  </div>
+                  <div className="col-span-6 sm:col-span-2 space-y-1">
+                    <Label className="text-sm font-black text-gray-400 uppercase tracking-tighter">Qtd</Label>
+                    <NumericInput 
+                      value={item.quantity}
+                      onChange={val => updateItem(idx, 'quantity', val)}
+                      className="h-11 border-gray-200 rounded-xl focus:ring-blue-500 bg-white text-center font-bold"
+                    />
+                  </div>
+                  <div className="col-span-6 sm:col-span-2 space-y-1">
+                    <Label className="text-sm font-black text-gray-400 uppercase tracking-tighter">Unid</Label>
+                    <Input 
+                      placeholder="un"
+                      value={item.unit}
+                      onChange={e => updateItem(idx, 'unit', e.target.value)}
+                      className="h-11 border-gray-200 rounded-xl focus:ring-blue-500 bg-white text-center font-semibold"
+                    />
+                  </div>
+                  <div className="col-span-12 sm:col-span-1 flex items-end justify-center pb-1">
+                    <Button 
+                      type="button"
+                      variant="ghost" 
+                      size="icon"
+                      onClick={() => removeItem(idx)}
+                      className="h-9 w-9 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-xl"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </div>
+                </div>
+              ))}
+              
+              {(currentRequest.items || []).length === 0 && (
+                <div className="py-12 text-center bg-gray-50 rounded-2xl border border-dashed border-gray-200">
+                  <p className="text-gray-400 text-base font-medium">Nenhum item adicionado ainda.</p>
+                  <Button 
+                    type="button"
+                    variant="outline" 
+                    size="sm" 
+                    onClick={addItemInput}
+                    className="mt-2 text-blue-600 border-blue-200"
+                  >
+                    Clique para adicionar
+                  </Button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <div className="p-8 bg-gray-50 border-t flex flex-col sm:flex-row gap-3">
+          <Button type="button" variant="ghost" onClick={() => setIsRequestDialogOpen(false)} className="rounded-xl font-bold uppercase text-base h-12 flex-1">Cancelar</Button>
+          <Button type="button" onClick={handleSaveRequest} className="rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold uppercase text-base h-12 flex-[2] shadow-lg shadow-blue-100">
+            <CheckCircle className="w-4 h-4 mr-2" /> Salvar Solicitação
+          </Button>
+        </div>
+      </Card>
+    );
+  }
 
   return (
     <Card className="border-[10px] border-white shadow-xl rounded-3xl">
@@ -638,212 +979,6 @@ function RequestsTab({
           </TableBody>
         </Table>
 
-        {/* New/Edit Request Dialog */}
-        <Modal
-          isOpen={isRequestDialogOpen}
-          onClose={() => setIsRequestDialogOpen(false)}
-          hideCancel={true}
-          maxWidth="custom"
-          className="p-0 border-none sm:max-w-[800px] h-[600px] flex flex-col overflow-hidden"
-          headerClassName="hidden"
-        >
-          <div className="bg-blue-600 p-8 text-white relative overflow-hidden rounded-t-2xl">
-            <ShoppingCart className="absolute -right-8 -bottom-8 w-40 h-40 opacity-10 rotate-12" />
-            <div className="relative z-10 text-left">
-              <h2 className="text-3xl font-black tracking-tight">Solicitação de Compra</h2>
-              <p className="text-blue-100 font-bold uppercase text-base tracking-widest mt-1">Gerencie os detalhes e itens da solicitação</p>
-            </div>
-          </div>
-
-          <div className="flex-1 overflow-y-auto p-8 space-y-8 scrollbar-thin-visible">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-2">
-                <Label className="text-base uppercase font-bold text-gray-400">Data da Solicitação</Label>
-                <Input 
-                  type="date" 
-                  className="h-12 border-gray-200 rounded-xl focus:ring-blue-500 font-medium"
-                  value={currentRequest.date || ''} 
-                  onChange={e => setCurrentRequest({...currentRequest, date: e.target.value})}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label className="text-base uppercase font-bold text-gray-400">Setor Solicitante</Label>
-                <Input 
-                  placeholder="Ex: Engenharia/Obra" 
-                  className="h-12 border-gray-200 rounded-xl focus:ring-blue-500 font-medium"
-                  value={currentRequest.sector || ''} 
-                  onChange={e => setCurrentRequest({...currentRequest, sector: e.target.value})}
-                />
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label className="text-base uppercase font-bold text-gray-400">Descrição Geral / Motivo</Label>
-              <Input 
-                placeholder="Ex: Materiais para fundação" 
-                className="h-12 border-gray-200 rounded-xl focus:ring-blue-500 font-medium"
-                value={currentRequest.description || ''} 
-                onChange={e => setCurrentRequest({...currentRequest, description: e.target.value})}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label className="text-base uppercase font-bold text-gray-400">Obra / Contrato Vinculado</Label>
-              <Select 
-                value={currentRequest.contractId || (selectedContractId !== 'all' ? selectedContractId : 'none')} 
-                onValueChange={v => setCurrentRequest({...currentRequest, contractId: v})}
-              >
-                <SelectTrigger className="h-12 border-gray-200 rounded-xl focus:ring-blue-500 font-bold text-blue-900">
-                  <SelectValue placeholder="Vincular a uma obra...">
-                    {(() => {
-                      const val = currentRequest.contractId || (selectedContractId !== 'all' ? selectedContractId : 'none');
-                      if (val === 'none') return 'Sem vínculo específico';
-                      const c = contracts.find(curr => curr.id === val);
-                      if (!c) return null;
-                      return c.workName ? `${c.workName} ${c.contractNumber ? `(${c.contractNumber})` : ''}` : (c.contractNumber || c.client || 'Obra sem nome');
-                    })()}
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent className="rounded-xl border-blue-100 shadow-2xl">
-                  <SelectItem value="none" className="font-bold">Sem vínculo específico</SelectItem>
-                  {contracts.map(c => {
-                    const label = c.workName ? `${c.workName} ${c.contractNumber ? `(${c.contractNumber})` : ''}` : (c.contractNumber || c.client || 'Obra sem nome');
-                    return (
-                      <SelectItem key={c.id} value={c.id} textValue={label} className="font-medium">
-                        {label}
-                      </SelectItem>
-                    );
-                  })}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-2">
-                <Label className="text-base uppercase font-bold text-gray-400">Prioridade</Label>
-                <Select 
-                  value={currentRequest.priority || 'Normal'}
-                  onValueChange={(v: any) => setCurrentRequest({ ...currentRequest, priority: v })}
-                >
-                  <SelectTrigger className="h-12 border-gray-200 rounded-xl focus:ring-blue-500 font-bold">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent className="rounded-xl">
-                    <SelectItem value="Urgente" className="text-red-600 font-black">
-                      <div className="flex items-center gap-2">
-                        <AlertCircle className="w-4 h-4 text-red-600" />
-                        URGENTE
-                      </div>
-                    </SelectItem>
-                    <SelectItem value="Alta" className="text-orange-600 font-bold">
-                      <div className="flex items-center gap-2">
-                        <AlertCircle className="w-4 h-4 text-orange-600" />
-                        ALTA
-                      </div>
-                    </SelectItem>
-                    <SelectItem value="Normal" className="text-blue-600 font-bold">NORMAL</SelectItem>
-                    <SelectItem value="Baixa" className="text-gray-600 font-bold">BAIXA</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label className="text-base uppercase font-bold text-gray-400">Categoria</Label>
-                <Select 
-                  value={currentRequest.category || ''}
-                  onValueChange={(v) => setCurrentRequest({ ...currentRequest, category: v })}
-                >
-                  <SelectTrigger className="h-12 border-gray-200 rounded-xl focus:ring-blue-500 font-bold">
-                    <SelectValue placeholder="Selecione..." />
-                  </SelectTrigger>
-                  <SelectContent className="rounded-xl">
-                    <SelectItem value="Mão de Obra" className="font-bold">MÃO DE OBRA</SelectItem>
-                    <SelectItem value="Material" className="font-bold">MATERIAL</SelectItem>
-                    <SelectItem value="Equipamento" className="font-bold">EQUIPAMENTO</SelectItem>
-                    <SelectItem value="Serviço" className="font-bold">SERVIÇO</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            <div className="space-y-4 pt-4 border-t border-gray-100">
-              <div className="flex justify-between items-center mb-2">
-                <Label className="text-base uppercase font-black text-gray-400 tracking-widest">Itens da Solicitação</Label>
-                <Button 
-                  type="button" 
-                  size="sm" 
-                  onClick={addItemInput}
-                  className="bg-blue-50 text-blue-600 hover:bg-blue-100 border-none h-8 font-bold text-base rounded-lg"
-                >
-                  <Plus className="w-3 h-3 mr-1" /> Adicionar Item
-                </Button>
-              </div>
-
-              <div className="space-y-3 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
-                {(currentRequest.items || []).map((item, idx) => (
-                  <div key={item.id} className="grid grid-cols-12 gap-3 p-4 bg-gray-50 rounded-2xl border border-gray-100 group transition-all hover:bg-white hover:shadow-md hover:border-blue-100 relative">
-                    <div className="col-span-12 sm:col-span-7 space-y-1">
-                      <Label className="text-sm font-black text-gray-400 uppercase tracking-tighter">Descrição do Material</Label>
-                      <Input 
-                        placeholder="Ex: Cimento CP II"
-                        value={item.description}
-                        onChange={e => updateItem(idx, 'description', e.target.value)}
-                        className="h-10 border-gray-200 rounded-xl focus:ring-blue-500 bg-white"
-                      />
-                    </div>
-                    <div className="col-span-6 sm:col-span-2 space-y-1">
-                      <Label className="text-sm font-black text-gray-400 uppercase tracking-tighter">Qtd</Label>
-                      <NumericInput 
-                        value={item.quantity}
-                        onChange={val => updateItem(idx, 'quantity', val)}
-                        className="h-10 border-gray-200 rounded-xl focus:ring-blue-500 bg-white text-center"
-                      />
-                    </div>
-                    <div className="col-span-6 sm:col-span-2 space-y-1">
-                      <Label className="text-sm font-black text-gray-400 uppercase tracking-tighter">Unid</Label>
-                      <Input 
-                        placeholder="un"
-                        value={item.unit}
-                        onChange={e => updateItem(idx, 'unit', e.target.value)}
-                        className="h-10 border-gray-200 rounded-xl focus:ring-blue-500 bg-white"
-                      />
-                    </div>
-                    <div className="col-span-12 sm:col-span-1 flex items-end justify-center pb-1">
-                      <Button 
-                        variant="ghost" 
-                        size="icon"
-                        onClick={() => removeItem(idx)}
-                        className="h-8 w-8 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-xl"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
-                    </div>
-                  </div>
-                ))}
-                
-                {(currentRequest.items || []).length === 0 && (
-                  <div className="py-8 text-center bg-gray-50 rounded-2xl border border-dashed border-gray-200">
-                    <p className="text-gray-400 text-base font-medium">Nenhum item adicionado ainda.</p>
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      onClick={addItemInput}
-                      className="mt-2 text-blue-600 border-blue-200"
-                    >
-                      Clique para adicionar
-                    </Button>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-
-          <DialogFooter className="p-8 bg-gray-50 border-t flex flex-col sm:flex-row gap-3">
-            <Button variant="ghost" onClick={() => setIsRequestDialogOpen(false)} className="rounded-xl font-bold uppercase text-base h-12 flex-1">Cancelar</Button>
-            <Button onClick={handleSaveRequest} className="rounded-xl bg-blue-600 hover:bg-blue-700 font-bold uppercase text-base h-12 flex-[2] shadow-lg shadow-blue-100">
-              <CheckCircle className="w-4 h-4 mr-2" /> Salvar Solicitação
-            </Button>
-          </DialogFooter>
-        </Modal>
 
         {/* Quotation Dialog */}
         <Modal hideCancel={true}
@@ -1307,7 +1442,10 @@ function OrdersTab({
   companyLogoRight,
   logoMode,
   defaultOrganization,
-  currentUser
+  currentUser,
+  resources = [],
+  services = [],
+  quotations = []
 }: { 
   suppliers: Supplier[], 
   orders: PurchaseOrder[], 
@@ -1326,11 +1464,61 @@ function OrdersTab({
   companyLogoRight?: string,
   logoMode?: 'left' | 'right' | 'both' | 'none',
   defaultOrganization?: string,
-  currentUser?: User | null
+  currentUser?: User | null,
+  resources?: any[],
+  services?: any[],
+  quotations?: any[]
 }) {
   const [isPrintDialogOpen, setIsPrintDialogOpen] = useState(false);
   const [showFinalized, setShowFinalized] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [activeOrderItemFocusedIdx, setActiveOrderItemFocusedIdx] = useState<number | null>(null);
+
+  const insumosOrdem = useMemo(() => {
+    const list: { name: string; unit: string; code: string; price: number; source: string }[] = [];
+    const seen = new Set<string>();
+
+    const addUnique = (name: string, unit: string, code: string, price: number, source: string) => {
+      const key = `${name.toLowerCase()}|${code.toLowerCase()}`;
+      if (name && !seen.has(key)) {
+        seen.add(key);
+        list.push({ name: name.trim(), unit: unit || 'un', code, price, source });
+      }
+    };
+
+    // Use selected contract inside currentOrder if any
+    const contractId = currentOrder?.contractId;
+    if (contractId && contractId !== 'all' && contractId !== 'none' && contracts && quotations) {
+      const contract = contracts.find((c: any) => c.id === contractId);
+      if (contract && contract.quotationId) {
+        const quotation = quotations.find((q: any) => q.id === contract.quotationId);
+        if (quotation) {
+          const qServices = [
+            ...(quotation.services || []),
+            ...(quotation.groups?.flatMap((g: any) => g.services || []) || [])
+          ];
+          qServices.forEach((bi: any) => {
+            const comp = (services || []).find((s: any) => s.id === bi.serviceId);
+            if (comp) {
+              (comp.items || []).forEach((item: any) => {
+                const res = (resources || []).find((r: any) => r.id === item.resourceId);
+                if (res) {
+                  addUnique(res.name, res.unit, res.code, res.basePrice, 'Orçamento da Obra');
+                }
+              });
+            }
+          });
+        }
+      }
+    }
+
+    // Add all base resources as General Insumo fallback
+    (resources || []).forEach((r: any) => {
+      addUnique(r.name, r.unit, r.code, r.basePrice || 0, 'Insumo Geral');
+    });
+
+    return list;
+  }, [currentOrder?.contractId, contracts, quotations, services, resources]);
 
   const handleExportExcel = (order: PurchaseOrder) => {
     const data: any[] = [];
@@ -1785,6 +1973,12 @@ function OrdersTab({
   const updateItem = (index: number, field: keyof PurchaseOrderItem, value: any) => {
     const newItems = [...(currentOrder.items || [])];
     newItems[index] = { ...newItems[index], [field]: value };
+    updateTotals(newItems, currentOrder.discount || 0, currentOrder.additions || 0);
+  };
+
+  const updateItemFields = (index: number, fields: Partial<PurchaseOrderItem>) => {
+    const newItems = [...(currentOrder.items || [])];
+    newItems[index] = { ...newItems[index], ...fields };
     updateTotals(newItems, currentOrder.discount || 0, currentOrder.additions || 0);
   };
 
@@ -2526,8 +2720,60 @@ function OrdersTab({
                           <TableCell className="p-1">
                             <Input disabled={isReadOnly} className="h-8 text-base bg-transparent border-transparent hover:border-gray-200 focus:border-emerald-500 focus:bg-white" value={item.code} onChange={e => updateItem(index, 'code', e.target.value)} />
                           </TableCell>
-                          <TableCell className="p-1">
-                            <Input disabled={isReadOnly} className="h-8 text-base bg-transparent border-transparent hover:border-gray-200 focus:border-emerald-500 focus:bg-white" value={item.description} onChange={e => updateItem(index, 'description', e.target.value)} />
+                          <TableCell className="p-1 relative">
+                            <Input 
+                              disabled={isReadOnly} 
+                              className="h-8 text-base bg-transparent border-transparent hover:border-gray-200 focus:border-emerald-500 focus:bg-white" 
+                              value={item.description} 
+                              onChange={e => {
+                                updateItem(index, 'description', e.target.value);
+                                setActiveOrderItemFocusedIdx(index);
+                              }} 
+                              onFocus={() => setActiveOrderItemFocusedIdx(index)}
+                              onBlur={() => {
+                                setTimeout(() => {
+                                  setActiveOrderItemFocusedIdx(prev => prev === index ? null : prev);
+                                }, 250);
+                              }}
+                            />
+                            {activeOrderItemFocusedIdx === index && (() => {
+                              const term = (item.description || '').toLowerCase().trim();
+                              if (term.length === 0) return null;
+
+                              const suggestions = insumosOrdem.filter(i => 
+                                i.name.toLowerCase().includes(term) ||
+                                i.code.toLowerCase().includes(term)
+                              ).slice(0, 10);
+
+                              if (suggestions.length === 0) return null;
+
+                              return (
+                                <div className="absolute left-0 right-0 top-[100%] mt-1 bg-white border border-gray-200 rounded-xl shadow-2xl z-50 max-h-48 overflow-y-auto divide-y divide-gray-50 text-left min-w-[320px]">
+                                  {suggestions.map((suggestion, sIdx) => (
+                                    <button
+                                      key={sIdx}
+                                      type="button"
+                                      onMouseDown={() => {
+                                        updateItemFields(index, {
+                                          description: suggestion.name,
+                                          unit: suggestion.unit || 'un',
+                                          code: suggestion.code || '',
+                                          price: suggestion.price || 0
+                                        });
+                                        setActiveOrderItemFocusedIdx(null);
+                                      }}
+                                      className="w-full text-left px-4 py-2 hover:bg-blue-50 transition-colors flex justify-between items-center"
+                                    >
+                                      <div className="flex flex-col">
+                                        <span className="text-xs font-bold text-slate-800">{suggestion.name}</span>
+                                        <span className="text-[10px] text-slate-400 font-semibold uppercase">{suggestion.code} - {suggestion.source}</span>
+                                      </div>
+                                      <span className="text-[10px] bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded font-mono font-bold uppercase">{suggestion.unit}</span>
+                                    </button>
+                                  ))}
+                                </div>
+                              );
+                            })()}
                           </TableCell>
                           <TableCell className="p-1">
                             <Input disabled={isReadOnly} className="h-8 text-base text-center bg-transparent border-transparent hover:border-gray-200 focus:border-emerald-500 focus:bg-white" value={item.unit} onChange={e => updateItem(index, 'unit', e.target.value)} />

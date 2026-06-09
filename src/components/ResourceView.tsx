@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { motion } from 'motion/react';
-import { Plus, Edit, Trash2, FileSpreadsheet, Download, ChevronUp, ChevronDown } from 'lucide-react';
+import { Plus, Edit, Trash2, FileSpreadsheet, Download, ChevronUp, ChevronDown, TrendingUp, ArrowLeft } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
-import { Resource, ResourceType } from '../types';
+import { Resource, ResourceType, PurchaseOrder } from '../types';
 import { cn, formatCurrency } from '../lib/utils';
 import { exportResourcesToExcel, exportResourcesToPDF } from '../lib/exportUtils';
 import { Button } from '@/components/ui/button';
@@ -13,6 +13,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts';
 
 import { NumericInput } from '@/components/ui/numeric-input';
 
@@ -22,13 +23,15 @@ interface ResourceViewProps {
   onAdd: (r: Omit<Resource, 'id'>) => void;
   onDelete: (id: string) => void;
   onUpdate: (r: Resource) => void;
+  purchaseOrders?: PurchaseOrder[];
   readonly?: boolean;
 }
 
-export function ResourceView({ resources, onAdd, onDelete, onUpdate, readonly }: ResourceViewProps) {
+export function ResourceView({ resources, onAdd, onDelete, onUpdate, purchaseOrders = [], readonly }: ResourceViewProps) {
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [editingResource, setEditingResource] = useState<Resource | null>(null);
+  const [selectedHistoryResource, setSelectedHistoryResource] = useState<Resource | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [sortField, setSortField] = useState<'code' | 'name' | 'type' | 'unit' | 'basePrice'>('code');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
@@ -39,6 +42,117 @@ export function ResourceView({ resources, onAdd, onDelete, onUpdate, readonly }:
     type: 'material',
     basePrice: 0,
   });
+
+  const getResourceStats = React.useCallback((r: Resource) => {
+    const codeToMatch = r.code.trim().toLowerCase();
+    const nameToMatch = r.name.trim().toLowerCase();
+    
+    let totalQty = 0;
+    let totalValue = 0;
+    let purchaseCount = 0;
+
+    purchaseOrders.forEach(po => {
+      po.items.forEach(item => {
+        const itemCode = (item.code || '').trim().toLowerCase();
+        const itemName = (item.description || '').trim().toLowerCase();
+        
+        if (
+          (codeToMatch && itemCode === codeToMatch) || 
+          (nameToMatch && itemName === nameToMatch)
+        ) {
+          const qty = Number(item.quantity) || 0;
+          const price = Number(item.price) || 0;
+          totalQty += qty;
+          totalValue += qty * price;
+          purchaseCount++;
+        }
+      });
+    });
+
+    const averagePrice = totalQty > 0 ? totalValue / totalQty : r.basePrice;
+
+    return {
+      totalQty,
+      totalValue,
+      averagePrice,
+      purchaseCount
+    };
+  }, [purchaseOrders]);
+
+  const stats = React.useMemo(() => {
+    if (!selectedHistoryResource) return { totalQty: 0, totalValue: 0, averagePrice: 0, purchaseCount: 0 };
+    return getResourceStats(selectedHistoryResource);
+  }, [selectedHistoryResource, getResourceStats]);
+
+  const priceHistory = React.useMemo(() => {
+    if (!selectedHistoryResource) return [];
+
+    const history: { date: string; price: number; quantity: number | string; total: number | string; source: string; rawDate: string }[] = [];
+
+    // Add initial creation price entry
+    history.push({
+      date: 'Cad.',
+      price: selectedHistoryResource.basePrice,
+      quantity: '-',
+      total: '-',
+      source: 'Inicial',
+      rawDate: '0000-00-00'
+    });
+
+    const codeToMatch = selectedHistoryResource.code.trim().toLowerCase();
+    const nameToMatch = selectedHistoryResource.name.trim().toLowerCase();
+
+    const seenPurchases = new Set<string>();
+
+    purchaseOrders.forEach(po => {
+      const orderDateRaw = po.orderDate || new Date().toISOString().split('T')[0];
+      // Format to DD/MM/YY or DD/MM for graph readability
+      let formattedDate = orderDateRaw;
+      try {
+        const parts = orderDateRaw.split('-');
+        if (parts.length === 3) {
+          formattedDate = `${parts[2]}/${parts[1]}/${parts[0].slice(2)}`;
+        }
+      } catch (e) {}
+
+      po.items.forEach((item, itemIdx) => {
+        const itemCode = (item.code || '').trim().toLowerCase();
+        const itemName = (item.description || '').trim().toLowerCase();
+
+        if (
+          (codeToMatch && itemCode === codeToMatch) || 
+          (nameToMatch && itemName === nameToMatch)
+        ) {
+          const uniqueKey = `${po.id}-${item.id || itemIdx}`;
+          if (!seenPurchases.has(uniqueKey)) {
+            seenPurchases.add(uniqueKey);
+            const qty = Number(item.quantity) || 0;
+            const price = Number(item.price) || 0;
+            history.push({
+              date: formattedDate,
+              price: price,
+              quantity: qty,
+              total: qty * price,
+              source: `OC-${po.orderNumber}`,
+              rawDate: orderDateRaw
+            });
+          }
+        }
+      });
+    });
+
+    // Sort entries chronologically by raw orderDate, except keep Cad at first
+    const cadEntry = history.find(h => h.source === 'Inicial');
+    const otherEntries = history.filter(h => h.source !== 'Inicial');
+    
+    otherEntries.sort((a, b) => {
+      return a.rawDate.localeCompare(b.rawDate);
+    });
+
+    const combined = cadEntry ? [cadEntry, ...otherEntries] : otherEntries;
+    // Keep max 10 entries
+    return combined.slice(-10);
+  }, [selectedHistoryResource, purchaseOrders]);
 
   const getNextCode = (type: ResourceType) => {
     const prefix = type === 'labor' ? 'MO-' : type === 'equipment' ? 'EP-' : 'MAT-';
@@ -148,12 +262,169 @@ export function ResourceView({ resources, onAdd, onDelete, onUpdate, readonly }:
           comparison = a.unit.localeCompare(b.unit);
           break;
         case 'basePrice':
-          comparison = a.basePrice - b.basePrice;
+          const priceA = getResourceStats(a).averagePrice;
+          const priceB = getResourceStats(b).averagePrice;
+          comparison = priceA - priceB;
           break;
       }
       return sortOrder === 'asc' ? comparison : -comparison;
     });
-  }, [resources, searchTerm, sortField, sortOrder]);
+  }, [resources, searchTerm, sortField, sortOrder, getResourceStats]);
+
+  if (selectedHistoryResource) {
+    return (
+      <motion.div 
+        initial={{ opacity: 0, y: 15 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="space-y-6"
+      >
+        <div className="flex items-center gap-4">
+          <Button variant="outline" size="sm" onClick={() => setSelectedHistoryResource(null)} className="h-9 rounded-xl border-gray-200">
+            <ArrowLeft className="w-4 h-4 mr-2" /> Voltar para Insumos
+          </Button>
+          <div>
+            <h3 className="text-xl font-black text-gray-900 tracking-tight flex items-center gap-2">
+              <TrendingUp className="w-5 h-5 text-blue-600" />
+              Histórico de Preço: {selectedHistoryResource.name}
+            </h3>
+            <p className="text-xs text-gray-500 font-mono tracking-tight uppercase">
+              Código: {selectedHistoryResource.code} | Unidade: {selectedHistoryResource.unit}
+            </p>
+          </div>
+        </div>
+
+        {/* KPI Summary Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <Card className="p-6 border-none shadow-sm bg-white flex flex-col justify-between">
+            <div>
+              <span className="text-xs font-black text-gray-400 uppercase tracking-wider block mb-1">Valor Total Comprado</span>
+              <p className="text-2xl font-black text-blue-600 font-mono">
+                {formatCurrency(stats.totalValue)}
+              </p>
+            </div>
+            <div className="text-[10px] text-gray-400 font-semibold mt-2 uppercase tracking-tight">
+              Soma de todas as ordens de compra
+            </div>
+          </Card>
+
+          <Card className="p-6 border-none shadow-sm bg-white flex flex-col justify-between">
+            <div>
+              <span className="text-xs font-black text-gray-400 uppercase tracking-wider block mb-1">Quantidade Total Comprada</span>
+              <p className="text-2xl font-black text-orange-600 font-mono">
+                {stats.totalQty.toLocaleString('pt-BR')} <span className="text-sm font-bold text-gray-400 uppercase font-sans">{selectedHistoryResource.unit}</span>
+              </p>
+            </div>
+            <div className="text-[10px] text-gray-400 font-semibold mt-2 uppercase tracking-tight">
+              Acumulado de quantidade faturada
+            </div>
+          </Card>
+
+          <Card className="p-6 border-none shadow-sm bg-white flex flex-col justify-between">
+            <div>
+              <span className="text-xs font-black text-gray-400 uppercase tracking-wider block mb-1">Preço Médio Atual</span>
+              <p className="text-2xl font-black text-emerald-600 font-mono">
+                {formatCurrency(stats.averagePrice)}
+              </p>
+            </div>
+            <div className="text-[10px] text-gray-400 font-semibold mt-2 uppercase tracking-tight">
+              Valor Total / Quantidade Total
+            </div>
+          </Card>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+          
+          {/* Chart Section */}
+          <Card className="lg:col-span-7 p-6 border-none shadow-sm space-y-4">
+            <div className="flex justify-between items-center">
+              <h4 className="text-base font-bold text-gray-900">Gráfico das Últimas 10 Mudanças de Preço</h4>
+              <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-100">
+                {priceHistory.length} Registros
+              </Badge>
+            </div>
+            
+            <div className="h-80 w-full pt-4">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={priceHistory} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F3F4F6" />
+                  <XAxis 
+                    dataKey="date" 
+                    stroke="#9CA3AF" 
+                    fontSize={11}
+                    tickLine={false}
+                    axisLine={false}
+                    dy={10}
+                  />
+                  <YAxis 
+                    stroke="#9CA3AF" 
+                    fontSize={11}
+                    tickFormatter={(val) => `R$ ${val.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
+                    tickLine={false}
+                    axisLine={false}
+                    dx={-10}
+                  />
+                  <Tooltip 
+                    formatter={(value: any) => [`R$ ${Number(value).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, 'Preço']}
+                    contentStyle={{ borderRadius: '12px', border: '1px solid #F3F4F6', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.05)' }}
+                  />
+                  <Line 
+                    type="monotone" 
+                    dataKey="price" 
+                    stroke="#2563EB" 
+                    strokeWidth={3}
+                    activeDot={{ r: 8 }}
+                    dot={{ r: 6, strokeWidth: 2, fill: '#FFFFFF', stroke: '#2563EB' }}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          </Card>
+
+          {/* Table Section */}
+          <Card className="lg:col-span-5 p-6 border-none shadow-sm space-y-4">
+            <h4 className="text-base font-bold text-gray-900">Tabela de Alterações</h4>
+            <div className="overflow-hidden rounded-2xl border border-gray-100">
+              <Table>
+                <TableHeader className="bg-gray-50/50">
+                  <TableRow>
+                    <TableHead className="text-left font-black text-xs text-gray-400 uppercase tracking-tighter">Data</TableHead>
+                    <TableHead className="text-center font-black text-xs text-gray-400 uppercase tracking-tighter">Origem</TableHead>
+                    <TableHead className="text-right font-black text-xs text-gray-400 uppercase tracking-tighter">Qtd</TableHead>
+                    <TableHead className="text-right font-black text-xs text-gray-400 uppercase tracking-tighter">Unitário</TableHead>
+                    <TableHead className="text-right font-black text-xs text-gray-400 uppercase tracking-tighter">Total</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {priceHistory.map((entry, index) => (
+                    <TableRow key={index} className="hover:bg-gray-50/50">
+                      <TableCell className="text-left py-3 font-semibold text-xs text-gray-700">
+                        {entry.date}
+                      </TableCell>
+                      <TableCell className="text-center py-3">
+                        <Badge variant="outline" className="bg-blue-50/30 text-blue-700 border-blue-100/50 font-bold text-[10px] uppercase tracking-wider">
+                          {entry.source}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right py-3 font-mono font-medium text-xs text-gray-600">
+                        {typeof entry.quantity === 'number' ? entry.quantity.toLocaleString('pt-BR') : entry.quantity}
+                      </TableCell>
+                      <TableCell className="text-right py-3 font-mono text-xs text-gray-900">
+                        {formatCurrency(entry.price)}
+                      </TableCell>
+                      <TableCell className="text-right py-3 font-mono font-black text-xs text-emerald-600">
+                        {typeof entry.total === 'number' ? formatCurrency(entry.total) : entry.total}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </Card>
+
+        </div>
+      </motion.div>
+    );
+  }
 
   return (
     <motion.div 
@@ -424,38 +695,58 @@ export function ResourceView({ resources, onAdd, onDelete, onUpdate, readonly }:
                 onClick={() => handleSort('basePrice')}
               >
                 <div className="flex items-center justify-end gap-1">
-                  Preço Base
+                  Preço Base / Médio
                   {sortField === 'basePrice' && (
                     sortOrder === 'asc' ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />
                   )}
                 </div>
               </TableHead>
+              <TableHead className="w-[125px] text-center">Histórico</TableHead>
               <TableHead className="w-[100px]"></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {sortedResources.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} className="text-center py-12 text-gray-500">
+                <TableCell colSpan={7} className="text-center py-12 text-gray-500">
                   {searchTerm ? 'Nenhum insumo encontrado para esta pesquisa.' : 'Nenhum insumo cadastrado.'}
                 </TableCell>
               </TableRow>
             ) : (
-              sortedResources.map(r => (
+              sortedResources.map(r => {
+                const rStats = getResourceStats(r);
+                return (
                   <TableRow key={r.id} className="group">
-                  <TableCell className="font-mono text-sm">{r.code}</TableCell>
-                  <TableCell className="font-medium">{r.name}</TableCell>
-                  <TableCell>
-                    <Badge variant="outline" className={cn(
-                      r.type === 'labor' && "bg-blue-50 text-blue-700 border-blue-200",
-                      r.type === 'material' && "bg-green-50 text-green-700 border-green-200",
-                      r.type === 'equipment' && "bg-purple-50 text-purple-700 border-purple-200",
-                    )}>
-                      {r.type === 'labor' ? 'Mão-de-obra' : r.type === 'material' ? 'Material' : 'Equipamento'}
-                    </Badge>
+                    <TableCell className="font-mono text-sm">{r.code}</TableCell>
+                    <TableCell className="font-medium">{r.name}</TableCell>
+                    <TableCell>
+                      <Badge variant="outline" className={cn(
+                        r.type === 'labor' && "bg-blue-50 text-blue-700 border-blue-200",
+                        r.type === 'material' && "bg-green-50 text-green-700 border-green-200",
+                        r.type === 'equipment' && "bg-purple-50 text-purple-700 border-purple-200",
+                      )}>
+                        {r.type === 'labor' ? 'Mão-de-obra' : r.type === 'material' ? 'Material' : 'Equipamento'}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>{r.unit}</TableCell>
+                    <TableCell className="text-right font-mono">
+                      <div className="flex flex-col items-end">
+                        <span>{formatCurrency(rStats.averagePrice)}</span>
+                        {rStats.purchaseCount > 0 && (
+                          <span className="text-[9px] text-emerald-600 font-bold uppercase tracking-tight">Médio (Compras)</span>
+                        )}
+                      </div>
+                    </TableCell>
+                  <TableCell className="text-center">
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={() => setSelectedHistoryResource(r)}
+                      className="h-7 px-2.5 rounded-lg border-blue-200 text-blue-600 hover:bg-blue-50/50 hover:text-blue-700 transition"
+                    >
+                      <TrendingUp className="w-3.5 h-3.5 mr-1" /> Histórico
+                    </Button>
                   </TableCell>
-                  <TableCell>{r.unit}</TableCell>
-                  <TableCell className="text-right font-mono">{formatCurrency(r.basePrice)}</TableCell>
                   {!readonly && (
                     <TableCell>
                       <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -479,8 +770,9 @@ export function ResourceView({ resources, onAdd, onDelete, onUpdate, readonly }:
                     </TableCell>
                   )}
                 </TableRow>
-              ))
-            )}
+              );
+            })
+          )}
           </TableBody>
         </Table>
       </Card>

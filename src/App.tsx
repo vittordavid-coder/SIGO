@@ -3935,6 +3935,7 @@ export default function App() {
                   onAdd={addResource} 
                   onDelete={deleteResource} 
                   onUpdate={updateResource}
+                  purchaseOrders={purchaseOrders}
                   readonly={currentUser?.role === 'reader'}
                 />
               )}
@@ -4283,6 +4284,10 @@ export default function App() {
                   currentUser={currentUser}
                   technicalSchedules={finalTechnicalSchedules}
                   services={filteredServices}
+                  resources={filteredResources}
+                  fuelLogs={fuelLogs}
+                  equipmentMaintenance={equipmentMaintenance}
+                  purchaseOrders={finalPurchaseOrders}
                 />
               )}
 
@@ -4323,6 +4328,9 @@ export default function App() {
                   onUpdateEquipments={updateTechnicalEquipments}
                   selectedContractId={selectedContractId}
                   onUpdateContractId={(id) => setSelectedContractId(id)}
+                  resources={filteredResources}
+                  services={filteredServices}
+                  quotations={finalQuotations}
                 />
               )}
               {mainTab === 'project_admin' && currentUser && (
