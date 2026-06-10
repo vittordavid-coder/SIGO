@@ -708,7 +708,7 @@ export function exportTeamsReportPDF(options: {
     if (idx > 0) addTechnicalHeader(doc, `Equipe: ${t.name}`, options);
     else doc.text(`Equipe: ${t.name}`, 14, 50);
 
-    const teamAssignments = options.assignments.filter(a => a.teamId === t.id && a.month === options.month);
+    const teamAssignments = options.assignments.filter(a => a.teamId === t.id && (!a.endDate || (a.startDate || '') <= options.month + '-31'));
     
     doc.setFontSize(10);
     doc.text('Colaboradores', 14, 60);
@@ -1658,7 +1658,7 @@ export async function exportTeamsReportExcel(options: {
     teamHeader.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1E3A8A' } };
     teamHeader.getCell(1).font = { color: { argb: 'FFFFFFFF' }, bold: true };
 
-    const ta = options.assignments.filter(a => a.teamId === t.id && a.month === options.month);
+    const ta = options.assignments.filter(a => a.teamId === t.id && (!a.endDate || (a.startDate || '') <= options.month + '-31'));
     
     worksheet.addRow(['COLABORADORES']).font = { bold: true, italic: true };
     worksheet.addRow(['Nome', 'Cargo']).font = { bold: true };

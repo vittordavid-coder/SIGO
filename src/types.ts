@@ -903,5 +903,7 @@ export interface TeamAssignment {
   teamId: string;
   memberId: string; // Equipment or Manpower ID
   type: 'equipment' | 'manpower';
-  month: string; // YYYY-MM
+  month?: string; // Kept for backward compatibility parsing
+  startDate?: string;
+  endDate?: string;
 }

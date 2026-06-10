@@ -3999,7 +3999,7 @@ export const ManagementView = ({
                       data={sCurveTimelineData}
                       onClick={(state) => {
                         if (state && state.activeTooltipIndex !== undefined) {
-                          setClickedMonthIndex(state.activeTooltipIndex);
+                          setClickedMonthIndex(Number(state.activeTooltipIndex));
                         }
                       }}
                     >

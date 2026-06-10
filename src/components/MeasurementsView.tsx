@@ -522,7 +522,7 @@ export function MeasurementsView({
     if (
       teamAssignments.some(
         (a) =>
-          a.teamId === teamId && a.memberId === memberId && a.type === type,
+          a.teamId === teamId && a.memberId === memberId && a.type === type && !a.endDate,
       )
     )
       return;
@@ -547,7 +547,7 @@ export function MeasurementsView({
         type,
         companyId: currentUser?.companyId || "default",
         contractId: selectedContractId || undefined,
-        month: selectedMonth,
+        startDate: new Date().toISOString().split("T")[0],
       },
     ]);
   };
@@ -568,7 +568,11 @@ export function MeasurementsView({
       }
     }
 
-    onUpdateAssignments(teamAssignments.filter((a) => a.id !== assignmentId));
+    onUpdateAssignments(
+      teamAssignments.map((a) =>
+        a.id === assignmentId ? { ...a, endDate: new Date().toISOString().split("T")[0] } : a
+      )
+    );
   };
 
   const handleCreateTeam = () => {
@@ -645,8 +649,8 @@ export function MeasurementsView({
         t.contractId === selectedContractId,
     ).sort((a, b) => (a.displayOrder || 0) - (b.displayOrder || 0));
 
-    const allPoolManpower = filteredManpower.filter((m) => !m.exitDate && (!m.dismissalDate) && (!m.status || m.status === 'active' || m.status === 'Ativo'));
-    const allPoolEquipments = filteredEquipments.filter((e) => !e.exitDate && (!e.situation || e.situation === 'Ativo' || e.situation === 'active'));
+    const allPoolManpower = filteredManpower.filter((m) => !m.exitDate && (!(m as any).dismissalDate) && (!(m as any).status || (m as any).status === 'active' || (m as any).status === 'Ativo'));
+    const allPoolEquipments = filteredEquipments.filter((e) => !e.exitDate && (!(e as any).situation || (e as any).situation === 'Ativo' || (e as any).situation === 'active'));
 
     const poolManpower = resourceSearchInput.trim()
       ? allPoolManpower.filter(
@@ -666,7 +670,13 @@ export function MeasurementsView({
 
     const getTeamMembers = (teamId: string) => {
       return teamAssignments.filter(
-        (a) => a.teamId === teamId && a.month === selectedMonth,
+        (a) => a.teamId === teamId && !a.endDate,
+      );
+    };
+    
+    const getHistoricalTeamMembers = (teamId: string) => {
+      return teamAssignments.filter(
+        (a) => a.teamId === teamId && a.endDate,
       );
     };
 
@@ -1496,9 +1506,8 @@ export function MeasurementsView({
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <AnimatePresence mode="popLayout">
                 {filteredTeams.map((team) => {
-                  const teamMems = getTeamMembers(team.id).filter(
-                    (a) => a.month === selectedMonth,
-                  );
+                  const teamMems = getTeamMembers(team.id);
+                  const histMems = getHistoricalTeamMembers(team.id);
                   const isExpanded = selectedTeamId === team.id;
                   const supervisor = controllerManpower.find(
                     (m) => m.id === team.supervisorId,
@@ -1512,9 +1521,9 @@ export function MeasurementsView({
                       animate={{ opacity: 1, scale: 1 }}
                       exit={{ opacity: 0, scale: 0.9 }}
                       draggable={true}
-                      onDragStart={(e) => {
+                      onDragStart={(e: any) => {
                         setDraggedTeamId(team.id);
-                        e.dataTransfer.effectAllowed = "move";
+                        if (e.dataTransfer) e.dataTransfer.effectAllowed = "move";
                       }}
                       onDragEnd={() => setDraggedTeamId(null)}
                       onDragOver={(e) => e.preventDefault()}
@@ -1754,6 +1763,51 @@ export function MeasurementsView({
                                     )}
                                   </div>
                                 </div>
+                                
+                                {histMems.length > 0 && (
+                                  <div className="pt-4 mt-4 border-t border-gray-100">
+                                    <h5 className="text-sm uppercase font-black text-gray-400 mb-3 flex items-center gap-2 tracking-[0.2em]">
+                                      <Clock className="w-3.5 h-3.5" /> Histórico da Equipe
+                                    </h5>
+                                    <div className="grid grid-cols-1 gap-2">
+                                      {histMems.map((m) => {
+                                        const typeColor = m.type === "manpower" ? "bg-blue-300" : "bg-emerald-300";
+                                        const iconColor = m.type === "manpower" ? "text-blue-500" : "text-emerald-500";
+                                        let title = "Desconhecido";
+                                        let subtitle = "";
+                                        
+                                        if (m.type === "manpower") {
+                                          const person = controllerManpower.find((p) => p.id === m.memberId);
+                                          title = person?.name || "Desconhecido";
+                                        } else {
+                                          const equip = controllerEquipments.find((e) => e.id === m.memberId);
+                                          title = equip?.name || "Desconhecido";
+                                          subtitle = equip?.plate ? `(${equip.plate})` : "";
+                                        }
+
+                                        return (
+                                          <div
+                                            key={m.id}
+                                            className="flex items-center justify-between bg-white/50 p-2.5 rounded-xl border border-gray-100 shadow-sm opacity-60"
+                                          >
+                                            <div className="flex items-center gap-3">
+                                              <div className={`w-1.5 h-1.5 rounded-full ${typeColor}`} />
+                                              <div className="flex flex-col">
+                                                <span className="text-xs font-bold text-gray-600 line-through decoration-gray-300">
+                                                  {title} <span className="text-gray-400">{subtitle}</span>
+                                                </span>
+                                                <span className="text-[10px] text-gray-400 font-medium">
+                                                  {m.startDate ? `Entrada: ${m.startDate.split("-").reverse().join("/")}` : "Sem data"} - Saída: {m.endDate?.split("-").reverse().join("/")}
+                                                </span>
+                                              </div>
+                                            </div>
+                                            {m.type === "manpower" ? <HardHat className={`w-3.5 h-3.5 ${iconColor}`} /> : <Truck className={`w-3.5 h-3.5 ${iconColor}`} />}
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
+                                )}
                               </div>
                               <div className="flex justify-end pt-4 border-t border-gray-100">
                                 <Button
@@ -1820,8 +1874,6 @@ export function MeasurementsView({
     );
   };
 
-  const getTeamMembers = (teamId: string) =>
-    teamAssignments.filter((a) => a.teamId === teamId);
   const toggleTeam = (id: string) =>
     setSelectedTeamId(selectedTeamId === id ? null : id);
 
@@ -7773,7 +7825,7 @@ function StationGroupsView({
                   <div className="bg-emerald-50 p-3 rounded-xl">
                     <Layers className="w-6 h-6 text-emerald-600" />
                   </div>
-                  {group.operationType && group.operationType !== "none" && (
+                  {group.operationType && (group.operationType as any) !== "none" && (
                     <span
                       className={cn(
                         "px-2.5 py-1 rounded-full text-xs font-bold uppercase tracking-wider border",
@@ -10720,7 +10772,7 @@ function ProductionControlView({
                           </TableCell>
                           {viewMode === "financial" && (
                             <TableCell className="text-right border-r text-red-500 font-black font-mono whitespace-nowrap">
-                              {viewMode !== "quantity" ? "R$ " : ""}
+                              {"R$ "}
                               {formatNumber(
                                 renderData[renderData.length - 1]
                                   ?.displayCostAccumulated || 0,

@@ -1492,7 +1492,7 @@ export function DailyReportView({
                                                   onClick={(e) => {
                                                     e.stopPropagation();
                                                     const updatedPhotos = selectedReport.photos!.filter((_: any, i: number) => i !== idx);
-                                                    onUpdate({...selectedReport, photos: updatedPhotos});
+                                                    onUpdate({...selectedReport, photos: updatedPhotos as any});
                                                   }}
                                                   className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
                                                 >
@@ -1728,7 +1728,7 @@ export function PluviometryView({ contract, records, onAdd, onUpdate, readonly }
           <td style="padding: 6px; border: 1px solid #cbd5e1; text-align: center;">${getStatusBadgeHtml(rec?.morningStatus)}</td>
           <td style="padding: 6px; border: 1px solid #cbd5e1; text-align: center;">${getStatusBadgeHtml(rec?.afternoonStatus)}</td>
           <td style="padding: 6px; border: 1px solid #cbd5e1; text-align: center; font-weight: bold; font-family: monospace; color: #1d4ed8;">${rec?.rainfallMm ? rec.rainfallMm.toFixed(1) + ' mm' : '0.0 mm'}</td>
-          <td style="padding: 6px; border: 1px solid #cbd5e1; font-size: 10px;">${rec?.impact || '-'}</td>
+          <td style="padding: 6px; border: 1px solid #cbd5e1; font-size: 10px;">${(rec as any)?.impact || '-'}</td>
         </tr>
       `;
     }).join('');
@@ -3499,7 +3499,7 @@ export function TechnicalScheduleView({
       if (field === 'plannedPerc') {
         qtyValue = (value / 100) * totalQty;
         fieldToUpdate = 'plannedQty';
-      } else if (field === 'actualPerc') {
+      } else if ((field as any) === 'actualPerc') {
         qtyValue = (value / 100) * totalQty;
         fieldToUpdate = 'actualQty';
       } else {

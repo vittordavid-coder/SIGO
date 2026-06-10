@@ -2729,6 +2729,12 @@ export default function App() {
         try {
           const mapped = teams.map(t => ({ ...mapToSnake(t), company_id: compId }));
 
+          // Fallback blob FIRST to prevent sync override if table doesn't exist
+          await supabase.from('app_state').upsert({
+            id: `${compId}_sigo_controller_teams`,
+            content: teams
+          });
+
           // Sync Deletions
           const { data: dbItems } = await supabase.from('controller_teams').select('id').eq('company_id', compId);
           const dbIds = dbItems?.map(d => d.id) || [];
@@ -3044,6 +3050,12 @@ export default function App() {
       if (supabase) {
         try {
           const mapped = uniqueAssignments.map(a => ({ ...mapToSnake(a), company_id: compId }));
+
+          // Fallback blob FIRST to prevent sync override if table doesn't exist
+          await supabase.from('app_state').upsert({
+            id: `${compId}_sigo_team_assignments`,
+            content: uniqueAssignments
+          });
 
           // Sync Deletions
           const { data: dbItems } = await supabase.from('team_assignments').select('id').eq('company_id', compId);

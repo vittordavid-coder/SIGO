@@ -2276,14 +2276,14 @@ function OrdersTab({
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-44 border border-slate-200 shadow-xl rounded-xl bg-white p-1.5 z-50">
                   <DropdownMenuItem 
-                    onClick={() => handleExportPDF(currentOrder)} 
+                    onClick={() => handleExportPDF(currentOrder as PurchaseOrder)} 
                     className="flex items-center gap-2 text-sm font-semibold text-slate-700 cursor-pointer hover:bg-slate-50 rounded-lg py-2 px-2.5"
                   >
                     <FileText className="w-4 h-4 text-red-500" />
                     Exportar PDF
                   </DropdownMenuItem>
                   <DropdownMenuItem 
-                    onClick={() => handleExportExcel(currentOrder)} 
+                    onClick={() => handleExportExcel(currentOrder as PurchaseOrder)} 
                     className="flex items-center gap-2 text-sm font-semibold text-slate-700 cursor-pointer hover:bg-slate-50 rounded-lg py-2 px-2.5"
                   >
                     <FileSpreadsheet className="w-4 h-4 text-emerald-500" />

@@ -116,9 +116,7 @@ export const FinanceView = ({
         fornecedor: selectedPO.supplierName,
         descricao: `${orderNumber}: ${poi.description || poi.descricao} (Qtd: ${poi.quantity || poi.quantidade} ${poi.unit || poi.unidade || ''})`,
         mesCompetencia: selectedPO.orderDate ? selectedPO.orderDate.substring(0, 7) : (selectedPO.dataPedido ? selectedPO.dataPedido.substring(0, 7) : ''),
-        mes_competencia: selectedPO.orderDate ? selectedPO.orderDate.substring(0, 7) : (selectedPO.dataPedido ? selectedPO.dataPedido.substring(0, 7) : ''),
         dataVencimento: dueDate || selectedPO.deliveryDate || selectedPO.orderDate || '',
-        data_vencimento: dueDate || selectedPO.deliveryDate || selectedPO.orderDate || '',
         valor: ((poi.quantity || poi.quantidade || 0) * (poi.price || poi.precoUnitario || poi.valor || 0)) || 0,
         purchaseOrderId: selectedPO.id
       }));
@@ -130,9 +128,7 @@ export const FinanceView = ({
         fornecedor: selectedPO.supplierName,
         descricao: `Consolidado ${orderNumber} - Ref. Suprimentos / Compras`,
         mesCompetencia: selectedPO.orderDate ? selectedPO.orderDate.substring(0, 7) : (selectedPO.dataPedido ? selectedPO.dataPedido.substring(0, 7) : ''),
-        mes_competencia: selectedPO.orderDate ? selectedPO.orderDate.substring(0, 7) : (selectedPO.dataPedido ? selectedPO.dataPedido.substring(0, 7) : ''),
         dataVencimento: dueDate || selectedPO.deliveryDate || selectedPO.orderDate || '',
-        data_vencimento: dueDate || selectedPO.deliveryDate || selectedPO.orderDate || '',
         valor: selectedPO.total || selectedPO.valorTotal || 0,
         purchaseOrderId: selectedPO.id
       }];
@@ -537,9 +533,7 @@ export const FinanceView = ({
     setItemFormData({ 
       ...item,
       mesCompetencia: formattedCompetencia || rawCompetencia,
-      mes_competencia: formattedCompetencia || rawCompetencia,
       dataVencimento: formattedVencimento || rawVencimento,
-      data_vencimento: formattedVencimento || rawVencimento,
     });
     setIsItemDialogOpen(true);
   };
@@ -554,9 +548,7 @@ export const FinanceView = ({
       fornecedor: itemFormData.fornecedor || '',
       descricao: itemFormData.descricao || '',
       mesCompetencia: itemFormData.mesCompetencia || '',
-      mes_competencia: itemFormData.mesCompetencia || '',
       dataVencimento: itemFormData.dataVencimento || '',
-      data_vencimento: itemFormData.dataVencimento || '',
       valor: Number(itemFormData.valor) || 0,
     };
 
