@@ -2728,7 +2728,12 @@ export default function App() {
       const supabase = createSupabaseClient(config.url, config.key);
       if (supabase && teams.length >= 0) {
         try {
-          const mapped = teams.map(t => ({ ...mapToSnake(t), company_id: compId }));
+          const mapped = teams.map(t => {
+            const m = { ...mapToSnake(t), company_id: compId };
+            if (m.contract_id === "") m.contract_id = null;
+            if (m.supervisor_id === "") m.supervisor_id = null;
+            return m;
+          });
 
           // Fallback blob FIRST to prevent sync override if table doesn't exist
           await supabase.from('app_state').upsert({
@@ -2772,7 +2777,17 @@ export default function App() {
         try {
           const snakeData = nextEmployees.map(emp => {
             const m = { ...mapToSnake(emp), company_id: emp.companyId || compId };
-            if (m.salary === undefined || m.salary === null) m.salary = 0;
+            
+            // Fix foreign key issues
+            if (m.contract_id === "") m.contract_id = null;
+
+            if (m.admission_date === "") m.admission_date = null;
+            if (m.dismissal_date === "") m.dismissal_date = null;
+            if (m.birth_date === "") m.birth_date = null;
+
+            if (m.salary === undefined || m.salary === null || m.salary === "") m.salary = 0;
+            if (m.commuter_value1 === "" || m.commuter_value1 === null) m.commuter_value1 = 0;
+            if (m.commuter_value2 === "" || m.commuter_value2 === null) m.commuter_value2 = 0;
             if (m.payment_type === undefined || m.payment_type === null) m.payment_type = 'month';
             if (m.status === undefined || m.status === null) m.status = 'active';
             if (m.dependents && !Array.isArray(m.dependents)) {
@@ -2846,6 +2861,9 @@ export default function App() {
           const mapped = equips.map(e => {
             const m = { ...mapToSnake(e), company_id: compId };
             
+            // Fix foreign key issues
+            if (m.contract_id === "") m.contract_id = null;
+
             // Fix date issues (empty string to null)
             if (m.entry_date === "") m.entry_date = null;
             if (m.exit_date === "") m.exit_date = null;
@@ -3050,7 +3068,12 @@ export default function App() {
       const supabase = createSupabaseClient(config.url, config.key);
       if (supabase) {
         try {
-          const mapped = uniqueAssignments.map(a => ({ ...mapToSnake(a), company_id: compId }));
+          const mapped = uniqueAssignments.map(a => {
+            const m = { ...mapToSnake(a), company_id: compId };
+            if (m.contract_id === "") m.contract_id = null;
+            if (m.team_id === "") m.team_id = null;
+            return m;
+          });
 
           // Fallback blob FIRST to prevent sync override if table doesn't exist
           await supabase.from('app_state').upsert({
