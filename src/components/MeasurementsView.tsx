@@ -514,6 +514,26 @@ export function MeasurementsView({
   >("order");
   const [teamsSortOrder, setTeamsSortOrder] = useState<"asc" | "desc">("asc");
 
+  // Auto-cleanup orphaned assignments (e.g. deleted/removed manpower/equipment references)
+  useEffect(() => {
+    if (!teamAssignments || teamAssignments.length === 0) return;
+    
+    const validAssignments = teamAssignments.filter((a) => {
+      if (a.type === "manpower") {
+        return controllerManpower.some((p) => p.id === a.memberId);
+      }
+      if (a.type === "equipment") {
+        return controllerEquipments.some((e) => e.id === a.memberId);
+      }
+      return true;
+    });
+
+    if (validAssignments.length !== teamAssignments.length) {
+      console.log(`[Team Assignments Cleanup] Found ${teamAssignments.length - validAssignments.length} orphaned assignments. Syncing...`);
+      onUpdateAssignments(validAssignments);
+    }
+  }, [teamAssignments, controllerManpower, controllerEquipments, onUpdateAssignments]);
+
   const handleAddAssignment = (
     teamId: string,
     memberId: string,
@@ -670,13 +690,31 @@ export function MeasurementsView({
 
     const getTeamMembers = (teamId: string) => {
       return teamAssignments.filter(
-        (a) => a.teamId === teamId && !a.endDate,
+        (a) => {
+          if (a.teamId !== teamId || a.endDate) return false;
+          if (a.type === "manpower") {
+            return controllerManpower.some((p) => p.id === a.memberId);
+          }
+          if (a.type === "equipment") {
+            return controllerEquipments.some((e) => e.id === a.memberId);
+          }
+          return true;
+        }
       );
     };
     
     const getHistoricalTeamMembers = (teamId: string) => {
       return teamAssignments.filter(
-        (a) => a.teamId === teamId && a.endDate,
+        (a) => {
+          if (a.teamId !== teamId || !a.endDate) return false;
+          if (a.type === "manpower") {
+            return controllerManpower.some((p) => p.id === a.memberId);
+          }
+          if (a.type === "equipment") {
+            return controllerEquipments.some((e) => e.id === a.memberId);
+          }
+          return true;
+        }
       );
     };
 
@@ -1678,6 +1716,7 @@ export function MeasurementsView({
                                   <div className="grid grid-cols-1 gap-2">
                                     {teamMems
                                       .filter((m) => m.type === "manpower")
+                                      .filter((m) => !!controllerManpower.find((p) => p.id === m.memberId))
                                       .map((m) => {
                                         const person = controllerManpower.find(
                                           (p) => p.id === m.memberId,
@@ -1723,6 +1762,7 @@ export function MeasurementsView({
                                   <div className="grid grid-cols-1 gap-2">
                                     {teamMems
                                       .filter((m) => m.type === "equipment")
+                                      .filter((m) => !!controllerEquipments.find((e) => e.id === m.memberId))
                                       .map((m) => {
                                         const equip = controllerEquipments.find(
                                           (e) => e.id === m.memberId,
@@ -1737,7 +1777,7 @@ export function MeasurementsView({
                                               <span className="text-sm font-bold text-gray-700">
                                                 {equip?.name}{" "}
                                                 <span className="text-sm text-gray-400">
-                                                  ({equip?.plate})
+                                                  ({equip?.plate || "S/A"})
                                                 </span>
                                               </span>
                                             </div>

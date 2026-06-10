@@ -2751,7 +2751,28 @@ export default function App() {
           }
 
           if (mapped.length > 0) {
-            await supabase.from('controller_teams').upsert(mapped);
+            const { error: upsertError } = await supabase.from('controller_teams').upsert(mapped);
+            if (upsertError) {
+              console.warn('[Sync] Teams standard upsert failed, retrying without color and display_order...', upsertError);
+              
+              const saferMapped = mapped.map(({ color, display_order, ...rest }) => rest);
+              const { error: retryError1 } = await supabase.from('controller_teams').upsert(saferMapped);
+              if (retryError1) {
+                console.warn('[Sync] Teams retry with basic fields failed, retrying without FK (contract_id, supervisor_id)...', retryError1);
+                
+                const evenSaferMapped = saferMapped.map(({ contract_id, supervisor_id, ...rest }) => rest);
+                const { error: retryError2 } = await supabase.from('controller_teams').upsert(evenSaferMapped);
+                if (retryError2) {
+                  console.error('[Sync] All fallbacks for controller_teams persist failed:', retryError2);
+                } else {
+                  console.log('[Sync] Teams saved successfully using minimum safe fields.');
+                }
+              } else {
+                console.log('[Sync] Teams saved successfully without color and display_order.');
+              }
+            } else {
+              console.log('[Sync] Teams saved successfully on primary path.');
+            }
           }
         } catch (err) { console.warn('[Sync] Teams persist failed', err); }
       }
@@ -3072,6 +3093,8 @@ export default function App() {
             const m = { ...mapToSnake(a), company_id: compId };
             if (m.contract_id === "") m.contract_id = null;
             if (m.team_id === "") m.team_id = null;
+            if (m.start_date === "") m.start_date = null;
+            if (m.end_date === "") m.end_date = null;
             return m;
           });
 
