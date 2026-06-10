@@ -723,31 +723,39 @@ export default function App() {
               }
             }
             
-            // Union both sources: keep all from DB, and add those from Blob that are missing in DB
-            const dbIds = new Set(camelData.map(item => item.id));
-            const extraBlobItems = parsedBlobData.filter((b: any) => b?.id && !dbIds.has(b.id));
-            
-            const combined = [...camelData, ...extraBlobItems];
-            
-            // Merge matching items to preserve fields from both, avoiding overwriting with null/empty from DB
-            finalVal = combined.map(item => {
-              const blobItem = parsedBlobData.find((b: any) => b?.id === item.id);
-              if (!blobItem) return item;
+            if (tableName === 'fuel_reservoirs' || tableName === 'fuel_logs') {
+              finalVal = camelData;
+            } else {
+              // Union both sources: keep all from DB, and add those from Blob that are missing in DB
+              const dbIds = new Set(camelData.map(item => item.id));
+              const extraBlobItems = parsedBlobData.filter((b: any) => b?.id && !dbIds.has(b.id));
               
-              // Start with blob data as it's often the historical source of truth
-              const merged = { ...blobItem };
-              // Only overwrite with database data if the value is not null/undefined
-              Object.keys(item).forEach(k => {
-                if (item[k] !== null && item[k] !== undefined) {
-                  merged[k] = item[k];
-                }
+              const combined = [...camelData, ...extraBlobItems];
+              
+              // Merge matching items to preserve fields from both, avoiding overwriting with null/empty from DB
+              finalVal = combined.map(item => {
+                const blobItem = parsedBlobData.find((b: any) => b?.id === item.id);
+                if (!blobItem) return item;
+                
+                // Start with blob data as it's often the historical source of truth
+                const merged = { ...blobItem };
+                // Only overwrite with database data if the value is not null/undefined
+                Object.keys(item).forEach(k => {
+                  if (item[k] !== null && item[k] !== undefined) {
+                    merged[k] = item[k];
+                  }
+                });
+                return merged;
               });
-              return merged;
-            });
+            }
             
             finalVal = deduplicateById(finalVal);
           } else if (!hasError && allData.length === 0) {
-            finalVal = deduplicateById(parsedBlobData);
+            if (tableName === 'fuel_reservoirs' || tableName === 'fuel_logs') {
+              finalVal = [];
+            } else {
+              finalVal = deduplicateById(parsedBlobData);
+            }
           } else {
             // Table error (e.g. doesn't exist), fallback to blob
             finalVal = deduplicateById(parsedBlobData);
@@ -1070,15 +1078,28 @@ export default function App() {
       const supabase = createSupabaseClient(config.url, config.key);
       if (supabase) {
         try {
-          // Optimization: only upsert changed items
-          const changed = newVal.filter(item => {
-            const old = prevVal.find(p => p.id === item.id);
-            if (!old) return true;
-            return JSON.stringify(old) !== JSON.stringify(item);
+          const mapped = newVal.map(t => {
+            const m = mapToSnake({ ...t, companyId: compId });
+            if (m.contract_id === "") m.contract_id = null;
+            return m;
           });
 
-          if (changed.length > 0) {
-            const mapped = changed.map(t => mapToSnake({ ...t, companyId: compId }));
+          // Save fallback blob to app_state
+          await supabase.from('app_state').upsert({
+            id: `${compId}_sigo_fuel_tanks`,
+            content: newVal
+          });
+
+          // Sync Deletions
+          const { data: dbItems } = await supabase.from('fuel_reservoirs').select('id').eq('company_id', compId);
+          const dbIds = dbItems?.map(d => d.id) || [];
+          const currentIds = newVal.map(t => t.id);
+          const toDelete = dbIds.filter(id => !currentIds.includes(id));
+          if (toDelete.length > 0) {
+            await supabase.from('fuel_reservoirs').delete().in('id', toDelete);
+          }
+
+          if (mapped.length > 0) {
             await supabase.from('fuel_reservoirs').upsert(mapped);
           }
         } catch (err) {
@@ -1099,15 +1120,39 @@ export default function App() {
       const supabase = createSupabaseClient(config.url, config.key);
       if (supabase) {
         try {
-          // Optimization: only upsert changed items
-          const changed = newVal.filter(item => {
-            const old = prevVal.find(p => p.id === item.id);
-            if (!old) return true;
-            return JSON.stringify(old) !== JSON.stringify(item);
+          const mapped = newVal.map(l => {
+            const m = mapToSnake({ ...l, companyId: compId });
+            if (m.equipment_id === "") m.equipment_id = null;
+            if (m.tank_id === "") m.tank_id = null;
+            
+            // Ensure numeric conversions with null fallbacks if invalid/empty
+            const toNumOrNull = (v: any) => {
+              if (v === "" || v === null || v === undefined || isNaN(Number(v))) return null;
+              return Number(v);
+            };
+            m.quantity = Number(m.quantity || 0);
+            m.unit_price = toNumOrNull(m.unit_price);
+            m.cost = toNumOrNull(m.cost);
+            m.hour_meter = toNumOrNull(m.hour_meter);
+            return m;
           });
 
-          if (changed.length > 0) {
-            const mapped = changed.map(l => mapToSnake({ ...l, companyId: compId }));
+          // Save fallback blob to app_state
+          await supabase.from('app_state').upsert({
+            id: `${compId}_sigo_fuel_logs`,
+            content: newVal
+          });
+
+          // Sync Deletions
+          const { data: dbItems } = await supabase.from('fuel_logs').select('id').eq('company_id', compId);
+          const dbIds = dbItems?.map(d => d.id) || [];
+          const currentIds = newVal.map(l => l.id);
+          const toDelete = dbIds.filter(id => !currentIds.includes(id));
+          if (toDelete.length > 0) {
+            await supabase.from('fuel_logs').delete().in('id', toDelete);
+          }
+
+          if (mapped.length > 0) {
             await supabase.from('fuel_logs').upsert(mapped);
           }
         } catch (err) {
