@@ -514,26 +514,6 @@ export function MeasurementsView({
   >("order");
   const [teamsSortOrder, setTeamsSortOrder] = useState<"asc" | "desc">("asc");
 
-  // Auto-cleanup orphaned assignments (e.g. deleted/removed manpower/equipment references)
-  useEffect(() => {
-    if (!teamAssignments || teamAssignments.length === 0) return;
-    
-    const validAssignments = teamAssignments.filter((a) => {
-      if (a.type === "manpower") {
-        return controllerManpower.some((p) => p.id === a.memberId);
-      }
-      if (a.type === "equipment") {
-        return controllerEquipments.some((e) => e.id === a.memberId);
-      }
-      return true;
-    });
-
-    if (validAssignments.length !== teamAssignments.length) {
-      console.log(`[Team Assignments Cleanup] Found ${teamAssignments.length - validAssignments.length} orphaned assignments. Syncing...`);
-      onUpdateAssignments(validAssignments);
-    }
-  }, [teamAssignments, controllerManpower, controllerEquipments, onUpdateAssignments]);
-
   const handleAddAssignment = (
     teamId: string,
     memberId: string,
