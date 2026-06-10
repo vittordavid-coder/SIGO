@@ -1616,6 +1616,8 @@ export default function RHView({
         newEmployee.contractId,
         currentUser.companyId,
       );
+      setIsDialogOpen(false);
+      setEditingEmployeeId(null);
     }
 
     resetForm();

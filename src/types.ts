@@ -850,6 +850,7 @@ export interface FuelLog {
   supplier?: string;
   unitPrice?: number;
   invoiceNumber?: string;
+  hourMeter?: number;
 }
 
 export interface ControllerManpower {

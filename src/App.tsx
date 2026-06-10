@@ -2721,6 +2721,7 @@ export default function App() {
   };
 
   const updateTechnicalTeams = async (teams: ControllerTeam[]) => {
+    lastLocalUpdate.current = Date.now();
     setControllerTeams(teams);
     const config = getSupabaseConfig();
     if (config.enabled && compId) {

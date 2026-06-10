@@ -5052,6 +5052,11 @@ export default function ControlView({
                                         : ""}
                                     </span>
                                   )}
+                                {log.type === "saida" && log.hourMeter && (
+                                  <span className="text-sm font-bold text-gray-500 font-mono">
+                                    [KM/H: {log.hourMeter}]
+                                  </span>
+                                )}
                               </div>
                             </TableCell>
                             <TableCell>
@@ -7516,6 +7521,26 @@ export default function ControlView({
                     </PopoverContent>
                   </Popover>
                 </div>
+                
+                {newFuelLog.equipmentId && !fuelTanks.some(t => t.id === newFuelLog.equipmentId) && (
+                  <div className="space-y-2 text-left pt-2 border-t border-gray-100">
+                    <Label className="text-base font-black text-gray-400 uppercase tracking-widest">
+                      Horímetro / KM (Atual)
+                    </Label>
+                    <Input
+                      type="number"
+                      placeholder="Ex: 1540.5"
+                      value={newFuelLog.hourMeter || ""}
+                      onChange={(e) =>
+                        setNewFuelLog({
+                          ...newFuelLog,
+                          hourMeter: e.target.value ? Number(e.target.value) : undefined,
+                        })
+                      }
+                      className="h-12 border-gray-100 bg-gray-50/50 rounded-xl font-bold text-gray-900 focus:ring-blue-500"
+                    />
+                  </div>
+                )}
               </div>
             )}
 
