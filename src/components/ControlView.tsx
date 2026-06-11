@@ -3810,21 +3810,7 @@ export default function ControlView({
                       C. Custo / Obra
                     </TableHead>
                     <TableHead
-                      className="font-black text-base h-8 uppercase tracking-widest text-slate-500 cursor-pointer hover:bg-slate-100/50 transition-colors"
-                      onClick={() => handleSort("category")}
-                    >
-                      <div className="flex items-center gap-2">
-                        Classificação
-                        {sortField === "category" &&
-                          (sortOrder === "asc" ? (
-                            <ChevronUp className="w-3 h-3" />
-                          ) : (
-                            <ChevronDown className="w-3 h-3" />
-                          ))}
-                      </div>
-                    </TableHead>
-                    <TableHead
-                      className="font-black text-base h-8 uppercase tracking-widest text-slate-500 cursor-pointer hover:bg-slate-100/50 transition-colors"
+                      className="font-black text-base h-8 uppercase tracking-widest text-slate-500 cursor-pointer hover:bg-slate-100/50 transition-colors min-w-[240px]"
                       onClick={() => handleSort("team")}
                     >
                       <div className="flex items-center gap-2">
@@ -3930,9 +3916,6 @@ export default function ControlView({
                             {getContractName(e.contractId)}
                           </span>
                         </TableCell>
-                        <TableCell className="py-0.5 text-base font-bold text-slate-500 uppercase tracking-tight">
-                          {e.category}
-                        </TableCell>
                         <TableCell className="py-0.5">
                           {(() => {
                             const currentTeamName = (() => {
@@ -4035,7 +4018,7 @@ export default function ControlView({
                                   }
                                 }}
                                 className={cn(
-                                  "w-40 text-center font-bold uppercase tracking-wide text-[11px] h-8 rounded-lg px-2 border transition-colors cursor-pointer appearance-none",
+                                  "w-[220px] text-center font-bold uppercase tracking-wide text-[11px] h-8 rounded-lg px-2 border transition-colors cursor-pointer appearance-none",
                                   (!currentTeamName ||
                                     currentTeamName === "none") &&
                                     "bg-gray-100 text-gray-500 border-gray-200 hover:bg-gray-200 hover:border-gray-300",

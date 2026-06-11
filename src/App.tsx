@@ -846,12 +846,38 @@ export default function App() {
       const supabase = createSupabaseClient(config.url, config.key);
       if (supabase) {
         try {
+          // Helpers to convert dates to YYYY-MM-DD safely
+          const toYMD = (v: any) => {
+            if (!v) return null;
+            const s = String(v).trim();
+            if (!s) return null;
+            if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.split('T')[0];
+            if (/^\d{2}\/\d{2}\/\d{4}$/.test(s)) {
+              const [d, m, y] = s.split('/');
+              return `${y}-${m}-${d}`;
+            }
+            // Standard parse try
+            try {
+              const parsed = new Date(s);
+              if (!isNaN(parsed.getTime())) {
+                return parsed.toISOString().split('T')[0];
+              }
+            } catch (err) {}
+            return null;
+          };
+
+          // Save fallback blob first to prevent any potential data loss
+          await supabase.from('app_state').upsert({
+            id: `${compId}_sigo_aportes`,
+            content: newVal
+          });
+
           const mappedData = newVal.map(a => mapToSnake({ ...a, companyId: compId }));
           const chunkSize = 50;
           for (let i = 0; i < mappedData.length; i += chunkSize) {
             const chunk = mappedData.slice(i, i + chunkSize);
             const chunkToUpsert = chunk.map(({ items, ...rest }: any) => {
-              if (rest.data === '') rest.data = null;
+              rest.data = toYMD(rest.data) || new Date().toISOString().split('T')[0];
               return rest;
             });
             
@@ -884,8 +910,9 @@ export default function App() {
                     fornecedor: item.fornecedor || item.Fornecedor || '',
                     descricao: item.descricao || item.Descrição || item.Descricao || '',
                     mes_competencia: item.mes_competencia || item.mesCompetencia || '',
-                    data_vencimento: (item.data_vencimento || item.dataVencimento || '').trim() !== '' ? (item.data_vencimento || item.dataVencimento) : null,
-                    valor: Number(item.valor) || 0
+                    data_vencimento: toYMD(item.data_vencimento || item.dataVencimento),
+                    valor: Number(item.valor) || 0,
+                    purchase_order_id: item.purchaseOrderId || item.purchase_order_id || null
                  }));
                  
                  if (itemsToInsert.length > 0) {

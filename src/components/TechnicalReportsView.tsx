@@ -9,7 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { 
   FileText, Download, FileSpreadsheet, Eye, 
   ClipboardList, Landmark, CloudRain, Users2, 
-  BarChart3, Calendar, Activity, Briefcase
+  BarChart3, Calendar, Activity, Briefcase, Printer
 } from 'lucide-react';
 import { 
   Contract, Measurement, DailyReport, PluviometryRecord, 
@@ -96,6 +96,21 @@ export function TechnicalReportsView({
     });
   };
 
+  const handlePrintResumo = () => {
+    const measurement = measurements.find(m => m.id === selectedMeasurementId);
+    exportContractSummaryPDF({
+      contract,
+      measurements,
+      selectedMeasurement: measurement,
+      services,
+      baseDate,
+      companyLogo,
+      companyLogoRight,
+      logoMode,
+      print: true
+    });
+  };
+
   const handleExportResumoExcel = () => {
     const measurement = measurements.find(m => m.id === selectedMeasurementId);
     exportContractSummaryExcel({
@@ -118,6 +133,21 @@ export function TechnicalReportsView({
       companyLogo,
       companyLogoRight,
       logoMode
+    });
+  };
+
+  const handlePrintPlanilhaMedicao = () => {
+    const measurement = measurements.find(m => m.id === selectedMeasurementId);
+    if (!measurement) return;
+    exportMeasurementSheetPDF({
+      contract,
+      measurement,
+      allMeasurements: measurements,
+      services,
+      companyLogo,
+      companyLogoRight,
+      logoMode,
+      print: true
     });
   };
 
@@ -146,6 +176,21 @@ export function TechnicalReportsView({
     });
   };
 
+  const handlePrintMedicaoCompleta = () => {
+    const measurement = measurements.find(m => m.id === selectedMeasurementId);
+    if (!measurement) return;
+    exportFullMeasurementPDF({
+      contract,
+      measurement,
+      allMeasurements: measurements,
+      services,
+      companyLogo,
+      companyLogoRight,
+      logoMode,
+      print: true
+    });
+  };
+
   const handleExportDetalhesMedicao = () => {
     const measurement = measurements.find(m => m.id === selectedMeasurementId);
     if (!measurement) return;
@@ -158,6 +203,22 @@ export function TechnicalReportsView({
       services,
       stationGroups,
       locations: highwayLocations
+    });
+  };
+
+  const handlePrintDetalhesMedicao = () => {
+    const measurement = measurements.find(m => m.id === selectedMeasurementId);
+    if (!measurement) return;
+    exportMeasurementDetailsPDF({
+      contract,
+      measurement,
+      memories,
+      cubation: cubationData,
+      transport: transportData,
+      services,
+      stationGroups,
+      locations: highwayLocations,
+      print: true
     });
   };
 
@@ -176,15 +237,32 @@ export function TechnicalReportsView({
     });
   };
 
-  const handleExportRDO = () => {
+  const handleExportRDO = async () => {
     const filteredRDOs = dailyReports.filter(r => r.date.startsWith(selectedMonth));
-    exportMonthlyRDOReportPDF({
+    await exportMonthlyRDOReportPDF({
       contract,
       month: selectedMonth,
       reports: filteredRDOs,
       companyLogo,
       companyLogoRight,
-      logoMode
+      logoMode,
+      allReports: dailyReports,
+      pluviometryRecords: pluviometryRecords
+    });
+  };
+
+  const handlePrintRDO = async () => {
+    const filteredRDOs = dailyReports.filter(r => r.date.startsWith(selectedMonth));
+    await exportMonthlyRDOReportPDF({
+      contract,
+      month: selectedMonth,
+      reports: filteredRDOs,
+      companyLogo,
+      companyLogoRight,
+      logoMode,
+      print: true,
+      allReports: dailyReports,
+      pluviometryRecords: pluviometryRecords
     });
   };
 
@@ -206,6 +284,19 @@ export function TechnicalReportsView({
       companyLogo,
       companyLogoRight,
       logoMode
+    });
+  };
+
+  const handlePrintPluviometrico = () => {
+    const monthRecords = pluviometryRecords.filter(r => r.date.startsWith(selectedMonth));
+    exportPluviometricReportPDF({
+      contract,
+      month: selectedMonth,
+      records: monthRecords,
+      companyLogo,
+      companyLogoRight,
+      logoMode,
+      print: true
     });
   };
 
@@ -245,6 +336,20 @@ export function TechnicalReportsView({
     });
   };
 
+  const handlePrintCronogramaPDF = () => {
+    const schedule = technicalSchedules[0];
+    if (!schedule) return;
+    exportSchedulePDF({
+      contract,
+      schedule,
+      services,
+      companyLogo,
+      companyLogoRight,
+      logoMode,
+      print: true
+    });
+  };
+
   const handleExportEquipes = () => {
     exportTeamsReportPDF({
       contract,
@@ -256,6 +361,21 @@ export function TechnicalReportsView({
       companyLogo,
       companyLogoRight,
       logoMode
+    });
+  };
+
+  const handlePrintEquipes = () => {
+    exportTeamsReportPDF({
+      contract,
+      teams: controllerTeams,
+      manpower: controllerManpower,
+      equipments: controllerEquipments,
+      assignments: teamAssignments,
+      month: selectedMonth,
+      companyLogo,
+      companyLogoRight,
+      logoMode,
+      print: true
     });
   };
 
@@ -280,6 +400,20 @@ export function TechnicalReportsView({
       companyLogo,
       companyLogoRight,
       logoMode
+    });
+  };
+
+  const handlePrintControles = () => {
+    const filteredProductions = serviceProductions.filter(p => p.month === selectedMonth);
+    exportMonthlyControlReportPDF({
+      contract,
+      month: selectedMonth,
+      productions: filteredProductions,
+      services,
+      companyLogo,
+      companyLogoRight,
+      logoMode,
+      print: true
     });
   };
 
@@ -345,6 +479,7 @@ export function TechnicalReportsView({
             title="Contrato (Resumo)"
             description="Relatório consolidado do contrato e financeiro"
             onPdf={handleExportResumo}
+            onPrint={handlePrintResumo}
             onExcel={handleExportResumoExcel}
             accent="blue"
           />
@@ -355,6 +490,7 @@ export function TechnicalReportsView({
             title="Planilha de Medição"
             description="Exporta a planilha da medição selecionada"
             onPdf={handleExportPlanilhaMedicao}
+            onPrint={handlePrintPlanilhaMedicao}
             onExcel={handleExportPlanilhaMedicaoExcel}
             accent="emerald"
           />
@@ -365,6 +501,7 @@ export function TechnicalReportsView({
             title="Medição (Detalhes)"
             description="Memórias, Cubação e Transportes detalhados"
             onPdf={handleExportDetalhesMedicao}
+            onPrint={handlePrintDetalhesMedicao}
             onExcel={handleExportDetalhesMedicaoExcel}
             accent="teal"
           />
@@ -375,6 +512,7 @@ export function TechnicalReportsView({
             title="Medição Completa"
             description="Pasta completa da medição selecionada"
             onPdf={handleExportMedicaoCompleta}
+            onPrint={handlePrintMedicaoCompleta}
             accent="blue"
           />
 
@@ -384,6 +522,7 @@ export function TechnicalReportsView({
             title="Diário de Obras"
             description="Relatórios diários do mês selecionado"
             onPdf={handleExportRDO}
+            onPrint={handlePrintRDO}
             onExcel={handleExportRDOExcel}
             accent="indigo"
           />
@@ -394,6 +533,7 @@ export function TechnicalReportsView({
             title="Pluviometria"
             description="Relatório de chuvas do mês"
             onPdf={handleExportPluviometrico}
+            onPrint={handlePrintPluviometrico}
             onExcel={handleExportPluviometricoExcel}
             accent="cyan"
           />
@@ -404,6 +544,7 @@ export function TechnicalReportsView({
             title="Cronograma"
             description="Exporta cronograma técnico físico-financeiro"
             onPdf={handleExportCronogramaPDF}
+            onPrint={handlePrintCronogramaPDF}
             onExcel={handleExportCronograma}
             accent="green"
           />
@@ -414,6 +555,7 @@ export function TechnicalReportsView({
             title="Equipes"
             description="Detalhamento e resumo das frentes de serviço"
             onPdf={handleExportEquipes}
+            onPrint={handlePrintEquipes}
             onExcel={handleExportEquipesExcel}
             accent="amber"
           />
@@ -424,6 +566,7 @@ export function TechnicalReportsView({
             title="Controles"
             description="Relatório de monitoramentos (mês/dia)"
             onPdf={handleExportControles}
+            onPrint={handlePrintControles}
             onExcel={handleExportControlesExcel}
             accent="rose"
           />
@@ -433,11 +576,12 @@ export function TechnicalReportsView({
   );
 }
 
-function ReportCard({ icon, title, description, onPdf, onExcel, accent }: { 
+function ReportCard({ icon, title, description, onPdf, onPrint, onExcel, accent }: { 
   icon: React.ReactNode, 
   title: string, 
   description: string, 
   onPdf?: () => void, 
+  onPrint?: () => void, 
   onExcel?: () => void,
   accent: 'blue' | 'emerald' | 'teal' | 'indigo' | 'cyan' | 'green' | 'amber' | 'rose'
 }) {
@@ -460,15 +604,20 @@ function ReportCard({ icon, title, description, onPdf, onExcel, accent }: {
       <h4 className="font-bold text-gray-900 group-hover:text-blue-700 transition-colors">{title}</h4>
       <p className="text-sm text-gray-500 mt-1 mb-6 flex-1 leading-relaxed">{description}</p>
       
-      <div className="flex gap-2">
+      <div className="flex flex-wrap gap-2 mt-auto">
         {onPdf && (
-          <Button size="sm" variant="outline" className="flex-1 rounded-lg h-9 text-sm gap-1.5" onClick={onPdf}>
-            <Download className="w-3.5 h-3.5" /> PDF
+          <Button size="sm" variant="outline" className="flex-1 min-w-[60px] rounded-lg h-9 text-xs gap-1" onClick={onPdf}>
+            <Download className="w-3 h-3" /> PDF
+          </Button>
+        )}
+        {onPrint && (
+          <Button size="sm" variant="outline" className="flex-1 min-w-[60px] border-blue-200 text-blue-600 hover:bg-blue-50 rounded-lg h-9 text-xs gap-1" onClick={onPrint}>
+            <Printer className="w-3 h-3" /> Imprimir
           </Button>
         )}
         {onExcel && (
-          <Button size="sm" variant="outline" className="flex-1 border-green-200 text-green-600 hover:bg-green-50 rounded-lg h-9 text-sm gap-1.5" onClick={onExcel}>
-            <FileSpreadsheet className="w-3.5 h-3.5" /> Excel
+          <Button size="sm" variant="outline" className="flex-1 min-w-[60px] border-emerald-200 text-emerald-600 hover:bg-emerald-50 rounded-lg h-9 text-xs gap-1" onClick={onExcel}>
+            <FileSpreadsheet className="w-3 h-3" /> Excel
           </Button>
         )}
       </div>

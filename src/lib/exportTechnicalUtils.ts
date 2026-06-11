@@ -96,6 +96,41 @@ function addTechnicalFooter(doc: jsPDF) {
   }
 }
 
+function handleSaveOrPrintPDF(doc: jsPDF, filename: string, print?: boolean) {
+  if (print) {
+    doc.autoPrint();
+    const pdfBlob = doc.output('blob');
+    const pdfUrl = URL.createObjectURL(pdfBlob);
+    
+    let opened = false;
+    try {
+      const printWindow = window.open(pdfUrl, '_blank');
+      if (printWindow) {
+        printWindow.focus();
+        opened = true;
+      }
+    } catch (err) {
+      console.warn("window.open blocked, downloading PDF as fallback", err);
+    }
+    
+    if (!opened) {
+      // Fallback: Trigger silent download
+      const link = document.createElement('a');
+      link.href = pdfUrl;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+    
+    setTimeout(() => {
+      URL.revokeObjectURL(pdfUrl);
+    }, 60000);
+  } else {
+    doc.save(filename);
+  }
+}
+
 const tableStyles = {
   headStyles: { fillColor: [30, 58, 138] as [number, number, number], textColor: 255, fontStyle: 'bold' as const },
   alternateRowStyles: { fillColor: [248, 250, 252] as [number, number, number] },
@@ -120,7 +155,8 @@ export function exportContractSummaryPDF(options: {
   companyLogo?: string,
   companyLogoRight?: string,
   logoMode?: 'left' | 'right' | 'both' | 'none',
-  baseDate?: string
+  baseDate?: string,
+  print?: boolean
 }) {
   const doc = new jsPDF();
   addTechnicalHeader(doc, 'Resumo Gerencial do Contrato', options);
@@ -282,7 +318,7 @@ export function exportContractSummaryPDF(options: {
   }
 
   addTechnicalFooter(doc);
-  doc.save(`Resumo_Contrato_${options.contract.contractNumber}.pdf`);
+  handleSaveOrPrintPDF(doc, `Resumo_Contrato_${options.contract.contractNumber}.pdf`, options.print);
 }
 
 // Helper to get all services from a contract (flat or grouped)
@@ -320,7 +356,8 @@ export function exportMeasurementSheetPDF(options: {
   services: ServiceComposition[],
   companyLogo?: string,
   companyLogoRight?: string,
-  logoMode?: 'left' | 'right' | 'both' | 'none'
+  logoMode?: 'left' | 'right' | 'both' | 'none',
+  print?: boolean
 }) {
   const doc = new jsPDF({ orientation: 'landscape' });
   addTechnicalHeader(doc, `Planilha de Medição Nº ${options.measurement.number} - ${options.measurement.period}`, options);
@@ -443,7 +480,7 @@ export function exportMeasurementSheetPDF(options: {
   });
 
   addTechnicalFooter(doc);
-  doc.save(`Planilha_Medicao_${options.measurement.number}_${options.contract.contractNumber}.pdf`);
+  handleSaveOrPrintPDF(doc, `Planilha_Medicao_${options.measurement.number}_${options.contract.contractNumber}.pdf`, options.print);
 }
 
 // 3. Medição Completa
@@ -454,7 +491,8 @@ export function exportFullMeasurementPDF(options: {
   services: ServiceComposition[],
   companyLogo?: string,
   companyLogoRight?: string,
-  logoMode?: 'left' | 'right' | 'both' | 'none'
+  logoMode?: 'left' | 'right' | 'both' | 'none',
+  print?: boolean
 }) {
   const doc = new jsPDF({ orientation: 'landscape' });
   const pageWidth = doc.internal.pageSize.width;
@@ -536,68 +574,349 @@ export function exportFullMeasurementPDF(options: {
   doc.text('Engenheiro Responsável', 150, finalY + 55, { align: 'center' });
 
   addTechnicalFooter(doc);
-  doc.save(`Medicao_Completa_${options.measurement.number}.pdf`);
+  handleSaveOrPrintPDF(doc, `Medicao_Completa_${options.measurement.number}.pdf`, options.print);
 }
 
 // 4. Diário de Obras (Mensal)
-export function exportMonthlyRDOReportPDF(options: {
+export async function exportMonthlyRDOReportPDF(options: {
   contract: Contract,
   month: string,
   reports: DailyReport[],
   companyLogo?: string,
   companyLogoRight?: string,
-  logoMode?: 'left' | 'right' | 'both' | 'none'
+  logoMode?: 'left' | 'right' | 'both' | 'none',
+  print?: boolean,
+  allReports?: DailyReport[],
+  pluviometryRecords?: PluviometryRecord[]
 }) {
-  const doc = new jsPDF();
-  const [yearStr, monthStr] = options.month.split('-'); const monthName = new Date(parseInt(yearStr), parseInt(monthStr) - 1, 1).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
-  
-  addTechnicalHeader(doc, `Relatório Mensal de Diários - ${monthName}`, options);
+  const doc = new jsPDF() as any;
+  const reportsSorted = options.allReports || options.reports;
+  const sortedGlobalReports = [...reportsSorted].sort((a,b) => a.date.localeCompare(b.date));
 
   if (options.reports.length === 0) {
+    const pageWidth = doc.internal.pageSize.width;
+    addTechnicalHeader(doc, 'Relatório Mensal de Diários', options);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(10);
     doc.text('Nenhum diário registrado para este período.', 14, 60);
   } else {
-    options.reports.forEach((r, idx) => {
+    // Sort selected reports by date
+    const selectedReports = [...options.reports].sort((a,b) => a.date.localeCompare(b.date));
+    
+    for (let idx = 0; idx < selectedReports.length; idx++) {
+      const report = selectedReports[idx];
       if (idx > 0) {
         doc.addPage();
-        addTechnicalHeader(doc, `Diário de Obra - ${new Date(r.date).toLocaleDateString('pt-BR')}`, options);
+      }
+
+      const pluviometry = options.pluviometryRecords?.find(p => p.date === report.date);
+      
+      // Dimensions and Frame
+      const pageWidth = doc.internal.pageSize.width;
+      const margin = 10;
+      const contentWidth = pageWidth - (margin * 2);
+
+      doc.setDrawColor(200);
+      doc.setLineWidth(0.1);
+      doc.rect(margin - 2, margin - 2, contentWidth + 4, doc.internal.pageSize.height - (margin * 2) + 4);
+
+      // Header Structure
+      doc.setFillColor(30, 58, 138); 
+      doc.rect(margin, margin, contentWidth, 10, 'F');
+      
+      // Logos logic
+      const mode = options.logoMode || 'left';
+      const showLeft = (mode === 'left' || mode === 'both') && options.companyLogo;
+      const showRight = (mode === 'right' || mode === 'both') && options.companyLogoRight;
+
+      if (showLeft) {
+        try {
+          const props = doc.getImageProperties(options.companyLogo!);
+          const ratio = props.width / props.height;
+          let w = 8, h = 8 / ratio;
+          if (h > 8) { h = 8; w = 8 * ratio; }
+          doc.addImage(options.companyLogo!, 'PNG', margin + 1, margin + 1 + (8 - h) / 2, w, h);
+        } catch (e) { console.error(e); }
       }
       
+      if (showRight) {
+        try {
+          const props = doc.getImageProperties(options.companyLogoRight!);
+          const ratio = props.width / props.height;
+          let w = 8, h = 8 / ratio;
+          if (h > 8) { h = 8; w = 8 * ratio; }
+          doc.addImage(options.companyLogoRight!, 'PNG', pageWidth - margin - 1 - w, margin + 1 + (8 - h) / 2, w, h);
+        } catch (e) { console.error(e); }
+      }
+
+      doc.setTextColor(255);
+      doc.setFontSize(10);
       doc.setFont('helvetica', 'bold');
-      doc.text('Condições Climáticas', 14, 50);
+      doc.text('RELATÓRIO DIÁRIO DE OCORRÊNCIAS - RDO', pageWidth / 2, margin + 7, { align: 'center' });
+      
+      doc.setTextColor(0);
+      
+      const rdoNumber = sortedGlobalReports.length > 0 
+        ? sortedGlobalReports.findIndex(rep => rep.id === report.id) + 1 
+        : indexForBackupAndDisplay(report, options.reports);
+
+      const headerData = [
+        ['Nº DO RDO:', `RDO-${rdoNumber}`, 'DATA DO REGISTRO:', new Date(report.date + 'T12:00:00').toLocaleDateString('pt-BR')],
+        ['CONTRATO:', options.contract.contractNumber, 'CONTRATANTE:', options.contract.client || 'N/A'],
+        ['OBJETO:', options.contract.object, 'CONTRATADA:', options.contract.contractor || 'CONTRATADA']
+      ];
+
       autoTable(doc, {
-        startY: 55,
-        head: [['Período', 'Condição']],
-        body: [
-          ['Manhã', r.weatherMorning],
-          ['Tarde', r.weatherAfternoon],
-          ['Noite', r.weatherNight]
-        ],
-        ...tableStyles,
-        theme: 'grid'
+        startY: margin + 11,
+        body: headerData,
+        theme: 'grid',
+        styles: { fontSize: 6.5, cellPadding: 1.2, fontStyle: 'bold', textColor: [60,60,60] },
+        columnStyles: { 
+          0: { cellWidth: 25, fillColor: [248, 250, 252] }, 
+          1: { cellWidth: 70 },
+          2: { cellWidth: 30, fillColor: [248, 250, 252] },
+          3: { cellWidth: 'auto' }
+        }
       });
 
-      doc.text('Atividades Executadas', 14, (doc as any).lastAutoTable.finalY + 10);
+      // Helper for Section Titles
+      const sectionHeader = (titleText: string, startY: number) => {
+        doc.setFillColor(241, 245, 249);
+        doc.rect(margin, startY, contentWidth, 5, 'F');
+        doc.setFontSize(7.5);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(30, 58, 138);
+        doc.text(titleText, margin + 2, startY + 3.8);
+        doc.setTextColor(0);
+        return startY + 5;
+      };
+      
+      // Config values
+      const morning = pluviometry?.morningStatus || report.weatherMorning;
+      const afternoon = pluviometry?.afternoonStatus || report.weatherAfternoon;
+      const night = pluviometry?.nightStatus || report.weatherNight;
+      const rain = pluviometry?.rainfallMm || report.rainfallMm;
+
+      let currentY = (doc as any).lastAutoTable.finalY + 3;
+      currentY = sectionHeader('1. CONDIÇÕES CLIMÁTICAS (PLUVIOMETRIA)', currentY);
+
       autoTable(doc, {
-        startY: (doc as any).lastAutoTable.finalY + 15,
-        head: [['Código', 'Descrição', 'Tipo', 'Categoria']],
-        body: (r.activities || []).map(a => [a.code, a.description, a.type, a.category]),
-        ...tableStyles,
-        theme: 'grid'
+          startY: currentY,
+          head: [['Noite Ant.', 'Manhã', 'Tarde', 'Índice (mm)']],
+          body: [[night, morning, afternoon, `${rain} mm`]],
+          theme: 'grid',
+          headStyles: { fillColor: [71, 85, 105], textColor: [255, 255, 255], fontStyle: 'bold', halign: 'center', fontSize: 6.5, cellPadding: 1.2 },
+          styles: { halign: 'center', fontSize: 6.5, cellPadding: 1.2, textColor: [50,50,50] }
       });
 
-      doc.text('Recursos e Ocorrências', 14, (doc as any).lastAutoTable.finalY + 10);
-      const boxY = (doc as any).lastAutoTable.finalY + 15;
-      doc.setDrawColor(200, 200, 200);
-      doc.rect(14, boxY, 182, 30);
+      currentY = (doc as any).lastAutoTable.finalY + 3;
+      currentY = sectionHeader('2. EFETIVO', currentY);
+
+      const mpMap = new Map<string, number>();
+      report.manpower.forEach(m => mpMap.set(m.description.toUpperCase(), (mpMap.get(m.description.toUpperCase()) || 0) + m.quantity));
+      const manpowerArr = Array.from(mpMap.entries());
+
+      const mpBody = [];
+      for (let i = 0; i < 14; i++) {
+          const item1 = manpowerArr[i];
+          const item2 = manpowerArr[i + 14];
+          mpBody.push([
+              item1 ? item1[0] : '', item1 ? item1[1] : '-',
+              item2 ? item2[0] : '', item2 ? item2[1] : '-'
+          ]);
+      }
+      
+      autoTable(doc, {
+          startY: currentY,
+          head: [['DESCRIÇÃO', 'QTDE', 'DESCRIÇÃO', 'QTDE']],
+          body: mpBody,
+          theme: 'grid',
+          headStyles: { fillColor: [22, 163, 74], textColor: [255, 255, 255], fontSize: 6.5, cellPadding: 1 },
+          styles: { fontSize: 6, cellPadding: 1, minCellHeight: 4, textColor: [50,50,50] },
+          columnStyles: { 
+              0: { cellWidth: (contentWidth / 2) - 15 },
+              1: { cellWidth: 15, halign: 'center' },
+              2: { cellWidth: (contentWidth / 2) - 15 },
+              3: { cellWidth: 15, halign: 'center' }
+          },
+          margin: { left: margin, right: margin }
+      });
+
+      currentY = (doc as any).lastAutoTable.finalY + 3;
+      currentY = sectionHeader('3. EQUIPAMENTOS', currentY);
+
+      const eqMap = new Map<string, number>();
+      report.equipment.forEach(e => eqMap.set(e.description.toUpperCase(), (eqMap.get(e.description.toUpperCase()) || 0) + e.quantity));
+      const eqArr = Array.from(eqMap.entries());
+
+      const eqBody = [];
+      for (let i = 0; i < 14; i++) {
+          const item1 = eqArr[i];
+          const item2 = eqArr[i + 14];
+          eqBody.push([
+              item1 ? item1[0] : '', item1 ? item1[1] : '-',
+              item2 ? item2[0] : '', item2 ? item2[1] : '-'
+          ]);
+      }
+
+      autoTable(doc, {
+          startY: currentY,
+          head: [['DESCRIÇÃO', 'QTDE', 'DESCRIÇÃO', 'QTDE']],
+          body: eqBody,
+          theme: 'grid',
+          headStyles: { fillColor: [234, 88, 12], textColor: [255, 255, 255], fontSize: 6.5, cellPadding: 1 },
+          styles: { fontSize: 6, cellPadding: 1, minCellHeight: 4, textColor: [50,50,50] },
+          columnStyles: { 
+              0: { cellWidth: (contentWidth / 2) - 15 },
+              1: { cellWidth: 15, halign: 'center' },
+              2: { cellWidth: (contentWidth / 2) - 15 },
+              3: { cellWidth: 15, halign: 'center' }
+          },
+          margin: { left: margin, right: margin }
+      });
+
+      currentY = (doc as any).lastAutoTable.finalY + 3;
+      currentY = sectionHeader('4. ATIVIDADES EXECUTADAS E PROGRESSO', currentY);
+
+      const activitiesBody = report.activities.map(a => [a.code || '-', a.description, a.type]);
+      autoTable(doc, {
+          startY: currentY,
+          head: [['CÓD.', 'DESCRIÇÃO DA ATIVIDADE', 'TIPO / CATEGORIA']],
+          body: activitiesBody.length > 0 ? activitiesBody : [['-', 'Nenhum registro de atividade para este dia.', '-']],
+          theme: 'grid',
+          headStyles: { fillColor: [15, 23, 42], textColor: [255, 255, 255], fontSize: 6.5, cellPadding: 1.2 },
+          styles: { fontSize: 6.5, cellPadding: 1.2 },
+          columnStyles: { 0: { cellWidth: 15 }, 1: { cellWidth: 'auto' }, 2: { cellWidth: 35 } }
+      });
+
+      currentY = (doc as any).lastAutoTable.finalY + 3;
+
+      if (report.accidents) {
+          currentY = sectionHeader('5. OCORRÊNCIAS E ACIDENTES', currentY);
+          autoTable(doc, {
+            startY: currentY,
+            body: [[report.accidents]],
+            theme: 'grid',
+            styles: { minCellHeight: 12, fontSize: 6.5, cellPadding: 1.2, textColor: [220, 38, 38] }
+          });
+          currentY = (doc as any).lastAutoTable.finalY + 3;
+      }
+
+      if (report.fiscalizationComments) {
+          currentY = sectionHeader('6. COMENTÁRIOS DA FISCALIZAÇÃO', currentY);
+          autoTable(doc, {
+            startY: currentY,
+            body: [[report.fiscalizationComments]],
+            theme: 'grid',
+            styles: { minCellHeight: 12, fontSize: 6.5, cellPadding: 1.2, fontStyle: 'italic' }
+          });
+          currentY = (doc as any).lastAutoTable.finalY + 3;
+      }
+
+      const pageHeight = doc.internal.pageSize.height;
+      if (currentY > pageHeight - 35) {
+        doc.addPage();
+        currentY = margin + 10;
+      }
+      
+      currentY = Math.max(currentY + 5, pageHeight - 35);
+
+      doc.setDrawColor(200);
+      doc.setFillColor(248, 250, 252);
+      doc.rect(margin, currentY, contentWidth / 2 - 2, 25, 'FD');
+      doc.rect(pageWidth / 2 + 2, currentY, contentWidth / 2 - 2, 25, 'FD');
+
+      doc.line(margin + 5, currentY + 18, (margin + contentWidth / 2) - 10, currentY + 18);
+      doc.line(pageWidth / 2 + 7, currentY + 18, pageWidth - margin - 5, currentY + 18);
+      
+      doc.setFontSize(7);
+      doc.setTextColor(30, 41, 59);
+      doc.setFont('helvetica', 'bold');
+      doc.text('ENGENHEIRO DA OBRA', margin + contentWidth / 4, currentY + 22, { align: 'center' });
+      doc.text('FISCALIZAÇÃO', (pageWidth / 2) + (contentWidth / 4), currentY + 22, { align: 'center' });
+      
+      doc.setFontSize(5.5);
+      doc.setTextColor(148, 163, 184);
       doc.setFont('helvetica', 'normal');
-      doc.setFontSize(9);
-      doc.text(`Equipamentos: ${(r.equipment || []).length} | Colaboradores: ${(r.manpower || []).length}`, 16, boxY + 6);
-      doc.text(`Ocorrências: ${r.accidents || 'Nenhuma ocorrência registrada.'}`, 16, boxY + 14);
-    });
+      doc.text('Assinatura e Carimbo', margin + contentWidth / 4, currentY + 16, { align: 'center' });
+      doc.text('Assinatura e Carimbo', (pageWidth / 2) + (contentWidth / 4), currentY + 16, { align: 'center' });
+
+      // Append Photos Page for this Daily Report
+      if (report.photos && report.photos.length > 0) {
+        doc.addPage();
+        
+        doc.setDrawColor(200);
+        doc.setLineWidth(0.1);
+        doc.rect(margin - 2, margin - 2, contentWidth + 4, doc.internal.pageSize.height - (margin * 2) + 4);
+    
+        doc.setFillColor(30, 58, 138); 
+        doc.rect(margin, margin, contentWidth, 10, 'F');
+        
+        doc.setTextColor(255);
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'bold');
+        doc.text('REGISTRO FOTOGRÁFICO', pageWidth / 2, margin + 7, { align: 'center' });
+        
+        let imgY = margin + 15;
+        for (const p of report.photos) {
+          const url = typeof p === 'string' ? p : p.url;
+          const desc = typeof p === 'string' ? '' : (p.description || '');
+          if (imgY + 90 > doc.internal.pageSize.height - margin) {
+            doc.addPage();
+            imgY = margin + 15;
+          }
+          try {
+            const loadedImg = await new Promise<HTMLImageElement>((resolve, reject) => {
+              const img = new window.Image();
+              img.crossOrigin = "Anonymous";
+              img.onload = () => resolve(img);
+              img.onerror = reject;
+              img.src = url;
+            });
+            
+            const canvas = document.createElement('canvas');
+            canvas.width = loadedImg.width;
+            canvas.height = loadedImg.height;
+            const ctx = canvas.getContext('2d');
+            if (ctx) {
+              ctx.drawImage(loadedImg, 0, 0);
+              const b64 = canvas.toDataURL('image/jpeg', 0.8);
+              
+              const props = doc.getImageProperties(b64);
+              const ratio = props.width / props.height;
+              let imgW = contentWidth * 0.8;
+              let imgH = imgW / ratio;
+              if (imgH > 80) {
+                imgH = 80;
+                imgW = imgH * ratio;
+              }
+              doc.addImage(b64, 'JPEG', margin + (contentWidth - imgW) / 2, imgY, imgW, imgH);
+              imgY += imgH + 2;
+              if (desc) {
+                doc.setFontSize(8);
+                doc.setTextColor(100);
+                doc.text(desc, pageWidth / 2, imgY + 2, { align: 'center', maxWidth: contentWidth * 0.8 });
+                const lines = doc.splitTextToSize(desc, contentWidth * 0.8);
+                imgY += (lines.length * 4) + 6;
+              } else {
+                imgY += 8;
+              }
+            }
+          } catch(e) {
+            console.error("Photo error", e);
+          }
+        }
+      }
+    }
   }
 
   addTechnicalFooter(doc);
-  doc.save(`RDO_Mensal_${options.month}_${options.contract.contractNumber}.pdf`);
+  handleSaveOrPrintPDF(doc, `RDO_Mensal_${options.month}_${options.contract.contractNumber}.pdf`, options.print);
+}
+
+function indexForBackupAndDisplay(report: any, list: any[]): number {
+  const sorted = [...list].sort((a,b) => a.date.localeCompare(b.date));
+  return sorted.indexOf(report) + 1;
 }
 
 // 5. Pluviométrico
@@ -607,7 +926,8 @@ export function exportPluviometricReportPDF(options: {
   records: PluviometryRecord[],
   companyLogo?: string,
   companyLogoRight?: string,
-  logoMode?: 'left' | 'right' | 'both' | 'none'
+  logoMode?: 'left' | 'right' | 'both' | 'none',
+  print?: boolean
 }) {
   const doc = new jsPDF();
   const [yearStr, monthStr] = options.month.split('-'); const monthName = new Date(parseInt(yearStr), parseInt(monthStr) - 1, 1).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
@@ -631,7 +951,7 @@ export function exportPluviometricReportPDF(options: {
   });
 
   addTechnicalFooter(doc);
-  doc.save(`Pluviometrico_${options.month}.pdf`);
+  handleSaveOrPrintPDF(doc, `Pluviometrico_${options.month}.pdf`, options.print);
 }
 
 // 6. Cronograma Excel Formatado
@@ -697,7 +1017,8 @@ export function exportTeamsReportPDF(options: {
   month: string,
   companyLogo?: string,
   companyLogoRight?: string,
-  logoMode?: 'left' | 'right' | 'both' | 'none'
+  logoMode?: 'left' | 'right' | 'both' | 'none',
+  print?: boolean
 }) {
   const doc = new jsPDF();
   const [yearStr, monthStr] = options.month.split('-'); const monthName = new Date(parseInt(yearStr), parseInt(monthStr) - 1, 1).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
@@ -735,7 +1056,7 @@ export function exportTeamsReportPDF(options: {
   });
 
   addTechnicalFooter(doc);
-  doc.save(`Relatorio_Equipes_${options.month}.pdf`);
+  handleSaveOrPrintPDF(doc, `Relatorio_Equipes_${options.month}.pdf`, options.print);
 }
 
 function loadStateFromLocalStorage<T>(key: string, companyId: string | undefined, defaultValue: T): T {
@@ -769,7 +1090,8 @@ export function exportMonthlyControlReportPDF(options: {
   manpowerMonthly?: ManpowerMonthlyData[],
   equipmentMonthly?: EquipmentMonthlyData[],
   employees?: Employee[],
-  controllerEquipments?: ControllerEquipment[]
+  controllerEquipments?: ControllerEquipment[],
+  print?: boolean
 }) {
   const doc = new jsPDF({ orientation: 'portrait' });
   const [year, month] = options.month.split('-').map(Number);
@@ -1269,7 +1591,7 @@ export function exportMonthlyControlReportPDF(options: {
   }
 
   addTechnicalFooter(doc);
-  doc.save(`Relatorio_Controles_${options.month}.pdf`);
+  handleSaveOrPrintPDF(doc, `Relatorio_Controles_${options.month}.pdf`, options.print);
 }
 
 // 9. Excel - Resumo do Contrato
@@ -1912,7 +2234,8 @@ export function exportMeasurementDetailsPDF(options: {
   transport: TransportData[],
   services: ServiceComposition[],
   stationGroups: StationGroup[],
-  locations: HighwayLocation[]
+  locations: HighwayLocation[],
+  print?: boolean
 }) {
   const doc = new jsPDF();
   
@@ -2054,7 +2377,7 @@ export function exportMeasurementDetailsPDF(options: {
   }
 
   addTechnicalFooter(doc);
-  doc.save(`Detalhamento_Medicao_${options.measurement.number}.pdf`);
+  handleSaveOrPrintPDF(doc, `Detalhamento_Medicao_${options.measurement.number}.pdf`, options.print);
 }
 
 // 16. Excel - Detalhes da Medição
@@ -2135,7 +2458,8 @@ export function exportSchedulePDF(options: {
   services: ServiceComposition[],
   companyLogo?: string,
   companyLogoRight?: string,
-  logoMode?: 'left' | 'right' | 'both' | 'none'
+  logoMode?: 'left' | 'right' | 'both' | 'none',
+  print?: boolean
 }) {
   const doc = new jsPDF('l', 'mm', 'a4');
   
@@ -2169,5 +2493,5 @@ export function exportSchedulePDF(options: {
   });
 
   addTechnicalFooter(doc);
-  doc.save(`Cronograma_${options.contract.contractNumber}.pdf`);
+  handleSaveOrPrintPDF(doc, `Cronograma_${options.contract.contractNumber}.pdf`, options.print);
 }
