@@ -121,6 +121,7 @@ export interface Employee {
   
   // Contract
   contractId?: string;
+  alojamentoId?: string;
 
   // Benefits
   commuterBenefits: boolean;
@@ -133,6 +134,17 @@ export interface Employee {
   chargesPercentage?: number;
   overtimePercentage?: number;
   team?: string;
+}
+
+export interface Alojamento {
+  id: string;
+  companyId: string;
+  name: string;
+  address: string;
+  city: string;
+  roomsCount: number;
+  maxCapacity: number;
+  currentCapacity?: number;
 }
 
 export interface TimeRecord {

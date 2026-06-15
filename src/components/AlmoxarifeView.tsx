@@ -4,7 +4,7 @@ import {
   Package, Plus, Search, Building, ArrowLeftRight, Check, Truck, 
   History, User, Calendar, DollarSign, Hammer, ClipboardList, 
   AlertCircle, MapPin, Tag, Trash2, CheckCircle2, ChevronRight,
-  Sparkles, Layers
+  Sparkles, Layers, X, ChevronDown, Home
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -15,10 +15,11 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
+import { cn } from '@/lib/utils';
 import { 
   Contract, PurchaseOrder, ServiceComposition, User as UserType,
   Warehouse, WarehouseItem, WarehouseEntry, Asset, WarehouseTransfer, WarehouseApplication,
-  PurchaseRequest
+  PurchaseRequest, Alojamento
 } from '../types';
 
 interface AlmoxarifeViewProps {
@@ -27,6 +28,7 @@ interface AlmoxarifeViewProps {
   setPurchaseOrders: React.Dispatch<React.SetStateAction<PurchaseOrder[]>>;
   services: ServiceComposition[];
   currentUser: UserType;
+  alojamentos?: Alojamento[];
   
   warehouses: Warehouse[];
   setWarehouses: React.Dispatch<React.SetStateAction<Warehouse[]>>;
@@ -50,6 +52,7 @@ export default function AlmoxarifeView({
   setPurchaseOrders,
   services,
   currentUser,
+  alojamentos = [],
   warehouses,
   setWarehouses,
   warehouseItems,
@@ -666,11 +669,49 @@ export default function AlmoxarifeView({
   const [applServiceId, setApplServiceId] = useState('');
   const [applStockItemId, setApplStockItemId] = useState('');
   const [applQty, setApplQty] = useState('');
+  const [serviceFilterTerm, setServiceFilterTerm] = useState('');
+  const [materialFilterTerm, setMaterialFilterTerm] = useState('');
+  
+  // Custom states for searchable comboboxes
+  const [stockSearchActive, setStockSearchActive] = useState(false);
+  const [placeSearchActive, setPlaceSearchActive] = useState(false);
   
   const applWarehouseItems = useMemo(() => {
     if (!applWarehouseId) return [];
     return allStockItems.filter(i => i.displayWarehouseId === applWarehouseId && i.quantity > 0);
   }, [allStockItems, applWarehouseId]);
+
+  const filteredUniqueWarehouseItems = useMemo(() => {
+    const list: any[] = [];
+    const seen = new Set<string>();
+
+    applWarehouseItems.forEach(item => {
+      const descLower = (item.description || "").toLowerCase().trim();
+      if (!descLower) return;
+      if (!seen.has(descLower)) {
+        seen.add(descLower);
+        
+        // Sum total quantity for this description in the same warehouse
+        const totalQty = applWarehouseItems
+          .filter(x => (x.description || "").toLowerCase().trim() === descLower)
+          .reduce((acc, x) => acc + x.quantity, 0);
+
+        list.push({
+          ...item,
+          quantity: totalQty
+        });
+      }
+    });
+
+    // Apply materialFilterTerm
+    const term = materialFilterTerm.toLowerCase().trim();
+    if (!term) return list;
+    return list.filter(item => (item.description || "").toLowerCase().includes(term));
+  }, [applWarehouseItems, materialFilterTerm]);
+
+  const selectedStockItemObj = useMemo(() => {
+    return allStockItems.find(i => i.id === applStockItemId);
+  }, [allStockItems, applStockItemId]);
 
   const selectedContractObj = useMemo(() => {
     return contracts.find(c => c.id === applContractId);
@@ -701,9 +742,80 @@ export default function AlmoxarifeView({
     }));
   }, [selectedContractObj, services]);
 
+  // Alojamentos linked to this company
+  const companyAlojamentos = useMemo(() => {
+    return (alojamentos || []).filter(al => al.companyId === compId);
+  }, [alojamentos, compId]);
+
+  // Grouped and filtered application places (Services + Alojamentos)
+  const applicationPlacesGroups = useMemo(() => {
+    const term = serviceFilterTerm.toLowerCase().trim();
+
+    // Group 1: Services
+    const servicesList = contractServices.map(cs => ({
+      id: cs.serviceId,
+      code: cs.code,
+      name: cs.name,
+      type: 'service' as const,
+      displayText: `${cs.code} - ${cs.name}`
+    }));
+
+    // Group 2: Lodgings (Alojamentos)
+    const lodgingsList = companyAlojamentos.map(al => ({
+      id: al.id,
+      code: 'ALJ',
+      name: al.name,
+      type: 'lodging' as const,
+      displayText: `[Alojamento] ${al.name} (${al.city})`
+    }));
+
+    // Filter both based on search term
+    const filteredServices = servicesList.filter(item =>
+      !term ||
+      item.code.toLowerCase().includes(term) ||
+      item.name.toLowerCase().includes(term)
+    );
+
+    const filteredLodgings = lodgingsList.filter(item =>
+      !term ||
+      item.name.toLowerCase().includes(term) ||
+      (item.displayText || "").toLowerCase().includes(term)
+    );
+
+    return {
+      services: filteredServices,
+      lodgings: filteredLodgings,
+      totalCount: filteredServices.length + filteredLodgings.length
+    };
+  }, [contractServices, companyAlojamentos, serviceFilterTerm]);
+
+  // Currently selected place helper for the input display
+  const selectedPlaceObj = useMemo(() => {
+    if (!applServiceId) return null;
+    const s = contractServices.find(cs => cs.serviceId === applServiceId);
+    if (s) {
+      return {
+        id: s.serviceId,
+        name: s.name,
+        code: s.code,
+        displayText: `${s.code} - ${s.name}`
+      };
+    }
+    const al = companyAlojamentos.find(al => al.id === applServiceId);
+    if (al) {
+      return {
+        id: al.id,
+        name: al.name,
+        code: 'ALJ',
+        displayText: `[Alojamento] ${al.name}`
+      };
+    }
+    return null;
+  }, [applServiceId, contractServices, companyAlojamentos]);
+
   const handleRegisterApplication = () => {
     if (!applWarehouseId || !applContractId || !applServiceId || !applStockItemId) {
-      alert('Preencha as informações do almoxarifado, contrato, material e serviço.');
+      alert('Preencha as informações do almoxarifado, contrato, material e local da aplicação.');
       return;
     }
 
@@ -783,15 +895,16 @@ export default function AlmoxarifeView({
       const warehouse = warehouses.find(w => w.id === app.warehouseId);
       const contract = contracts.find(c => c.id === app.contractId);
       const service = services.find(s => s.id === app.serviceId) || contractServices.find(cs => cs.serviceId === app.serviceId);
+      const lodging = (alojamentos || []).find(al => al.id === app.serviceId);
       
       return {
         ...app,
         warehouseName: warehouse?.name || 'Almoxarifado Desconhecido',
         contractName: contract?.workName || contract?.contractNumber || 'Contrato Desconhecido',
-        serviceName: service ? `[${service.code}] ${service.name}` : 'Serviço de Obra'
+        serviceName: lodging ? `[Alojamento] ${lodging.name}` : (service ? `[${service.code}] ${service.name}` : 'Serviço de Obra')
       };
     });
-  }, [applications, warehouses, contracts, services, contractServices]);
+  }, [applications, warehouses, contracts, services, contractServices, alojamentos]);
 
   return (
     <div className="space-y-8 w-full max-w-[98%] mx-auto px-1 md:px-4 lg:px-6 pb-12">
@@ -874,7 +987,7 @@ export default function AlmoxarifeView({
             <ArrowLeftRight className="w-5 h-5 mr-2 inline text-emerald-600" /> Transferências
           </TabsTrigger>
           <TabsTrigger value="aplicacoes" className="font-extrabold py-4 px-5 rounded-xl data-[state=active]:bg-white data-[state=active]:shadow-md text-base transition-all">
-            <ClipboardList className="w-5 h-5 mr-2 inline text-emerald-600" /> Aplicação em Serviços
+            <ClipboardList className="w-5 h-5 mr-2 inline text-emerald-600" /> Aplicação de Materiais
           </TabsTrigger>
         </TabsList>
 
@@ -1650,19 +1763,74 @@ export default function AlmoxarifeView({
                     </Select>
                   </div>
 
-                  {/* Select local stock item */}
+                  {/* Select local stock item (Searchable Combobox) */}
                   <div className="space-y-1">
-                    <Label className="text-xs font-bold text-slate-500 uppercase">Selecione o Material em Estoque</Label>
-                    <Select value={applStockItemId} onValueChange={setApplStockItemId} disabled={!applWarehouseId}>
-                      <SelectTrigger className="rounded-xl h-11">
-                        <SelectValue placeholder={applWarehouseId ? "Escolha o material" : "Selecione o almoxarifado primeiro"} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {applWarehouseItems.map(item => (
-                          <SelectItem key={item.id} value={item.id}>{item.description} ({item.quantity} {item.unit})</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <Label className="text-xs font-bold text-slate-500 uppercase">Selecionar Material em Estoque</Label>
+                    <div className="relative">
+                      <Input
+                        placeholder={applWarehouseId ? "Digite para buscar o material..." : "Selecione o almoxarifado primeiro"}
+                        value={stockSearchActive ? materialFilterTerm : (selectedStockItemObj ? selectedStockItemObj.description : "")}
+                        onChange={(e) => {
+                          setMaterialFilterTerm(e.target.value);
+                          if (!stockSearchActive) setStockSearchActive(true);
+                        }}
+                        onFocus={() => {
+                          setStockSearchActive(true);
+                        }}
+                        disabled={!applWarehouseId}
+                        className="rounded-xl h-11 pr-10 text-xs font-medium cursor-text"
+                      />
+                      <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1">
+                        {selectedStockItemObj && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setApplStockItemId("");
+                              setMaterialFilterTerm("");
+                            }}
+                            className="text-gray-400 hover:text-gray-600 p-0.5 rounded-full hover:bg-gray-100 cursor-pointer"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                        <ChevronDown className="w-4 h-4 text-gray-400" />
+                      </div>
+
+                      {stockSearchActive && (
+                        <>
+                          <div 
+                            className="fixed inset-0 z-40 cursor-default" 
+                            onClick={() => setStockSearchActive(false)} 
+                          />
+                          <div className="absolute left-0 right-0 top-full mt-1.5 bg-white border border-slate-200 rounded-xl shadow-lg max-h-60 overflow-y-auto z-50 p-1">
+                            {filteredUniqueWarehouseItems.length === 0 ? (
+                              <div className="p-3 text-xs text-gray-400 text-center">Nenhum material encontrado</div>
+                            ) : (
+                              filteredUniqueWarehouseItems.map(item => (
+                                <button
+                                  key={item.id}
+                                  type="button"
+                                  onClick={() => {
+                                    setApplStockItemId(item.id);
+                                    setMaterialFilterTerm(item.description);
+                                    setStockSearchActive(false);
+                                  }}
+                                  className={cn(
+                                    "w-full text-left px-3 py-2 rounded-lg text-xs font-semibold hover:bg-slate-50 transition-colors flex justify-between items-center cursor-pointer",
+                                    applStockItemId === item.id ? "bg-emerald-50 text-emerald-700" : "text-gray-700"
+                                  )}
+                                >
+                                  <span>{item.description}</span>
+                                  <span className="text-[10px] text-gray-400 font-mono bg-gray-100 px-1.5 py-0.5 rounded-full">
+                                    {item.quantity} {item.unit}
+                                  </span>
+                                </button>
+                              ))
+                            )}
+                          </div>
+                        </>
+                      )}
+                    </div>
                   </div>
 
                   {/* Apply Target Contract */}
@@ -1680,19 +1848,109 @@ export default function AlmoxarifeView({
                     </Select>
                   </div>
 
-                  {/* Apply Target Service */}
+                  {/* Apply Target Service / Lodging (Searchable Combobox) */}
                   <div className="space-y-1">
-                    <Label className="text-xs font-bold text-slate-500 uppercase">Serviço do Contrato</Label>
-                    <Select value={applServiceId} onValueChange={setApplServiceId} disabled={!applContractId}>
-                      <SelectTrigger className="rounded-xl h-11">
-                        <SelectValue placeholder={applContractId ? "Qual serviço receberá?" : "Selecione o contrato primeiro"} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {contractServices.map(cs => (
-                          <SelectItem key={cs.serviceId} value={cs.serviceId}>{cs.code} - {cs.name}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <Label className="text-xs font-bold text-slate-500 uppercase">Local da Aplicação</Label>
+                    <div className="relative">
+                      <Input
+                        placeholder={applContractId ? "Digite para buscar o local (serviço ou alojamento)..." : "Selecione a obra primeiro"}
+                        value={placeSearchActive ? serviceFilterTerm : (selectedPlaceObj ? selectedPlaceObj.displayText : "")}
+                        onChange={(e) => {
+                          setServiceFilterTerm(e.target.value);
+                          if (!placeSearchActive) setPlaceSearchActive(true);
+                        }}
+                        onFocus={() => {
+                          setPlaceSearchActive(true);
+                        }}
+                        disabled={!applContractId}
+                        className="rounded-xl h-11 pr-10 text-xs font-medium cursor-text"
+                      />
+                      <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1">
+                        {selectedPlaceObj && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setApplServiceId("");
+                              setServiceFilterTerm("");
+                            }}
+                            className="text-gray-400 hover:text-gray-600 p-0.5 rounded-full hover:bg-gray-100 cursor-pointer"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                        <ChevronDown className="w-4 h-4 text-gray-400" />
+                      </div>
+
+                      {placeSearchActive && (
+                        <>
+                          <div 
+                            className="fixed inset-0 z-40 cursor-default" 
+                            onClick={() => setPlaceSearchActive(false)} 
+                          />
+                          <div className="absolute left-0 right-0 top-full mt-1.5 bg-white border border-slate-200 rounded-xl shadow-lg max-h-60 overflow-y-auto z-50 p-1">
+                            {applicationPlacesGroups.totalCount === 0 ? (
+                              <div className="p-3 text-xs text-gray-400 text-center">Nenhum local encontrado</div>
+                            ) : (
+                              <div className="space-y-2">
+                                {applicationPlacesGroups.services.length > 0 && (
+                                  <div>
+                                    <div className="px-3 py-1.5 text-[10px] font-black text-slate-400 uppercase tracking-wider bg-slate-50/50 rounded-md">
+                                      Serviços do Contrato ({applicationPlacesGroups.services.length})
+                                    </div>
+                                    <div className="mt-1 space-y-0.5">
+                                      {applicationPlacesGroups.services.map(cs => (
+                                        <button
+                                          key={cs.id}
+                                          type="button"
+                                          onClick={() => {
+                                            setApplServiceId(cs.id);
+                                            setServiceFilterTerm(cs.name);
+                                            setPlaceSearchActive(false);
+                                          }}
+                                          className={cn(
+                                            "w-full text-left px-3 py-2 rounded-lg text-xs font-semibold hover:bg-slate-50 transition-colors flex justify-between items-center cursor-pointer",
+                                            applServiceId === cs.id ? "bg-emerald-50 text-emerald-700" : "text-gray-700"
+                                          )}
+                                        >
+                                          <span>{cs.code} - {cs.name}</span>
+                                        </button>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+
+                                {applicationPlacesGroups.lodgings.length > 0 && (
+                                  <div>
+                                    <div className="px-3 py-1.5 text-[10px] font-black text-orange-600 uppercase tracking-wider bg-orange-50/20 rounded-md flex items-center gap-1">
+                                      <Home className="w-3 h-3 text-orange-500" /> Alojamentos da Obra ({applicationPlacesGroups.lodgings.length})
+                                    </div>
+                                    <div className="mt-1 space-y-0.5">
+                                      {applicationPlacesGroups.lodgings.map(al => (
+                                        <button
+                                          key={al.id}
+                                          type="button"
+                                          onClick={() => {
+                                            setApplServiceId(al.id);
+                                            setServiceFilterTerm(al.name);
+                                            setPlaceSearchActive(false);
+                                          }}
+                                          className={cn(
+                                            "w-full text-left px-3 py-2 rounded-lg text-xs font-semibold hover:bg-slate-50 transition-colors flex justify-between items-center cursor-pointer",
+                                            applServiceId === al.id ? "bg-orange-50/50 text-orange-700 font-bold" : "text-gray-700"
+                                          )}
+                                        >
+                                          <span>{al.displayText}</span>
+                                        </button>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        </>
+                      )}
+                    </div>
                   </div>
 
                   {/* Quantity and units */}

@@ -10,7 +10,7 @@ import {
 import { motion, AnimatePresence, Reorder } from 'motion/react';
 import { v4 as uuidv4 } from 'uuid';
 import { useLocalStorage } from './lib/useLocalStorage';
-import { Resource, ServiceComposition, Quotation, User, ABCConfig, BudgetGroup, BDIConfig, AuditLog, UserRole, Contract, Measurement, MeasurementTemplate, CalculationMemory, HighwayLocation, StationGroup, CubationData, TransportData, ServiceProduction, Employee, TimeRecord, DailyReport, DailyReportActivity, PluviometryRecord, TechnicalSchedule, DashboardConfig, ControllerTeam, ControllerEquipment, EquipmentMonthlyData, ControllerManpower, ManpowerMonthlyData, TeamAssignment, MarketingConfig, AppModule, PasswordResetRequest, EquipmentTransfer, Supplier, PurchaseOrder, EmailConfig, PurchaseRequest, PurchaseQuotation, EquipmentMaintenance, FuelTank, FuelLog, EquipmentMeasurement, DailyEquipmentMeasurement, Aporte, Warehouse, WarehouseItem, WarehouseEntry, Asset, WarehouseTransfer, WarehouseApplication } from './types';
+import { Resource, ServiceComposition, Quotation, User, ABCConfig, BudgetGroup, BDIConfig, AuditLog, UserRole, Contract, Measurement, MeasurementTemplate, CalculationMemory, HighwayLocation, StationGroup, CubationData, TransportData, ServiceProduction, Employee, TimeRecord, DailyReport, DailyReportActivity, PluviometryRecord, TechnicalSchedule, DashboardConfig, ControllerTeam, ControllerEquipment, EquipmentMonthlyData, ControllerManpower, ManpowerMonthlyData, TeamAssignment, MarketingConfig, AppModule, PasswordResetRequest, EquipmentTransfer, Supplier, PurchaseOrder, EmailConfig, PurchaseRequest, PurchaseQuotation, EquipmentMaintenance, FuelTank, FuelLog, EquipmentMeasurement, DailyEquipmentMeasurement, Aporte, Warehouse, WarehouseItem, WarehouseEntry, Asset, WarehouseTransfer, WarehouseApplication, Alojamento } from './types';
 import { cn, hashPassword } from './lib/utils';
 import { calculateBDI } from './lib/calculations';
 import { compressImage } from './lib/imageUtils';
@@ -199,6 +199,7 @@ export default function App() {
   const [services, setServices] = useLocalStorage<ServiceComposition[]>('sconet_services', [], compId);
   const [quotations, setQuotations] = useLocalStorage<Quotation[]>('sconet_quotations', [], compId);
   const [employees, setEmployees] = useLocalStorage<Employee[]>('sigo_employees', [], compId);
+  const [alojamentos, setAlojamentos] = useLocalStorage<Alojamento[]>('sigo_alojamentos', [], compId);
   const [timeRecords, setTimeRecords] = useLocalStorage<TimeRecord[]>('sigo_time_records', [], compId);
   const [dailyReports, setDailyReports] = useLocalStorage<DailyReport[]>('sigo_daily_reports', [], compId);
   const [pluviometryRecords, setPluviometryRecords] = useLocalStorage<PluviometryRecord[]>('sigo_pluviometry_records', [], compId);
@@ -638,6 +639,7 @@ export default function App() {
           'purchase_quotations': { key: 'sigo_purchase_quotations', setter: setPurchaseQuotations },
           'equipment_transfers': { key: 'sigo_equipment_transfers', setter: setEquipmentTransfers },
           'employees': { key: 'sigo_employees', setter: setEmployees },
+          'alojamentos': { key: 'sigo_alojamentos', setter: setAlojamentos },
           'time_records': { key: 'sigo_time_records', setter: setTimeRecords },
           'fuel_reservoirs': { key: 'sigo_fuel_tanks', setter: setFuelTanks },
           'fuel_logs': { key: 'sigo_fuel_logs', setter: setFuelLogs },
@@ -2893,6 +2895,15 @@ export default function App() {
       nextEmployees = val;
     }
     
+    // Auto-remove dismissed employees from lodging
+    nextEmployees = nextEmployees.map(emp => {
+      if (emp.status === 'dismissed' && emp.alojamentoId) {
+        const { alojamentoId, ...rest } = emp;
+        return rest;
+      }
+      return emp;
+    });
+    
     setEmployees(nextEmployees);
 
     const config = getSupabaseConfig();
@@ -2944,6 +2955,60 @@ export default function App() {
           });
         } catch (err) {
           console.warn('[Sync] Employees persist failed', err);
+        }
+      }
+    }
+  };
+
+  const updateAlojamentos = async (val: Alojamento[] | ((prev: Alojamento[]) => Alojamento[])) => {
+    lastLocalUpdate.current = Date.now();
+    let next: Alojamento[];
+    if (typeof val === 'function') {
+      next = val(alojamentos);
+    } else {
+      next = val;
+    }
+    setAlojamentos(next);
+
+    const config = getSupabaseConfig();
+    if (config.enabled && compId) {
+      const supabase = createSupabaseClient(config.url, config.key);
+      if (supabase) {
+        try {
+          const snakeData = next.map(al => ({
+            id: al.id,
+            company_id: al.companyId || compId,
+            name: al.name,
+            address: al.address,
+            city: al.city,
+            rooms_count: Number(al.roomsCount) || 0,
+            max_capacity: Number(al.maxCapacity) || 0,
+            current_capacity: Number(al.currentCapacity) || 0,
+          }));
+
+          const currentIds = next.map(e => e.id);
+          const { data: dbItems } = await supabase.from('alojamentos').select('id').eq('company_id', compId);
+          if (dbItems) {
+            const dbIds = dbItems.map(d => d.id);
+            const toDelete = dbIds.filter(id => !currentIds.includes(id));
+            if (toDelete.length > 0) {
+              await supabase.from('alojamentos').delete().in('id', toDelete);
+            }
+          }
+
+          if (snakeData.length > 0) {
+            const { error: upsertError } = await supabase.from('alojamentos').upsert(snakeData);
+            if (upsertError) {
+              console.error('[Sync] Alojamentos upsert failed:', upsertError);
+            }
+          }
+
+          await supabase.from('app_state').upsert({
+            id: `${compId}_sigo_alojamentos`,
+            content: next
+          });
+        } catch (err) {
+          console.warn('[Sync] Alojamentos persist failed', err);
         }
       }
     }
@@ -4291,6 +4356,8 @@ export default function App() {
                 <RHView 
                   currentUser={currentUser}
                   employees={employees}
+                  alojamentos={alojamentos || []}
+                  onUpdateAlojamentos={updateAlojamentos}
                   timeRecords={timeRecords}
                   contracts={finalContracts}
                   selectedContractId={selectedContractId}
@@ -4526,6 +4593,7 @@ export default function App() {
                   setPurchaseOrders={updatePurchaseOrders}
                   services={filteredServices}
                   currentUser={currentUser}
+                  alojamentos={alojamentos || []}
                   warehouses={warehouses}
                   setWarehouses={setWarehouses}
                   warehouseItems={warehouseItems}
