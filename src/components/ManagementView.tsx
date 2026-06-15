@@ -1211,6 +1211,8 @@ export const ManagementView = ({
   fuelLogs: propFuelLogs = [],
   equipmentMaintenance: propEquipmentMaintenance = [],
   purchaseOrders: propPurchaseOrders = [],
+  warehouses = [],
+  warehouseItems = [],
 }: any) => {
   const [localSelectedContractId, setLocalSelectedContractId] =
     useState<string>("all");
@@ -1352,12 +1354,19 @@ export const ManagementView = ({
       });
     });
 
+    // 4. From Warehouse stocks
+    if (warehouseItems) {
+      warehouseItems.forEach((wi: any) => {
+        if (wi.description) mats.add(wi.description.trim());
+      });
+    }
+
     return Array.from(mats).sort();
-  }, [localOrders, localResources, quotations, services]);
+  }, [localOrders, localResources, quotations, services, warehouseItems]);
 
   const isAlugado = (eq: any) => {
     const o = (eq.origin || '').toLowerCase();
-    return o.includes('alugad') || o.includes('rent') || o.includes('leas') || eq.ownerName || eq.ownerCnpj;
+    return o.includes('alugad') || o.includes('rent') || o.includes('leas') || o.includes('terceiri');
   };
   const isProprio = (eq: any) => {
     const o = (eq.origin || '').toLowerCase();
@@ -1549,11 +1558,22 @@ export const ManagementView = ({
     );
     const totalQty = matchingItems.reduce((acc: number, item: any) => acc + (Number(item.quantity) || 0), 0);
     const totalVal = matchingItems.reduce((acc: number, item: any) => acc + (Number(item.quantity) * Number(item.price) || 0), 0);
-    const unit = matchingItems[0]?.unit || 'unid.';
+
+    const contractWarehouses = warehouses.filter((w: any) => selectedContractId === 'all' || w.contractId === selectedContractId || !w.contractId);
+    const stockItemsMap = warehouseItems.filter((wi: any) => 
+      contractWarehouses.some((w: any) => w.id === wi.warehouseId) &&
+      (wi.description || '').trim().toLowerCase() === (matName || '').trim().toLowerCase()
+    );
+    const stockQty = stockItemsMap.reduce((acc: number, item: any) => acc + (Number(item.quantity) || 0), 0);
+    const stockVal = stockItemsMap.reduce((acc: number, item: any) => acc + (Number(item.quantity) * Number(item.avgPrice || item.price || 0) || 0), 0);
+
+    const unit = matchingItems[0]?.unit || stockItemsMap[0]?.unit || 'unid.';
+    const finalVal = totalVal > 0 ? totalVal : stockVal;
+
     return {
       title: `Material: ${matName}`,
-      valueStr: `R$ ${totalVal.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
-      secondaryStr: `${totalQty.toLocaleString()} ${unit}`,
+      valueStr: `R$ ${finalVal.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+      secondaryStr: `Adquiridos: ${totalQty.toLocaleString()} / Estoque: ${stockQty.toLocaleString()} ${unit}`,
       color: '#3b82f6'
     };
   };
@@ -1612,8 +1632,22 @@ export const ManagementView = ({
 
       const totalQty = matchingItemsMap.reduce((acc, item) => acc + (Number(item.quantity) || 0), 0);
       const totalVal = matchingItemsMap.reduce((acc, item) => acc + (Number(item.quantity) * Number(item.price) || 0), 0);
-      const avgPrice = totalQty > 0 ? totalVal / totalQty : 0;
-      const unit = matchingItemsMap[0]?.unit || 'unid.';
+      
+
+      // Calculate stock in active contract warehouses
+      const contractWarehouses = warehouses.filter((w: any) => selectedContractId === 'all' || w.contractId === selectedContractId || !w.contractId);
+      const stockItemsMap = warehouseItems.filter((wi: any) => 
+        contractWarehouses.some((w: any) => w.id === wi.warehouseId) &&
+        (wi.description || '').trim().toLowerCase() === (matName || '').trim().toLowerCase()
+      );
+      const stockQty = stockItemsMap.reduce((acc: number, item: any) => acc + (Number(item.quantity) || 0), 0);
+      const stockVal = stockItemsMap.reduce((acc: number, item: any) => acc + (Number(item.quantity) * Number(item.avgPrice || item.price || 0) || 0), 0);
+
+      const unit = matchingItemsMap[0]?.unit || stockItemsMap[0]?.unit || 'unid.';
+      
+      const finalVal = totalVal > 0 ? totalVal : stockVal;
+      const finalQty = totalQty > 0 ? totalQty : stockQty;
+      const avgPrice = finalQty > 0 ? finalVal / finalQty : 0;
 
       return (
         <div className="p-6 space-y-6 bg-slate-50 min-h-screen">
@@ -1632,32 +1666,39 @@ export const ManagementView = ({
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
             <Card className="bg-white shadow">
               <CardContent className="pt-6">
-                <span className="text-xs font-bold text-slate-400 uppercase tracking-wide">Qtd. Total Adquirida</span>
-                <div className="text-2xl font-black text-blue-600 mt-1">{totalQty.toLocaleString()} {unit}</div>
+                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wide">Qtd. Adquirida s/ OC</span>
+                <div className="text-xl font-black text-blue-600 mt-1">{totalQty.toLocaleString()} {unit}</div>
               </CardContent>
             </Card>
 
             <Card className="bg-white shadow">
               <CardContent className="pt-6">
-                <span className="text-xs font-bold text-slate-400 uppercase tracking-wide font-black">Preço Unitário Médio</span>
-                <div className="text-2xl font-black text-emerald-600 mt-1">R$ {avgPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wide">Preço Médio</span>
+                <div className="text-xl font-black text-emerald-600 mt-1">R$ {avgPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
               </CardContent>
             </Card>
 
             <Card className="bg-white shadow">
               <CardContent className="pt-6">
-                <span className="text-xs font-bold text-slate-400 uppercase tracking-wide font-black">Custo Total Acumulado</span>
-                <div className="text-2xl font-black text-slate-900 mt-1">R$ {totalVal.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wide">Estoque Atual em Almoxarifados</span>
+                <div className="text-xl font-black text-amber-600 mt-1">{stockQty.toLocaleString()} {unit}</div>
+              </CardContent>
+            </Card>
+
+            <Card className="bg-white shadow">
+              <CardContent className="pt-6">
+                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wide font-black">Custo Total Historico</span>
+                <div className="text-xl font-black text-slate-900 mt-1">R$ {finalVal.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
               </CardContent>
             </Card>
 
             <Card className="bg-white shadow flex flex-col justify-center">
-              <CardContent className="pt-6">
-                <span className="text-xs font-bold text-slate-400 uppercase tracking-wide">No. de Pedidos de Compra</span>
-                <div className="text-2xl font-black text-purple-600 mt-1">{matchingItemsMap.length}</div>
+              <CardContent className="pt-5">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Pedidos de Compra (Histórico)</span>
+                <div className="text-xl font-black text-purple-600 mt-1">{matchingItemsMap.length} pedidos</div>
               </CardContent>
             </Card>
           </div>
@@ -1744,10 +1785,10 @@ export const ManagementView = ({
       const eqType = detail.equipmentType || 'ambos';
       const typeLabel = eqType === 'proprio' ? 'Próprios' : eqType === 'alugado' ? 'Alugados' : 'Ambos';
 
-      const baseTotal = top10Equipments.reduce((acc, eq) => acc + eq.baseCost, 0);
-      const maintTotal = top10Equipments.reduce((acc, eq) => acc + eq.maintCost, 0);
-      const fuelTotal = top10Equipments.reduce((acc, eq) => acc + eq.fuelCost, 0);
-      const grandTotal = top10Equipments.reduce((acc, eq) => acc + eq.totalCost, 0);
+      const baseTotal = selectedEqsList.reduce((acc, eq) => acc + eq.baseCost, 0);
+      const maintTotal = selectedEqsList.reduce((acc, eq) => acc + eq.maintCost, 0);
+      const fuelTotal = selectedEqsList.reduce((acc, eq) => acc + eq.fuelCost, 0);
+      const grandTotal = selectedEqsList.reduce((acc, eq) => acc + eq.totalCost, 0);
 
       return (
         <div className="p-6 space-y-6 bg-slate-50 min-h-screen">

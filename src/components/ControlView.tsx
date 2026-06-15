@@ -153,6 +153,8 @@ interface ControlViewProps {
   setWarehouseItems?: React.Dispatch<React.SetStateAction<any[]>>;
   applications?: any[];
   setApplications?: React.Dispatch<React.SetStateAction<any[]>>;
+  systemConfig?: any[];
+  setSystemConfig?: React.Dispatch<React.SetStateAction<any[]>>;
 }
 
 export default function ControlView({
@@ -187,6 +189,8 @@ export default function ControlView({
   setWarehouseItems,
   applications = [],
   setApplications,
+  systemConfig = [],
+  setSystemConfig,
 }: ControlViewProps) {
   const [activeTab, setActiveTab] = React.useState(initialTab || "list");
 
@@ -205,22 +209,42 @@ export default function ControlView({
     "Arla 32",
   ];
 
-  const [dynamicTypes, setDynamicTypes] = useLocalStorage<string[]>(
-    "sigo_equipment_types",
-    EQUIPMENT_TYPES,
-  );
+  const dynamicTypes = useMemo(() => {
+    const config = systemConfig.find(sc => sc.configKey === 'sigo_equipment_types');
+    if (config && Array.isArray(config.configValue)) {
+      // Merge defaults if needed, or just return saved
+      const savedTypes = config.configValue;
+      return [...new Set([...EQUIPMENT_TYPES, ...savedTypes])];
+    }
+    return EQUIPMENT_TYPES;
+  }, [systemConfig]);
+
+  const updateDynamicTypes = (newTypes: string[]) => {
+    if (!setSystemConfig) return;
+    setSystemConfig((prev: any[]) => {
+      const filtered = prev.filter(sc => sc.configKey !== 'sigo_equipment_types');
+      return [...filtered, {
+        id: crypto.randomUUID(),
+        companyId: currentUser?.companyId || 'default',
+        configKey: 'sigo_equipment_types',
+        configValue: newTypes,
+        createdAt: new Date().toISOString()
+      }];
+    });
+  };
+
   const [typeSearchTerm, setTypeSearchTerm] = useState("");
 
   const handleAddType = (newType: string) => {
     const trimmedType = newType.trim();
     if (trimmedType && !dynamicTypes.includes(trimmedType)) {
-      setDynamicTypes([...dynamicTypes, trimmedType]);
+      updateDynamicTypes([...dynamicTypes, trimmedType]);
     }
   };
 
   const handleRemoveType = (e: React.MouseEvent, typeToRemove: string) => {
     e.stopPropagation();
-    setDynamicTypes(dynamicTypes.filter((t) => t !== typeToRemove));
+    updateDynamicTypes(dynamicTypes.filter((t: string) => t !== typeToRemove));
   };
 
   const [isTankModalOpen, setIsTankModalOpen] = useState(false);

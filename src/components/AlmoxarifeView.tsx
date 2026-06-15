@@ -973,21 +973,21 @@ export default function AlmoxarifeView({
 
       {/* Main Tabs Container */}
       <Tabs value={activeTab} onValueChange={(val) => setActiveTab(val as any)} className="w-full">
-        <TabsList className="grid grid-cols-2 lg:grid-cols-5 h-auto gap-2 bg-slate-100 p-2 rounded-2xl border mb-6">
-          <TabsTrigger value="estoques" className="font-extrabold py-4 px-5 rounded-xl data-[state=active]:bg-white data-[state=active]:shadow-md text-base transition-all">
-            <Package className="w-5 h-5 mr-2 inline text-emerald-600" /> Estoques & Saldos
+        <TabsList className="flex flex-wrap lg:flex-nowrap h-auto gap-2 bg-slate-100/80 p-2 rounded-2xl border shadow-inner mb-6 w-full overflow-x-auto justify-start lg:justify-center">
+          <TabsTrigger value="estoques" className="flex-1 min-w-[200px] font-extrabold py-3 md:py-4 px-4 md:px-5 rounded-xl data-[state=active]:bg-white data-[state=active]:shadow-md text-sm md:text-base transition-all border border-transparent data-[state=active]:border-slate-200">
+            <Package className="w-4 h-4 md:w-5 md:h-5 mr-2 inline text-emerald-600" /> Estoques & Saldos
           </TabsTrigger>
-          <TabsTrigger value="entradas" className="font-extrabold py-4 px-5 rounded-xl data-[state=active]:bg-white data-[state=active]:shadow-md text-base transition-all">
-            <CheckCircle2 className="w-5 h-5 mr-2 inline text-emerald-600" /> Recebimentos (Entrada)
+          <TabsTrigger value="entradas" className="flex-1 min-w-[240px] font-extrabold py-3 md:py-4 px-4 md:px-5 rounded-xl data-[state=active]:bg-white data-[state=active]:shadow-md text-sm md:text-base transition-all border border-transparent data-[state=active]:border-slate-200">
+            <CheckCircle2 className="w-4 h-4 md:w-5 md:h-5 mr-2 inline text-emerald-600" /> Recebimentos (Entrada)
           </TabsTrigger>
-          <TabsTrigger value="patrimonio" className="font-extrabold py-4 px-5 rounded-xl data-[state=active]:bg-white data-[state=active]:shadow-md text-base transition-all">
-            <Hammer className="w-5 h-5 mr-2 inline text-emerald-600" /> Patrimônio & Ativos
+          <TabsTrigger value="patrimonio" className="flex-1 min-w-[200px] font-extrabold py-3 md:py-4 px-4 md:px-5 rounded-xl data-[state=active]:bg-white data-[state=active]:shadow-md text-sm md:text-base transition-all border border-transparent data-[state=active]:border-slate-200">
+            <Hammer className="w-4 h-4 md:w-5 md:h-5 mr-2 inline text-emerald-600" /> Patrimônio & Ativos
           </TabsTrigger>
-          <TabsTrigger value="transferencias" className="font-extrabold py-4 px-5 rounded-xl data-[state=active]:bg-white data-[state=active]:shadow-md text-base transition-all">
-            <ArrowLeftRight className="w-5 h-5 mr-2 inline text-emerald-600" /> Transferências
+          <TabsTrigger value="transferencias" className="flex-1 min-w-[180px] font-extrabold py-3 md:py-4 px-4 md:px-5 rounded-xl data-[state=active]:bg-white data-[state=active]:shadow-md text-sm md:text-base transition-all border border-transparent data-[state=active]:border-slate-200">
+            <ArrowLeftRight className="w-4 h-4 md:w-5 md:h-5 mr-2 inline text-emerald-600" /> Transferências
           </TabsTrigger>
-          <TabsTrigger value="aplicacoes" className="font-extrabold py-4 px-5 rounded-xl data-[state=active]:bg-white data-[state=active]:shadow-md text-base transition-all">
-            <ClipboardList className="w-5 h-5 mr-2 inline text-emerald-600" /> Aplicação de Materiais
+          <TabsTrigger value="aplicacoes" className="flex-1 min-w-[220px] font-extrabold py-3 md:py-4 px-4 md:px-5 rounded-xl data-[state=active]:bg-white data-[state=active]:shadow-md text-sm md:text-base transition-all border border-transparent data-[state=active]:border-slate-200">
+            <ClipboardList className="w-4 h-4 md:w-5 md:h-5 mr-2 inline text-emerald-600" /> Aplicação de Materiais
           </TabsTrigger>
         </TabsList>
 

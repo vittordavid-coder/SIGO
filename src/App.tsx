@@ -900,6 +900,7 @@ export default function App() {
             const chunk = mappedData.slice(i, i + chunkSize);
             const chunkToUpsert = chunk.map(({ items, ...rest }: any) => {
               rest.data = toYMD(rest.data) || new Date().toISOString().split('T')[0];
+              if (rest.contract_id === "") rest.contract_id = null;
               return rest;
             });
             
@@ -911,7 +912,7 @@ export default function App() {
             
             for (const aporte of chunk) {
                if (aporte.items && Array.isArray(aporte.items)) {
-                 const currentItemIds = aporte.items.map((i: any) => i.id);
+                 const currentItemIds = aporte.items.map((i: any) => i.id).filter(Boolean);
                  if (currentItemIds.length > 0) {
                    const formattedIdsList = `(${currentItemIds.map((id: string) => `"${id}"`).join(',')})`;
                    await supabase.from('aporte_items')
@@ -4539,6 +4540,8 @@ export default function App() {
                   fuelLogs={fuelLogs}
                   equipmentMaintenance={equipmentMaintenance}
                   purchaseOrders={finalPurchaseOrders}
+                  warehouses={warehouses}
+                  warehouseItems={warehouseItems}
                 />
               )}
 
