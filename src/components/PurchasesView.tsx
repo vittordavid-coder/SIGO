@@ -87,6 +87,8 @@ interface PurchasesViewProps {
   resources?: any[];
   services?: any[];
   quotations?: any[];
+  warehouseItems?: any[];
+  warehouses?: any[];
 }
 
 export default function PurchasesView({ 
@@ -114,7 +116,9 @@ export default function PurchasesView({
   onUpdateContractId,
   resources = [],
   services = [],
-  quotations = []
+  quotations = [],
+  warehouseItems = [],
+  warehouses = []
 }: PurchasesViewProps) {
   const [activeTab, setActiveTab] = useState<'requests' | 'suppliers' | 'quotations' | 'orders' | 'tracking' | 'estoque' | 'evaluation'>(initialTab || 'requests');
   const [localSelectedContractId, setLocalSelectedContractId] = useState<string>(contracts[0]?.id || 'all');
@@ -141,13 +145,17 @@ export default function PurchasesView({
   
   return (
     <div className="flex flex-col gap-6 p-8 max-w-[1600px] mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500 min-h-screen">
-      <div className="flex justify-between items-center bg-white p-6 rounded-3xl shadow-sm border border-gray-100 mb-2">
-        <div className="space-y-1">
-          <h1 className="text-3xl font-black text-gray-900 tracking-tight flex items-center gap-3">
-            <ShoppingCart className="w-8 h-8 text-blue-600" />
-            Compras e Suprimentos
-          </h1>
-          <p className="text-gray-500 font-medium">Gestão de fornecedores, pedidos, entregas e avaliações.</p>
+      {/* Header Panel */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-8 bg-gradient-to-r from-emerald-950 to-emerald-800 rounded-3xl text-white shadow-xl">
+        <div className="flex items-center gap-4">
+          <div className="bg-emerald-500/10 p-3 rounded-2xl border border-emerald-500/20">
+            <ShoppingCart className="w-8 h-8 text-emerald-300" />
+          </div>
+          <div>
+            <span className="text-sm bg-emerald-500/20 text-emerald-300 px-3 py-1 rounded-full border border-emerald-500/30 font-bold uppercase tracking-wider">Setor Comercial / Compras</span>
+            <h1 className="text-4xl font-black tracking-tight mt-1">Compras e Suprimentos</h1>
+            <p className="text-emerald-100/80 text-base mt-1">Gestão de fornecedores, pedidos, entregas e avaliações.</p>
+          </div>
         </div>
       </div>
 
@@ -257,6 +265,9 @@ export default function PurchasesView({
                   setRequests={setRequests}
                   equipments={equipments}
                   onUpdateEquipments={onUpdateEquipments}
+                  warehouseItems={warehouseItems}
+                  warehouses={warehouses}
+                  selectedContractId={selectedContractId}
                 />
               </TabsContent>
               <TabsContent value="evaluation" className="mt-0 outline-none">
@@ -3690,94 +3701,109 @@ function EstoqueTab({
   requests, 
   setRequests,
   equipments,
-  onUpdateEquipments
+  onUpdateEquipments,
+  warehouseItems = [],
+  warehouses = [],
+  selectedContractId = 'all'
 }: { 
   requests: PurchaseRequest[], 
   setRequests: React.Dispatch<React.SetStateAction<PurchaseRequest[]>>,
   equipments: any[],
-  onUpdateEquipments?: (val: any[]) => void
+  onUpdateEquipments?: (val: any[]) => void,
+  warehouseItems?: any[],
+  warehouses?: any[],
+  selectedContractId?: string | null
 }) {
-  const stockItems = requests
-    .flatMap(r => (r.items || []).map(item => {
-      const finalStatus = item.status || (r.status === 'Recebido' ? 'Recebido' : r.status === 'Comprado' ? 'Comprado' : 'Pendente');
-      return { 
-        ...item, 
-        status: finalStatus,
-        requestId: r.id, 
-        sector: r.sector || r.category || 'Geral', 
-        requestDesc: r.description, 
-        contractId: r.contractId 
-      };
-    }))
-    .filter(item => (item.status === 'Recebido' || item.status === 'Comprado') && (item.quantity - (item.appliedQuantity || 0)) > 0);
+  const stockItemsToShow = React.useMemo(() => {
+    const matchingWarehouses = selectedContractId === 'all' 
+      ? warehouses 
+      : warehouses.filter(w => w.contractId === selectedContractId);
+    const matchingWarehouseIds = new Set(matchingWarehouses.map(w => w.id));
 
-  const [selectedItem, setSelectedItem] = useState<any | null>(null);
-  const [applyQty, setApplyQty] = useState(1);
-  const [selectedEquipId, setSelectedEquipId] = useState('');
+    const filteredWItems = warehouseItems.filter(item => 
+      selectedContractId === 'all' || matchingWarehouseIds.has(item.warehouseId)
+    );
 
-  const handleApply = () => {
-    if (!selectedItem || !selectedEquipId || applyQty <= 0) return;
-
-    const currentApplied = selectedItem.appliedQuantity || 0;
-    if (applyQty > (selectedItem.quantity - currentApplied)) {
-      alert('Quantidade insuficiente em estoque.');
-      return;
-    }
-
-    // Update Request
-    const updatedRequests = requests.map(r => {
-      if (r.id === selectedItem.requestId) {
+    if (filteredWItems.length > 0) {
+      return filteredWItems.map(item => {
+        const itemWH = warehouses.find(w => w.id === item.warehouseId);
         return {
-          ...r,
-          items: r.items.map(i => i.id === selectedItem.id ? { ...i, appliedQuantity: (i.appliedQuantity || 0) + applyQty } : i)
+          id: item.id,
+          description: item.description,
+          unit: item.unit,
+          sector: itemWH ? itemWH.name : 'Almoxarifado',
+          quantity: item.quantity,
+          avgPrice: item.avgPrice,
+          isRealWarehouse: true,
         };
-      }
-      return r;
-    });
-    setRequests(updatedRequests);
-
-    // Update Equipment History
-    if (onUpdateEquipments) {
-      const equip = equipments.find(e => e.id === selectedEquipId);
-      if (equip) {
-        const newHistory: any = {
-          id: crypto.randomUUID(),
-          date: new Date().toISOString(),
-          type: 'part_application',
-          description: `Aplicação de material do estoque (${selectedItem.description})`,
-          relatedId: selectedItem.requestId,
-          parts: [{
-            description: selectedItem.description,
-            quantity: applyQty,
-            unit: selectedItem.unit
-          }]
-        };
-
-        const updatedEquips = equipments.map(e => e.id === selectedEquipId ? {
-          ...e,
-          history: [...(e.history || []), newHistory]
-        } : e);
-        onUpdateEquipments(updatedEquips);
-      }
+      });
     }
 
-    setSelectedItem(null);
-    setApplyQty(1);
-    setSelectedEquipId('');
-    alert('Material aplicado com sucesso!');
-  };
+    return requests
+      .flatMap(r => (r.items || []).map(item => {
+        const finalStatus = item.status || (r.status === 'Recebido' ? 'Recebido' : r.status === 'Comprado' ? 'Comprado' : 'Pendente');
+        return { 
+          ...item, 
+          status: finalStatus,
+          requestId: r.id, 
+          sector: r.sector || r.category || 'Geral', 
+          requestDesc: r.description, 
+          contractId: r.contractId 
+        };
+      }))
+      .filter(item => (item.status === 'Recebido' || item.status === 'Comprado') && (item.quantity - (item.appliedQuantity || 0)) > 0)
+      .map(item => ({
+        id: item.id,
+        description: item.description,
+        unit: item.unit,
+        sector: item.sector,
+        quantity: item.quantity - (item.appliedQuantity || 0),
+        avgPrice: 0,
+        isRealWarehouse: false,
+      }));
+  }, [warehouseItems, warehouses, selectedContractId, requests]);
+
+  const stockItemsToShowGrouped = React.useMemo(() => {
+    const rawItems = stockItemsToShow;
+    const groups: { [key: string]: any[] } = {};
+    rawItems.forEach(item => {
+      const key = item.description.trim().toLowerCase();
+      if (!groups[key]) {
+        groups[key] = [];
+      }
+      groups[key].push(item);
+    });
+
+    return Object.keys(groups).map(key => {
+      const itemsInGroup = groups[key];
+      const totalQty = itemsInGroup.reduce((sum, i) => sum + i.quantity, 0);
+      const totalVal = itemsInGroup.reduce((sum, i) => sum + (i.quantity * (i.avgPrice || 0)), 0);
+      const averageAvgPrice = totalQty > 0 ? (totalVal / totalQty) : itemsInGroup[0].avgPrice;
+
+      const sectorsSet = Array.from(new Set(itemsInGroup.map(i => i.sector)));
+      const sectorDisplay = sectorsSet.join(', ');
+
+      return {
+        ...itemsInGroup[0],
+        id: `grouped-${key}`,
+        quantity: totalQty,
+        avgPrice: averageAvgPrice,
+        sector: sectorDisplay,
+      };
+    });
+  }, [stockItemsToShow]);
 
   return (
     <Card className="border-[10px] border-white shadow-xl rounded-3xl">
       <CardHeader className="border-b border-gray-50 pb-6">
         <div className="flex justify-between items-center">
           <div>
-            <CardTitle className="text-2xl font-bold flex items-center gap-2">
+            <CardTitle className="text-2xl font-bold flex items-center gap-2 text-emerald-950">
               <Package className="w-6 h-6 text-emerald-600" />
-              Estoque por Setor
+              Estoque da Obra (Almoxarifado)
             </CardTitle>
             <CardDescription className="text-gray-500 mt-1">
-              Materiais recebidos aguardando aplicação
+              Visualização integrada do saldo físico de materiais no almoxarifado. Apenas leitura (aplicação realizada no Almoxarifado ou Controlador).
             </CardDescription>
           </div>
         </div>
@@ -3787,98 +3813,50 @@ function EstoqueTab({
           <TableHeader className="bg-gray-50/50">
             <TableRow>
               <TableHead>Material / Peça</TableHead>
-              <TableHead>Setor Origem</TableHead>
-              <TableHead>Solicitação</TableHead>
-              <TableHead className="text-center">Total</TableHead>
-              <TableHead className="text-center">Aplicado</TableHead>
-              <TableHead className="text-center">Saldo</TableHead>
-              <TableHead className="text-right">Ações</TableHead>
+              <TableHead>Almoxarifado / Setor</TableHead>
+              <TableHead className="text-right">Saldo em Estoque</TableHead>
+              <TableHead className="text-right">Preço Médio (R$)</TableHead>
+              <TableHead className="text-right">Valor Estimado</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {stockItems.length === 0 ? (
+            {stockItemsToShowGrouped.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="h-32 text-center text-gray-400 font-medium">
-                  Nenhum item em estoque.
+                <TableCell colSpan={5} className="h-32 text-center text-gray-400 font-medium">
+                  Nenhum item em estoque no momento.
                 </TableCell>
               </TableRow>
             ) : (
-              stockItems.map((item, idx) => (
-                <TableRow key={`${item.requestId}-${item.id}`} className="hover:bg-blue-50/30">
-                  <TableCell>
-                    <div className="font-bold text-gray-900">{item.description}</div>
-                    <div className="text-base text-gray-400 uppercase font-black">{item.unit}</div>
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-100 font-black text-base uppercase">
-                      {item.sector}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="max-w-[200px] truncate">
-                    <div className="text-base text-gray-600">{item.requestDesc}</div>
-                  </TableCell>
-                  <TableCell className="text-center font-bold">{item.quantity}</TableCell>
-                  <TableCell className="text-center font-bold text-blue-600">{item.appliedQuantity || 0}</TableCell>
-                  <TableCell className="text-center">
-                    <span className="bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full font-black text-base">
-                      {item.quantity - (item.appliedQuantity || 0)}
-                    </span>
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <Button 
-                      size="sm" 
-                      onClick={() => {
-                        setSelectedItem(item);
-                        setApplyQty(item.quantity - (item.appliedQuantity || 0));
-                      }}
-                      className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold h-8 text-base"
-                    >
-                      Aplicar
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))
+              stockItemsToShowGrouped.map((item, idx) => {
+                const totalVal = item.quantity * (item.avgPrice || 0);
+                return (
+                  <TableRow key={item.id || idx} className="hover:bg-slate-50/50">
+                    <TableCell>
+                      <div className="font-bold text-gray-900">{item.description}</div>
+                      <div className="text-xs text-gray-400 uppercase font-black">{item.unit}</div>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-100 font-black text-xs uppercase">
+                        {item.sector}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Badge variant="outline" className="font-bold border-emerald-500 text-emerald-700 bg-emerald-50">
+                        {item.quantity.toLocaleString('pt-BR')} {item.unit}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-right text-slate-600 font-medium font-mono text-xs">
+                      {item.avgPrice > 0 ? `R$ ${item.avgPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '-'}
+                    </TableCell>
+                    <TableCell className="text-right font-bold text-emerald-700 font-mono text-xs">
+                      {totalVal > 0 ? `R$ ${totalVal.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '-'}
+                    </TableCell>
+                  </TableRow>
+                );
+              })
             )}
           </TableBody>
         </Table>
-
-        <Dialog open={!!selectedItem} onOpenChange={() => setSelectedItem(null)}>
-          <DialogContent className="max-w-md rounded-3xl p-0 border-none bg-white">
-            <div className="bg-blue-600 p-6 text-white">
-              <DialogTitle className="text-xl font-bold">Aplicar Material em Equipamento</DialogTitle>
-              <DialogDescription className="text-blue-100 mt-1">Registre a aplicação de {selectedItem?.description} do estoque</DialogDescription>
-            </div>
-            <div className="p-6 space-y-6">
-              <div className="space-y-2">
-                <Label className="text-base font-black uppercase text-gray-500">Selecionar Equipamento</Label>
-                <Select value={selectedEquipId} onValueChange={setSelectedEquipId}>
-                  <SelectTrigger className="rounded-xl h-12 border-gray-200">
-                    <SelectValue placeholder="Escolha um equipamento..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {equipments.map(e => (
-                      <SelectItem key={e.id} value={e.id}>{e.name} ({e.plate})</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label className="text-base font-black uppercase text-gray-500">Quantidade a Aplicar (Saldo: {selectedItem ? selectedItem.quantity - (selectedItem.appliedQuantity || 0) : 0})</Label>
-                <NumericInput 
-                  value={applyQty} 
-                  onChange={val => setApplyQty(val)}
-                  className="rounded-xl h-12 border-gray-200 font-bold"
-                />
-              </div>
-
-              <div className="flex gap-3 pt-2">
-                <Button variant="outline" className="flex-1 rounded-xl h-12 font-bold" onClick={() => setSelectedItem(null)}>Cancelar</Button>
-                <Button className="flex-1 rounded-xl h-12 bg-blue-600 hover:bg-blue-700 text-white font-black shadow-lg shadow-blue-100" onClick={handleApply}>Confirmar Aplicação</Button>
-              </div>
-            </div>
-          </DialogContent>
-        </Dialog>
       </CardContent>
     </Card>
   );

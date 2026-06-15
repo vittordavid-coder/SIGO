@@ -4,13 +4,13 @@ import {
   ChevronRight, LogOut, User as UserIcon, Lock, Edit, 
   FileSpreadsheet, Settings, Calendar, Percent, ShieldCheck,
   ClipboardList, Users, Calculator, BarChart3, Landmark,
-  BookOpen, CloudRain, Cloud, HardHat, Truck, Users2, Activity,
+  BookOpen, CloudRain, Cloud, HardHat, Truck, Users2, Activity, Layers,
   RefreshCw, ShoppingCart, GripVertical, AlertCircle, Database, XCircle, MoreHorizontal, Filter, HelpCircle, Menu
 } from 'lucide-react';
 import { motion, AnimatePresence, Reorder } from 'motion/react';
 import { v4 as uuidv4 } from 'uuid';
 import { useLocalStorage } from './lib/useLocalStorage';
-import { Resource, ServiceComposition, Quotation, User, ABCConfig, BudgetGroup, BDIConfig, AuditLog, UserRole, Contract, Measurement, MeasurementTemplate, CalculationMemory, HighwayLocation, StationGroup, CubationData, TransportData, ServiceProduction, Employee, TimeRecord, DailyReport, DailyReportActivity, PluviometryRecord, TechnicalSchedule, DashboardConfig, ControllerTeam, ControllerEquipment, EquipmentMonthlyData, ControllerManpower, ManpowerMonthlyData, TeamAssignment, MarketingConfig, AppModule, PasswordResetRequest, EquipmentTransfer, Supplier, PurchaseOrder, EmailConfig, PurchaseRequest, PurchaseQuotation, EquipmentMaintenance, FuelTank, FuelLog, EquipmentMeasurement, DailyEquipmentMeasurement, Aporte } from './types';
+import { Resource, ServiceComposition, Quotation, User, ABCConfig, BudgetGroup, BDIConfig, AuditLog, UserRole, Contract, Measurement, MeasurementTemplate, CalculationMemory, HighwayLocation, StationGroup, CubationData, TransportData, ServiceProduction, Employee, TimeRecord, DailyReport, DailyReportActivity, PluviometryRecord, TechnicalSchedule, DashboardConfig, ControllerTeam, ControllerEquipment, EquipmentMonthlyData, ControllerManpower, ManpowerMonthlyData, TeamAssignment, MarketingConfig, AppModule, PasswordResetRequest, EquipmentTransfer, Supplier, PurchaseOrder, EmailConfig, PurchaseRequest, PurchaseQuotation, EquipmentMaintenance, FuelTank, FuelLog, EquipmentMeasurement, DailyEquipmentMeasurement, Aporte, Warehouse, WarehouseItem, WarehouseEntry, Asset, WarehouseTransfer, WarehouseApplication } from './types';
 import { cn, hashPassword } from './lib/utils';
 import { calculateBDI } from './lib/calculations';
 import { compressImage } from './lib/imageUtils';
@@ -42,6 +42,7 @@ import RHView from './components/RHView';
 import ControlView from './components/ControlView';
 import PurchasesView from './components/PurchasesView';
 import { ProjectAdminView } from './components/ProjectAdminView';
+import AlmoxarifeView from './components/AlmoxarifeView';
 import { UserProfile } from './components/UserProfile';
 import { Chat } from './components/Chat';
 import { ManagementView } from './components/ManagementView';
@@ -264,6 +265,13 @@ export default function App() {
   const [systemConfig, setSystemConfig] = useLocalStorage<any[]>('sigo_system_config', [], compId);
   const [emailConfig, setEmailConfig] = useLocalStorage<EmailConfig>('sigo_email_config', {}, compId);
   
+  const [warehouses, setWarehouses] = useLocalStorage<Warehouse[]>('sigo_warehouses', [], compId);
+  const [warehouseItems, setWarehouseItems] = useLocalStorage<WarehouseItem[]>('sigo_warehouse_items', [], compId);
+  const [warehouseEntries, setWarehouseEntries] = useLocalStorage<WarehouseEntry[]>('sigo_warehouse_entries', [], compId);
+  const [assets, setAssets] = useLocalStorage<Asset[]>('sigo_assets', [], compId);
+  const [transfers, setTransfers] = useLocalStorage<WarehouseTransfer[]>('sigo_warehouse_transfers', [], compId);
+  const [applications, setApplications] = useLocalStorage<WarehouseApplication[]>('sigo_warehouse_applications', [], compId);
+  
   const [selectedContractId, setSelectedContractId] = useState<string | null>(null);
   const [isContractSheetOpen, setIsContractSheetOpen] = useState(false);
 
@@ -452,6 +460,12 @@ export default function App() {
         icon: <HardHat className="w-4 h-4" />, 
         visible: currentUser.role === 'master' || currentUser.role === 'admin' || currentUser.role === 'project_admin' 
       },
+      { 
+        id: 'almoxarife', 
+        label: 'Almoxarife', 
+        icon: <Layers className="w-4 h-4" />, 
+        visible: currentUser.role === 'master' || currentUser.role === 'admin' || currentUser.role === 'almoxarife' || currentUser.allowedModules?.includes('almoxarife') 
+      },
       { id: 'gerencia', label: 'Gerência', icon: <Landmark className="w-4 h-4" />, visible: true },
       { 
         id: 'settings', 
@@ -634,6 +648,12 @@ export default function App() {
           'measurement_templates': { key: 'sigo_measurement_templates', setter: setMeasurementTemplates },
           'budget_schedules': { key: 'sconet_schedules', setter: setSchedules },
           'system_config': { key: 'sigo_system_config', setter: setSystemConfig },
+          'warehouses': { key: 'sigo_warehouses', setter: setWarehouses },
+          'warehouse_items': { key: 'sigo_warehouse_items', setter: setWarehouseItems },
+          'warehouse_entries': { key: 'sigo_warehouse_entries', setter: setWarehouseEntries },
+          'assets': { key: 'sigo_assets', setter: setAssets },
+          'warehouse_transfers': { key: 'sigo_warehouse_transfers', setter: setTransfers },
+          'warehouse_applications': { key: 'sigo_warehouse_applications', setter: setApplications },
           'users': { key: 'sigo_users', setter: setUsers }
         };
 
@@ -1378,6 +1398,12 @@ export default function App() {
       { id: `${compId}_sigo_aportes`, content: aportes },
       { id: `${compId}_sigo_ctrl_charges`, content: chargesPerc },
       { id: `${compId}_sigo_ctrl_ot`, content: otPerc },
+      { id: `${compId}_sigo_warehouses`, content: warehouses },
+      { id: `${compId}_sigo_warehouse_items`, content: warehouseItems },
+      { id: `${compId}_sigo_warehouse_entries`, content: warehouseEntries },
+      { id: `${compId}_sigo_assets`, content: assets },
+      { id: `${compId}_sigo_warehouse_transfers`, content: transfers },
+      { id: `${compId}_sigo_warehouse_applications`, content: applications },
     ];
 
     const tableMap: Record<string, string> = {
@@ -1414,6 +1440,12 @@ export default function App() {
       'sigo_dashboard_config': 'dashboard_config',
       'sigo_measurement_templates': 'measurement_templates',
       'sconet_schedules': 'budget_schedules',
+      'sigo_warehouses': 'warehouses',
+      'sigo_warehouse_items': 'warehouse_items',
+      'sigo_warehouse_entries': 'warehouse_entries',
+      'sigo_assets': 'assets',
+      'sigo_warehouse_transfers': 'warehouse_transfers',
+      'sigo_warehouse_applications': 'warehouse_applications',
       'sigo_users': 'users'
     };
 
@@ -4032,6 +4064,22 @@ export default function App() {
             "flex-1 custom-scrollbar",
             (mainTab === 'measurements' || (mainTab === 'quotations' && activeTab === 'schedule')) ? "overflow-hidden flex flex-col" : "overflow-y-auto p-8"
           )}>
+            {mainTab === 'quotations' && activeTab !== 'schedule' && (
+              <div className="mb-6">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-8 bg-gradient-to-r from-blue-950 to-indigo-900 rounded-3xl text-white shadow-xl">
+                  <div className="flex items-center gap-4">
+                    <div className="bg-blue-500/10 p-3 rounded-2xl border border-blue-500/20">
+                      <Briefcase className="w-8 h-8 text-blue-300" />
+                    </div>
+                    <div>
+                      <span className="text-sm bg-blue-500/20 text-blue-300 px-3 py-1 rounded-full border border-blue-500/30 font-bold uppercase tracking-wider">Setor Operacional / Engenharia</span>
+                      <h1 className="text-4xl font-black tracking-tight mt-1">Cotações & Orçamentos</h1>
+                      <p className="text-blue-100/80 text-base mt-1">Gestão de insumos, composições de serviços, cotações de preços de fornecedores e formação de BDI.</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
             <AnimatePresence mode="wait">
               {mainTab === 'home' && (
                 <Dashboard 
@@ -4396,6 +4444,11 @@ export default function App() {
                   companyLogo={companyLogo}
                   companyLogoRight={companyLogoRight}
                   logoMode={logoMode}
+                  warehouses={warehouses}
+                  warehouseItems={warehouseItems}
+                  setWarehouseItems={setWarehouseItems}
+                  applications={applications}
+                  setApplications={setApplications}
                 />
               )}
 
@@ -4462,8 +4515,34 @@ export default function App() {
                   resources={filteredResources}
                   services={filteredServices}
                   quotations={finalQuotations}
+                  warehouseItems={warehouseItems}
+                  warehouses={warehouses}
                 />
               )}
+              {mainTab === 'almoxarife' && currentUser && (
+                <AlmoxarifeView
+                  contracts={finalContracts}
+                  purchaseOrders={purchaseOrders}
+                  setPurchaseOrders={updatePurchaseOrders}
+                  services={filteredServices}
+                  currentUser={currentUser}
+                  warehouses={warehouses}
+                  setWarehouses={setWarehouses}
+                  warehouseItems={warehouseItems}
+                  setWarehouseItems={setWarehouseItems}
+                  warehouseEntries={warehouseEntries}
+                  setWarehouseEntries={setWarehouseEntries}
+                  assets={assets}
+                  setAssets={setAssets}
+                  transfers={transfers}
+                  setTransfers={setTransfers}
+                  applications={applications}
+                  setApplications={setApplications}
+                  purchaseRequests={purchaseRequests}
+                  onUpdatePurchaseRequests={updatePurchaseRequests}
+                />
+              )}
+
               {mainTab === 'project_admin' && currentUser && (
                 <ProjectAdminView 
                   purchaseQuotations={finalPurchaseQuotations}

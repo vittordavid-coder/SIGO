@@ -1687,14 +1687,19 @@ export default function RHView({
 
   return (
     <div className="p-6 max-w-[1700px] mx-auto space-y-6">
-      <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Recursos Humanos</h1>
-          <p className="text-gray-500 text-base">
-            Gerencie colaboradores, pontos e documentos.
-          </p>
+      {/* Header Panel */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-8 bg-gradient-to-r from-orange-950 to-orange-800 rounded-3xl text-white shadow-xl">
+        <div className="flex items-center gap-4">
+          <div className="bg-orange-500/10 p-3 rounded-2xl border border-orange-500/20">
+            <Users className="w-8 h-8 text-orange-300" />
+          </div>
+          <div>
+            <span className="text-sm bg-orange-500/20 text-orange-300 px-3 py-1 rounded-full border border-orange-500/30 font-bold uppercase tracking-wider">Setor Administrativo</span>
+            <h1 className="text-4xl font-black tracking-tight mt-1">Recursos Humanos</h1>
+            <p className="text-orange-100/80 text-base mt-1">Gerencie colaboradores, folhas de ponto, dependentes e documentos corporativos.</p>
+          </div>
         </div>
-      </header>
+      </div>
 
       <Tabs
         value={activeTab}

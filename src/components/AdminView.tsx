@@ -21,6 +21,7 @@ const ALL_MODULE_OPTIONS: { id: AppModule, label: string }[] = [
   { id: 'project_admin', label: 'Administrador da Obra' },
   { id: 'gerencia', label: 'Gerência' },
   { id: 'financeiro', label: 'Financeiro' },
+  { id: 'almoxarife', label: 'Almoxarife' },
   { id: 'settings', label: 'Administrador do Sistema' },
 ];
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';

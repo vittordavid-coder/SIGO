@@ -5,7 +5,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { PurchaseQuotation, Supplier, PurchaseRequest } from '../types';
-import { CheckCircle, XCircle, Eye, FileText, ClipboardList } from 'lucide-react';
+import { CheckCircle, XCircle, Eye, FileText, ClipboardList, HardHat } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '@/lib/utils';
 
@@ -140,13 +140,17 @@ export function ProjectAdminView({
 
   return (
     <div className="p-6 space-y-6 bg-gray-50/50 min-h-screen">
-      <div className="flex justify-between items-center mb-4">
-        <div>
-          <h1 className="text-3xl font-black text-gray-900 tracking-tight flex items-center gap-2">
-            <ClipboardList className="w-8 h-8 text-blue-600" />
-            Administrador da Obra
-          </h1>
-          <p className="text-gray-500 font-medium">Gestão e aprovação de solicitações da obra</p>
+      {/* Header Panel */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-8 bg-gradient-to-r from-slate-950 to-slate-800 rounded-3xl text-white shadow-xl mb-4">
+        <div className="flex items-center gap-4">
+          <div className="bg-amber-500/10 p-3 rounded-2xl border border-amber-500/20">
+            <HardHat className="w-8 h-8 text-amber-300" />
+          </div>
+          <div>
+            <span className="text-sm bg-amber-500/20 text-amber-300 px-3 py-1 rounded-full border border-amber-500/30 font-bold uppercase tracking-wider">Setor Executivo de Engenharia</span>
+            <h1 className="text-4xl font-black tracking-tight mt-1">Administrador da Obra</h1>
+            <p className="text-slate-100/80 text-base mt-1">Gestão, análise e fluxo de aprovação de ordens e solicitações de suprimentos da obra.</p>
+          </div>
         </div>
       </div>
 

@@ -4336,19 +4336,31 @@ export const ManagementView = ({
 
   return (
     <div className="p-6 space-y-6 bg-slate-50 min-h-screen">
-      <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold">Gestão Global</h1>
-        <button
-          onClick={() => {
-            setNewCardMaterial('');
-            setNewCardType('Material');
-            setIsAddCardOpen(true);
-          }}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-sm font-semibold shadow-sm transition-colors cursor-pointer"
-        >
-          <Plus className="w-4 h-4" />
-          Adicionar Card
-        </button>
+      {/* Header Panel */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-8 bg-gradient-to-r from-indigo-950 to-indigo-800 rounded-3xl text-white shadow-xl">
+        <div className="flex items-center gap-4">
+          <div className="bg-indigo-500/10 p-3 rounded-2xl border border-indigo-500/20">
+            <Landmark className="w-8 h-8 text-indigo-300" />
+          </div>
+          <div>
+            <span className="text-sm bg-indigo-500/20 text-indigo-300 px-3 py-1 rounded-full border border-indigo-500/30 font-bold uppercase tracking-wider">Setor Executivo de Inteligência</span>
+            <h1 className="text-4xl font-black tracking-tight mt-1">Gestão Global</h1>
+            <p className="text-indigo-100/80 text-base mt-1">Painel analítico da diretoria de obras, custos de materiais, equipe e avanço físico das metas.</p>
+          </div>
+        </div>
+        <div>
+          <button
+            onClick={() => {
+              setNewCardMaterial('');
+              setNewCardType('Material');
+              setIsAddCardOpen(true);
+            }}
+            className="flex items-center gap-2 px-5 py-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl text-sm font-bold shadow-lg transition-colors cursor-pointer border border-indigo-500/50"
+          >
+            <Plus className="w-4 h-4" />
+            Adicionar Card
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">

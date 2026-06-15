@@ -136,15 +136,16 @@ export function Dashboard({
       initial={{ opacity: 0, scale: 0.95 }}
       animate={{ opacity: 1, scale: 1 }}
       className="space-y-8"
-    >      {/* Header with main title */}
-      <div className="bg-white p-8 rounded-[40px] shadow-sm border border-gray-100 flex flex-col md:flex-row md:items-center justify-between gap-8">
-        <div className="flex items-center gap-6">
-          <div className="bg-blue-600 p-4 rounded-[24px] shadow-xl shadow-blue-200">
-            <LayoutDashboard className="w-8 h-8 text-white" />
+    >      {/* Header Panel */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-8 bg-gradient-to-r from-blue-950 to-blue-800 rounded-3xl text-white shadow-xl">
+        <div className="flex items-center gap-4">
+          <div className="bg-blue-500/10 p-3 rounded-2xl border border-blue-500/20">
+            <LayoutDashboard className="w-8 h-8 text-blue-300" />
           </div>
           <div>
-            <h2 className="text-3xl font-black text-gray-900 tracking-tighter">Painel Executivo</h2>
-            <p className="text-gray-500 font-medium">Controle em tempo real da sua operação.</p>
+            <span className="text-sm bg-blue-500/20 text-blue-300 px-3 py-1 rounded-full border border-blue-500/30 font-bold uppercase tracking-wider">Painel Principal</span>
+            <h1 className="text-4xl font-black tracking-tight mt-1">Painel Executivo</h1>
+            <p className="text-blue-100/80 text-base mt-1">Controle em tempo real e monitoramento unificado da sua operação.</p>
           </div>
         </div>
       </div>

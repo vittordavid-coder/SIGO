@@ -62,9 +62,9 @@ export interface Quotation {
   groups?: BudgetGroup[];
 }
 
-export type UserRole = 'master' | 'admin' | 'editor' | 'reader' | 'project_admin';
+export type UserRole = 'master' | 'admin' | 'editor' | 'reader' | 'project_admin' | 'almoxarife';
 
-export type AppModule = 'quotations' | 'measurements' | 'rh' | 'control' | 'purchases' | 'project_admin' | 'settings' | 'financeiro' | 'gerencia';
+export type AppModule = 'quotations' | 'measurements' | 'rh' | 'control' | 'purchases' | 'project_admin' | 'settings' | 'financeiro' | 'gerencia' | 'almoxarife';
 
 export interface Dependent {
   name: string;
@@ -907,4 +907,88 @@ export interface TeamAssignment {
   month?: string; // Kept for backward compatibility parsing
   startDate?: string;
   endDate?: string;
+}
+
+export interface Warehouse {
+  id: string;
+  companyId?: string;
+  contractId?: string; // linked project/contract
+  name: string;
+  createdAt?: string;
+}
+
+export interface WarehouseItem {
+  id: string;
+  companyId?: string;
+  warehouseId: string;
+  description: string;
+  unit: string;
+  quantity: number;
+  avgPrice: number;
+  createdAt?: string;
+}
+
+export interface WarehouseEntryItem {
+  description: string;
+  unit: string;
+  quantity: number;
+  price: number;
+}
+
+export interface WarehouseEntry {
+  id: string;
+  companyId?: string;
+  purchaseOrderId?: string;
+  warehouseId: string;
+  date: string;
+  receivedBy: string;
+  items: WarehouseEntryItem[];
+  createdAt?: string;
+}
+
+export interface Asset {
+  id: string;
+  companyId?: string;
+  code: string; // tombamento code
+  description: string;
+  category: string; // 'Ferramentas' | 'Equipamentos' | 'Veículos' | etc.
+  brand?: string;
+  serialNumber?: string;
+  status: 'Disponível' | 'Em Uso' | 'Manutenção' | 'Baixado';
+  currentLocation: string; // current location name (e.g. "Almoxarifado Central" or crew name)
+  purchaseDate?: string;
+  value?: number;
+  createdAt?: string;
+}
+
+export interface WarehouseTransferItem {
+  description: string;
+  unit: string;
+  quantity: number;
+}
+
+export interface WarehouseTransfer {
+  id: string;
+  companyId?: string;
+  originWarehouseId?: string;
+  destinationWarehouseId?: string;
+  destinationName?: string; // in case of "outras obras"
+  date: string;
+  transferredBy: string;
+  status: 'Pendente' | 'Enviado' | 'Recebido';
+  items: WarehouseTransferItem[];
+  assets?: string[]; // list of asset IDs being transferred
+  createdAt?: string;
+}
+
+export interface WarehouseApplication {
+  id: string;
+  companyId?: string;
+  warehouseId: string;
+  contractId: string;
+  serviceId: string; // the contract service applied to
+  quantity: number;
+  date: string;
+  appliedBy: string;
+  createdAt?: string;
 }

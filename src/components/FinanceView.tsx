@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { Landmark, Plus, Edit, Trash2, Printer, FileText, Download, FileSpreadsheet, Upload, Eye, CheckCircle, ShoppingBag, Search, ExternalLink } from 'lucide-react';
+import { Landmark, Plus, Edit, Trash2, Printer, FileText, Download, FileSpreadsheet, Upload, Eye, CheckCircle, ShoppingBag, Search, ExternalLink, Calculator } from 'lucide-react';
 import { Aporte, AporteItem, PurchaseOrder } from '../types';
 import { v4 as uuidv4 } from 'uuid';
 import jsPDF from 'jspdf';
@@ -748,8 +748,18 @@ export const FinanceView = ({
 
   return (
     <div className="p-6 space-y-6 bg-slate-50 min-h-screen">
-      <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold">Financeiro</h1>
+      {/* Header Panel */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-8 bg-gradient-to-r from-emerald-950 to-indigo-900 rounded-3xl text-white shadow-xl">
+        <div className="flex items-center gap-4">
+          <div className="bg-emerald-500/10 p-3 rounded-2xl border border-emerald-500/20">
+            <Calculator className="w-8 h-8 text-emerald-300" />
+          </div>
+          <div>
+            <span className="text-sm bg-emerald-500/20 text-emerald-300 px-3 py-1 rounded-full border border-emerald-500/30 font-bold uppercase tracking-wider">Setor Logística Financeira</span>
+            <h1 className="text-4xl font-black tracking-tight mt-1">Diretoria Financeira</h1>
+            <p className="text-emerald-100/80 text-base mt-1">Controle de caixa, fluxo de fluxo de pagamentos, aportes de investimentos e conciliação bancária.</p>
+          </div>
+        </div>
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">

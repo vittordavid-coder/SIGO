@@ -148,6 +148,11 @@ interface ControlViewProps {
   controllerTeams?: any[];
   teamAssignments?: any[];
   onUpdateAssignments?: (val: any[]) => void;
+  warehouses?: any[];
+  warehouseItems?: any[];
+  setWarehouseItems?: React.Dispatch<React.SetStateAction<any[]>>;
+  applications?: any[];
+  setApplications?: React.Dispatch<React.SetStateAction<any[]>>;
 }
 
 export default function ControlView({
@@ -177,6 +182,11 @@ export default function ControlView({
   controllerTeams = [],
   teamAssignments = [],
   onUpdateAssignments = () => {},
+  warehouses = [],
+  warehouseItems = [],
+  setWarehouseItems,
+  applications = [],
+  setApplications,
 }: ControlViewProps) {
   const [activeTab, setActiveTab] = React.useState(initialTab || "list");
 
@@ -862,32 +872,61 @@ export default function ControlView({
   const handleApplyStock = () => {
     if (!selectedStockItem || !applyEquipmentId || applyQuantity <= 0) return;
 
-    const { requestId, itemIdx } = selectedStockItem;
-    const reqIndex = purchaseRequests.findIndex((r) => r.id === requestId);
-    if (reqIndex === -1) return;
+    // Standardize access parameters
+    const actualItemObj = selectedStockItem.item ? selectedStockItem.item : selectedStockItem;
+    const itemDescription = actualItemObj.description;
+    const warehouseId = actualItemObj.warehouseId || "";
 
-    const updatedRequests = [...purchaseRequests];
-    const targetRequest = { ...updatedRequests[reqIndex] };
-    const targetItem = { ...targetRequest.items[itemIdx] };
-    const currentApplied = targetItem.appliedQuantity || 0;
-
-    if (applyQuantity > targetItem.quantity - currentApplied) {
+    // Check availability
+    const availableQty = actualItemObj.quantity;
+    if (applyQuantity > availableQty) {
       alert("Quantidade superior ao disponível em estoque.");
       return;
     }
 
-    targetItem.appliedQuantity = currentApplied + applyQuantity;
-    targetRequest.items = [...targetRequest.items];
-    targetRequest.items[itemIdx] = targetItem;
-    updatedRequests[reqIndex] = targetRequest;
-
-    const allItemsApplied = targetRequest.items.every(
-      (i) => (i.appliedQuantity || 0) >= i.quantity,
-    );
-    if (allItemsApplied) {
-      updatedRequests[reqIndex].status = "Aplicado";
+    // Update warehouseItems by matching description sequentially
+    if (setWarehouseItems) {
+      setWarehouseItems((prev) => {
+        let remainingToDeduct = applyQuantity;
+        return prev.map((item) => {
+          if (item.description.trim().toLowerCase() === itemDescription.trim().toLowerCase() && remainingToDeduct > 0) {
+            const deduct = Math.min(item.quantity, remainingToDeduct);
+            remainingToDeduct -= deduct;
+            return { ...item, quantity: Math.max(0, item.quantity - deduct) };
+          }
+          return item;
+        });
+      });
     }
 
+    // Add record to applications history
+    const newApp = {
+      id: crypto.randomUUID(),
+      companyId: currentUser?.companyId || "default",
+      warehouseId: warehouseId,
+      contractId: selectedContractId || "none",
+      serviceId: "controlador_equipamento",
+      quantity: applyQuantity,
+      description: `Aplicação no Equipamento ID/Placa: ${applyEquipmentId}`,
+      date: new Date().toISOString().slice(0, 10),
+      appliedBy: currentUser?.name || "Controlador",
+      createdAt: new Date().toISOString()
+    };
+    if (setApplications) {
+      setApplications(prev => [newApp, ...prev]);
+    }
+
+    // Also update legacy format in purchaseRequests for fallback transparency
+    const updatedRequests = purchaseRequests.map((r) => {
+      const foundItemIdx = r.items.findIndex(i => i.description.trim().toLowerCase() === itemDescription.trim().toLowerCase());
+      if (foundItemIdx !== -1) {
+        return {
+          ...r,
+          items: r.items.map((i, idx) => idx === foundItemIdx ? { ...i, appliedQuantity: (i.appliedQuantity || 0) + applyQuantity } : i)
+        };
+      }
+      return r;
+    });
     onUpdatePurchaseRequests(updatedRequests);
 
     // Update equipment history
@@ -899,13 +938,13 @@ export default function ControlView({
         id: crypto.randomUUID(),
         date: new Date().toISOString(),
         type: "part_application",
-        description: `Aplicação de material do estoque (${targetItem.description})`,
-        relatedId: requestId,
+        description: `Aplicação de material do estoque (${selectedStockItem.description})`,
+        relatedId: selectedStockItem.id,
         parts: [
           {
-            description: targetItem.description,
+            description: selectedStockItem.description,
             quantity: applyQuantity,
-            unit: targetItem.unit,
+            unit: selectedStockItem.unit,
           },
         ],
       };
@@ -917,7 +956,7 @@ export default function ControlView({
                 ...e,
                 history: [...(e.history || []), newHistoryEntry],
               }
-            : e,
+            : e
         ),
       );
     }
@@ -945,6 +984,95 @@ export default function ControlView({
     }),
     [equipments, selectedContractId],
   );
+
+  const stockItemsToShow = useMemo(() => {
+    const activeWarehouses = warehouses.filter(
+      (w) => !selectedContractId || w.contractId === selectedContractId
+    );
+    const activeWarehouseIds = new Set(activeWarehouses.map((w) => w.id));
+
+    const filteredWItems = warehouseItems.filter((item) =>
+      activeWarehouseIds.has(item.warehouseId)
+    );
+
+    if (filteredWItems.length > 0) {
+      return filteredWItems.map((item) => {
+        const itemWH = warehouses.find((w) => w.id === item.warehouseId);
+        return {
+          id: item.id,
+          description: item.description,
+          unit: item.unit,
+          requestDescription: itemWH ? itemWH.name : "Almoxarifado",
+          quantity: item.quantity,
+          appliedQuantity: 0,
+          warehouseId: item.warehouseId,
+          originalItem: item,
+        };
+      });
+    }
+
+    return purchaseRequests
+      .filter(
+        (r) =>
+          r.sector === "CONTROLADOR" &&
+          r.status === "Recebido" &&
+          (!selectedContractId || r.contractId === selectedContractId),
+      )
+      .flatMap((r, rIdx) =>
+        r.items.map((item, idx) => ({
+          id: item.id || `${r.id}-${idx}`,
+          description: item.description,
+          unit: item.unit,
+          requestDescription: r.description,
+          quantity: item.quantity,
+          appliedQuantity: item.appliedQuantity || 0,
+          warehouseId: "",
+          originalItem: {
+             ...item,
+             id: item.id || `${r.id}-${idx}`,
+             quantity: item.quantity - (item.appliedQuantity || 0),
+             requestId: r.id,
+             itemIdx: idx,
+          }
+        })),
+      );
+  }, [warehouseItems, warehouses, selectedContractId, purchaseRequests]);
+
+  const stockItemsToShowCombined = useMemo(() => {
+    const rawItems = stockItemsToShow;
+    const groups: { [key: string]: any[] } = {};
+    rawItems.forEach(item => {
+      const key = item.description.trim().toLowerCase();
+      if (!groups[key]) {
+        groups[key] = [];
+      }
+      groups[key].push(item);
+    });
+
+    return Object.keys(groups).map(key => {
+      const itemsInGroup = groups[key];
+      const totalQty = itemsInGroup.reduce((sum, i) => sum + i.quantity, 0);
+      const totalApplied = itemsInGroup.reduce((sum, i) => sum + i.appliedQuantity, 0);
+      const firstItem = itemsInGroup[0];
+
+      const reqDescs = Array.from(new Set(itemsInGroup.map(i => i.requestDescription)));
+      const requestDescription = reqDescs.join(', ');
+
+      return {
+        ...firstItem,
+        id: `grouped-${key}`,
+        quantity: totalQty,
+        appliedQuantity: totalApplied,
+        requestDescription,
+        originalItem: {
+          ...firstItem.originalItem,
+          id: firstItem.id,
+          quantity: totalQty,
+          appliedQuantity: totalApplied,
+        }
+      };
+    });
+  }, [stockItemsToShow]);
 
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
@@ -2727,7 +2855,20 @@ export default function ControlView({
         </div>
       </Modal>
 
-      <header className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+      {/* Header Panel */}
+      <div className="w-full flex flex-col md:flex-row md:items-center justify-between gap-4 p-8 bg-gradient-to-r from-blue-950 to-blue-800 rounded-3xl text-white shadow-xl mb-6">
+        <div className="flex items-center gap-4">
+          <div className="bg-blue-500/10 p-3 rounded-2xl border border-blue-500/20">
+            <Activity className="w-8 h-8 text-blue-300" />
+          </div>
+          <div>
+            <span className="text-sm bg-blue-500/20 text-blue-300 px-3 py-1 rounded-full border border-blue-500/30 font-bold uppercase tracking-wider">Setor Técnico / Operacional</span>
+            <h1 className="text-4xl font-black tracking-tight mt-1">Controlador de Equipamentos</h1>
+            <p className="text-blue-100/80 text-base mt-1">Gestão de frotas, equipes, combustíveis e manutenção preventiva/corretiva de recursos.</p>
+          </div>
+        </div>
+      </div>
+      <div style={{ display: 'none' }}>
         <div>
           <h1 className="text-2xl font-black text-gray-900">
             Controlador de Equipamentos
@@ -2736,7 +2877,9 @@ export default function ControlView({
             Gestão de frotas e manutenção preventiva/corretiva.
           </p>
         </div>
-        <div className="flex items-center gap-3">
+      </div>
+      <div>
+        <div className="flex items-center justify-end gap-3">
           <div className="relative w-full sm:w-64">
             <Search className="absolute left-3 top-3 w-4 h-4 text-gray-400" />
             <Input
@@ -2760,7 +2903,7 @@ export default function ControlView({
             />
           </div>
         </div>
-      </header>
+      </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 text-white">
         <Card className="bg-blue-600 border-none shadow-lg rounded-2xl p-4 relative overflow-hidden group">
@@ -5355,22 +5498,7 @@ export default function ControlView({
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {purchaseRequests
-                    .filter(
-                      (r) =>
-                        r.sector === "CONTROLADOR" &&
-                        r.status === "Recebido" &&
-                        (!selectedContractId ||
-                          r.contractId === selectedContractId),
-                    )
-                    .flatMap((r) =>
-                      r.items.map((item, idx) => ({
-                        ...item,
-                        requestId: r.id,
-                        requestDescription: r.description,
-                        itemIdx: idx,
-                      })),
-                    )
+                  {stockItemsToShowCombined
                     .filter(
                       (item) =>
                         showApplied ||
@@ -5378,7 +5506,7 @@ export default function ControlView({
                     )
                     .map((item, idx) => (
                       <TableRow
-                        key={`${item.requestId}-${item.itemIdx}`}
+                        key={item.id || idx}
                         className="hover:bg-gray-50 transition-colors"
                       >
                         <TableCell>
@@ -5407,15 +5535,15 @@ export default function ControlView({
                         </TableCell>
                         <TableCell className="text-right">
                           <Button
-                            className="bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-base uppercase h-8 disabled:opacity-50 disabled:cursor-not-allowed"
+                            className="bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-base uppercase h-10 px-4 disabled:opacity-50 disabled:cursor-not-allowed"
                             disabled={
                               item.quantity - (item.appliedQuantity || 0) <= 0
                             }
                             onClick={() => {
                               setSelectedStockItem({
-                                requestId: item.requestId,
-                                itemIdx: item.itemIdx,
-                                item,
+                                requestId: item.originalItem.requestId || "",
+                                itemIdx: item.originalItem.itemIdx || 0,
+                                item: item.originalItem,
                               });
                               setIsApplyStockOpen(true);
                               setApplyQuantity(
@@ -5428,14 +5556,11 @@ export default function ControlView({
                         </TableCell>
                       </TableRow>
                     ))}
-                  {purchaseRequests.filter(
-                    (r) =>
-                      r.status === "Recebido" && r.sector === "CONTROLADOR",
-                  ).length === 0 && (
+                  {stockItemsToShowCombined.length === 0 && (
                     <TableRow>
                       <TableCell
                         colSpan={6}
-                        className="text-center py-20 text-gray-400 font-medium"
+                        className="text-center py-20 text-gray-400 font-medium text-base"
                       >
                         Nenhum material no estoque.
                       </TableCell>
