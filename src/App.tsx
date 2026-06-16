@@ -2913,7 +2913,8 @@ export default function App() {
       if (supabase) {
         try {
           const snakeData = nextEmployees.map(emp => {
-            const m = { ...mapToSnake(emp), company_id: emp.companyId || compId };
+            const { team, chargesPercentage, overtimePercentage, ...restEmp } = emp;
+            const m = { ...mapToSnake(restEmp), company_id: emp.companyId || compId };
             
             // Fix foreign key issues
             if (m.contract_id === "") m.contract_id = null;

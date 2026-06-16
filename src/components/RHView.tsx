@@ -238,7 +238,7 @@ export default function RHView({
     new Date().toISOString().slice(0, 7),
   ); // YYYY-MM
 
-  const getEmployeeTeamName = (emp: Employee) => {
+  const getEmployeeTeamId = (emp: Employee) => {
     const currentMonth = selectedMonth || new Date().toISOString().slice(0, 7);
     const assign = (teamAssignments || []).find(
       (a) =>
@@ -247,26 +247,31 @@ export default function RHView({
         a.month === currentMonth,
     );
     if (assign) {
-      const team = (controllerTeams || []).find((t) => t.id === assign.teamId);
+      return assign.teamId;
+    }
+    if (emp.team) {
+      const match = (controllerTeams || []).find(
+        (t) =>
+          t.name === emp.team &&
+          (!emp.contractId || t.contractId === emp.contractId),
+      );
+      if (match) return match.id;
+    }
+    return undefined;
+  };
+
+  const getEmployeeTeamName = (emp: Employee) => {
+    const teamId = getEmployeeTeamId(emp);
+    if (teamId) {
+      const team = (controllerTeams || []).find((t) => t.id === teamId);
       if (team) return team.name;
     }
     return emp.team;
   };
   const getEmployeeTeamColor = (emp: Employee) => {
-    const currentMonth = selectedMonth || new Date().toISOString().slice(0, 7);
-    const assign = (teamAssignments || []).find(
-      (a) =>
-        a.memberId === emp.id &&
-        a.type === "manpower" &&
-        a.month === currentMonth,
-    );
-    if (assign) {
-      const team = (controllerTeams || []).find((t) => t.id === assign.teamId);
-      if (team) return team.color;
-    }
-    const empTeamName = emp.team;
-    if (empTeamName) {
-      const team = (controllerTeams || []).find((t) => t.name === empTeamName);
+    const teamId = getEmployeeTeamId(emp);
+    if (teamId) {
+      const team = (controllerTeams || []).find((t) => t.id === teamId);
       if (team) return team.color;
     }
     return undefined;
@@ -1505,15 +1510,15 @@ export default function RHView({
 
   const syncEmployeeTeamAssignment = (
     employeeId: string,
-    teamName: string | undefined,
+    teamIdOrName: string | undefined,
     contractId?: string,
     companyId?: string,
   ) => {
     if (!teamAssignments || !onUpdateAssignments) return;
     const currentMonth = selectedMonth || new Date().toISOString().slice(0, 7);
     const team =
-      teamName && teamName !== "none"
-        ? (controllerTeams || []).find((t) => t.name === teamName)
+      teamIdOrName && teamIdOrName !== "none"
+        ? (controllerTeams || []).find((t) => t.id === teamIdOrName || t.name === teamIdOrName)
         : null;
     let updatedAssignments = [...teamAssignments];
     const existingIdx = updatedAssignments.findIndex(
@@ -1555,8 +1560,8 @@ export default function RHView({
   };
 
   const handleAddEmployee = () => {
-    if (!newEmployee.name || !newEmployee.cpf) {
-      alert("Nome e CPF são campos obrigatórios.");
+    if (!newEmployee.name || !newEmployee.cpf || !newEmployee.admissionDate || !newEmployee.contractId || !newEmployee.role) {
+      alert("Nome, CPF, Função, Data de Admissão e Contrato são campos obrigatórios.");
       return;
     }
 
@@ -2229,7 +2234,7 @@ export default function RHView({
                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                                   <div className="space-y-2 lg:col-span-2">
                                     <Label className="text-sm font-bold text-gray-500 uppercase">
-                                      Nome Completo
+                                      Nome Completo <span className="text-red-500">*</span>
                                     </Label>
                                     <Input
                                       value={newEmployee.name || ""}
@@ -2245,7 +2250,7 @@ export default function RHView({
                                   </div>
                                   <div className="space-y-2">
                                     <Label className="text-sm font-bold text-gray-500 uppercase">
-                                      CPF (Apenas Números)
+                                      CPF (Apenas Números) <span className="text-red-500">*</span>
                                     </Label>
                                     <Input
                                       value={newEmployee.cpf || ""}
@@ -2894,7 +2899,7 @@ export default function RHView({
                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                                   <div className="space-y-2 lg:col-span-2">
                                     <Label className="text-sm font-bold text-gray-500 uppercase tracking-wide">
-                                      Função / Cargo Pretendido
+                                      Função / Cargo Pretendido <span className="text-red-500">*</span>
                                     </Label>
                                     <Input
                                       value={newEmployee.role || ""}
@@ -2910,7 +2915,7 @@ export default function RHView({
                                   </div>
                                   <div className="space-y-2">
                                     <Label className="text-sm font-bold text-gray-500 uppercase tracking-wide">
-                                      Data de Admissão
+                                      Data de Admissão <span className="text-red-500">*</span>
                                     </Label>
                                     <Input
                                       type="date"
@@ -3002,7 +3007,7 @@ export default function RHView({
                                   </div>
                                   <div className="space-y-2">
                                     <Label className="text-sm font-bold text-gray-500 uppercase tracking-wide">
-                                      Contrato Vinculado
+                                      Contrato Vinculado <span className="text-red-500">*</span>
                                     </Label>
                                     <Select
                                       value={newEmployee.contractId || ""}
@@ -3468,25 +3473,27 @@ export default function RHView({
                           <TableCell className="text-center min-w-[140px]">
                             <div className="inline-block relative w-full max-w-[150px]">
                               <select
-                                value={getEmployeeTeamName(e) || "none"}
+                                value={getEmployeeTeamId(e) || "none"}
                                 onChange={(ev) => {
                                   const val = ev.target.value;
-                                  const teamVal =
+                                  const teamIdVal =
                                     val === "none" ? undefined : val;
 
-                                  // Update employee locally
+                                  const targetTeam = (controllerTeams || []).find((t) => t.id === teamIdVal);
+
+                                  // Update employee locally with name for backwards compatibility
                                   const updatedEmployees = employees.map(
                                     (emp) =>
                                       emp.id === e.id
-                                        ? { ...emp, team: teamVal }
+                                        ? { ...emp, team: targetTeam ? targetTeam.name : undefined }
                                         : emp,
                                   );
                                   onUpdateEmployees(updatedEmployees);
 
-                                  // Synchronize assignment
+                                  // Synchronize assignment using ID
                                   syncEmployeeTeamAssignment(
                                     e.id,
-                                    teamVal,
+                                    teamIdVal,
                                     e.contractId,
                                     e.companyId || currentUser.companyId,
                                   );
@@ -3522,7 +3529,7 @@ export default function RHView({
                                   .map((t) => (
                                     <option
                                       key={t.id}
-                                      value={t.name}
+                                      value={t.id}
                                       className="text-purple-900 bg-white font-bold uppercase text-[11px]"
                                     >
                                       {t.name}

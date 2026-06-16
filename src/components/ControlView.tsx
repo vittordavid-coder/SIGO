@@ -4085,30 +4085,34 @@ export default function ControlView({
                         </TableCell>
                         <TableCell className="py-0.5">
                           {(() => {
-                            const currentTeamName = (() => {
-                              if (e.team) return e.team;
+                            const currentTeamId = (() => {
                               const assign = (teamAssignments || []).find(
                                 (a) =>
                                   a.memberId === e.id &&
                                   a.type === "equipment" &&
                                   a.month === selectedMonth,
                               );
-                              if (assign) {
+                              if (assign) return assign.teamId;
+
+                              // Legacy fallback: if team is a name, try to resolve it
+                              if (e.team) {
                                 const match = (controllerTeams || []).find(
-                                  (t) => t.id === assign.teamId,
+                                  (t) =>
+                                    t.name === e.team &&
+                                    (!e.contractId || t.contractId === e.contractId),
                                 );
-                                if (match) return match.name;
+                                if (match) return match.id;
                               }
                               return "none";
                             })();
 
                             const currentTeamColor = (() => {
                               if (
-                                currentTeamName &&
-                                currentTeamName !== "none"
+                                currentTeamId &&
+                                currentTeamId !== "none"
                               ) {
                                 const match = (controllerTeams || []).find(
-                                  (t) => t.name === currentTeamName,
+                                  (t) => t.id === currentTeamId,
                                 );
                                 if (match) return match.color;
                               }
@@ -4117,24 +4121,21 @@ export default function ControlView({
 
                             return (
                               <select
-                                value={currentTeamName || "none"}
+                                value={currentTeamId}
                                 onChange={(ev) => {
                                   const val = ev.target.value;
-                                  const updatedTeam =
-                                    val === "none" ? undefined : val;
                                   // 1. Update equipment team properties
+                                  const targetTeam = (controllerTeams || []).find((t) => t.id === val);
+                                  
                                   onUpdateEquipments((prev) =>
                                     prev.map((item) =>
                                       item.id === e.id
-                                        ? { ...item, team: updatedTeam }
+                                        ? { ...item, team: targetTeam ? targetTeam.name : undefined }
                                         : item,
                                     ),
                                   );
 
                                   // 2. Update teamAssignments in SALA TÉCNICA
-                                  const targetTeam = (
-                                    controllerTeams || []
-                                  ).find((t) => t.name === val);
                                   if (targetTeam) {
                                     const isAssigned = (
                                       teamAssignments || []
@@ -4186,12 +4187,12 @@ export default function ControlView({
                                 }}
                                 className={cn(
                                   "w-[220px] text-center font-bold uppercase tracking-wide text-[11px] h-8 rounded-lg px-2 border transition-colors cursor-pointer appearance-none",
-                                  (!currentTeamName ||
-                                    currentTeamName === "none") &&
+                                  (!currentTeamId ||
+                                    currentTeamId === "none") &&
                                     "bg-gray-100 text-gray-500 border-gray-200 hover:bg-gray-200 hover:border-gray-300",
                                 )}
                                 style={
-                                  currentTeamName && currentTeamName !== "none"
+                                  currentTeamId && currentTeamId !== "none"
                                     ? {
                                         backgroundColor: `${currentTeamColor || "#8b5cf6"}1A`,
                                         borderColor: `${currentTeamColor || "#8b5cf6"}33`,
@@ -4215,7 +4216,7 @@ export default function ControlView({
                                   .map((team: any) => (
                                     <option
                                       key={team.id}
-                                      value={team.name}
+                                      value={team.id}
                                       className="text-xs font-semibold text-slate-800 bg-white"
                                     >
                                       {team.name}
