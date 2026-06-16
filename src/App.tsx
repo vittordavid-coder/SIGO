@@ -2912,12 +2912,18 @@ export default function App() {
       const supabase = createSupabaseClient(config.url, config.key);
       if (supabase) {
         try {
+          const { data: validContracts } = await supabase.from('contracts').select('id').eq('company_id', compId);
+          const validContractIds = new Set(validContracts?.map(c => c.id) || []);
+
           const snakeData = nextEmployees.map(emp => {
             const { team, chargesPercentage, overtimePercentage, ...restEmp } = emp;
             const m = { ...mapToSnake(restEmp), company_id: emp.companyId || compId };
             
             // Fix foreign key issues
             if (m.contract_id === "") m.contract_id = null;
+            if (m.contract_id && !validContractIds.has(m.contract_id)) {
+              m.contract_id = null;
+            }
 
             if (m.admission_date === "") m.admission_date = null;
             if (m.dismissal_date === "") m.dismissal_date = null;
@@ -4541,6 +4547,7 @@ export default function App() {
                   fuelLogs={fuelLogs}
                   equipmentMaintenance={equipmentMaintenance}
                   purchaseOrders={finalPurchaseOrders}
+                  purchaseRequests={finalPurchaseRequests}
                   warehouses={warehouses}
                   warehouseItems={warehouseItems}
                 />

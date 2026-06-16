@@ -1213,6 +1213,7 @@ export const ManagementView = ({
   purchaseOrders: propPurchaseOrders = [],
   warehouses = [],
   warehouseItems = [],
+  purchaseRequests = [],
 }: any) => {
   const [localSelectedContractId, setLocalSelectedContractId] =
     useState<string>("all");
@@ -1361,8 +1362,19 @@ export const ManagementView = ({
       });
     }
 
+    // 5. From Purchase Requests (Recebido/Comprado)
+    if (purchaseRequests) {
+      purchaseRequests.forEach((pr: any) => {
+        if ((pr.status === 'Recebido' || pr.status === 'Comprado') && Array.isArray(pr.items)) {
+          pr.items.forEach((item: any) => {
+            if (item.description) mats.add(item.description.trim());
+          });
+        }
+      });
+    }
+
     return Array.from(mats).sort();
-  }, [localOrders, localResources, quotations, services, warehouseItems]);
+  }, [localOrders, localResources, quotations, services, warehouseItems, purchaseRequests]);
 
   const isAlugado = (eq: any) => {
     const o = (eq.origin || '').toLowerCase();
@@ -1551,21 +1563,51 @@ export const ManagementView = ({
   };
 
   const getMaterialCardProps = (matName: string) => {
-    const matchingItems = localOrders.flatMap((order: any) =>
+    let matchingItems = localOrders.flatMap((order: any) =>
       (order.items || []).filter((item: any) =>
         (item.description || '').trim().toLowerCase() === (matName || '').trim().toLowerCase()
       )
     );
+    
+    // Add items from purchaseRequests
+    if (purchaseRequests && purchaseRequests.length > 0) {
+      const prItems = purchaseRequests
+        .filter((pr: any) => ['Recebido', 'Comprado'].includes(pr.status))
+        .flatMap((pr: any) => (pr.items || []))
+        .filter((item: any) => (item.description || '').trim().toLowerCase() === (matName || '').trim().toLowerCase());
+        
+      matchingItems = [...matchingItems, ...prItems];
+    }
+    
     const totalQty = matchingItems.reduce((acc: number, item: any) => acc + (Number(item.quantity) || 0), 0);
-    const totalVal = matchingItems.reduce((acc: number, item: any) => acc + (Number(item.quantity) * Number(item.price) || 0), 0);
+    const totalVal = matchingItems.reduce((acc: number, item: any) => acc + (Number(item.quantity) * Number(item.price || item.unitPrice || 0) || 0), 0);
 
     const contractWarehouses = warehouses.filter((w: any) => selectedContractId === 'all' || w.contractId === selectedContractId || !w.contractId);
+    
+    // Compute warehouse items stock + purchaseRequests received
     const stockItemsMap = warehouseItems.filter((wi: any) => 
       contractWarehouses.some((w: any) => w.id === wi.warehouseId) &&
       (wi.description || '').trim().toLowerCase() === (matName || '').trim().toLowerCase()
     );
-    const stockQty = stockItemsMap.reduce((acc: number, item: any) => acc + (Number(item.quantity) || 0), 0);
-    const stockVal = stockItemsMap.reduce((acc: number, item: any) => acc + (Number(item.quantity) * Number(item.avgPrice || item.price || 0) || 0), 0);
+    
+    let requestStockQty = 0;
+    let requestStockVal = 0;
+    if (purchaseRequests) {
+      purchaseRequests.forEach((pr: any) => {
+        if (selectedContractId !== 'all' && pr.contractId && pr.contractId !== selectedContractId) return;
+        if (pr.status === 'Recebido' || pr.status === 'Comprado') {
+          (pr.items || []).forEach((item: any) => {
+            if ((item.description || '').trim().toLowerCase() === (matName || '').trim().toLowerCase()) {
+              requestStockQty += Number(item.quantity || 0);
+              requestStockVal += Number(item.quantity || 0) * Number(item.price || item.unitPrice || 0);
+            }
+          });
+        }
+      });
+    }
+
+    const stockQty = stockItemsMap.reduce((acc: number, item: any) => acc + (Number(item.quantity) || 0), 0) + requestStockQty;
+    const stockVal = stockItemsMap.reduce((acc: number, item: any) => acc + (Number(item.quantity) * Number(item.avgPrice || item.price || 0) || 0), 0) + requestStockVal;
 
     const unit = matchingItems[0]?.unit || stockItemsMap[0]?.unit || 'unid.';
     const finalVal = totalVal > 0 ? totalVal : stockVal;
