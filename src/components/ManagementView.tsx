@@ -1392,38 +1392,54 @@ export const ManagementView = ({
     
     const ptMonthsAbbr = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
 
-    localOrders.forEach((order: any) => {
-      (order.items || []).forEach((item: any) => {
-        if ((item.description || '').trim().toLowerCase() === (matName || '').trim().toLowerCase()) {
-          const dateStr = order.orderDate || order.deliveryDate;
-          if (dateStr) {
-            const dt = new Date(dateStr + 'T12:00:00');
-            if (!isNaN(dt.getTime())) {
-              const yr = dt.getFullYear();
-              const mon = dt.getMonth(); // 0-indexed
-              const monthKey = `${yr}-${(mon + 1).toString().padStart(2, '0')}`;
-              const label = `${ptMonthsAbbr[mon]}/${yr.toString().slice(-2)}`;
-              const existing = monthlyDataMap.get(monthKey);
-              const qty = Number(item.quantity) || 0;
-              const val = qty * (Number(item.price) || 0);
-              
-              if (existing) {
-                existing.qty += qty;
-                existing.totalVal += val;
-              } else {
-                monthlyDataMap.set(monthKey, {
-                  monthKey,
-                  monthLabel: label,
-                  qty,
-                  totalVal: val,
-                  sortKey: yr * 12 + mon
-                });
-              }
+    const processItem = (item: any, dateStr: string) => {
+      if ((item.description || '').trim().toLowerCase() === (matName || '').trim().toLowerCase()) {
+        if (dateStr) {
+          const dt = new Date(dateStr + 'T12:00:00');
+          if (!isNaN(dt.getTime())) {
+            const yr = dt.getFullYear();
+            const mon = dt.getMonth(); // 0-indexed
+            const monthKey = `${yr}-${(mon + 1).toString().padStart(2, '0')}`;
+            const label = `${ptMonthsAbbr[mon]}/${yr.toString().slice(-2)}`;
+            const existing = monthlyDataMap.get(monthKey);
+            const qty = Number(item.quantity) || 0;
+            const price = Number(item.price || item.unitPrice) || 0;
+            const val = qty * price;
+            
+            if (existing) {
+              existing.qty += qty;
+              existing.totalVal += val;
+            } else {
+              monthlyDataMap.set(monthKey, {
+                monthKey,
+                monthLabel: label,
+                qty,
+                totalVal: val,
+                sortKey: yr * 12 + mon
+              });
             }
           }
         }
+      }
+    };
+
+    localOrders.forEach((order: any) => {
+      (order.items || []).forEach((item: any) => {
+        const dateStr = order.orderDate || order.deliveryDate;
+        processItem(item, dateStr);
       });
     });
+
+    if (purchaseRequests) {
+      purchaseRequests.forEach((pr: any) => {
+        if (['Recebido', 'Comprado'].includes(pr.status)) {
+          (pr.items || []).forEach((item: any) => {
+            const dateStr = pr.requestDate || pr.expectedDate;
+            processItem(item, dateStr);
+          });
+        }
+      });
+    }
 
     const sortedPoints = Array.from(monthlyDataMap.values()).sort((a, b) => a.sortKey - b.sortKey);
     
@@ -1435,7 +1451,7 @@ export const ManagementView = ({
         cumulativeQty
       };
     });
-  }, [activeCustomDetail, localOrders]);
+  }, [activeCustomDetail, localOrders, purchaseRequests]);
 
   const selectedEqsList = useMemo(() => {
     if (!activeCustomDetail || activeCustomDetail.type !== 'Equipamentos') return [];

@@ -1559,92 +1559,135 @@ export default function RHView({
     }
   };
 
-  const handleAddEmployee = () => {
+  const [isSavingEmployee, setIsSavingEmployee] = useState(false);
+  const [saveEmployeeProgress, setSaveEmployeeProgress] = useState<{ step: string; progress: number } | null>(null);
+
+  const handleAddEmployee = async () => {
     if (!newEmployee.name || !newEmployee.cpf || !newEmployee.admissionDate || !newEmployee.contractId || !newEmployee.role) {
       alert("Nome, CPF, Função, Data de Admissão e Contrato são campos obrigatórios.");
       return;
     }
 
-    if (editingEmployeeId) {
-      // Update existing employee
-      const updatedEmployees = employees.map((e) =>
-        e.id === editingEmployeeId
-          ? ({
-              ...newEmployee,
-              id: editingEmployeeId,
-              companyId: e.companyId,
-            } as Employee)
-          : e,
-      );
-      onUpdateEmployees(updatedEmployees);
-      syncEmployeeTeamAssignment(
-        editingEmployeeId,
-        newEmployee.team,
-        newEmployee.contractId,
-        currentUser.companyId,
-      );
-      setIsDialogOpen(false);
-      setEditingEmployeeId(null);
-    } else {
-      // Create new employee
-      const employeeId = generateUUID();
-      const employee: Employee = {
-        id: employeeId,
-        status: "active",
-        companyId: currentUser.companyId,
-        name: newEmployee.name!,
-        cpf: newEmployee.cpf!,
-        role: newEmployee.role || "Colaborador",
-        team: newEmployee.team || undefined,
-        admissionDate: newEmployee.admissionDate!,
-        salary: newEmployee.salary || 0,
-        paymentType: (newEmployee.paymentType as any) || "month",
-        rgNumber: newEmployee.rgNumber || "",
-        rgAgency: newEmployee.rgAgency || "",
-        rgIssuer: newEmployee.rgIssuer || "",
-        rgState: newEmployee.rgState || "",
-        birthDate: newEmployee.birthDate || "",
-        birthPlace: newEmployee.birthPlace || "",
-        birthState: newEmployee.birthState || "",
-        workBookletNumber: newEmployee.workBookletNumber || "",
-        workBookletSeries: newEmployee.workBookletSeries || "",
-        pis: newEmployee.pis || "",
-        phone: newEmployee.phone || "",
-        mobile: newEmployee.mobile || "",
-        email: newEmployee.email || "",
-        voterIdNumber: newEmployee.voterIdNumber || "",
-        voterZone: newEmployee.voterZone || "",
-        voterSection: newEmployee.voterSection || "",
-        fatherName: newEmployee.fatherName || "",
-        motherName: newEmployee.motherName || "",
-        spouseName: newEmployee.spouseName || "",
-        dependents: newEmployee.dependents || [],
-        addressLogradouro: newEmployee.addressLogradouro || "",
-        addressNumber: newEmployee.addressNumber || "",
-        addressComplement: newEmployee.addressComplement || "",
-        addressNeighborhood: newEmployee.addressNeighborhood || "",
-        addressCity: newEmployee.addressCity || "",
-        addressZipCode: newEmployee.addressZipCode || "",
-        addressState: newEmployee.addressState || "",
-        contractId: newEmployee.contractId,
-        commuterBenefits: !!newEmployee.commuterBenefits,
-        commuterValue1: newEmployee.commuterValue1,
-        commuterCity1: newEmployee.commuterCity1,
-        commuterValue2: newEmployee.commuterValue2,
-        commuterCity2: newEmployee.commuterCity2,
-      };
-      onUpdateEmployees([...employees, employee]);
-      syncEmployeeTeamAssignment(
-        employeeId,
-        newEmployee.team,
-        newEmployee.contractId,
-        currentUser.companyId,
-      );
-      setIsDialogOpen(false);
-      setEditingEmployeeId(null);
-    }
+    setIsSavingEmployee(true);
+    setSaveEmployeeProgress({ step: "Iniciando cadastro...", progress: 20 });
 
-    resetForm();
+    try {
+      let finalEmployees: Employee[];
+      let targetEmployeeId = editingEmployeeId;
+
+      if (editingEmployeeId) {
+        // Update existing employee
+        finalEmployees = employees.map((e) =>
+          e.id === editingEmployeeId
+            ? ({
+                ...newEmployee,
+                id: editingEmployeeId,
+                companyId: e.companyId,
+              } as Employee)
+            : e,
+        );
+      } else {
+        // Create new employee
+        const employeeId = generateUUID();
+        targetEmployeeId = employeeId;
+        const employee: Employee = {
+          id: employeeId,
+          status: "active",
+          companyId: currentUser.companyId,
+          name: newEmployee.name!,
+          cpf: newEmployee.cpf!,
+          role: newEmployee.role || "Colaborador",
+          team: newEmployee.team || undefined,
+          admissionDate: newEmployee.admissionDate!,
+          salary: newEmployee.salary || 0,
+          paymentType: (newEmployee.paymentType as any) || "month",
+          rgNumber: newEmployee.rgNumber || "",
+          rgAgency: newEmployee.rgAgency || "",
+          rgIssuer: newEmployee.rgIssuer || "",
+          rgState: newEmployee.rgState || "",
+          birthDate: newEmployee.birthDate || "",
+          birthPlace: newEmployee.birthPlace || "",
+          birthState: newEmployee.birthState || "",
+          workBookletNumber: newEmployee.workBookletNumber || "",
+          workBookletSeries: newEmployee.workBookletSeries || "",
+          pis: newEmployee.pis || "",
+          phone: newEmployee.phone || "",
+          mobile: newEmployee.mobile || "",
+          email: newEmployee.email || "",
+          voterIdNumber: newEmployee.voterIdNumber || "",
+          voterZone: newEmployee.voterZone || "",
+          voterSection: newEmployee.voterSection || "",
+          fatherName: newEmployee.fatherName || "",
+          motherName: newEmployee.motherName || "",
+          spouseName: newEmployee.spouseName || "",
+          dependents: newEmployee.dependents || [],
+          addressLogradouro: newEmployee.addressLogradouro || "",
+          addressNumber: newEmployee.addressNumber || "",
+          addressComplement: newEmployee.addressComplement || "",
+          addressNeighborhood: newEmployee.addressNeighborhood || "",
+          addressCity: newEmployee.addressCity || "",
+          addressZipCode: newEmployee.addressZipCode || "",
+          addressState: newEmployee.addressState || "",
+          contractId: newEmployee.contractId,
+          commuterBenefits: !!newEmployee.commuterBenefits,
+          commuterValue1: newEmployee.commuterValue1,
+          commuterCity1: newEmployee.commuterCity1,
+          commuterValue2: newEmployee.commuterValue2,
+          commuterCity2: newEmployee.commuterCity2,
+        };
+        finalEmployees = [...employees, employee];
+      }
+
+      setSaveEmployeeProgress({ step: "Sincronizando com o banco...", progress: 50 });
+      
+      // Update local state and trigger app sync
+      await onUpdateEmployees(finalEmployees);
+      
+      syncEmployeeTeamAssignment(
+        targetEmployeeId!,
+        newEmployee.team,
+        newEmployee.contractId,
+        currentUser.companyId,
+      );
+
+      setSaveEmployeeProgress({ step: "Checando registro no banco...", progress: 75 });
+      
+      // Verification Step
+      const config = getSupabaseConfig();
+      if (config.enabled && targetEmployeeId) {
+        const supabase = createSupabaseClient(config.url, config.key);
+        if (supabase) {
+           // Small delay to allow UPSERT to finish
+           await new Promise(resolve => setTimeout(resolve, 600));
+           const { data, error } = await supabase.from('employees').select('id, contract_id').eq('id', targetEmployeeId).single();
+           
+           if (error || !data) {
+             setSaveEmployeeProgress({ step: "Erro de checagem", progress: 100 });
+             console.error("Employee validation failed:", error);
+             alert("Atenção: O colaborador não pôde ser salvo com sucesso no banco de dados. \nPossíveis causas: \n- Contrato Inválido \n- Informações Incompletas \n\nPor favor, atualize a página ou tente novamente.");
+             setIsSavingEmployee(false);
+             setSaveEmployeeProgress(null);
+             return;
+           }
+        }
+      }
+
+      setSaveEmployeeProgress({ step: "Concluído!", progress: 100 });
+      
+      setTimeout(() => {
+        setIsSavingEmployee(false);
+        setSaveEmployeeProgress(null);
+        setIsDialogOpen(false);
+        setEditingEmployeeId(null);
+        resetForm();
+      }, 600);
+
+    } catch (err: any) {
+      console.error(err);
+      alert("Erro ao salvar: " + (err.message || String(err)));
+      setIsSavingEmployee(false);
+      setSaveEmployeeProgress(null);
+    }
   };
 
   const handleDismiss = (e: Employee) => {
@@ -3245,10 +3288,26 @@ export default function RHView({
                               Operador: {currentUser.name}
                             </span>
                           </div>
-                          <div className="flex gap-3">
+                          <div className="flex gap-3 relative">
+                            {isSavingEmployee && saveEmployeeProgress && (
+                              <div className="absolute inset-0 z-10 flex items-center justify-center bg-white/90 backdrop-blur-sm rounded-xl">
+                                <div className="w-full px-4 text-center">
+                                  <p className="text-xs font-bold uppercase tracking-widest text-blue-600 mb-2 truncate">
+                                    {saveEmployeeProgress.step}
+                                  </p>
+                                  <div className="h-2 w-full bg-blue-100 rounded-full overflow-hidden">
+                                    <div 
+                                      className="h-full bg-blue-600 transition-all duration-300 ease-out" 
+                                      style={{ width: `${saveEmployeeProgress.progress}%` }} 
+                                    />
+                                  </div>
+                                </div>
+                              </div>
+                            )}
                             <DialogTrigger asChild>
                               <Button
                                 variant="outline"
+                                disabled={isSavingEmployee}
                                 className="flex-1 h-12 font-bold uppercase tracking-wider text-sm border-gray-200 hover:bg-gray-50"
                               >
                                 Cancelar
@@ -3256,17 +3315,26 @@ export default function RHView({
                             </DialogTrigger>
                             <Button
                               onClick={handleAddEmployee}
-                              disabled={!privacyAccepted}
+                              disabled={!privacyAccepted || isSavingEmployee}
                               className={`flex-[2] h-12 font-bold uppercase tracking-wider text-sm shadow-lg transition-all ${
                                 privacyAccepted
                                   ? "bg-blue-600 hover:bg-blue-700 shadow-blue-200"
                                   : "bg-gray-200 text-gray-500 cursor-not-allowed opacity-70"
                               }`}
                             >
-                              <ShieldAlert className="w-4 h-4 mr-2" />{" "}
-                              {editingEmployeeId
-                                ? "Salvar Alterações"
-                                : "Efetivar Registro Seguro"}
+                              {isSavingEmployee ? (
+                                <span className="flex items-center gap-2">
+                                  <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                  Salvando...
+                                </span>
+                              ) : (
+                                <>
+                                  <ShieldAlert className="w-4 h-4 mr-2" />{" "}
+                                  {editingEmployeeId
+                                    ? "Salvar Alterações"
+                                    : "Efetivar Registro Seguro"}
+                                </>
+                              )}
                             </Button>
                           </div>
                         </div>
