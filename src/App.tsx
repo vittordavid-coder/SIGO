@@ -579,6 +579,10 @@ export default function App() {
         } else {
           // Fetch ONLY global users blob on initial load
           blobQuery = blobQuery.eq('id', 'sigo_users');
+          // Security: don't fetch all users unless logged in as master
+          if (currentUser?.role !== 'master') {
+            usersQuery = usersQuery.limit(0); 
+          }
         }
 
         const [blobRes, usersRes] = await Promise.all([
@@ -1253,10 +1257,15 @@ export default function App() {
   React.useEffect(() => {
     syncFnRef.current();
     
-    // Poll every 10 seconds to ensure 100% cloud sync
+    // Poll every 5 minutes (300000ms) to conserve DB resources
     const interval = setInterval(() => {
-      syncFnRef.current(undefined, true);
-    }, 60000);
+      // Skip heavy DB queries if tab is in the background
+      if (document.hasFocus()) {
+        syncFnRef.current(undefined, true);
+      } else {
+        console.log('[Database] Skipped background polling to conserve resources');
+      }
+    }, 300000);
     return () => clearInterval(interval);
   }, []); // Only on mount
 
