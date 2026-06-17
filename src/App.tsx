@@ -134,6 +134,7 @@ export default function App() {
   const [isSupabaseSynced, setIsSupabaseSynced] = useState(false);
   const [supabaseSyncError, setSupabaseSyncError] = useState<string | null>(null);
   const lastLocalUpdate = React.useRef<number>(0);
+  const lastSyncedHashRef = React.useRef<Record<string, string>>({});
 
   const defaultDashboardConfig: DashboardConfig = {
     sections: [
@@ -1466,11 +1467,19 @@ export default function App() {
       console.log(`[Supabase] Iniciando sincronização completa para: ${compId}`);
       let successCount = 0;
       let failCount = 0;
+      let skippedCount = 0;
 
       const syncItem = async (item: any) => {
         try {
+          // Optimization: Skip sync if data has not changed since last successful sync
+          const contentHash = JSON.stringify(item.content);
+          if (lastSyncedHashRef.current[item.id] === contentHash) {
+             skippedCount++;
+             return;
+          }
+
           // 1. Sync blob
-          const { error: blobError } = await supabase.from('app_state').upsert(item);
+          const { error: blobError } = await supabase.from('app_state').upsert({ ...item, updated_at: new Date().toISOString() });
           if (blobError) {
             console.error(`Erro ao sincronizar blob ${item.id}:`, blobError);
             // We do not return here! We still MUST try to sync the individual table.
@@ -1614,6 +1623,7 @@ export default function App() {
               }
             }
           }
+          lastSyncedHashRef.current[item.id] = contentHash;
           successCount++;
         } catch (innerErr) {
           console.error(`Erro inesperado ao sincronizar item ${item.id}:`, innerErr);
@@ -1623,7 +1633,7 @@ export default function App() {
 
       await Promise.all(dataToSync.map(syncItem));
 
-      console.log(`[Supabase] Sincronização completa finalizada. Sucessos: ${successCount}, Falhas: ${failCount}`);
+      console.log(`[Supabase] Sincronização completa finalizada. Skipped (unmodified): ${skippedCount}, Sucessos: ${successCount}, Falhas: ${failCount}`);
       if (failCount > 0) {
         console.error(`[Supabase] ${failCount} itens falharam ao sincronizar. Isso pode ocorrer devido a falta de conexao ou esquemas desatualizados. As alteracoes foram salvas localmente e serao tentadas novamente.`);
       }

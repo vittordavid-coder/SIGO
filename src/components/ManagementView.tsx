@@ -1431,13 +1431,11 @@ export const ManagementView = ({
     });
 
     if (purchaseRequests) {
-      purchaseRequests.forEach((pr: any) => {
-        if (['Recebido', 'Comprado'].includes(pr.status)) {
-          (pr.items || []).forEach((item: any) => {
-            const dateStr = pr.requestDate || pr.expectedDate;
-            processItem(item, dateStr);
-          });
-        }
+      purchaseRequests.filter((pr: any) => ['Recebido', 'Comprado'].includes(pr.status)).forEach((pr: any) => {
+        (pr.items || []).forEach((item: any) => {
+          const dateStr = pr.requestDate || pr.expectedDate;
+          processItem(item, dateStr);
+        });
       });
     }
 
@@ -1677,19 +1675,34 @@ export const ManagementView = ({
   const renderCustomDetail = (detail: any) => {
     if (detail.type === 'Material') {
       const matName = detail.materialName;
-      const matchingItemsMap = localOrders.flatMap((order: any) =>
+      let matchingItemsMap = localOrders.flatMap((order: any) =>
         (order.items || []).filter((item: any) => 
           (item.description || '').trim().toLowerCase() === (matName || '').trim().toLowerCase()
         ).map((item: any) => ({
           ...item,
-          orderDate: order.orderDate,
+          orderDate: order.orderDate || order.deliveryDate,
           orderNumber: order.orderNumber,
           supplierName: order.supplierName,
         }))
       );
 
+      if (purchaseRequests) {
+        const prItems = purchaseRequests
+          .filter((pr: any) => ['Recebido', 'Comprado'].includes(pr.status))
+          .flatMap((pr: any) => 
+            (pr.items || []).filter((item: any) => (item.description || '').trim().toLowerCase() === (matName || '').trim().toLowerCase())
+            .map((item: any) => ({
+              ...item,
+              orderDate: pr.requestDate || pr.expectedDate,
+              orderNumber: `Req. ${pr.id.substring(0, 4)}`,
+              supplierName: 'Solicitação RH/Almoxarife'
+            }))
+          );
+        matchingItemsMap = [...matchingItemsMap, ...prItems];
+      }
+
       const totalQty = matchingItemsMap.reduce((acc, item) => acc + (Number(item.quantity) || 0), 0);
-      const totalVal = matchingItemsMap.reduce((acc, item) => acc + (Number(item.quantity) * Number(item.price) || 0), 0);
+      const totalVal = matchingItemsMap.reduce((acc, item) => acc + (Number(item.quantity) * Number(item.price || item.unitPrice || 0) || 0), 0);
       
 
       // Calculate stock in active contract warehouses
@@ -1698,8 +1711,25 @@ export const ManagementView = ({
         contractWarehouses.some((w: any) => w.id === wi.warehouseId) &&
         (wi.description || '').trim().toLowerCase() === (matName || '').trim().toLowerCase()
       );
-      const stockQty = stockItemsMap.reduce((acc: number, item: any) => acc + (Number(item.quantity) || 0), 0);
-      const stockVal = stockItemsMap.reduce((acc: number, item: any) => acc + (Number(item.quantity) * Number(item.avgPrice || item.price || 0) || 0), 0);
+      
+      let requestStockQty = 0;
+      let requestStockVal = 0;
+      if (purchaseRequests) {
+        purchaseRequests.forEach((pr: any) => {
+          if (selectedContractId !== 'all' && pr.contractId && pr.contractId !== selectedContractId) return;
+          if (pr.status === 'Recebido' || pr.status === 'Comprado') {
+            (pr.items || []).forEach((item: any) => {
+              if ((item.description || '').trim().toLowerCase() === (matName || '').trim().toLowerCase()) {
+                requestStockQty += Number(item.quantity || 0);
+                requestStockVal += Number(item.quantity || 0) * Number(item.price || item.unitPrice || 0);
+              }
+            });
+          }
+        });
+      }
+
+      const stockQty = stockItemsMap.reduce((acc: number, item: any) => acc + (Number(item.quantity) || 0), 0) + requestStockQty;
+      const stockVal = stockItemsMap.reduce((acc: number, item: any) => acc + (Number(item.quantity) * Number(item.avgPrice || item.price || 0) || 0), 0) + requestStockVal;
 
       const unit = matchingItemsMap[0]?.unit || stockItemsMap[0]?.unit || 'unid.';
       
@@ -1815,7 +1845,8 @@ export const ManagementView = ({
                       </TableRow>
                     ) : (
                       matchingItemsMap.map((item, idx) => {
-                        const mTotal = (Number(item.quantity) || 0) * (Number(item.price) || 0);
+                        const price = Number(item.price || item.unitPrice) || 0;
+                        const mTotal = (Number(item.quantity) || 0) * price;
                         return (
                           <TableRow key={idx} className="hover:bg-slate-50/50">
                             <TableCell className="font-mono text-xs font-bold text-blue-600">#{item.orderNumber}</TableCell>
@@ -1824,7 +1855,7 @@ export const ManagementView = ({
                               {item.orderDate ? new Date(item.orderDate + 'T12:00:00').toLocaleDateString('pt-BR') : 'N/A'}
                             </TableCell>
                             <TableCell className="text-right font-mono font-bold text-slate-600">{Number(item.quantity).toLocaleString()} {item.unit || 'unid.'}</TableCell>
-                            <TableCell className="text-right font-mono text-emerald-600">R$ {Number(item.price).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
+                            <TableCell className="text-right font-mono text-emerald-600">R$ {price.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
                             <TableCell className="text-right font-mono font-bold text-slate-900">R$ {mTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
                           </TableRow>
                         );

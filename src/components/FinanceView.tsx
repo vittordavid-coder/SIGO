@@ -757,7 +757,7 @@ export const FinanceView = ({
           <div>
             <span className="text-sm bg-emerald-500/20 text-emerald-300 px-3 py-1 rounded-full border border-emerald-500/30 font-bold uppercase tracking-wider">Setor Logística Financeira</span>
             <h1 className="text-4xl font-black tracking-tight mt-1">Diretoria Financeira</h1>
-            <p className="text-emerald-100/80 text-base mt-1">Controle de caixa, fluxo de fluxo de pagamentos, aportes de investimentos e conciliação bancária.</p>
+            <p className="text-emerald-100/80 text-base mt-1">Controle de caixa, fluxo de pagamentos, aportes de investimentos e conciliação bancária.</p>
           </div>
         </div>
       </div>
