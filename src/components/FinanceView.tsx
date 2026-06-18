@@ -663,6 +663,7 @@ export const FinanceView = ({
             ['[SUBCATEGORIA]', 'Subcategoria do item', 'NÃO'],
             ['[FORNECEDOR]', 'Nome do fornecedor', 'SIM'],
             ['[DESCRICAO]', 'Descrição detalhada do item ou serviço', 'SIM'],
+            ['[MES_COMPETENCIA]', 'Mês de competência (ex: 01/2026)', 'NÃO'],
             ['[VENCIMENTO]', 'Data de vencimento (ex: 2026-12-31 ou padrão Excel)', 'SIM'],
             ['[VALOR]', 'Valor numérico (ex: 1500.50)', 'SIM']
          ]
@@ -716,7 +717,7 @@ export const FinanceView = ({
             subcategoria: row['[SUBCATEGORIA]'] || row.Subcategoria || '',
             fornecedor: row['[FORNECEDOR]'] || row.Fornecedor || '',
             descricao: row['[DESCRICAO]'] || row.Descrição || row.Descricao || '',
-            mesCompetencia: '',
+            mesCompetencia: row['[MES_COMPETENCIA]'] || row['Mês Competencia'] || row.MesCompetencia || '',
             dataVencimento: row['[VENCIMENTO]'] || row.Vencimento || '',
             valor: Number(row['[VALOR]'] || row.Valor) || 0,
           }));
