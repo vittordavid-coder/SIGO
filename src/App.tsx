@@ -570,8 +570,25 @@ export default function App() {
         let usersQuery = supabase.from('users').select('*');
 
         if (activeId) {
-          // Fetch company specific blobs + global users blob
-          blobQuery = blobQuery.or(`id.eq.sigo_users,id.ilike.${activeId}_%`);
+          // Explicit list of blob IDs to avoid expensive .ilike full table scans
+          const expectedBlobIds = [
+            'sigo_users',
+            `${activeId}_sconet_resources`, `${activeId}_sconet_services`, `${activeId}_sconet_quotations`, `${activeId}_sconet_schedules`,
+            `${activeId}_sconet_current_budget`, `${activeId}_sconet_budget_groups`, `${activeId}_sigo_abc_config`, `${activeId}_sigo_bdi_config`,
+            `${activeId}_sigo_audit_logs`, `${activeId}_sigo_company_logo`, `${activeId}_sconet_contracts`, `${activeId}_sconet_measurements`,
+            `${activeId}_sigo_service_productions`, `${activeId}_sigo_measurement_templates`, `${activeId}_sigo_calc_memories`,
+            `${activeId}_sigo_highway_locations`, `${activeId}_sigo_station_groups`, `${activeId}_sigo_cubation_data`, `${activeId}_sigo_transport_data`,
+            `${activeId}_sigo_default_org`, `${activeId}_sigo_employees`, `${activeId}_sigo_time_records`, `${activeId}_sigo_dashboard_config`,
+            `${activeId}_sigo_daily_reports`, `${activeId}_sigo_pluviometry_records`, `${activeId}_sigo_technical_schedules`,
+            `${activeId}_sigo_controller_teams`, `${activeId}_sigo_controller_equipments`, `${activeId}_sigo_equipment_maintenance`,
+            `${activeId}_sigo_equipment_monthly`, `${activeId}_sigo_controller_manpower`, `${activeId}_sigo_manpower_monthly`,
+            `${activeId}_sigo_team_assignments`, `${activeId}_sigo_suppliers`, `${activeId}_sigo_purchase_orders`,
+            `${activeId}_sigo_purchase_requests`, `${activeId}_sigo_purchase_quotations`, `${activeId}_sigo_equipment_transfers`,
+            `${activeId}_sigo_aportes`, `${activeId}_sigo_ctrl_charges`, `${activeId}_sigo_ctrl_ot`, `${activeId}_sigo_warehouses`,
+            `${activeId}_sigo_warehouse_items`, `${activeId}_sigo_warehouse_entries`, `${activeId}_sigo_assets`,
+            `${activeId}_sigo_warehouse_transfers`, `${activeId}_sigo_warehouse_applications`, `${activeId}_sigo_company_logo_right`
+          ];
+          blobQuery = blobQuery.in('id', expectedBlobIds);
           // Fetch users for this company (or everyone if master)
           if (currentUser?.role !== 'master') {
             usersQuery = usersQuery.eq('company_id', activeId);
@@ -1933,7 +1950,7 @@ export default function App() {
             const { data: dbUser, error: dbError } = await supabase
               .from('users')
               .select('*')
-              .or(`username.ilike.${loginUsername},email.ilike.${loginUsername}`)
+              .or(`username.eq.${loginUsername},email.eq.${loginUsername}`)
               .maybeSingle();
 
             if (dbUser) {
