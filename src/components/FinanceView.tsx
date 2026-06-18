@@ -14,6 +14,7 @@ import { v4 as uuidv4 } from 'uuid';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
+import { getSupabaseConfig, createSupabaseClient } from '../lib/supabaseClient';
 
 export const FinanceView = ({ 
   contracts, 
@@ -640,31 +641,51 @@ export const FinanceView = ({
 
   const downloadTemplate = () => {
     try {
-      const templateData = [{
-        'Número do Aporte': '001/2026',
-        Categoria: 'Exemplo Categoria',
-        Subcategoria: 'Exemplo Sub',
-        Fornecedor: 'Fornecedor A',
-        Descrição: 'Descrição do item',
-        Vencimento: '2026-10-15',
-        Valor: 1500.50
-      }];
-      const worksheet = XLSX.utils.json_to_sheet(templateData);
-      const workbook = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(workbook, worksheet, "Modelo_Importacao_Aportes");
-      XLSX.writeFile(workbook, `Modelo_Importacao_Aportes.xlsx`);
+      const doc = new jsPDF();
+      
+      doc.setFontSize(16);
+      doc.text("Instruções de Importação de Aportes", 14, 20);
+      
+      doc.setFontSize(10);
+      doc.text("Siga as orientações abaixo para importar seus aportes via Excel:", 14, 30);
+      doc.text("1. Crie uma planilha Excel em branco.", 14, 38);
+      doc.text("2. Na primeira linha (linha 1), adicione exatamente as TAGs listadas abaixo, uma em cada coluna.", 14, 46);
+      doc.text("3. A ordem das colunas não importa, contanto que as TAGs estejam corretas.", 14, 54);
+      doc.text("4. Nas linhas seguintes (linha 2 em diante), insira os respectivos valores.", 14, 62);
+      doc.text("5. Salve o arquivo e faça o upload (.xlsx ou .xls).", 14, 70);
+
+      autoTable(doc, {
+         startY: 78,
+         head: [['TAG Exata (Linha 1)', 'Descrição', 'Obrigatório?']],
+         body: [
+            ['[NUMERO_APORTE]', 'Número do aporte a ser vinculado ou criado (ex: 001/2026)', 'SIM'],
+            ['[CATEGORIA]', 'Categoria do custo ou tipo de gasto', 'SIM'],
+            ['[SUBCATEGORIA]', 'Subcategoria do item', 'NÃO'],
+            ['[FORNECEDOR]', 'Nome do fornecedor', 'SIM'],
+            ['[DESCRICAO]', 'Descrição detalhada do item ou serviço', 'SIM'],
+            ['[VENCIMENTO]', 'Data de vencimento (ex: 2026-12-31 ou padrão Excel)', 'SIM'],
+            ['[VALOR]', 'Valor numérico (ex: 1500.50)', 'SIM']
+         ]
+      });
+
+      doc.save('Instrucoes_Importacao_Aportes_TAGS.pdf');
     } catch (err) {
       console.error(err);
       alert('Erro ao baixar modelo.');
     }
   };
 
+  const [isImporting, setIsImporting] = useState(false);
+
   const handleImportExcel = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    if (isImporting) return;
+    setIsImporting(true);
+
     const reader = new FileReader();
-    reader.onload = (evt) => {
+    reader.onload = async (evt) => {
       try {
         const bstr = evt.target?.result;
         const workbook = XLSX.read(bstr, { type: 'binary' });
@@ -676,10 +697,10 @@ export const FinanceView = ({
         let itemsCount = 0;
         let aportesAdded = 0;
 
-        // Group rows by 'Número do Aporte'
+        // Group rows by new tag formatting or old as fallback
         const groupedByAporte: Record<string, any[]> = {};
         data.forEach((row: any) => {
-          const numeroAporte = row['Número do Aporte'] || row['Numero do Aporte'] || selectedAporte?.numero;
+          const numeroAporte = row['[NUMERO_APORTE]'] || row['Número do Aporte'] || row['Numero do Aporte'] || selectedAporte?.numero;
           if (!numeroAporte) return; // Skip if we have no way to link to an aporte
           if (!groupedByAporte[numeroAporte]) {
             groupedByAporte[numeroAporte] = [];
@@ -691,13 +712,13 @@ export const FinanceView = ({
           const rows = groupedByAporte[numeroAporte];
           const importedItems: AporteItem[] = rows.map((row: any) => ({
             id: uuidv4(),
-            categoria: row.Categoria || '',
-            subcategoria: row.Subcategoria || '',
-            fornecedor: row.Fornecedor || '',
-            descricao: row.Descrição || row.Descricao || '',
+            categoria: row['[CATEGORIA]'] || row.Categoria || '',
+            subcategoria: row['[SUBCATEGORIA]'] || row.Subcategoria || '',
+            fornecedor: row['[FORNECEDOR]'] || row.Fornecedor || '',
+            descricao: row['[DESCRICAO]'] || row.Descrição || row.Descricao || '',
             mesCompetencia: '',
-            dataVencimento: row.Vencimento || '',
-            valor: Number(row.Valor) || 0,
+            dataVencimento: row['[VENCIMENTO]'] || row.Vencimento || '',
+            valor: Number(row['[VALOR]'] || row.Valor) || 0,
           }));
 
           itemsCount += importedItems.length;
@@ -727,14 +748,42 @@ export const FinanceView = ({
         });
 
         if (itemsCount > 0) {
+          // Set to local state so UI updates immediately
           setAportes(newAportes);
-          alert(`${itemsCount} itens importados com sucesso! ${aportesAdded > 0 ? `(${aportesAdded} novos aportes criados)` : ''}`);
+
+          // Force Supabase sync verification before showing success
+          const config = getSupabaseConfig();
+          if (config.enabled && config.url && config.key && currentUser?.companyId) {
+             const supabase = createSupabaseClient(config.url, config.key);
+             if (supabase) {
+                const blobId = `${currentUser.companyId}_sigo_aportes`;
+                
+                // Using upsert with mapped snake_case data structure for backend compatibility if necessary,
+                // but since these are store blobs in app_state, we just put content straight away.
+                const { error: blobError } = await supabase.from('app_state').upsert({
+                   id: blobId,
+                   content: newAportes,
+                   updated_at: new Date().toISOString()
+                });
+                
+                if (blobError) {
+                   alert("Atenção: Os dados foram processados localmente, mas ocorreu um erro ao salvar na nuvem Supabase. Verifique sua conexão e tente sincronizar manualmente.");
+                   console.error("Supabase Import Error:", blobError);
+                   setIsImporting(false);
+                   return;
+                }
+             }
+          }
+          
+          alert(`${itemsCount} itens importados e salvos com sucesso! ${aportesAdded > 0 ? `(${aportesAdded} novos aportes criados)` : ''}`);
         } else {
-           alert("Nenhum dado válido encontrado. Certifique-se de que a coluna 'Número do Aporte' está preenchida.");
+           alert("Nenhum dado válido encontrado. Certifique-se de que a TAG '[NUMERO_APORTE]' está preenchida.");
         }
       } catch (err) {
-        alert("Erro ao importar arquivo Excel. Verifique o modelo.");
+        alert("Erro ao importar arquivo Excel. Verifique o arquivo enviado.");
         console.error(err);
+      } finally {
+        setIsImporting(false);
       }
     };
     reader.readAsBinaryString(file);
@@ -778,12 +827,12 @@ export const FinanceView = ({
                 <CardTitle>Gestão de Aportes</CardTitle>
                 <div className="flex gap-2">
                   <Button onClick={downloadTemplate} variant="outline" className="flex items-center gap-2">
-                      <Download className="w-4 h-4" /> Modelo Excel
+                      <Download className="w-4 h-4" /> Instruções (PDF)
                   </Button>
                   <div className="relative">
-                    <Input type="file" accept=".xlsx,.xls" className="absolute inset-0 opacity-0 cursor-pointer" onChange={handleImportExcel} title="Importar Planilha" />
-                    <Button variant="outline" className="flex items-center gap-2 pointer-events-none">
-                        <Upload className="w-4 h-4" /> Importar Planilha
+                    <Input type="file" accept=".xlsx,.xls" className="absolute inset-0 opacity-0 cursor-pointer" onChange={handleImportExcel} title="Importar Planilha" disabled={isImporting} />
+                    <Button variant="outline" className="flex items-center gap-2 pointer-events-none" disabled={isImporting}>
+                        <Upload className="w-4 h-4" /> {isImporting ? 'Importando...' : 'Importar Planilha'}
                     </Button>
                   </div>
                   {selectedAporte && (
