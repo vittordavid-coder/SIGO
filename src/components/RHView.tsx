@@ -1691,14 +1691,34 @@ export default function RHView({
   };
 
   const handleDismiss = (e: Employee) => {
-    const date = window.prompt(
-      "Informe a data de demissão (AAAA-MM-DD):",
-      new Date().toISOString().split("T")[0],
+    const formattedToday = new Date().toLocaleDateString('pt-BR');
+    const inputDate = window.prompt(
+      "Informe a data de demissão (DD/MM/AAAA ou DD/MM/AA):",
+      formattedToday
     );
-    if (date) {
+    if (inputDate) {
+      let finalDate = inputDate;
+      const parts = inputDate.split('/');
+      if (parts.length === 3) {
+        let day = parts[0];
+        let month = parts[1];
+        let year = parts[2];
+        if (year.length === 2) {
+          year = `20${year}`;
+        }
+        if (day.length === 1) day = `0${day}`;
+        if (month.length === 1) month = `0${month}`;
+        finalDate = `${year}-${month}-${day}`;
+      } else if (inputDate.match(/^\d{4}-\d{2}-\d{2}$/)) {
+        finalDate = inputDate;
+      } else {
+        alert("Formato de data inválido. Use DD/MM/AAAA.");
+        return;
+      }
+
       const updated = employees.map((emp) =>
         emp.id === e.id
-          ? { ...emp, status: "dismissed" as const, dismissalDate: date }
+          ? { ...emp, status: "dismissed" as const, dismissalDate: finalDate }
           : emp,
       );
       onUpdateEmployees(updated);
