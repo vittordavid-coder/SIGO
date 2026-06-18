@@ -685,11 +685,44 @@ export const FinanceView = ({
     if (isImporting) return;
     setIsImporting(true);
 
+    const parseDate = (val: any) => {
+      if (!val) return '';
+      if (val instanceof Date) {
+         return val.toISOString().split('T')[0];
+      }
+      if (typeof val === 'number') {
+         const date = new Date(Math.round((val - 25569) * 86400 * 1000));
+         return date.toISOString().split('T')[0];
+      }
+      if (typeof val === 'string') {
+         const parts = val.split(/[\/\-]/);
+         if (parts.length === 3) {
+            const day = parts[0];
+            const month = parts[1];
+            let year = parts[2];
+            if (year.length === 2) {
+               year = `20${year}`;
+            }
+            if (year.length === 4) {
+               if (day.length === 4) {
+                  return `${day}-${month.padStart(2, '0')}-${year.padStart(2, '0')}`;
+               }
+               return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+            }
+         }
+         const d = new Date(val);
+         if (!isNaN(d.getTime())) {
+            return d.toISOString().split('T')[0];
+         }
+      }
+      return '';
+    };
+
     const reader = new FileReader();
     reader.onload = async (evt) => {
       try {
         const bstr = evt.target?.result;
-        const workbook = XLSX.read(bstr, { type: 'binary' });
+        const workbook = XLSX.read(bstr, { type: 'binary', cellDates: true });
         const wsname = workbook.SheetNames[0];
         const ws = workbook.Sheets[wsname];
         const data = XLSX.utils.sheet_to_json(ws);
@@ -718,7 +751,7 @@ export const FinanceView = ({
             fornecedor: row['[FORNECEDOR]'] || row.Fornecedor || '',
             descricao: row['[DESCRICAO]'] || row.Descrição || row.Descricao || '',
             mesCompetencia: row['[MES_COMPETENCIA]'] || row['Mês Competencia'] || row.MesCompetencia || '',
-            dataVencimento: row['[VENCIMENTO]'] || row.Vencimento || '',
+            dataVencimento: parseDate(row['[VENCIMENTO]'] || row.Vencimento),
             valor: Number(row['[VALOR]'] || row.Valor) || 0,
           }));
 
@@ -772,6 +805,44 @@ export const FinanceView = ({
                    console.error("Supabase Import Error:", blobError);
                    setIsImporting(false);
                    return;
+                }
+
+                // Also persist to actual relational tables: 'aportes' and 'aporte_items'
+                const aportesToUpsert = newAportes.map(a => ({
+                   id: a.id,
+                   company_id: a.companyId,
+                   contract_id: a.contractId || null,
+                   numero: a.numero,
+                   data: a.data || null,
+                   notes: a.notes || null,
+                   status: a.status || 'Pendente',
+                   total_value: a.totalValue || 0,
+                   updated_at: new Date().toISOString()
+                }));
+                const { error: tError } = await supabase.from('aportes').upsert(aportesToUpsert);
+
+                if (!tError) {
+                   const itemsToInsert = newAportes.flatMap(a => (a.items || []).map(item => ({
+                      id: item.id,
+                      aporte_id: a.id,
+                      categoria: item.categoria || '',
+                      subcategoria: item.subcategoria || '',
+                      fornecedor: item.fornecedor || '',
+                      descricao: item.descricao || '',
+                      mes_competencia: item.mesCompetencia || '',
+                      data_vencimento: item.dataVencimento || null,
+                      valor: item.valor || 0
+                   })));
+
+                   // Upsert all items
+                   if (itemsToInsert.length > 0) {
+                      // Process in chunks to avoid single request limits
+                      const chunkSize = 100;
+                      for (let i = 0; i < itemsToInsert.length; i += chunkSize) {
+                         const chunk = itemsToInsert.slice(i, i + chunkSize);
+                         await supabase.from('aporte_items').upsert(chunk);
+                      }
+                   }
                 }
              }
           }
