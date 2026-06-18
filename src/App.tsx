@@ -135,6 +135,7 @@ export default function App() {
   const [supabaseSyncError, setSupabaseSyncError] = useState<string | null>(null);
   const lastLocalUpdate = React.useRef<number>(0);
   const lastSyncedHashRef = React.useRef<Record<string, string>>({});
+  const lastSyncedItemHashRef = React.useRef<Record<string, string>>({});
 
   const defaultDashboardConfig: DashboardConfig = {
     sections: [
@@ -810,6 +811,15 @@ export default function App() {
             return finalVal;
           });
           finalData[key] = finalVal;
+          lastSyncedHashRef.current[namespacedKey] = JSON.stringify(finalVal);
+          
+          if (Array.isArray(finalVal)) {
+             finalVal.forEach((item: any) => {
+                if (item && item.id) {
+                   lastSyncedItemHashRef.current[`${namespacedKey}_${item.id}`] = JSON.stringify(item);
+                }
+             });
+          }
         });
 
         await Promise.all(fetchPromises);
@@ -818,6 +828,7 @@ export default function App() {
           const val = activeId ? (blobMap[`${activeId}_${k}`] || blobMap[k]) : blobMap[k];
           if (val) {
             setter((prev: any) => JSON.stringify(prev) === JSON.stringify(val) ? prev : val);
+            lastSyncedHashRef.current[activeId ? `${activeId}_${k}` : k] = JSON.stringify(val);
           }
         };
 
@@ -1561,14 +1572,29 @@ export default function App() {
 
             if (item.content.length > 0) {
               const mappedData = item.content.map(mapToSnake);
+              
+              const itemsToUpsert = mappedData.filter((mappedItem: any, idx: number) => {
+                 const originalItem = item.content[idx];
+                 // If item doesn't have an id, we can't track it, always upsert
+                 if (!originalItem || !originalItem.id) return true;
+                 
+                 const hashKey = `${item.id}_${originalItem.id}`;
+                 const newStr = JSON.stringify(originalItem);
+                 if (lastSyncedItemHashRef.current[hashKey] === newStr) {
+                    return false; 
+                 }
+                 lastSyncedItemHashRef.current[hashKey] = newStr;
+                 return true;
+              });
+
               // Chunking for large datasets
               const chunkSize = 50;
-              for (let i = 0; i < mappedData.length; i += chunkSize) {
-                const chunk = mappedData.slice(i, i + chunkSize);
+              for (let i = 0; i < itemsToUpsert.length; i += chunkSize) {
+                const chunk = itemsToUpsert.slice(i, i + chunkSize);
                 
                 let chunkToUpsert = chunk;
                 if (targetTable === 'aportes') {
-                   chunkToUpsert = chunk.map(({ items, ...rest }: any) => {
+                   chunkToUpsert = chunk.map(({ items: nestedItems, ...rest }: any) => {
                      if (rest.data === '') rest.data = null;
                      return rest;
                    });
