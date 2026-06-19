@@ -3564,6 +3564,12 @@ export default function RHView({
                                 value={getEmployeeTeamId(e) || "none"}
                                 onChange={(ev) => {
                                   const val = ev.target.value;
+                                  
+                                  if (!window.confirm(`Deseja realmente confirmar a mudança de equipe para este colaborador?`)) {
+                                    ev.target.value = getEmployeeTeamId(e) || "none";
+                                    return;
+                                  }
+
                                   const teamIdVal =
                                     val === "none" ? undefined : val;
 

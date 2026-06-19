@@ -1523,12 +1523,12 @@ export function exportTeamsReportPDF(options: {
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(8.5);
     doc.setTextColor(100, 116, 139);
-    doc.text(`Subtotal Colaboradores ativos:`, 24, cardY + 16);
+    doc.text(`Subtotal Colaboradores ativos (${data.manCount}):`, 24, cardY + 16);
     doc.setFont('helvetica', 'bold');
     doc.text(formatCurrencyValue(data.manCost), 110, cardY + 16);
 
     doc.setFont('helvetica', 'normal');
-    doc.text(`Subtotal Equipamentos ativos:`, 24, cardY + 22);
+    doc.text(`Subtotal Equipamentos ativos (${data.equipCount}):`, 24, cardY + 22);
     doc.setFont('helvetica', 'bold');
     doc.text(formatCurrencyValue(data.equipCost), 110, cardY + 22);
 
@@ -2457,11 +2457,17 @@ export async function exportTeamsReportExcel(options: {
 }) {
   const workbook = new ExcelJS.Workbook();
   const [yearStr, monthStr] = options.month.split('-'); const monthName = new Date(parseInt(yearStr), parseInt(monthStr) - 1, 1).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
-  const worksheet = workbook.addWorksheet('Equipes');
-
-  worksheet.addRow([`RELATÓRIO DE EQUIPES - ${monthName}`]).font = { bold: true, size: 14 };
-  worksheet.addRow([`Contrato: ${options.contract.contractNumber}`]);
-  worksheet.addRow([]);
+  const summarySheet = workbook.addWorksheet('Resumo');
+  summarySheet.addRow([`RELATÓRIO DE EQUIPES - ${monthName}`]).font = { bold: true, size: 14 };
+  summarySheet.addRow([`Contrato: ${options.contract.contractNumber}`]);
+  summarySheet.addRow([]);
+  
+  const headerSummary = summarySheet.addRow(['Equipe', 'Colaboradores', 'Equipamentos']);
+  headerSummary.font = { bold: true };
+  headerSummary.eachCell((cell) => {
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1E3A8A' } };
+    cell.font = { color: { argb: 'FFFFFFFF' }, bold: true };
+  });
 
   const companyId = options.contract.companyId || options.contract.id;
   const finalEmployees = options.employees || loadStateFromLocalStorage<Employee[]>('sigo_employees', companyId, []);
@@ -2524,33 +2530,70 @@ export async function exportTeamsReportExcel(options: {
     }
   });
 
+  let totalManCount = 0;
+  let totalEquipCount = 0;
+
   options.teams.forEach(t => {
-    const teamHeader = worksheet.addRow([`EQUIPE: ${t.name}`]);
-    teamHeader.font = { bold: true };
-    teamHeader.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1E3A8A' } };
-    teamHeader.getCell(1).font = { color: { argb: 'FFFFFFFF' }, bold: true };
-
     const ta = combinedAssignments.filter(a => a.teamId === t.id && (!a.endDate || (a.startDate || '') <= options.month + '-31'));
+    const cols = ta.filter(a => a.type === 'manpower');
+    const eqps = ta.filter(a => a.type === 'equipment');
     
-    worksheet.addRow(['COLABORADORES']).font = { bold: true, italic: true };
-    worksheet.addRow(['Nome', 'Cargo']).font = { bold: true };
-    ta.filter(a => a.type === 'manpower').forEach(a => {
-      const mem = options.manpower.find(m => m.id === a.memberId);
-      worksheet.addRow([mem?.name || '-', mem?.role || '-']);
-    });
+    summarySheet.addRow([t.name, cols.length, eqps.length]);
+    totalManCount += cols.length;
+    totalEquipCount += eqps.length;
 
-    worksheet.addRow(['EQUIPAMENTOS']).font = { bold: true, italic: true };
-    worksheet.addRow(['Modelo', 'Placa/Série']).font = { bold: true };
-    ta.filter(a => a.type === 'equipment').forEach(a => {
-      const eq = options.equipments.find(e => e.id === a.memberId);
-      worksheet.addRow([eq?.model || '-', eq?.plate || '-']);
-    });
+    // Create a safe sheet name (max 31 characters, strip invalid chars)
+    const validSheetName = t.name.replace(/[\[\]\*?\:\/\\]/g, '').substring(0, 31) || 'Equipe';
     
-    worksheet.addRow([]);
+    try {
+      const teamSheet = workbook.addWorksheet(validSheetName);
+      teamSheet.addRow([`EQUIPE: ${t.name}`]).font = { bold: true, size: 14 };
+      teamSheet.addRow([]);
+
+      const colHeader = teamSheet.addRow(['COLABORADORES']);
+      colHeader.font = { bold: true };
+      colHeader.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1E3A8A' } };
+      colHeader.getCell(1).font = { color: { argb: 'FFFFFFFF' }, bold: true };
+      
+      const st1 = teamSheet.addRow(['Nome', 'Cargo']);
+      st1.font = { bold: true };
+      st1.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8FAFC' } };
+
+      cols.forEach(a => {
+        const mem = options.manpower.find(m => m.id === a.memberId);
+        teamSheet.addRow([mem?.name || '-', mem?.role || '-']);
+      });
+
+      teamSheet.addRow([]);
+
+      const eqHeader = teamSheet.addRow(['EQUIPAMENTOS']);
+      eqHeader.font = { bold: true };
+      eqHeader.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1E3A8A' } };
+      eqHeader.getCell(1).font = { color: { argb: 'FFFFFFFF' }, bold: true };
+
+      const st2 = teamSheet.addRow(['Modelo', 'Placa/Série']);
+      st2.font = { bold: true };
+      st2.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8FAFC' } };
+
+      eqps.forEach(a => {
+        const eq = options.equipments.find(e => e.id === a.memberId);
+        teamSheet.addRow([eq?.model || '-', eq?.plate || '-']);
+      });
+
+      teamSheet.getColumn(1).width = 40;
+      teamSheet.getColumn(2).width = 30;
+    } catch(e) {
+      // ignore if duplicate sheet name
+    }
   });
 
-  worksheet.getColumn(1).width = 40;
-  worksheet.getColumn(2).width = 30;
+  const totalRow = summarySheet.addRow(['TOTAL', totalManCount, totalEquipCount]);
+  totalRow.font = { bold: true };
+  totalRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE2E8F0' } };
+  
+  summarySheet.getColumn(1).width = 40;
+  summarySheet.getColumn(2).width = 15;
+  summarySheet.getColumn(3).width = 15;
 
   const buffer = await workbook.xlsx.writeBuffer();
   saveAs(new Blob([buffer]), `Equipes_${options.month}.xlsx`);

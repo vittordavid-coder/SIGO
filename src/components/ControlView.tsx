@@ -3193,6 +3193,12 @@ export default function ControlView({
                         Atributos Técnicos
                       </TabsTrigger>
                       <TabsTrigger
+                        value="measure"
+                        className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:text-blue-600 border-b-2 border-transparent data-[state=active]:border-blue-600 rounded-none h-full px-0 font-black text-base uppercase tracking-widest"
+                      >
+                        Medição
+                      </TabsTrigger>
+                      <TabsTrigger
                         value="history"
                         className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:text-blue-600 border-b-2 border-transparent data-[state=active]:border-blue-600 rounded-none h-full px-0 font-black text-base uppercase tracking-widest"
                       >
@@ -3409,11 +3415,64 @@ export default function ControlView({
                                 <SelectItem value="Ativo">Ativo</SelectItem>
                                 <SelectItem value="Inativo">Inativo</SelectItem>
                                 <SelectItem value="Vendido">Vendido</SelectItem>
+                                <SelectItem value="Sucateado">Sucateado</SelectItem>
                                 <SelectItem value="Em Manutenção">
                                   Em Manutenção
                                 </SelectItem>
                               </SelectContent>
                             </Select>
+                          </div>
+
+                          <div className="space-y-2">
+                            <Label className="text-base uppercase font-black text-slate-500 tracking-tight">
+                              Equipe Pertencente
+                            </Label>
+                            <Select
+                              value={newEquip.team || "none"}
+                              onValueChange={(val) =>
+                                setNewEquip({ ...newEquip, team: val === "none" ? "" : val })
+                              }
+                            >
+                              <SelectTrigger className="rounded-xl border-slate-200 bg-slate-50/50 h-12 text-base font-bold">
+                                <SelectValue placeholder="Selecione a equipe..." />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="none">Sem Equipe (Disponível)</SelectItem>
+                                {(controllerTeams || []).map((t) => (
+                                  <SelectItem key={t.id} value={t.name}>
+                                    {t.name}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+
+                          <div className="space-y-2">
+                            <Label className="text-base uppercase font-black text-slate-500 tracking-tight">
+                              Entrada
+                            </Label>
+                            <Input
+                              type="date"
+                              className="rounded-xl border-slate-200 bg-slate-50/50 h-12 text-base font-bold"
+                              value={newEquip.entryDate || ""}
+                              onChange={(e) =>
+                                setNewEquip({ ...newEquip, entryDate: e.target.value })
+                              }
+                            />
+                          </div>
+
+                          <div className="space-y-2">
+                            <Label className="text-base uppercase font-black text-slate-500 tracking-tight">
+                              Saída
+                            </Label>
+                            <Input
+                              type="date"
+                              className="rounded-xl border-slate-200 bg-slate-50/50 h-12 text-base font-bold"
+                              value={newEquip.exitDate || ""}
+                              onChange={(e) =>
+                                setNewEquip({ ...newEquip, exitDate: e.target.value })
+                              }
+                            />
                           </div>
                           <div className="space-y-2">
                             <Label className="text-base uppercase font-black text-slate-500 tracking-tight">
@@ -3721,6 +3780,18 @@ export default function ControlView({
                               </p>
                             </div>
                           )}
+                        </div>
+                      </TabsContent>
+
+                      <TabsContent
+                        value="measure"
+                        className="mt-0 space-y-4 animate-in fade-in duration-300"
+                      >
+                        <div className="py-20 text-center opacity-30">
+                          <History className="w-12 h-12 mx-auto mb-3" />
+                          <p className="text-base font-black uppercase tracking-widest text-slate-500">
+                            Nenhuma medição encontrada para novo equipamento
+                          </p>
                         </div>
                       </TabsContent>
 
@@ -4125,6 +4196,12 @@ export default function ControlView({
                                 value={currentTeamId}
                                 onChange={(ev) => {
                                   const val = ev.target.value;
+                                  
+                                  if (!window.confirm(`Deseja realmente confirmar a mudança de equipe para este equipamento?`)) {
+                                    ev.target.value = currentTeamId;
+                                    return;
+                                  }
+
                                   // 1. Update equipment team properties
                                   const targetTeam = (controllerTeams || []).find((t) => t.id === val);
                                   
@@ -6011,6 +6088,32 @@ export default function ControlView({
                       <SelectItem value="Em Manutenção">
                         Em Manutenção
                       </SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-3">
+                  <Label className="text-base uppercase font-black text-slate-500 tracking-tight">
+                    Equipe Pertencente
+                  </Label>
+                  <Select
+                    value={equipmentToEdit?.team || "none"}
+                    onValueChange={(val) =>
+                      setEquipmentToEdit((prev) =>
+                        prev ? { ...prev, team: val === "none" ? "" : val } : null,
+                      )
+                    }
+                  >
+                    <SelectTrigger className="rounded-xl border-slate-200 bg-slate-50/50 h-16 text-base font-bold">
+                      <SelectValue placeholder="Selecione a equipe..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Sem Equipe (Disponível)</SelectItem>
+                      {(controllerTeams || []).map((t) => (
+                        <SelectItem key={t.id} value={t.name}>
+                          {t.name}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
