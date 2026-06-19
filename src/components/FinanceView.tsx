@@ -806,44 +806,6 @@ export const FinanceView = ({
                    setIsImporting(false);
                    return;
                 }
-
-                // Also persist to actual relational tables: 'aportes' and 'aporte_items'
-                const aportesToUpsert = newAportes.map(a => ({
-                   id: a.id,
-                   company_id: a.companyId,
-                   contract_id: a.contractId || null,
-                   numero: a.numero,
-                   data: a.data || null,
-                   notes: a.notes || null,
-                   status: a.status || 'Pendente',
-                   total_value: a.totalValue || 0,
-                   updated_at: new Date().toISOString()
-                }));
-                const { error: tError } = await supabase.from('aportes').upsert(aportesToUpsert);
-
-                if (!tError) {
-                   const itemsToInsert = newAportes.flatMap(a => (a.items || []).map(item => ({
-                      id: item.id,
-                      aporte_id: a.id,
-                      categoria: item.categoria || '',
-                      subcategoria: item.subcategoria || '',
-                      fornecedor: item.fornecedor || '',
-                      descricao: item.descricao || '',
-                      mes_competencia: item.mesCompetencia || '',
-                      data_vencimento: item.dataVencimento || null,
-                      valor: item.valor || 0
-                   })));
-
-                   // Upsert all items
-                   if (itemsToInsert.length > 0) {
-                      // Process in chunks to avoid single request limits
-                      const chunkSize = 100;
-                      for (let i = 0; i < itemsToInsert.length; i += chunkSize) {
-                         const chunk = itemsToInsert.slice(i, i + chunkSize);
-                         await supabase.from('aporte_items').upsert(chunk);
-                      }
-                   }
-                }
              }
           }
           

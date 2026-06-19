@@ -962,13 +962,13 @@ export default function ControlView({
         id: crypto.randomUUID(),
         date: new Date().toISOString(),
         type: "part_application",
-        description: `Aplicação de material do estoque (${selectedStockItem.description})`,
-        relatedId: selectedStockItem.id,
+        description: `Aplicação de material do estoque (${(selectedStockItem as any).description})`,
+        relatedId: (selectedStockItem as any).id,
         parts: [
           {
-            description: selectedStockItem.description,
+            description: (selectedStockItem as any).description,
             quantity: applyQuantity,
-            unit: selectedStockItem.unit,
+            unit: (selectedStockItem as any).unit,
           },
         ],
       };

@@ -115,8 +115,8 @@ export default function AlmoxarifeView({
               description: item.description,
               unit: item.unit || 'UN',
               quantity: remainingQty,
-              avgPrice: item.estimatedPrice || item.price || 0,
-              createdAt: r.createdAt || new Date().toISOString(),
+              avgPrice: (item as any).estimatedPrice || (item as any).price || 0,
+              createdAt: (r as any).createdAt || new Date().toISOString(),
               isFromRequest: true,
               requestId: r.id,
               requestItemIdx: itemIdx,
@@ -2003,7 +2003,7 @@ export default function AlmoxarifeView({
                       <p className="text-xs font-semibold text-slate-700">Serviço: <span className="font-bold text-slate-900">{app.serviceName}</span></p>
                       
                       <div className="flex items-center justify-between p-3.5 bg-slate-50/50 rounded-xl border text-xs mt-1">
-                        <span className="font-medium text-slate-600">Material Aplicado: {app.description || 'Material'}</span>
+                        <span className="font-medium text-slate-600">Material Aplicado: {(app as any).description || 'Material'}</span>
                         <span className="font-black text-emerald-700">{app.quantity} UN</span>
                       </div>
 

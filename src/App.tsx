@@ -947,7 +947,7 @@ export default function App() {
                if (aporte.items && Array.isArray(aporte.items)) {
                  const currentItemIds = aporte.items.map((i: any) => i.id).filter(Boolean);
                  if (currentItemIds.length > 0) {
-                   const formattedIdsList = `(${currentItemIds.map((id: string) => `"${id}"`).join(',')})`;
+                   const formattedIdsList = `(${currentItemIds.join(',')})`;
                    await supabase.from('aporte_items')
                      .delete()
                      .eq('aporte_id', aporte.id)
@@ -1642,7 +1642,7 @@ export default function App() {
                      if (aporte.items && Array.isArray(aporte.items)) {
                        const currentItemIds = aporte.items.map((i: any) => i.id);
                        if (currentItemIds.length > 0) {
-                         const formattedIdsList = `(${currentItemIds.map((id: string) => `"${id}"`).join(',')})`;
+                         const formattedIdsList = `(${currentItemIds.join(',')})`;
                          await supabase.from('aporte_items')
                            .delete()
                            .eq('aporte_id', aporte.id)
