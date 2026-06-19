@@ -213,6 +213,7 @@ export function generateFullSQLScript(data: {
   sql += `INSERT INTO storage.buckets (id, name, public) VALUES ('chat-attachments', 'chat-attachments', true) ON CONFLICT (id) DO NOTHING;\n`;
   sql += `INSERT INTO storage.buckets (id, name, public) VALUES ('RH', 'RH', true) ON CONFLICT (id) DO NOTHING;\n`;
   sql += `INSERT INTO storage.buckets (id, name, public) VALUES ('equipamentos', 'equipamentos', true) ON CONFLICT (id) DO NOTHING;\n`;
+  sql += `INSERT INTO storage.buckets (id, name, public) VALUES ('sys_adm', 'sys_adm', true) ON CONFLICT (id) DO NOTHING;\n`;
   sql += `DO $$\nBEGIN\n  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Public Access' AND tablename = 'objects' AND schemaname = 'storage') THEN\n    CREATE POLICY "Public Access" ON storage.objects FOR SELECT USING (true);\n    CREATE POLICY "Public Upload" ON storage.objects FOR INSERT WITH CHECK (true);\n    CREATE POLICY "Public Update" ON storage.objects FOR UPDATE USING (true);\n    CREATE POLICY "Public Delete" ON storage.objects FOR DELETE USING (true);\n  END IF;\nEND $$;\n`;
 
   sql += `\n-- Inserção de Dados\n\n`;

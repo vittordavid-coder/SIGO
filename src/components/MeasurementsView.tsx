@@ -514,26 +514,103 @@ export function MeasurementsView({
   >("order");
   const [teamsSortOrder, setTeamsSortOrder] = useState<"asc" | "desc">("asc");
 
+  const currentMonthAssignments = useMemo(() => {
+    // Start with explicit assignments for the selectedMonth
+    const explicit = (teamAssignments || []).filter(
+      (a) => a.month === selectedMonth && !a.endDate
+    );
+    
+    const assignedManpowerIds = new Set(explicit.filter(a => a.type === 'manpower').map(a => a.memberId));
+    const assignedEquipmentIds = new Set(explicit.filter(a => a.type === 'equipment').map(a => a.memberId));
+    
+    const combined = [...explicit];
+    
+    // Add implicit manpower assignments from controllerManpower/employees
+    (controllerManpower || []).forEach((p) => {
+      let teamName = p.team;
+      if (!teamName) {
+        const emp = (employees || []).find((e) => e.id === p.id);
+        if (emp && emp.team) {
+          teamName = emp.team;
+        }
+      }
+      
+      if (teamName && teamName !== 'none' && !assignedManpowerIds.has(p.id)) {
+        // Find the team in controllerTeams
+        const targetTeam = (controllerTeams || []).find(
+          (t) => t.name === teamName || t.id === teamName
+        );
+        if (targetTeam) {
+          combined.push({
+            id: `virtual_man_${p.id}`,
+            teamId: targetTeam.id,
+            memberId: p.id,
+            type: 'manpower',
+            month: selectedMonth,
+            companyId: p.companyId || 'default'
+          } as any);
+          assignedManpowerIds.add(p.id);
+        }
+      }
+    });
+    
+    // Add implicit equipment assignments from controllerEquipments
+    (controllerEquipments || []).forEach((e) => {
+      if (e.team && e.team !== 'none' && !assignedEquipmentIds.has(e.id)) {
+        // Find the team in controllerTeams
+        const targetTeam = (controllerTeams || []).find(
+          (t) => t.name === e.team || t.id === e.team
+        );
+        if (targetTeam) {
+          combined.push({
+            id: `virtual_equip_${e.id}`,
+            teamId: targetTeam.id,
+            memberId: e.id,
+            type: 'equipment',
+            month: selectedMonth,
+            companyId: e.companyId || 'default'
+          } as any);
+          assignedEquipmentIds.add(e.id);
+        }
+      }
+    });
+    
+    return combined;
+  }, [teamAssignments, selectedMonth, controllerManpower, employees, controllerEquipments, controllerTeams]);
+
   const handleAddAssignment = (
     teamId: string,
     memberId: string,
     type: "manpower" | "equipment",
   ) => {
     if (
-      teamAssignments.some(
+      currentMonthAssignments.some(
         (a) =>
           a.teamId === teamId && a.memberId === memberId && a.type === type && !a.endDate,
       )
     )
       return;
 
-    if (type === "manpower" && onUpdateEmployees) {
-      const team = controllerTeams.find((t) => t.id === teamId);
-      if (team) {
-        onUpdateEmployees(
-          employees.map((emp) =>
-            emp.id === memberId ? { ...emp, team: team.name } : emp,
-          ),
+    const team = controllerTeams.find((t) => t.id === teamId);
+    if (team) {
+      if (type === "manpower") {
+        if (onUpdateEmployees) {
+          onUpdateEmployees(
+            employees.map((emp) =>
+              emp.id === memberId ? { ...emp, team: team.name } : emp,
+            ),
+          );
+        }
+        onUpdateManpower(
+          controllerManpower.map((m) =>
+            m.id === memberId ? { ...m, team: team.name } : m
+          )
+        );
+      } else if (type === "equipment") {
+        onUpdateEquipments(
+          controllerEquipments.map((e) =>
+            e.id === memberId ? { ...e, team: team.name } : e
+          )
         );
       }
     }
@@ -545,6 +622,7 @@ export function MeasurementsView({
         teamId,
         memberId,
         type,
+        month: selectedMonth,
         companyId: currentUser?.companyId || "default",
         contractId: selectedContractId || undefined,
         startDate: new Date().toISOString().split("T")[0],
@@ -553,18 +631,65 @@ export function MeasurementsView({
   };
 
   const handleRemoveAssignment = (assignmentId: string) => {
+    if (assignmentId.startsWith("virtual_")) {
+      const parts = assignmentId.split("_"); // ["virtual", "man"/"equip", memberId]
+      const memberType = parts[1];
+      const memberId = parts.slice(2).join("_");
+      
+      if (memberType === "man") {
+        if (onUpdateEmployees) {
+          onUpdateEmployees(
+            employees.map((emp) =>
+              emp.id === memberId ? { ...emp, team: undefined } : emp
+            )
+          );
+        }
+        onUpdateManpower(
+          controllerManpower.map((m) =>
+            m.id === memberId ? { ...m, team: undefined } : m
+          )
+        );
+      } else if (memberType === "equip") {
+        onUpdateEquipments(
+          controllerEquipments.map((e) =>
+            e.id === memberId ? { ...e, team: undefined } : e
+          )
+        );
+      }
+      return;
+    }
+
     const assignment = teamAssignments.find((a) => a.id === assignmentId);
 
-    if (assignment && assignment.type === "manpower" && onUpdateEmployees) {
+    if (assignment) {
       const team = controllerTeams.find((t) => t.id === assignment.teamId);
       if (team) {
-        onUpdateEmployees(
-          employees.map((emp) =>
-            emp.id === assignment.memberId && emp.team === team.name
-              ? { ...emp, team: undefined }
-              : emp,
-          ),
-        );
+        if (assignment.type === "manpower") {
+          if (onUpdateEmployees) {
+            onUpdateEmployees(
+              employees.map((emp) =>
+                emp.id === assignment.memberId && emp.team === team.name
+                  ? { ...emp, team: undefined }
+                  : emp,
+              ),
+            );
+          }
+          onUpdateManpower(
+            controllerManpower.map((m) =>
+              m.id === assignment.memberId && m.team === team.name
+                ? { ...m, team: undefined }
+                : m
+            )
+          );
+        } else if (assignment.type === "equipment") {
+          onUpdateEquipments(
+            controllerEquipments.map((e) =>
+              e.id === assignment.memberId && e.team === team.name
+                ? { ...e, team: undefined }
+                : e
+            )
+          );
+        }
       }
     }
 
@@ -669,7 +794,7 @@ export function MeasurementsView({
       : allPoolEquipments;
 
     const getTeamMembers = (teamId: string) => {
-      return teamAssignments.filter(
+      return currentMonthAssignments.filter(
         (a) => {
           if (a.teamId !== teamId || a.endDate) return false;
           if (a.type === "manpower") {
@@ -1125,11 +1250,10 @@ export function MeasurementsView({
                     <ScrollArea className="h-[600px] p-4">
                       <div className="space-y-2">
                         {poolManpower.map((person) => {
-                          const isAssigned = teamAssignments.some(
+                          const isAssigned = currentMonthAssignments.some(
                             (a) =>
                               a.memberId === person.id &&
-                              a.type === "manpower" &&
-                              a.month === selectedMonth,
+                              a.type === "manpower",
                           );
                           return (
                             <div
@@ -1205,11 +1329,10 @@ export function MeasurementsView({
                     <ScrollArea className="h-[600px] p-4">
                       <div className="space-y-2">
                         {poolEquipments.map((equip) => {
-                          const isAssigned = teamAssignments.some(
+                          const isAssigned = currentMonthAssignments.some(
                             (a) =>
                               a.memberId === equip.id &&
-                              a.type === "equipment" &&
-                              a.month === selectedMonth,
+                              a.type === "equipment",
                           );
                           return (
                             <div
@@ -2144,6 +2267,11 @@ export function MeasurementsView({
                   companyLogo={companyLogo}
                   companyLogoRight={companyLogoRight}
                   logoMode={logoMode}
+                  employees={employees}
+                  manpowerMonthly={manpowerMonthly}
+                  equipmentMonthly={equipmentMonthly}
+                  chargesPerc={chargesPerc}
+                  otPerc={otPerc}
                 />
               </motion.div>
             )}

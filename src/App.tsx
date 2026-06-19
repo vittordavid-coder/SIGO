@@ -835,6 +835,8 @@ export default function App() {
         loadBlob('sigo_abc_config', setAbcConfig);
         loadBlob('sigo_bdi_config', setBdiConfig);
         loadBlob('sigo_company_logo', setCompanyLogo);
+        loadBlob('sigo_company_logo_right', setCompanyLogoRight);
+        loadBlob('sigo_logo_mode', setLogoMode);
         loadBlob('sigo_default_org', setDefaultOrganization);
 
         setIsSupabaseSynced(true);
@@ -1408,6 +1410,8 @@ export default function App() {
       { id: 'sigo_users', content: users }, // Shared
       { id: `${compId}_sigo_audit_logs`, content: auditLogs },
       { id: `${compId}_sigo_company_logo`, content: companyLogo },
+      { id: `${compId}_sigo_company_logo_right`, content: companyLogoRight },
+      { id: `${compId}_sigo_logo_mode`, content: logoMode },
       { id: `${compId}_sconet_contracts`, content: contracts },
       { id: `${compId}_sconet_measurements`, content: measurements },
       { id: `${compId}_sigo_service_productions`, content: serviceProductions },

@@ -1038,18 +1038,23 @@ export function exportTeamsReportPDF(options: {
   companyLogo?: string,
   companyLogoRight?: string,
   logoMode?: 'left' | 'right' | 'both' | 'none',
-  print?: boolean
+  print?: boolean,
+  employees?: Employee[],
+  manpowerMonthly?: ManpowerMonthlyData[],
+  equipmentMonthly?: EquipmentMonthlyData[],
+  chargesPerc?: number,
+  otPerc?: number
 }) {
   const doc = new jsPDF();
   const [yearStr, monthStr] = options.month.split('-'); 
   const monthName = new Date(parseInt(yearStr), parseInt(monthStr) - 1, 1).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
   
   const companyId = options.contract.companyId || options.contract.id;
-  const employees = loadStateFromLocalStorage<Employee[]>('sigo_employees', companyId, []);
-  const manpowerMonthly = loadStateFromLocalStorage<ManpowerMonthlyData[]>('sigo_manpower_monthly', companyId, []);
-  const equipmentMonthly = loadStateFromLocalStorage<EquipmentMonthlyData[]>('sigo_equipment_monthly', companyId, []);
-  const chargesPerc = loadStateFromLocalStorage<number>('sigo_ctrl_charges', companyId, 0);
-  const otPerc = loadStateFromLocalStorage<number>('sigo_ctrl_ot', companyId, 50);
+  const finalEmployees = options.employees || loadStateFromLocalStorage<Employee[]>('sigo_employees', companyId, []);
+  const finalManpowerMonthly = options.manpowerMonthly || loadStateFromLocalStorage<ManpowerMonthlyData[]>('sigo_manpower_monthly', companyId, []);
+  const finalEquipmentMonthly = options.equipmentMonthly || loadStateFromLocalStorage<EquipmentMonthlyData[]>('sigo_equipment_monthly', companyId, []);
+  const finalChargesPerc = options.chargesPerc !== undefined ? options.chargesPerc : loadStateFromLocalStorage<number>('sigo_ctrl_charges', companyId, 0);
+  const finalOtPerc = options.otPerc !== undefined ? options.otPerc : loadStateFromLocalStorage<number>('sigo_ctrl_ot', companyId, 50);
 
   const formatCurrencyValue = (val: number) => {
     return val.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -1079,7 +1084,7 @@ export function exportTeamsReportPDF(options: {
     daysInMonth: number = 30
   ): { daily: number; monthly: number } {
     if (assignment.type === "manpower") {
-      const data = manpowerMonthly.find(
+      const data = finalManpowerMonthly.find(
         (d) => d.manpowerId === assignment.memberId && d.month === month
       );
       if (data) {
@@ -1088,18 +1093,18 @@ export function exportTeamsReportPDF(options: {
         const daily = data.dailyRate || 0;
 
         const hourly = salary / 220;
-        const otValue = hourly * (1 + otPerc / 100) * otHours;
-        const charges = (salary + otValue) * (chargesPerc / 100);
+        const otValue = hourly * (1 + finalOtPerc / 100) * otHours;
+        const charges = (salary + otValue) * (finalChargesPerc / 100);
 
         const monthlyCost = salary + otValue + daily * daysInMonth + charges;
         const dailyCost = (salary + otValue + charges) / daysInMonth + daily;
         return { daily: dailyCost, monthly: monthlyCost };
       }
 
-      const emp = employees.find((e) => e.id === assignment.memberId);
+      const emp = finalEmployees.find((e) => e.id === assignment.memberId);
       if (emp) {
         const salary = emp.salary || 0;
-        const charges = salary * (chargesPerc / 100);
+        const charges = salary * (finalChargesPerc / 100);
         if (emp.paymentType === "day") {
           const dailyCost = salary;
           const monthlyCost = salary * daysInMonth;
@@ -1115,12 +1120,12 @@ export function exportTeamsReportPDF(options: {
         (m) => m.id === assignment.memberId
       );
       if (fallbackMan) {
-        const empByName = employees.find(
+        const empByName = finalEmployees.find(
           (e) => e.name.toLowerCase() === fallbackMan.name.toLowerCase()
         );
         if (empByName) {
           const salary = empByName.salary || 0;
-          const charges = salary * (chargesPerc / 100);
+          const charges = salary * (finalChargesPerc / 100);
           if (empByName.paymentType === "day") {
             return { daily: salary, monthly: salary * daysInMonth };
           } else {
@@ -1132,7 +1137,7 @@ export function exportTeamsReportPDF(options: {
 
       return { daily: 0, monthly: 0 };
     } else {
-      const data = equipmentMonthly.find(
+      const data = finalEquipmentMonthly.find(
         (d) => d.equipmentId === assignment.memberId && d.month === month
       );
       if (data && data.cost) {
@@ -1196,6 +1201,64 @@ export function exportTeamsReportPDF(options: {
     }
   }
 
+  // Combine explicit and implicit assignments
+  const explicit = (options.assignments || []).filter(
+    (a) => a.month === options.month && !a.endDate
+  );
+  
+  const assignedManpowerIds = new Set(explicit.filter(a => a.type === 'manpower').map(a => a.memberId));
+  const assignedEquipmentIds = new Set(explicit.filter(a => a.type === 'equipment').map(a => a.memberId));
+  
+  const combinedAssignments = [...explicit];
+  
+  // Add implicit manpower assignments from options.manpower (controllerManpower) and employees
+  (options.manpower || []).forEach((p) => {
+    let teamName = p.team;
+    if (!teamName) {
+      const emp = finalEmployees.find((e) => e.id === p.id);
+      if (emp && emp.team) {
+        teamName = emp.team;
+      }
+    }
+    
+    if (teamName && teamName !== 'none' && !assignedManpowerIds.has(p.id)) {
+      const targetTeam = (options.teams || []).find(
+        (t) => t.name === teamName || t.id === teamName
+      );
+      if (targetTeam) {
+        combinedAssignments.push({
+          id: `virtual_man_${p.id}`,
+          teamId: targetTeam.id,
+          memberId: p.id,
+          type: 'manpower',
+          month: options.month,
+          companyId: p.companyId || 'default'
+        } as any);
+        assignedManpowerIds.add(p.id);
+      }
+    }
+  });
+
+  // Add implicit equipment assignments from options.equipments (controllerEquipments)
+  (options.equipments || []).forEach((e) => {
+    if (e.team && e.team !== 'none' && !assignedEquipmentIds.has(e.id)) {
+      const targetTeam = (options.teams || []).find(
+        (t) => t.name === e.team || t.id === e.team
+      );
+      if (targetTeam) {
+        combinedAssignments.push({
+          id: `virtual_equip_${e.id}`,
+          teamId: targetTeam.id,
+          memberId: e.id,
+          type: 'equipment',
+          month: options.month,
+          companyId: e.companyId || 'default'
+        } as any);
+        assignedEquipmentIds.add(e.id);
+      }
+    }
+  });
+
   // --- PAGE 1: RESUMO CONSOLIDADO DAS EQUIPES ---
   addTechnicalHeader(doc, `Resumo de Equipes - ${monthName}`, options);
   
@@ -1216,7 +1279,7 @@ export function exportTeamsReportPDF(options: {
   let grandTotal = 0;
 
   const teamData = options.teams.map(t => {
-    const teamMems = options.assignments.filter(a => a.teamId === t.id && (!a.endDate || (a.startDate || '') <= options.month + '-31'));
+    const teamMems = combinedAssignments.filter(a => a.teamId === t.id && (!a.endDate || (a.startDate || '') <= options.month + '-31'));
     
     // Filter active assignments
     const activeManAssignments = teamMems.filter(a => {
@@ -1312,8 +1375,6 @@ export function exportTeamsReportPDF(options: {
     ...tableStyles
   });
 
-  addTechnicalFooter(doc);
-
   // --- PAGES 2+: INDIVIDUAL TEAM DETAIL PAGES ---
   teamData.forEach((data) => {
     doc.addPage();
@@ -1321,25 +1382,25 @@ export function exportTeamsReportPDF(options: {
 
     const teamColorRgb = hexToRgbTuple(data.team.color);
     
-    // Draw team color left border highlight / badge
+    // Beautiful colored banner header for the team name
     doc.setFillColor(teamColorRgb[0], teamColorRgb[1], teamColorRgb[2]);
-    doc.rect(14, 42, 6, 14, 'F');
+    doc.rect(14, 38, 182, 16, 'F');
+    
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(13);
+    doc.setTextColor(255, 255, 255); // White text inside colored banner box
+    doc.text(data.team.name.toUpperCase(), 20, 48);
 
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(16);
+    doc.setFontSize(9.5);
     doc.setTextColor(teamColorRgb[0], teamColorRgb[1], teamColorRgb[2]);
-    doc.text(data.team.name.toUpperCase(), 24, 49);
-
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(9);
-    doc.setTextColor(100, 116, 139);
-    doc.text(`Supervisor Responsável: ${data.supervisorName}`, 24, 54);
+    doc.text(`Supervisor Responsável: ${data.supervisorName}`, 14, 60);
 
     // List of Collaborators under this team
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(10);
     doc.setTextColor(30, 41, 59);
-    doc.text('1. COLABORADORES DA EQUIPE', 14, 66);
+    doc.text('1. COLABORADORES DA EQUIPE', 14, 69);
 
     const colabTableData = data.activeManAssignments.map(a => {
       const mem = options.manpower.find(m => m.id === a.memberId);
@@ -1359,7 +1420,7 @@ export function exportTeamsReportPDF(options: {
     ]);
 
     autoTable(doc, {
-      startY: 70,
+      startY: 73,
       head: [['Nome do Colaborador', 'Cargo', 'Custo Mensal (R$)']],
       body: colabTableData,
       theme: 'grid',
@@ -1386,7 +1447,7 @@ export function exportTeamsReportPDF(options: {
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(10);
     doc.setTextColor(30, 41, 59);
-    doc.text('2. EQUIPAMENTOS DA EQUIPE', 14, colabFinalY + 10);
+    doc.text('2. EQUIPAMENTOS DA EQUIPE', 14, colabFinalY + 9);
 
     const equipTableData = data.activeEquipAssignments.map(a => {
       const eq = options.equipments.find(e => e.id === a.memberId);
@@ -1408,7 +1469,7 @@ export function exportTeamsReportPDF(options: {
     ]);
 
     autoTable(doc, {
-      startY: colabFinalY + 14,
+      startY: colabFinalY + 12,
       head: [['Modelo do Equipamento', 'Placa/Série', 'Categoria', 'Custo Mensal (R$)']],
       body: equipTableData,
       theme: 'grid',
@@ -1432,46 +1493,57 @@ export function exportTeamsReportPDF(options: {
 
     const equipFinalY = (doc as any).lastAutoTable.finalY || 180;
 
-    // Beautiful summary card / outline box for Team Total
-    const cardY = equipFinalY + 12;
+    // Beautiful summary card - Adaptive layout to prevent overlaps in the footer
+    const cardHeight = 35;
+    const pageHeight = doc.internal.pageSize.height;
+    const printAreaYLimit = pageHeight - 15; // Footer starts at pageHeight - 15
+
+    let cardY = equipFinalY + 10;
+    
+    // Check if the summary card exceeds the printable page area. If so, push to a new page!
+    if (cardY + cardHeight > printAreaYLimit) {
+      doc.addPage();
+      addTechnicalHeader(doc, `Custo Financeiro Consolidated: ${data.team.name}`, options);
+      cardY = 38;
+    }
+
     doc.setFillColor(248, 250, 252); // slate-50
     doc.setDrawColor(226, 232, 240); // slate-200
-    doc.roundedRect(14, cardY, 182, 38, 4, 4, 'FD');
+    doc.roundedRect(14, cardY, 182, cardHeight, 4, 4, 'FD');
 
     // Colored accent left border on card
     doc.setFillColor(teamColorRgb[0], teamColorRgb[1], teamColorRgb[2]);
-    doc.rect(14, cardY, 4, 38, 'F');
+    doc.rect(14, cardY, 4, cardHeight, 'F');
 
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(10);
+    doc.setFontSize(9.5);
     doc.setTextColor(71, 85, 105); // slate-600
-    doc.text('RESUMO FINANCEIRO DA EQUIPE', 24, cardY + 9);
+    doc.text('RESUMO FINANCEIRO DA EQUIPE', 24, cardY + 8);
 
     doc.setFont('helvetica', 'normal');
-    doc.setFontSize(9);
+    doc.setFontSize(8.5);
     doc.setTextColor(100, 116, 139);
-    doc.text(`Subtotal Colaboradores ativos:`, 24, cardY + 18);
+    doc.text(`Subtotal Colaboradores ativos:`, 24, cardY + 16);
     doc.setFont('helvetica', 'bold');
-    doc.text(formatCurrencyValue(data.manCost), 110, cardY + 18);
+    doc.text(formatCurrencyValue(data.manCost), 110, cardY + 16);
 
     doc.setFont('helvetica', 'normal');
-    doc.text(`Subtotal Equipamentos ativos:`, 24, cardY + 24);
+    doc.text(`Subtotal Equipamentos ativos:`, 24, cardY + 22);
     doc.setFont('helvetica', 'bold');
-    doc.text(formatCurrencyValue(data.equipCost), 110, cardY + 24);
+    doc.text(formatCurrencyValue(data.equipCost), 110, cardY + 22);
 
     // Thick divider line
     doc.setDrawColor(203, 213, 225); // slate-300
-    doc.line(24, cardY + 28, 180, cardY + 28);
+    doc.line(24, cardY + 26, 180, cardY + 26);
 
-    doc.setFontSize(11);
+    doc.setFontSize(10.5);
     doc.setTextColor(teamColorRgb[0], teamColorRgb[1], teamColorRgb[2]);
-    doc.text('CUSTO INTEGRADO TOTAL:', 24, cardY + 33);
+    doc.text('CUSTO INTEGRADO TOTAL:', 24, cardY + 31);
     doc.setFont('helvetica', 'bold');
-    doc.text(formatCurrencyValue(data.totalCost), 110, cardY + 33);
-
-    addTechnicalFooter(doc);
+    doc.text(formatCurrencyValue(data.totalCost), 110, cardY + 31);
   });
 
+  addTechnicalFooter(doc);
   handleSaveOrPrintPDF(doc, `Relatorio_Equipes_${options.month}.pdf`, options.print);
 }
 
@@ -2381,6 +2453,7 @@ export async function exportTeamsReportExcel(options: {
   equipments: ControllerEquipment[],
   assignments: TeamAssignment[],
   month: string,
+  employees?: Employee[],
 }) {
   const workbook = new ExcelJS.Workbook();
   const [yearStr, monthStr] = options.month.split('-'); const monthName = new Date(parseInt(yearStr), parseInt(monthStr) - 1, 1).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
@@ -2390,13 +2463,74 @@ export async function exportTeamsReportExcel(options: {
   worksheet.addRow([`Contrato: ${options.contract.contractNumber}`]);
   worksheet.addRow([]);
 
+  const companyId = options.contract.companyId || options.contract.id;
+  const finalEmployees = options.employees || loadStateFromLocalStorage<Employee[]>('sigo_employees', companyId, []);
+
+  // Combine explicit and implicit assignments
+  const explicit = (options.assignments || []).filter(
+    (a) => a.month === options.month && !a.endDate
+  );
+  
+  const assignedManpowerIds = new Set(explicit.filter(a => a.type === 'manpower').map(a => a.memberId));
+  const assignedEquipmentIds = new Set(explicit.filter(a => a.type === 'equipment').map(a => a.memberId));
+  
+  const combinedAssignments = [...explicit];
+  
+  // Add implicit manpower assignments from options.manpower (controllerManpower) and employees
+  (options.manpower || []).forEach((p) => {
+    let teamName = p.team;
+    if (!teamName) {
+      const emp = finalEmployees.find((e) => e.id === p.id);
+      if (emp && emp.team) {
+        teamName = emp.team;
+      }
+    }
+    
+    if (teamName && teamName !== 'none' && !assignedManpowerIds.has(p.id)) {
+      const targetTeam = (options.teams || []).find(
+        (t) => t.name === teamName || t.id === teamName
+      );
+      if (targetTeam) {
+        combinedAssignments.push({
+          id: `virtual_man_${p.id}`,
+          teamId: targetTeam.id,
+          memberId: p.id,
+          type: 'manpower',
+          month: options.month,
+          companyId: p.companyId || 'default'
+        } as any);
+        assignedManpowerIds.add(p.id);
+      }
+    }
+  });
+
+  // Add implicit equipment assignments from options.equipments (controllerEquipments)
+  (options.equipments || []).forEach((e) => {
+    if (e.team && e.team !== 'none' && !assignedEquipmentIds.has(e.id)) {
+      const targetTeam = (options.teams || []).find(
+        (t) => t.name === e.team || t.id === e.team
+      );
+      if (targetTeam) {
+        combinedAssignments.push({
+          id: `virtual_equip_${e.id}`,
+          teamId: targetTeam.id,
+          memberId: e.id,
+          type: 'equipment',
+          month: options.month,
+          companyId: e.companyId || 'default'
+        } as any);
+        assignedEquipmentIds.add(e.id);
+      }
+    }
+  });
+
   options.teams.forEach(t => {
     const teamHeader = worksheet.addRow([`EQUIPE: ${t.name}`]);
     teamHeader.font = { bold: true };
     teamHeader.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1E3A8A' } };
     teamHeader.getCell(1).font = { color: { argb: 'FFFFFFFF' }, bold: true };
 
-    const ta = options.assignments.filter(a => a.teamId === t.id && (!a.endDate || (a.startDate || '') <= options.month + '-31'));
+    const ta = combinedAssignments.filter(a => a.teamId === t.id && (!a.endDate || (a.startDate || '') <= options.month + '-31'));
     
     worksheet.addRow(['COLABORADORES']).font = { bold: true, italic: true };
     worksheet.addRow(['Nome', 'Cargo']).font = { bold: true };

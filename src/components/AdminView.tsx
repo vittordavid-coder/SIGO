@@ -272,6 +272,8 @@ export function AdminView({
   const [supabaseConfig, setSupabaseConfig] = useState<SupabaseConfig>(getSupabaseConfig());
 
   const [expandedCompanies, setExpandedCompanies] = useState<string[]>([]);
+  const [companyLogos, setCompanyLogos] = useState<Record<string, { left: string; right: string; mode: 'left' | 'right' | 'both' | 'none' }>>({});
+  const [loadingLogos, setLoadingLogos] = useState<Record<string, boolean>>({});
 
   const [dbSchema, setDbSchema] = useState<any>(null);
   const [isFetchingSchema, setIsFetchingSchema] = useState(false);
@@ -462,10 +464,169 @@ export function AdminView({
     }
   };
 
-  const toggleCompany = (id: string) => {
+  const toggleCompany = async (companyId: string) => {
+    const isExpanding = !expandedCompanies.includes(companyId);
     setExpandedCompanies(prev => 
-      prev.includes(id) ? prev.filter(c => c !== id) : [...prev, id]
+      prev.includes(companyId) ? prev.filter(c => c !== companyId) : [...prev, companyId]
     );
+
+    if (isExpanding) {
+      setLoadingLogos(prev => ({ ...prev, [companyId]: true }));
+      try {
+        if (supabaseConfig.url && supabaseConfig.key) {
+          const supabase = createSupabaseClient(supabaseConfig.url, supabaseConfig.key);
+          if (supabase) {
+            const { data, error } = await supabase
+              .from('app_state')
+              .select('id, content')
+              .in('id', [
+                `${companyId}_sigo_company_logo`,
+                `${companyId}_sigo_company_logo_right`,
+                `${companyId}_sigo_logo_mode`
+              ]);
+            
+            if (!error && data) {
+              const left = data.find(d => d.id === `${companyId}_sigo_company_logo`)?.content || '';
+              const right = data.find(d => d.id === `${companyId}_sigo_company_logo_right`)?.content || '';
+              const mode = data.find(d => d.id === `${companyId}_sigo_logo_mode`)?.content || 'left';
+              setCompanyLogos(prev => ({
+                ...prev,
+                [companyId]: { left, right, mode }
+              }));
+            }
+          }
+        }
+      } catch (err) {
+        console.error("Error fetching company logos:", err);
+      } finally {
+        setLoadingLogos(prev => ({ ...prev, [companyId]: false }));
+      }
+    }
+  };
+
+  const handleCompanyLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>, companyId: string, position: 'left' | 'right') => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!supabaseConfig.url || !supabaseConfig.key) {
+      alert("Configuração do Supabase pendente!");
+      return;
+    }
+
+    setLoadingLogos(prev => ({ ...prev, [companyId]: true }));
+    try {
+      const supabase = createSupabaseClient(supabaseConfig.url, supabaseConfig.key);
+      if (!supabase) throw new Error("Não foi possível criar o cliente do Supabase");
+
+      const timestamp = Date.now();
+      const cleanFileName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
+      const filePath = `logos/${companyId}/${position}_${timestamp}_${cleanFileName}`;
+      
+      const { error: uploadError } = await supabase.storage
+        .from('sys_adm')
+        .upload(filePath, file, { upsert: true });
+
+      if (uploadError) {
+         throw uploadError;
+      }
+
+      const { data: { publicUrl } } = supabase.storage.from('sys_adm').getPublicUrl(filePath);
+
+      const key = `${companyId}_sigo_company_logo${position === 'right' ? '_right' : ''}`;
+      const { error: dbError } = await supabase
+        .from('app_state')
+        .upsert({ id: key, content: publicUrl });
+
+      if (dbError) throw dbError;
+
+      setCompanyLogos(prev => {
+        const current = prev[companyId] || { left: '', right: '', mode: 'left' };
+        return {
+          ...prev,
+          [companyId]: {
+            ...current,
+            [position]: publicUrl
+          }
+        };
+      });
+
+      alert("Logo carregado e vinculado com sucesso!");
+    } catch (err: any) {
+      console.error("Logo upload failed:", err);
+      alert(`Falha ao carregar logo: ${err.message || err}`);
+    } finally {
+      setLoadingLogos(prev => ({ ...prev, [companyId]: false }));
+    }
+  };
+
+  const handleCompanyLogoClear = async (companyId: string, position: 'left' | 'right') => {
+    if (!confirm("Tem certeza que deseja remover esta logo?")) return;
+
+    if (!supabaseConfig.url || !supabaseConfig.key) return;
+
+    setLoadingLogos(prev => ({ ...prev, [companyId]: true }));
+    try {
+      const supabase = createSupabaseClient(supabaseConfig.url, supabaseConfig.key);
+      if (!supabase) return;
+
+      const key = `${companyId}_sigo_company_logo${position === 'right' ? '_right' : ''}`;
+      const { error: dbError } = await supabase
+        .from('app_state')
+        .upsert({ id: key, content: '' });
+
+      if (dbError) throw dbError;
+
+      setCompanyLogos(prev => {
+        const current = prev[companyId] || { left: '', right: '', mode: 'left' };
+        return {
+          ...prev,
+          [companyId]: {
+            ...current,
+            [position]: ''
+          }
+        };
+      });
+
+      alert("Logo removida com sucesso!");
+    } catch (err: any) {
+      console.error("Error clearing logo:", err);
+      alert(`Falha ao remover logo: ${err.message}`);
+    } finally {
+      setLoadingLogos(prev => ({ ...prev, [companyId]: false }));
+    }
+  };
+
+  const handleCompanyLogoModeChange = async (companyId: string, mode: 'left' | 'right' | 'both' | 'none') => {
+    if (!supabaseConfig.url || !supabaseConfig.key) return;
+
+    setLoadingLogos(prev => ({ ...prev, [companyId]: true }));
+    try {
+      const supabase = createSupabaseClient(supabaseConfig.url, supabaseConfig.key);
+      if (!supabase) return;
+
+      const key = `${companyId}_sigo_logo_mode`;
+      const { error: dbError } = await supabase
+        .from('app_state')
+        .upsert({ id: key, content: mode });
+
+      if (dbError) throw dbError;
+
+      setCompanyLogos(prev => {
+        const current = prev[companyId] || { left: '', right: '', mode: 'left' };
+        return {
+          ...prev,
+          [companyId]: {
+            ...current,
+            mode
+          }
+        };
+      });
+    } catch (err: any) {
+      console.error("Error updating logo mode:", err);
+      alert(`Falha ao atualizar modo de logo: ${err.message}`);
+    } finally {
+      setLoadingLogos(prev => ({ ...prev, [companyId]: false }));
+    }
   };
   const [testResults, setTestResults] = useState<Record<string, 'success' | 'error' | 'pending' | 'idle'>>({});
   const [isTesting, setIsTesting] = useState(false);
@@ -1015,7 +1176,106 @@ export function AdminView({
                           </button>
                           
                           {isExpanded && (
-                            <div className="px-4 pb-4 animate-in fade-in slide-in-from-top-2 duration-200">
+                            <div className="px-4 pb-4 animate-in fade-in slide-in-from-top-2 duration-200 flex flex-col gap-4">
+                              {/* Configuração de Branding da Empresa */}
+                              <div className="bg-slate-50/50 rounded-xl border border-slate-100 p-4 space-y-4">
+                                <div className="flex flex-col md:flex-row md:items-center justify-between gap-2 border-b border-gray-100 pb-3">
+                                  <div>
+                                    <h5 className="font-bold text-sm text-gray-800 uppercase tracking-wider flex items-center gap-1.5">
+                                       🖼️ Configuração de Branding da Empresa
+                                    </h5>
+                                    <p className="text-xs text-slate-500">
+                                      Carregue logos oficiais que serão salvas no bucket <code className="bg-gray-100 px-1 py-0.5 rounded font-mono text-[10px]">sys_adm</code> e vinculadas a esta empresa.
+                                    </p>
+                                  </div>
+                                  
+                                  {/* Select Mode */}
+                                  <div className="flex items-center gap-2">
+                                    <Label className="text-xs font-bold uppercase text-gray-500 whitespace-nowrap">Modo de Exibição:</Label>
+                                    <Select 
+                                      value={companyLogos[companyId]?.mode || 'left'} 
+                                      onValueChange={(val: any) => handleCompanyLogoModeChange(companyId, val)}
+                                    >
+                                      <SelectTrigger className="h-8 text-xs font-medium w-[180px] bg-white">
+                                        <SelectValue />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        <SelectItem value="left">Apenas Logo 01 (Esquerdo)</SelectItem>
+                                        <SelectItem value="right">Apenas Logo 02 (Direito)</SelectItem>
+                                        <SelectItem value="both">Ambas as Logos</SelectItem>
+                                        <SelectItem value="none">Sem Logo nas Páginas</SelectItem>
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                  {/* Logo 1 (Left) */}
+                                  <div className="bg-white border border-gray-100 rounded-lg p-3 flex flex-col items-center justify-center relative min-h-[120px]">
+                                    {loadingLogos[companyId] ? (
+                                      <span className="text-xs text-gray-400 font-medium animate-pulse">Sincronizando...</span>
+                                    ) : companyLogos[companyId]?.left ? (
+                                      <div className="group relative w-full flex flex-col items-center gap-2">
+                                        <img src={companyLogos[companyId].left} alt="Logo 01" className="max-h-24 object-contain rounded-md" />
+                                        <Button 
+                                          variant="destructive" 
+                                          size="xs" 
+                                          className="h-7 text-[10px] uppercase font-bold" 
+                                          onClick={() => handleCompanyLogoClear(companyId, 'left')}
+                                        >
+                                          Remover Logo 01
+                                        </Button>
+                                      </div>
+                                    ) : (
+                                      <label className="cursor-pointer group flex flex-col items-center justify-center p-4 border border-dashed border-gray-200 rounded-lg w-full hover:bg-slate-50 transition-colors">
+                                        <div className="bg-slate-50 p-2 rounded-full mb-1 group-hover:scale-110 transition-transform">
+                                          <Building2 className="w-4 h-4 text-slate-400" />
+                                        </div>
+                                        <span className="text-xs font-bold text-gray-600">Carregar Logo 01 (Esquerda)</span>
+                                        <input 
+                                          type="file" 
+                                          accept="image/*" 
+                                          className="hidden" 
+                                          onChange={(e) => handleCompanyLogoUpload(e, companyId, 'left')} 
+                                        />
+                                      </label>
+                                    )}
+                                  </div>
+
+                                  {/* Logo 2 (Right) */}
+                                  <div className="bg-white border border-gray-100 rounded-lg p-3 flex flex-col items-center justify-center relative min-h-[120px]">
+                                    {loadingLogos[companyId] ? (
+                                      <span className="text-xs text-gray-400 font-medium animate-pulse">Sincronizando...</span>
+                                    ) : companyLogos[companyId]?.right ? (
+                                      <div className="group relative w-full flex flex-col items-center gap-2">
+                                        <img src={companyLogos[companyId].right} alt="Logo 02" className="max-h-24 object-contain rounded-md" />
+                                        <Button 
+                                          variant="destructive" 
+                                          size="xs" 
+                                          className="h-7 text-[10px] uppercase font-bold" 
+                                          onClick={() => handleCompanyLogoClear(companyId, 'right')}
+                                        >
+                                          Remover Logo 02
+                                        </Button>
+                                      </div>
+                                    ) : (
+                                      <label className="cursor-pointer group flex flex-col items-center justify-center p-4 border border-dashed border-gray-200 rounded-lg w-full hover:bg-slate-50 transition-colors">
+                                        <div className="bg-slate-50 p-2 rounded-full mb-1 group-hover:scale-110 transition-transform">
+                                          <Building2 className="w-4 h-4 text-slate-400" />
+                                        </div>
+                                        <span className="text-xs font-bold text-gray-600">Carregar Logo 02 (Direita)</span>
+                                        <input 
+                                          type="file" 
+                                          accept="image/*" 
+                                          className="hidden" 
+                                          onChange={(e) => handleCompanyLogoUpload(e, companyId, 'right')} 
+                                        />
+                                      </label>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+
                               <div className="rounded-lg border border-gray-100 overflow-hidden bg-white shadow-sm">
                                 <Table>
                                   <TableHeader className="bg-gray-50/50">

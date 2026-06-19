@@ -15,7 +15,8 @@ import {
   Contract, Measurement, DailyReport, PluviometryRecord, 
   TechnicalSchedule, ControllerTeam, ControllerEquipment, 
   ControllerManpower, TeamAssignment, ServiceProduction,
-  ServiceComposition, Resource
+  ServiceComposition, Resource,
+  Employee, ManpowerMonthlyData, EquipmentMonthlyData
 } from '../types';
 import { 
   exportContractSummaryPDF,
@@ -63,6 +64,11 @@ interface TechnicalReportsViewProps {
   companyLogo?: string;
   companyLogoRight?: string;
   logoMode?: 'left' | 'right' | 'both' | 'none';
+  employees?: Employee[];
+  manpowerMonthly?: ManpowerMonthlyData[];
+  equipmentMonthly?: EquipmentMonthlyData[];
+  chargesPerc?: number;
+  otPerc?: number;
 }
 
 export function TechnicalReportsView({
@@ -71,7 +77,8 @@ export function TechnicalReportsView({
   controllerManpower, teamAssignments, serviceProductions,
   services, resources, memories, cubationData, transportData,
   stationGroups, highwayLocations, baseDate,
-  companyLogo, companyLogoRight, logoMode
+  companyLogo, companyLogoRight, logoMode,
+  employees, manpowerMonthly, equipmentMonthly, chargesPerc, otPerc
 }: TechnicalReportsViewProps) {
   const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7)); // YYYY-MM
   const [selectedMeasurementId, setSelectedMeasurementId] = useState<string>(measurements.length > 0 ? measurements[measurements.length - 1].id : '');
@@ -360,7 +367,12 @@ export function TechnicalReportsView({
       month: selectedMonth,
       companyLogo,
       companyLogoRight,
-      logoMode
+      logoMode,
+      employees,
+      manpowerMonthly,
+      equipmentMonthly,
+      chargesPerc,
+      otPerc
     });
   };
 
@@ -375,7 +387,12 @@ export function TechnicalReportsView({
       companyLogo,
       companyLogoRight,
       logoMode,
-      print: true
+      print: true,
+      employees,
+      manpowerMonthly,
+      equipmentMonthly,
+      chargesPerc,
+      otPerc
     });
   };
 
@@ -386,7 +403,8 @@ export function TechnicalReportsView({
       manpower: controllerManpower,
       equipments: controllerEquipments,
       assignments: teamAssignments,
-      month: selectedMonth
+      month: selectedMonth,
+      employees
     });
   };
 
