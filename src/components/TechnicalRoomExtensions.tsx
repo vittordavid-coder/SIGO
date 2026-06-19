@@ -582,27 +582,19 @@ export function DailyReportView({
           printed = true;
         }
       } catch (err) {
-        console.warn("window.open blocked or failed, using iframe fallback", err);
+        console.warn("window.open blocked or failed", err);
       }
       
       if (!printed) {
-        const iframe = document.createElement('iframe');
-        iframe.style.position = 'fixed';
-        iframe.style.bottom = '0';
-        iframe.style.right = '0';
-        iframe.style.width = '1024px';
-        iframe.style.height = '1024px';
-        iframe.style.border = '0';
-        iframe.style.zIndex = '-9999';
-        iframe.style.opacity = '0';
-        iframe.style.pointerEvents = 'none';
-        iframe.src = pdfUrl;
-        document.body.appendChild(iframe);
-        setTimeout(() => {
-          if (iframe.parentNode) iframe.parentNode.removeChild(iframe);
-          URL.revokeObjectURL(pdfUrl);
-        }, 30000);
+        console.warn("Falling back to download due to popup blocker.");
+        const link = document.createElement('a');
+        link.href = pdfUrl;
+        link.download = `RDO_${contract.contractNumber}_${report.date}_print.pdf`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
       }
+      setTimeout(() => URL.revokeObjectURL(pdfUrl), 30000);
     } catch (e) {
       console.error("Error generating or printing PDF", e);
     }

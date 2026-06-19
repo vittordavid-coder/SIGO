@@ -22,61 +22,82 @@ function addTechnicalHeader(doc: jsPDF, title: string, options: {
   const pageWidth = doc.internal.pageSize.width;
   const mode = options.logoMode || 'both';
   
-  // Header Background
-  doc.setFillColor(30, 58, 138); // blue-900
-  doc.rect(0, 0, pageWidth, 30, 'F');
-  
   const showLeft = (mode === 'left' || mode === 'both') && options.companyLogo;
   const showRight = (mode === 'right' || mode === 'both') && options.companyLogoRight;
 
+  const textStartX = showLeft ? 40 : 14;
+  const textEndX = showRight ? pageWidth - 40 : pageWidth - 14;
+  const maxTextWidth = textEndX - textStartX;
+
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'normal');
+  const subTitle = [options.contract.workName, options.contract.object].filter(Boolean).join(' - ');
+  const splitTitle = doc.splitTextToSize(subTitle, maxTextWidth);
+
+  doc.setFontSize(14);
+  const splitMainTitle = doc.splitTextToSize(title, maxTextWidth);
+  
+  const contentHeight = 10 + splitMainTitle.length * 6 + splitTitle.length * 5;
+  const headerHeight = Math.max(34, contentHeight + 5);
+
+  // Header Background
+  doc.setFillColor(30, 58, 138); // blue-900
+  doc.rect(0, 0, pageWidth, headerHeight, 'F');
+  
   if (showLeft) {
     try { 
       const props = doc.getImageProperties(options.companyLogo!);
       const ratio = props.width / props.height;
-      let h = 26;
+      let h = 20;
       let w = h * ratio;
-      if (w > 50) {
-        w = 50;
-        h = 50 / ratio;
-      }
-      const y = (30 - h) / 2;
-      doc.addImage(options.companyLogo!, 'PNG', 14, y, w, h); 
+      if (w > 30) { w = 30; h = 30 / ratio; }
+      if (h > 20) { h = 20; w = 20 * ratio; }
+      const y = 5 + (20 - h) / 2;
+      const x = 5 + (30 - w) / 2;
+      doc.addImage(options.companyLogo!, 'PNG', x, y, w, h); 
     } catch (e) {
-      try { doc.addImage(options.companyLogo!, 'PNG', 14, 2, 26, 26); } catch (err) {}
+      try { doc.addImage(options.companyLogo!, 'PNG', 5, 5, 30, 20); } catch (err) {}
     }
   }
+
   if (showRight) {
     try { 
       const props = doc.getImageProperties(options.companyLogoRight!);
       const ratio = props.width / props.height;
-      let h = 26;
+      let h = 20;
       let w = h * ratio;
-      if (w > 50) {
-        w = 50;
-        h = 50 / ratio;
-      }
-      const y = (30 - h) / 2;
-      doc.addImage(options.companyLogoRight!, 'PNG', pageWidth - 14 - w, y, w, h); 
+      if (w > 30) { w = 30; h = 30 / ratio; }
+      if (h > 20) { h = 20; w = 20 * ratio; }
+      const y = 5 + (20 - h) / 2;
+      const x = pageWidth - 5 - 30 + (30 - w) / 2;
+      doc.addImage(options.companyLogoRight!, 'PNG', x, y, w, h); 
     } catch (e) {
-      try { doc.addImage(options.companyLogoRight!, 'PNG', pageWidth - 40, 2, 26, 26); } catch (err) {}
+      try { doc.addImage(options.companyLogoRight!, 'PNG', pageWidth - 35, 5, 30, 20); } catch (err) {}
     }
   }
 
+  // Titles
   doc.setTextColor(255, 255, 255);
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(showLeft ? 12 : 16);
-  doc.text(options.contract.client || 'SISTEMA TÉCNICO', showLeft ? 68 : 14, 14);
+  doc.setFontSize(14);
+  doc.text(splitMainTitle, textStartX, 12, { align: 'left' });
   
   doc.setFontSize(10);
   doc.setFont('helvetica', 'normal');
-  doc.text(title, showLeft ? 68 : 14, 22);
-  
-  doc.setFontSize(8);
-  doc.setTextColor(200, 200, 200);
-  doc.text(`Contrato: ${options.contract.contractNumber}`, pageWidth - (showRight ? 68 : 14), 16, { align: 'right' });
-  doc.text(`Data: ${new Date().toLocaleDateString('pt-BR')}`, pageWidth - (showRight ? 68 : 14), 22, { align: 'right' });
-  
+  doc.setTextColor(220, 220, 220);
+  doc.text(splitTitle, textStartX, 12 + splitMainTitle.length * 6, { align: 'left' });
+
+  // Date
+  doc.setFontSize(9);
+  doc.setTextColor(255, 255, 255);
+  if (showLeft) {
+    doc.text(`Data: ${new Date().toLocaleDateString('pt-BR')}`, 20, 31, { align: 'center' });
+  } else {
+    doc.text(`Data: ${new Date().toLocaleDateString('pt-BR')}`, pageWidth - 14, 31, { align: 'right' });
+  }
+
   doc.setTextColor(0, 0, 0);
+  return headerHeight;
 }
 
 function addTechnicalFooter(doc: jsPDF) {
@@ -103,38 +124,17 @@ function handleSaveOrPrintPDF(doc: jsPDF, filename: string, print?: boolean) {
     const pdfUrl = URL.createObjectURL(pdfBlob);
     
     try {
-      const iframe = document.createElement('iframe');
-      iframe.style.position = 'fixed';
-      iframe.style.right = '0';
-      iframe.style.bottom = '0';
-      iframe.style.width = '0';
-      iframe.style.height = '0';
-      iframe.style.border = '0';
-      iframe.src = pdfUrl;
-      
-      document.body.appendChild(iframe);
-      
-      iframe.onload = () => {
-        try {
-          iframe.focus();
-          iframe.contentWindow?.print();
-        } catch (printErr) {
-          console.error("Iframe print error", printErr);
-          // Fallback to window.open
-          const printWindow = window.open(pdfUrl, '_blank');
-          if (printWindow) printWindow.focus();
-        }
-        
-        // Remove the iframe after some delay
-        setTimeout(() => {
-          if (iframe.parentNode) {
-            document.body.removeChild(iframe);
-          }
-          URL.revokeObjectURL(pdfUrl);
-        }, 50000);
-      };
+      const printWindow = window.open(pdfUrl, '_blank');
+      if (printWindow) {
+        printWindow.focus();
+      } else {
+        throw new Error("Window open blocked");
+      }
+      setTimeout(() => {
+        URL.revokeObjectURL(pdfUrl);
+      }, 50000);
     } catch (err) {
-      console.warn("Iframe print setup failed, downloading PDF as fallback", err);
+      console.warn("Iframe print setup failed or blocked, downloading PDF as fallback", err);
       // Fallback: Trigger download
       const link = document.createElement('a');
       link.href = pdfUrl;
@@ -1260,17 +1260,17 @@ export function exportTeamsReportPDF(options: {
   });
 
   // --- PAGE 1: RESUMO CONSOLIDADO DAS EQUIPES ---
-  addTechnicalHeader(doc, `Resumo de Equipes - ${monthName}`, options);
+  let headerHeight = addTechnicalHeader(doc, 'Dimensionamento de Equipes', options);
   
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(14);
   doc.setTextColor(30, 41, 59);
-  doc.text('RESUMO CONSOLIDADO DE EQUIPES & CUSTOS', 14, 45);
+  doc.text('RESUMO CONSOLIDADO DE EQUIPES & CUSTOS', 14, headerHeight + 15);
   
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(9);
   doc.setTextColor(100, 116, 139);
-  doc.text(`Competência: ${monthName} | Contrato: ${options.contract.contractNumber}`, 14, 51);
+  doc.text(`Competência: ${monthName} | Contrato: ${options.contract.contractNumber}`, 14, headerHeight + 21);
 
   let totalManCount = 0;
   let totalManCost = 0;
@@ -1351,7 +1351,7 @@ export function exportTeamsReportPDF(options: {
   ]);
 
   autoTable(doc, {
-    startY: 57,
+    startY: headerHeight + 27,
     head: [['Equipe', 'Supervisor', 'Nº Colab.', 'Vlr. Colab.', 'Nº Equip.', 'Vlr. Equip.', 'Total da Equipe']],
     body: summaryTableBody,
     theme: 'grid',
@@ -1378,29 +1378,29 @@ export function exportTeamsReportPDF(options: {
   // --- PAGES 2+: INDIVIDUAL TEAM DETAIL PAGES ---
   teamData.forEach((data) => {
     doc.addPage();
-    addTechnicalHeader(doc, `Detalhes da Equipe: ${data.team.name}`, options);
+    let currentHeaderHeight = addTechnicalHeader(doc, 'Dimensionamento de Equipes', options);
 
     const teamColorRgb = hexToRgbTuple(data.team.color);
     
     // Beautiful colored banner header for the team name
     doc.setFillColor(teamColorRgb[0], teamColorRgb[1], teamColorRgb[2]);
-    doc.rect(14, 38, 182, 16, 'F');
+    doc.rect(14, currentHeaderHeight + 8, 182, 16, 'F');
     
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(13);
     doc.setTextColor(255, 255, 255); // White text inside colored banner box
-    doc.text(data.team.name.toUpperCase(), 20, 48);
+    doc.text(data.team.name.toUpperCase(), 20, currentHeaderHeight + 18);
 
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(9.5);
     doc.setTextColor(teamColorRgb[0], teamColorRgb[1], teamColorRgb[2]);
-    doc.text(`Supervisor Responsável: ${data.supervisorName}`, 14, 60);
+    doc.text(`Supervisor Responsável: ${data.supervisorName}`, 14, currentHeaderHeight + 30);
 
     // List of Collaborators under this team
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(10);
     doc.setTextColor(30, 41, 59);
-    doc.text('1. COLABORADORES DA EQUIPE', 14, 69);
+    doc.text('1. COLABORADORES DA EQUIPE', 14, currentHeaderHeight + 39);
 
     const colabTableData = data.activeManAssignments.map(a => {
       const mem = options.manpower.find(m => m.id === a.memberId);
@@ -1420,7 +1420,7 @@ export function exportTeamsReportPDF(options: {
     ]);
 
     autoTable(doc, {
-      startY: 73,
+      startY: currentHeaderHeight + 43,
       head: [['Nome do Colaborador', 'Cargo', 'Custo Mensal (R$)']],
       body: colabTableData,
       theme: 'grid',
@@ -1503,8 +1503,8 @@ export function exportTeamsReportPDF(options: {
     // Check if the summary card exceeds the printable page area. If so, push to a new page!
     if (cardY + cardHeight > printAreaYLimit) {
       doc.addPage();
-      addTechnicalHeader(doc, `Custo Financeiro Consolidated: ${data.team.name}`, options);
-      cardY = 38;
+      let extraPageHeaderHeight = addTechnicalHeader(doc, 'Dimensionamento de Equipes', options);
+      cardY = extraPageHeaderHeight + 8;
     }
 
     doc.setFillColor(248, 250, 252); // slate-50
