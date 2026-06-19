@@ -102,30 +102,50 @@ function handleSaveOrPrintPDF(doc: jsPDF, filename: string, print?: boolean) {
     const pdfBlob = doc.output('blob');
     const pdfUrl = URL.createObjectURL(pdfBlob);
     
-    let opened = false;
     try {
-      const printWindow = window.open(pdfUrl, '_blank');
-      if (printWindow) {
-        printWindow.focus();
-        opened = true;
-      }
+      const iframe = document.createElement('iframe');
+      iframe.style.position = 'fixed';
+      iframe.style.right = '0';
+      iframe.style.bottom = '0';
+      iframe.style.width = '0';
+      iframe.style.height = '0';
+      iframe.style.border = '0';
+      iframe.src = pdfUrl;
+      
+      document.body.appendChild(iframe);
+      
+      iframe.onload = () => {
+        try {
+          iframe.focus();
+          iframe.contentWindow?.print();
+        } catch (printErr) {
+          console.error("Iframe print error", printErr);
+          // Fallback to window.open
+          const printWindow = window.open(pdfUrl, '_blank');
+          if (printWindow) printWindow.focus();
+        }
+        
+        // Remove the iframe after some delay
+        setTimeout(() => {
+          if (iframe.parentNode) {
+            document.body.removeChild(iframe);
+          }
+          URL.revokeObjectURL(pdfUrl);
+        }, 50000);
+      };
     } catch (err) {
-      console.warn("window.open blocked, downloading PDF as fallback", err);
-    }
-    
-    if (!opened) {
-      // Fallback: Trigger silent download
+      console.warn("Iframe print setup failed, downloading PDF as fallback", err);
+      // Fallback: Trigger download
       const link = document.createElement('a');
       link.href = pdfUrl;
       link.download = filename;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
+      setTimeout(() => {
+        URL.revokeObjectURL(pdfUrl);
+      }, 60000);
     }
-    
-    setTimeout(() => {
-      URL.revokeObjectURL(pdfUrl);
-    }, 60000);
   } else {
     doc.save(filename);
   }
@@ -1021,41 +1041,437 @@ export function exportTeamsReportPDF(options: {
   print?: boolean
 }) {
   const doc = new jsPDF();
-  const [yearStr, monthStr] = options.month.split('-'); const monthName = new Date(parseInt(yearStr), parseInt(monthStr) - 1, 1).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+  const [yearStr, monthStr] = options.month.split('-'); 
+  const monthName = new Date(parseInt(yearStr), parseInt(monthStr) - 1, 1).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+  
+  const companyId = options.contract.companyId || options.contract.id;
+  const employees = loadStateFromLocalStorage<Employee[]>('sigo_employees', companyId, []);
+  const manpowerMonthly = loadStateFromLocalStorage<ManpowerMonthlyData[]>('sigo_manpower_monthly', companyId, []);
+  const equipmentMonthly = loadStateFromLocalStorage<EquipmentMonthlyData[]>('sigo_equipment_monthly', companyId, []);
+  const chargesPerc = loadStateFromLocalStorage<number>('sigo_ctrl_charges', companyId, 0);
+  const otPerc = loadStateFromLocalStorage<number>('sigo_ctrl_ot', companyId, 50);
+
+  const formatCurrencyValue = (val: number) => {
+    return val.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  };
+
+  const hexToRgbTuple = (hex?: string): [number, number, number] => {
+    if (!hex) return [30, 41, 59]; // slate-800
+    let cleanHex = hex.replace('#', '');
+    if (cleanHex.length === 3) {
+      cleanHex = cleanHex.split('').map(c => c + c).join('');
+    }
+    if (cleanHex.length === 6) {
+      const num = parseInt(cleanHex, 16);
+      return [
+        (num >> 16) & 255,
+        (num >> 8) & 255,
+        num & 255
+      ];
+    }
+    return [30, 41, 59];
+  };
+
+  // Internal helper inside exportTeamsReportPDF
+  function localCalculateAssignmentCosts(
+    assignment: { memberId: string; type: "manpower" | "equipment" },
+    month: string,
+    daysInMonth: number = 30
+  ): { daily: number; monthly: number } {
+    if (assignment.type === "manpower") {
+      const data = manpowerMonthly.find(
+        (d) => d.manpowerId === assignment.memberId && d.month === month
+      );
+      if (data) {
+        const salary = data.salary || 0;
+        const otHours = data.overtimeRate || 0;
+        const daily = data.dailyRate || 0;
+
+        const hourly = salary / 220;
+        const otValue = hourly * (1 + otPerc / 100) * otHours;
+        const charges = (salary + otValue) * (chargesPerc / 100);
+
+        const monthlyCost = salary + otValue + daily * daysInMonth + charges;
+        const dailyCost = (salary + otValue + charges) / daysInMonth + daily;
+        return { daily: dailyCost, monthly: monthlyCost };
+      }
+
+      const emp = employees.find((e) => e.id === assignment.memberId);
+      if (emp) {
+        const salary = emp.salary || 0;
+        const charges = salary * (chargesPerc / 100);
+        if (emp.paymentType === "day") {
+          const dailyCost = salary;
+          const monthlyCost = salary * daysInMonth;
+          return { daily: dailyCost, monthly: monthlyCost };
+        } else {
+          const monthlyCost = salary + charges;
+          const dailyCost = monthlyCost / daysInMonth;
+          return { daily: dailyCost, monthly: monthlyCost };
+        }
+      }
+
+      const fallbackMan = options.manpower.find(
+        (m) => m.id === assignment.memberId
+      );
+      if (fallbackMan) {
+        const empByName = employees.find(
+          (e) => e.name.toLowerCase() === fallbackMan.name.toLowerCase()
+        );
+        if (empByName) {
+          const salary = empByName.salary || 0;
+          const charges = salary * (chargesPerc / 100);
+          if (empByName.paymentType === "day") {
+            return { daily: salary, monthly: salary * daysInMonth };
+          } else {
+            const mCost = salary + charges;
+            return { daily: mCost / daysInMonth, monthly: mCost };
+          }
+        }
+      }
+
+      return { daily: 0, monthly: 0 };
+    } else {
+      const data = equipmentMonthly.find(
+        (d) => d.equipmentId === assignment.memberId && d.month === month
+      );
+      if (data && data.cost) {
+        const monthlyCost = data.cost;
+        const dailyCost = monthlyCost / daysInMonth;
+        return { daily: dailyCost, monthly: monthlyCost };
+      }
+
+      const eq = options.equipments.find((e) => e.id === assignment.memberId);
+      if (eq) {
+        let eqCost = eq.monthlyPrice || 0;
+        if (!eqCost && eq.contractedPrice && eq.measurementUnit === "Mensal") {
+          eqCost = eq.contractedPrice;
+        }
+        if (!eqCost) {
+          const atts = eq.customFields ? Object.values(eq.customFields) : [];
+          const monthlyCostStr = atts.find(
+            (att: any) =>
+              typeof att.name === "string" &&
+              att.name.toLowerCase().includes("mensal")
+          )?.value;
+          if (monthlyCostStr) {
+            eqCost = parseFloat(monthlyCostStr) || 0;
+          }
+        }
+
+        let dailyCost = 0;
+        if (eq.measurementUnit === "Diária" && eq.contractedPrice) {
+          dailyCost = eq.contractedPrice;
+          eqCost = dailyCost * daysInMonth;
+        } else if (eqCost > 0) {
+          dailyCost = eqCost / daysInMonth;
+        } else {
+          const eqAttrs = (eq as any).attributes || [];
+          const dailyCostStr = eqAttrs.find(
+            (att: any) =>
+              typeof att.name === "string" &&
+              (att.name.toLowerCase().includes("diária") ||
+                att.name.toLowerCase().includes("diaria"))
+          )?.value;
+          if (dailyCostStr) {
+            dailyCost = parseFloat(dailyCostStr) || 0;
+            eqCost = dailyCost * daysInMonth;
+          } else {
+            const monthlyCostStr2 = eqAttrs.find(
+              (att: any) =>
+                typeof att.name === "string" &&
+                att.name.toLowerCase().includes("mensal")
+            )?.value;
+            if (monthlyCostStr2) {
+              eqCost = parseFloat(monthlyCostStr2) || 0;
+              dailyCost = eqCost / daysInMonth;
+            }
+          }
+        }
+
+        return { daily: dailyCost, monthly: eqCost };
+      }
+
+      return { daily: 0, monthly: 0 };
+    }
+  }
+
+  // --- PAGE 1: RESUMO CONSOLIDADO DAS EQUIPES ---
   addTechnicalHeader(doc, `Resumo de Equipes - ${monthName}`, options);
+  
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(14);
+  doc.setTextColor(30, 41, 59);
+  doc.text('RESUMO CONSOLIDADO DE EQUIPES & CUSTOS', 14, 45);
+  
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(9);
+  doc.setTextColor(100, 116, 139);
+  doc.text(`Competência: ${monthName} | Contrato: ${options.contract.contractNumber}`, 14, 51);
 
-  options.teams.forEach((t, idx) => {
-    if (idx > 0) doc.addPage();
-    if (idx > 0) addTechnicalHeader(doc, `Equipe: ${t.name}`, options);
-    else doc.text(`Equipe: ${t.name}`, 14, 50);
+  let totalManCount = 0;
+  let totalManCost = 0;
+  let totalEquipCount = 0;
+  let totalEquipCost = 0;
+  let grandTotal = 0;
 
-    const teamAssignments = options.assignments.filter(a => a.teamId === t.id && (!a.endDate || (a.startDate || '') <= options.month + '-31'));
+  const teamData = options.teams.map(t => {
+    const teamMems = options.assignments.filter(a => a.teamId === t.id && (!a.endDate || (a.startDate || '') <= options.month + '-31'));
     
-    doc.setFontSize(10);
-    doc.text('Colaboradores', 14, 60);
-    autoTable(doc, {
-      startY: 65,
-      head: [['Nome', 'Cargo']],
-      body: teamAssignments.filter(a => a.type === 'manpower').map(a => {
-        const mem = options.manpower.find(m => m.id === a.memberId);
-        return [mem?.name, mem?.role];
-      }),
-      ...tableStyles
+    // Filter active assignments
+    const activeManAssignments = teamMems.filter(a => {
+      if (a.type !== 'manpower') return false;
+      const person = options.manpower.find(m => m.id === a.memberId);
+      return person && !person.exitDate;
     });
 
-    doc.text('Equipamentos', 14, (doc as any).lastAutoTable.finalY + 10);
-    autoTable(doc, {
-      startY: (doc as any).lastAutoTable.finalY + 15,
-      head: [['Modelo', 'Placa/Série']],
-      body: teamAssignments.filter(a => a.type === 'equipment').map(a => {
-        const eq = options.equipments.find(e => e.id === a.memberId);
-        return [eq?.model, eq?.plate];
-      }),
-      ...tableStyles
+    const activeEquipAssignments = teamMems.filter(a => {
+      if (a.type !== 'equipment') return false;
+      const equip = options.equipments.find(e => e.id === a.memberId);
+      return equip && !equip.exitDate;
     });
+
+    let teamManCost = 0;
+    activeManAssignments.forEach(assignment => {
+      const costs = localCalculateAssignmentCosts(assignment, options.month, 30);
+      teamManCost += costs.monthly;
+    });
+
+    let teamEquipCost = 0;
+    activeEquipAssignments.forEach(assignment => {
+      const costs = localCalculateAssignmentCosts(assignment, options.month, 30);
+      teamEquipCost += costs.monthly;
+    });
+
+    const supervisor = options.manpower.find(m => m.id === t.supervisorId);
+    const teamTotal = teamManCost + teamEquipCost;
+
+    totalManCount += activeManAssignments.length;
+    totalManCost += teamManCost;
+    totalEquipCount += activeEquipAssignments.length;
+    totalEquipCost += teamEquipCost;
+    grandTotal += teamTotal;
+
+    return {
+      team: t,
+      supervisorName: supervisor?.name || 'N/A',
+      manCount: activeManAssignments.length,
+      manCost: teamManCost,
+      equipCount: activeEquipAssignments.length,
+      equipCost: teamEquipCost,
+      totalCost: teamTotal,
+      activeManAssignments,
+      activeEquipAssignments
+    };
+  });
+
+  // Render the Summary table
+  const summaryTableBody = teamData.map(data => [
+    data.team.name,
+    data.supervisorName,
+    data.manCount.toString(),
+    formatCurrencyValue(data.manCost),
+    data.equipCount.toString(),
+    formatCurrencyValue(data.equipCost),
+    formatCurrencyValue(data.totalCost)
+  ]);
+
+  // Append total row
+  summaryTableBody.push([
+    'TOTAL CONSOLIDADO',
+    '',
+    totalManCount.toString(),
+    formatCurrencyValue(totalManCost),
+    totalEquipCount.toString(),
+    formatCurrencyValue(totalEquipCost),
+    formatCurrencyValue(grandTotal)
+  ]);
+
+  autoTable(doc, {
+    startY: 57,
+    head: [['Equipe', 'Supervisor', 'Nº Colab.', 'Vlr. Colab.', 'Nº Equip.', 'Vlr. Equip.', 'Total da Equipe']],
+    body: summaryTableBody,
+    theme: 'grid',
+    headStyles: { fillColor: [30, 58, 138], textColor: 255, fontStyle: 'bold', fontSize: 8, halign: 'center' },
+    alternateRowStyles: { fillColor: [248, 250, 252] },
+    columnStyles: {
+      0: { fontStyle: 'bold', cellWidth: 'auto' },
+      2: { halign: 'center' },
+      3: { halign: 'right' },
+      4: { halign: 'center' },
+      5: { halign: 'right' },
+      6: { halign: 'right', fontStyle: 'bold' }
+    },
+    didParseCell: (data) => {
+      if (data.row.index === summaryTableBody.length - 1) {
+        data.cell.styles.fontStyle = 'bold';
+        data.cell.styles.fillColor = [226, 232, 240]; // slate-200
+        data.cell.styles.textColor = [15, 23, 42]; // slate-900
+      }
+    },
+    ...tableStyles
   });
 
   addTechnicalFooter(doc);
+
+  // --- PAGES 2+: INDIVIDUAL TEAM DETAIL PAGES ---
+  teamData.forEach((data) => {
+    doc.addPage();
+    addTechnicalHeader(doc, `Detalhes da Equipe: ${data.team.name}`, options);
+
+    const teamColorRgb = hexToRgbTuple(data.team.color);
+    
+    // Draw team color left border highlight / badge
+    doc.setFillColor(teamColorRgb[0], teamColorRgb[1], teamColorRgb[2]);
+    doc.rect(14, 42, 6, 14, 'F');
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(16);
+    doc.setTextColor(teamColorRgb[0], teamColorRgb[1], teamColorRgb[2]);
+    doc.text(data.team.name.toUpperCase(), 24, 49);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    doc.setTextColor(100, 116, 139);
+    doc.text(`Supervisor Responsável: ${data.supervisorName}`, 24, 54);
+
+    // List of Collaborators under this team
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10);
+    doc.setTextColor(30, 41, 59);
+    doc.text('1. COLABORADORES DA EQUIPE', 14, 66);
+
+    const colabTableData = data.activeManAssignments.map(a => {
+      const mem = options.manpower.find(m => m.id === a.memberId);
+      const costs = localCalculateAssignmentCosts(a, options.month, 30);
+      
+      return [
+        mem?.name || 'Sem nome',
+        mem?.role || 'Sem cargo',
+        formatCurrencyValue(costs.monthly)
+      ];
+    });
+
+    colabTableData.push([
+      'SUBTOTAL COLABORADORES',
+      '',
+      formatCurrencyValue(data.manCost)
+    ]);
+
+    autoTable(doc, {
+      startY: 70,
+      head: [['Nome do Colaborador', 'Cargo', 'Custo Mensal (R$)']],
+      body: colabTableData,
+      theme: 'grid',
+      headStyles: { fillColor: [47, 72, 88], textColor: 255, fontStyle: 'bold', fontSize: 8 },
+      alternateRowStyles: { fillColor: [248, 250, 252] },
+      columnStyles: {
+        0: { cellWidth: 'auto' },
+        1: { cellWidth: 'auto' },
+        2: { halign: 'right' }
+      },
+      didParseCell: (cellData) => {
+        if (cellData.row.index === colabTableData.length - 1) {
+          cellData.cell.styles.fontStyle = 'bold';
+          cellData.cell.styles.fillColor = [241, 245, 249]; // slate-100
+          cellData.cell.styles.textColor = [30, 41, 59];
+        }
+      },
+      ...tableStyles
+    });
+
+    const colabFinalY = (doc as any).lastAutoTable.finalY || 100;
+
+    // List of Equipments under this team
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10);
+    doc.setTextColor(30, 41, 59);
+    doc.text('2. EQUIPAMENTOS DA EQUIPE', 14, colabFinalY + 10);
+
+    const equipTableData = data.activeEquipAssignments.map(a => {
+      const eq = options.equipments.find(e => e.id === a.memberId);
+      const costs = localCalculateAssignmentCosts(a, options.month, 30);
+
+      return [
+        eq?.model || 'Modelo não especificado',
+        eq?.plate || 'S/P',
+        eq?.type || 'Outro',
+        formatCurrencyValue(costs.monthly)
+      ];
+    });
+
+    equipTableData.push([
+      'SUBTOTAL EQUIPAMENTOS',
+      '',
+      '',
+      formatCurrencyValue(data.equipCost)
+    ]);
+
+    autoTable(doc, {
+      startY: colabFinalY + 14,
+      head: [['Modelo do Equipamento', 'Placa/Série', 'Categoria', 'Custo Mensal (R$)']],
+      body: equipTableData,
+      theme: 'grid',
+      headStyles: { fillColor: [47, 72, 88], textColor: 255, fontStyle: 'bold', fontSize: 8 },
+      alternateRowStyles: { fillColor: [248, 250, 252] },
+      columnStyles: {
+        0: { cellWidth: 'auto' },
+        1: { cellWidth: 'auto' },
+        2: { cellWidth: 'auto' },
+        3: { halign: 'right' }
+      },
+      didParseCell: (cellData) => {
+        if (cellData.row.index === equipTableData.length - 1) {
+          cellData.cell.styles.fontStyle = 'bold';
+          cellData.cell.styles.fillColor = [241, 245, 249]; // slate-100
+          cellData.cell.styles.textColor = [30, 41, 59];
+        }
+      },
+      ...tableStyles
+    });
+
+    const equipFinalY = (doc as any).lastAutoTable.finalY || 180;
+
+    // Beautiful summary card / outline box for Team Total
+    const cardY = equipFinalY + 12;
+    doc.setFillColor(248, 250, 252); // slate-50
+    doc.setDrawColor(226, 232, 240); // slate-200
+    doc.roundedRect(14, cardY, 182, 38, 4, 4, 'FD');
+
+    // Colored accent left border on card
+    doc.setFillColor(teamColorRgb[0], teamColorRgb[1], teamColorRgb[2]);
+    doc.rect(14, cardY, 4, 38, 'F');
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10);
+    doc.setTextColor(71, 85, 105); // slate-600
+    doc.text('RESUMO FINANCEIRO DA EQUIPE', 24, cardY + 9);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    doc.setTextColor(100, 116, 139);
+    doc.text(`Subtotal Colaboradores ativos:`, 24, cardY + 18);
+    doc.setFont('helvetica', 'bold');
+    doc.text(formatCurrencyValue(data.manCost), 110, cardY + 18);
+
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Subtotal Equipamentos ativos:`, 24, cardY + 24);
+    doc.setFont('helvetica', 'bold');
+    doc.text(formatCurrencyValue(data.equipCost), 110, cardY + 24);
+
+    // Thick divider line
+    doc.setDrawColor(203, 213, 225); // slate-300
+    doc.line(24, cardY + 28, 180, cardY + 28);
+
+    doc.setFontSize(11);
+    doc.setTextColor(teamColorRgb[0], teamColorRgb[1], teamColorRgb[2]);
+    doc.text('CUSTO INTEGRADO TOTAL:', 24, cardY + 33);
+    doc.setFont('helvetica', 'bold');
+    doc.text(formatCurrencyValue(data.totalCost), 110, cardY + 33);
+
+    addTechnicalFooter(doc);
+  });
+
   handleSaveOrPrintPDF(doc, `Relatorio_Equipes_${options.month}.pdf`, options.print);
 }
 

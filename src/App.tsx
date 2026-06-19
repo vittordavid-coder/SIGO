@@ -3111,7 +3111,19 @@ export default function App() {
 
   const updateTechnicalEquipments = async (val: ControllerEquipment[] | ((prev: ControllerEquipment[]) => ControllerEquipment[])) => {
     lastLocalUpdate.current = Date.now();
-    const equips = typeof val === 'function' ? val(controllerEquipments) : val;
+    let equips: ControllerEquipment[];
+    if (typeof val === 'function') {
+      equips = val(controllerEquipments);
+    } else {
+      const isItemInScope = (e: ControllerEquipment) => {
+        const matchCompany = !compId || e.companyId === compId;
+        const matchContract = !e.contractId || allowedContractIds.has(e.contractId);
+        return matchCompany && matchContract;
+      };
+      const itemsOutOfScope = controllerEquipments.filter(e => !isItemInScope(e));
+      const itemsInScope = val.map(e => ({ ...e, companyId: e.companyId || compId }));
+      equips = [...itemsOutOfScope, ...itemsInScope];
+    }
     setControllerEquipments(equips);
     const config = getSupabaseConfig();
     if (config.enabled && compId) {
@@ -4239,6 +4251,10 @@ export default function App() {
                   onUpdateContractId={setSelectedContractId}
                   config={dashboardConfig}
                   onNavigate={handleNavigate}
+                  aportes={aportes}
+                  warehouseItems={warehouseItems}
+                  assets={assets}
+                  warehouses={warehouses}
                 />
               )}
 

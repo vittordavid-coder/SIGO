@@ -1485,6 +1485,27 @@ export const ManagementView = ({
     return [...selectedEqsList].sort((a, b) => b.totalCost - a.totalCost).slice(0, 10);
   }, [selectedEqsList]);
 
+  const eqDataByType = useMemo(() => {
+    const groups: Record<string, { name: string, baseCost: number, maintCost: number, fuelCost: number, totalCost: number }> = {};
+    selectedEqsList.forEach((eq: any) => {
+      const typeName = eq.type || 'Outros';
+      if (!groups[typeName]) {
+        groups[typeName] = {
+          name: typeName,
+          baseCost: 0,
+          maintCost: 0,
+          fuelCost: 0,
+          totalCost: 0
+        };
+      }
+      groups[typeName].baseCost += eq.baseCost || 0;
+      groups[typeName].maintCost += eq.maintCost || 0;
+      groups[typeName].fuelCost += eq.fuelCost || 0;
+      groups[typeName].totalCost += eq.totalCost || 0;
+    });
+    return Object.values(groups).sort((a, b) => b.totalCost - a.totalCost);
+  }, [selectedEqsList]);
+
   const classifiedServices = useMemo(() => {
     const aggregatedMapList = new Map<string, { serviceId: string, quantity: number, priceSum: number, count: number }>();
     contracts.forEach((c: any) => {
@@ -1928,18 +1949,18 @@ export const ManagementView = ({
 
           <Card className="bg-white shadow">
             <CardHeader>
-              <CardTitle className="text-lg font-bold text-slate-800">Top 10 Equipamentos com Maior Custo Integrado</CardTitle>
-              <p className="text-slate-400 text-xs font-bold uppercase tracking-wider">Mostra o preço base mensal somado a custos de manutenção e abastecimento</p>
+              <CardTitle className="text-lg font-bold text-slate-800">Distribuição de Custos por Tipo de Equipamento ({typeLabel})</CardTitle>
+              <p className="text-slate-400 text-xs font-bold uppercase tracking-wider">Agrupado e consolidado pelos tipos de equipamento cadastrados</p>
             </CardHeader>
             <CardContent>
               <div className="h-96 w-full">
-                {top10Equipments.length === 0 ? (
+                {eqDataByType.length === 0 ? (
                   <div className="flex items-center justify-center h-full text-slate-400 italic font-bold uppercase">Nenhum equipamento correspondente para exibir.</div>
                 ) : (
                   <ResponsiveContainer width="100%" height="100%">
-                    <ComposedChart data={top10Equipments} margin={{ top: 10, right: 30, left: 10, bottom: 40 }}>
+                    <ComposedChart data={eqDataByType} margin={{ top: 10, right: 30, left: 10, bottom: 40 }}>
                       <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                      <XAxis dataKey="name" stroke="#94a3b8" fontSize={9} fontStyle="bold" />
+                      <XAxis dataKey="name" stroke="#94a3b8" fontSize={10} fontStyle="bold" />
                       <YAxis stroke="#94a3b8" fontSize={11} />
                       <Tooltip 
                         formatter={(val: any) => [`R$ ${Number(val).toLocaleString()}`]}

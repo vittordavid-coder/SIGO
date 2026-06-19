@@ -996,6 +996,7 @@ export default function ControlView({
     () => ({
       activeEquips: equipments.filter(
         (e) =>
+          e.situation === 'Ativo' &&
           !e.exitDate &&
           (!selectedContractId || e.contractId === selectedContractId),
       ).length,

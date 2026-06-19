@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
-import { Quotation, Resource, ServiceComposition, Contract, Measurement, DailyReport, Employee, TimeRecord, DashboardConfig, User, ControllerTeam, ControllerEquipment, ControllerManpower, Supplier, PurchaseOrder, EquipmentTransfer, PurchaseRequest } from '../types';
+import { Quotation, Resource, ServiceComposition, Contract, Measurement, DailyReport, Employee, TimeRecord, DashboardConfig, User, ControllerTeam, ControllerEquipment, ControllerManpower, Supplier, PurchaseOrder, EquipmentTransfer, PurchaseRequest, Aporte, Asset, WarehouseItem, Warehouse } from '../types';
 import { cn } from '../lib/utils';
 import { HardHat, Truck, Users2, Activity, CreditCard, ShoppingBasket, ShoppingBag, History, ShoppingCart } from 'lucide-react';
 
@@ -31,13 +31,18 @@ interface DashboardProps {
   onUpdateContractId: (id: string | null) => void;
   config: DashboardConfig;
   onNavigate: (tab: any) => void;
+  aportes?: Aporte[];
+  warehouseItems?: WarehouseItem[];
+  assets?: Asset[];
+  warehouses?: Warehouse[];
 }
 
 export function Dashboard({ 
   resources, services, quotations, contracts, measurements, dailyReports, 
   employees, timeRecords, controllerTeams, controllerEquipments, manpowerRecords,
   suppliers, purchaseOrders, purchaseRequests, equipmentTransfers,
-  currentUser, selectedContractId, onUpdateContractId, config, onNavigate 
+  currentUser, selectedContractId, onUpdateContractId, config, onNavigate,
+  aportes = [], warehouseItems = [], assets = [], warehouses = []
 }: DashboardProps) {
   
   // -- Calculations --
@@ -73,7 +78,7 @@ export function Dashboard({
   const awayEmployeesCount = 0; 
 
   // Controlador Metrics
-  const equipmentCount = (controllerEquipments || []).filter(e => !selectedContractId || e.contractId === selectedContractId).length;
+  const equipmentCount = (controllerEquipments || []).filter(e => (!selectedContractId || e.contractId === selectedContractId) && e.situation === 'Ativo').length;
   const maintenanceCount = (controllerEquipments || []).filter(e => (!selectedContractId || e.contractId === selectedContractId) && e.inMaintenance).length;
   const pendingTransfersCount = (equipmentTransfers || []).filter(t => t.status === 'pending' && (!selectedContractId || t.sourceContractId === selectedContractId || t.targetContractId === selectedContractId)).length;
 
@@ -81,6 +86,63 @@ export function Dashboard({
   const requestsCount = (purchaseRequests || []).filter(r => !selectedContractId || r.contractId === selectedContractId).length;
   const ordersCount = (purchaseOrders || []).filter(o => !selectedContractId || o.contractId === selectedContractId).length;
   const trackingCount = (purchaseOrders || []).filter(o => (!selectedContractId || o.contractId === selectedContractId) && o.status === 'sent').length;
+
+  // Financeiro Metrics
+  const filteredAportes = React.useMemo(() => {
+    return (aportes || []).filter(a => {
+      const matchCompany = !currentUser?.companyId || a.companyId === currentUser.companyId;
+      const matchContract = !selectedContractId || selectedContractId === 'all' || a.contractId === selectedContractId || !a.contractId;
+      return matchCompany && matchContract;
+    });
+  }, [aportes, currentUser, selectedContractId]);
+
+  const totalAportesValue = React.useMemo(() => {
+    return filteredAportes.reduce((acc, a) => {
+      const items = a.items || [];
+      return acc + items.reduce((sum, item) => sum + (Number(item.valor) || 0), 0);
+    }, 0);
+  }, [filteredAportes]);
+
+  const currentAporte = React.useMemo(() => {
+    if (filteredAportes.length === 0) return null;
+    const sorted = [...filteredAportes].sort((a, b) => {
+      const dateA = a.data ? new Date(a.data).getTime() : 0;
+      const dateB = b.data ? new Date(b.data).getTime() : 0;
+      if (dateB !== dateA) return dateB - dateA;
+      return (b.numero || '').localeCompare(a.numero || '', undefined, { numeric: true });
+    });
+    return sorted[0];
+  }, [filteredAportes]);
+
+  const currentAporteValue = React.useMemo(() => {
+    if (!currentAporte) return 0;
+    return (currentAporte.items || []).reduce((acc, item) => acc + (Number(item.valor) || 0), 0);
+  }, [currentAporte]);
+
+  // Almoxarife Metrics
+  const filteredWarehouseItems = React.useMemo(() => {
+    return (warehouseItems || []).filter(item => {
+      const wh = (warehouses || []).find(w => w.id === item.warehouseId);
+      const matchCompany = !currentUser?.companyId || item.companyId === currentUser.companyId;
+      const matchContract = !selectedContractId || selectedContractId === 'all' || (wh && wh.contractId === selectedContractId);
+      return matchCompany && matchContract;
+    });
+  }, [warehouseItems, warehouses, currentUser, selectedContractId]);
+
+  const totalStockValue = React.useMemo(() => {
+    return filteredWarehouseItems.reduce((sum, item) => sum + ((item.quantity || 0) * (item.avgPrice || 0)), 0);
+  }, [filteredWarehouseItems]);
+
+  const filteredAssets = React.useMemo(() => {
+    return (assets || []).filter(a => {
+      const matchCompany = !currentUser?.companyId || a.companyId === currentUser.companyId;
+      return matchCompany;
+    });
+  }, [assets, currentUser]);
+
+  const totalAssetValue = React.useMemo(() => {
+    return filteredAssets.reduce((sum, a) => sum + (Number(a.value) || 0), 0);
+  }, [filteredAssets]);
 
   const MetricCard = ({ title, icon: Icon, color, metrics, onClick }: any) => (
     <Card 
@@ -150,11 +212,11 @@ export function Dashboard({
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-8">
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8">
         <MetricCard 
           title="Sala Técnica"
           icon={ClipboardList}
-          color="bg-gradient-to-br from-blue-600 to-blue-800"
+          color="bg-gradient-to-br from-blue-950 to-indigo-900"
           onClick={() => onNavigate('measurements')}
           metrics={[
             { 
@@ -178,7 +240,7 @@ export function Dashboard({
         <MetricCard 
           title="RH"
           icon={Users}
-          color="bg-gradient-to-br from-orange-500 to-orange-700"
+          color="bg-gradient-to-br from-orange-950 to-orange-800"
           onClick={() => onNavigate('rh')}
           metrics={[
             { 
@@ -202,7 +264,7 @@ export function Dashboard({
         <MetricCard 
           title="Controlador"
           icon={Activity}
-          color="bg-gradient-to-br from-emerald-500 to-emerald-700"
+          color="bg-gradient-to-br from-blue-950 to-blue-800"
           onClick={() => onNavigate('control')}
           metrics={[
             { 
@@ -226,7 +288,7 @@ export function Dashboard({
         <MetricCard 
           title="Compras"
           icon={ShoppingCart}
-          color="bg-gradient-to-br from-purple-500 to-purple-700"
+          color="bg-gradient-to-br from-emerald-950 to-emerald-800"
           onClick={() => onNavigate('purchases')}
           metrics={[
             { 
@@ -243,6 +305,54 @@ export function Dashboard({
               label: 'Acompanhamento', 
               value: trackingCount,
               onClick: () => onNavigate({ tab: 'purchases', purchasesTab: 'tracking' })
+            }
+          ]}
+        />
+
+        <MetricCard 
+          title="Financeiro"
+          icon={Landmark}
+          color="bg-gradient-to-br from-emerald-950 to-indigo-900"
+          onClick={() => onNavigate('financeiro')}
+          metrics={[
+            { 
+              label: 'Número de Aportes', 
+              value: filteredAportes.length,
+              onClick: () => onNavigate('financeiro')
+            },
+            { 
+              label: 'Total de Aportes', 
+              value: `R$ ${totalAportesValue.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+              onClick: () => onNavigate('financeiro')
+            },
+            { 
+              label: currentAporte ? `Aporte Atual (${currentAporte.numero})` : 'Aporte Atual', 
+              value: currentAporte ? `R$ ${currentAporteValue.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : 'R$ 0,00',
+              onClick: () => onNavigate('financeiro')
+            }
+          ]}
+        />
+
+        <MetricCard 
+          title="Almoxarifado"
+          icon={Package}
+          color="bg-gradient-to-br from-emerald-950 to-emerald-800"
+          onClick={() => onNavigate('almoxarife')}
+          metrics={[
+            { 
+              label: 'Valor Total do Estoque', 
+              value: `R$ ${totalStockValue.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+              onClick: () => onNavigate('almoxarife')
+            },
+            { 
+              label: 'Valor Total Patrimônio', 
+              value: `R$ ${totalAssetValue.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+              onClick: () => onNavigate('almoxarife')
+            },
+            { 
+              label: 'Solicitações', 
+              value: requestsCount,
+              onClick: () => onNavigate({ tab: 'purchases', purchasesTab: 'requests' })
             }
           ]}
         />
