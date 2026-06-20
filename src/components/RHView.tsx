@@ -1561,6 +1561,7 @@ export default function RHView({
 
   const [isSavingEmployee, setIsSavingEmployee] = useState(false);
   const [saveEmployeeProgress, setSaveEmployeeProgress] = useState<{ step: string; progress: number } | null>(null);
+  const [isRoleFocused, setIsRoleFocused] = useState(false);
 
   const handleAddEmployee = async () => {
     if (!newEmployee.name || !newEmployee.cpf || !newEmployee.admissionDate || !newEmployee.contractId || !newEmployee.role) {
@@ -1831,6 +1832,8 @@ export default function RHView({
     onUpdateEmployees(updatedEmployees);
   };
 
+  const existingRoles = Array.from(new Set(employees.map(e => e.role).filter(Boolean))).sort();
+
   return (
     <div className="p-6 max-w-[1700px] mx-auto space-y-6">
       {/* Header Panel */}
@@ -1865,6 +1868,17 @@ export default function RHView({
         </TabsList>
 
         <TabsContent value="employees">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+            <Card className="border-none shadow-sm bg-orange-50/20">
+              <CardHeader className="pb-2">
+                <CardDescription className="font-medium text-orange-900">Total de Funcionários</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="text-3xl font-black text-gray-900">{employees.filter(e => e.status === 'active').length}</div>
+              </CardContent>
+            </Card>
+          </div>
+
           <Card className="border-none shadow-sm overflow-hidden">
             <CardHeader className="flex flex-row items-center justify-between">
               <div>
@@ -2960,7 +2974,7 @@ export default function RHView({
 
                               <div className="bg-gray-50/50 p-6 rounded-2xl border border-gray-100 space-y-6">
                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                                  <div className="space-y-2 lg:col-span-2">
+                                  <div className="space-y-2 lg:col-span-2 relative">
                                     <Label className="text-sm font-bold text-gray-500 uppercase tracking-wide">
                                       Função / Cargo Pretendido <span className="text-red-500">*</span>
                                     </Label>
@@ -2972,9 +2986,43 @@ export default function RHView({
                                           role: e.target.value,
                                         })
                                       }
+                                      onFocus={() => setIsRoleFocused(true)}
+                                      onBlur={() => {
+                                        setTimeout(() => {
+                                          setIsRoleFocused(false);
+                                        }, 250);
+                                      }}
                                       placeholder="Ex: Operador de Máquinas"
-                                      className="h-11 shadow-sm"
+                                      autoComplete="off"
+                                      className="h-11 shadow-sm focus:ring-blue-500 bg-white"
                                     />
+                                    {isRoleFocused && (() => {
+                                      const term = (newEmployee.role || '').toLowerCase().trim();
+                                      const suggestions = term.length === 0 ? existingRoles : existingRoles.filter(r => r.toLowerCase().includes(term));
+                                      
+                                      if (suggestions.length === 0) return null;
+
+                                      return (
+                                        <div className="absolute left-0 right-0 top-[100%] mt-1 bg-white border border-gray-200 rounded-xl shadow-2xl z-50 max-h-60 overflow-y-auto divide-y divide-gray-50 text-left min-w-[320px]">
+                                          {suggestions.map((suggestion, sIdx) => (
+                                            <button
+                                              key={sIdx}
+                                              type="button"
+                                              onMouseDown={() => {
+                                                setNewEmployee({
+                                                  ...newEmployee,
+                                                  role: suggestion
+                                                });
+                                                setIsRoleFocused(false);
+                                              }}
+                                              className="w-full text-left px-4 py-2 hover:bg-blue-50 transition-colors flex justify-between items-center"
+                                            >
+                                              <span className="text-xs font-bold text-slate-800">{suggestion}</span>
+                                            </button>
+                                          ))}
+                                        </div>
+                                      );
+                                    })()}
                                   </div>
                                   <div className="space-y-2">
                                     <Label className="text-sm font-bold text-gray-500 uppercase tracking-wide">

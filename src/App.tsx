@@ -2990,6 +2990,7 @@ export default function App() {
             if (m.contract_id && !validContractIds.has(m.contract_id)) {
               m.contract_id = null;
             }
+            if (m.alojamento_id === "") m.alojamento_id = null;
 
             if (m.admission_date === "") m.admission_date = null;
             if (m.dismissal_date === "") m.dismissal_date = null;
