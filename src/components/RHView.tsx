@@ -1675,6 +1675,8 @@ export default function RHView({
 
       setSaveEmployeeProgress({ step: "Concluído!", progress: 100 });
       
+      alert("Colaborador salvo com sucesso!");
+      
       setTimeout(() => {
         setIsSavingEmployee(false);
         setSaveEmployeeProgress(null);
