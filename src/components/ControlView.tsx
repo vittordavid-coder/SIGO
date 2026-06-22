@@ -384,7 +384,7 @@ export default function ControlView({
         let importedCount = 0;
 
         data.forEach((row) => {
-          const rawDate = row["Data"] || row["data"] || row["Date"] || row["date"];
+          const rawDate = row["Data"] || row["data"] || row["Date"] || row["date"] || row["#data"];
           if (!rawDate) return;
           
           let dateStr = "";
@@ -392,15 +392,32 @@ export default function ControlView({
              const d = new Date(Math.round((rawDate - 25569) * 86400 * 1000));
              dateStr = d.toISOString().split("T")[0];
           } else {
-             dateStr = String(rawDate).trim();
+             const cleanDateStr = String(rawDate).trim();
+             const ddmmyyyy = cleanDateStr.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
+             if (ddmmyyyy) {
+               const day = ddmmyyyy[1].padStart(2, "0");
+               const month = ddmmyyyy[2].padStart(2, "0");
+               const year = ddmmyyyy[3];
+               dateStr = `${year}-${month}-${day}`;
+             } else {
+               const yyyymmdd = cleanDateStr.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})/);
+               if (yyyymmdd) {
+                 const year = yyyymmdd[1];
+                 const month = yyyymmdd[2].padStart(2, "0");
+                 const day = yyyymmdd[3].padStart(2, "0");
+                 dateStr = `${year}-${month}-${day}`;
+               } else {
+                 dateStr = cleanDateStr;
+               }
+             }
           }
 
           const existingIdx = newDays.findIndex((d) => d.date === dateStr);
           if (existingIdx >= 0) {
-            const rowInit = row["Inicial"] || row["inicial"] || row["Initial Reading"];
-            const rowFinal = row["Final"] || row["final"] || row["Final Reading"];
-            const rowStatus = row["Status"] || row["Situação"] || row["status"] || row["situação"];
-            const rowDiscount = row["Desconto"] || row["Desconta"] || row["desconto"] || row["desconta"];
+            const rowInit = row["Inicial"] || row["inicial"] || row["Initial Reading"] || row["#inicial"];
+            const rowFinal = row["Final"] || row["final"] || row["Final Reading"] || row["#final"];
+            const rowStatus = row["Status"] || row["Situação"] || row["status"] || row["situação"] || row["#status"];
+            const rowDiscount = row["Desconto"] || row["Desconta"] || row["desconto"] || row["desconta"] || row["#desconto"];
 
             if (rowInit !== undefined) newDays[existingIdx].initialReading = Number(rowInit) || 0;
             if (rowFinal !== undefined) newDays[existingIdx].finalReading = Number(rowFinal) || 0;
@@ -1746,17 +1763,32 @@ export default function ControlView({
       const pdfBlob = doc.output('blob');
       const pdfUrl = URL.createObjectURL(pdfBlob);
       try {
-        const printWindow = window.open(pdfUrl, '_blank');
-        if (printWindow) {
-          printWindow.focus();
-        } else {
-          throw new Error("Window open blocked");
-        }
-        setTimeout(() => {
-          URL.revokeObjectURL(pdfUrl);
-        }, 50000);
+        const printIframe = document.createElement('iframe');
+        printIframe.style.position = 'fixed';
+        printIframe.style.right = '0';
+        printIframe.style.bottom = '0';
+        printIframe.style.width = '0';
+        printIframe.style.height = '0';
+        printIframe.style.border = 'none';
+        printIframe.src = pdfUrl;
+        document.body.appendChild(printIframe);
+        
+        printIframe.onload = () => {
+          try {
+            printIframe.contentWindow?.focus();
+            printIframe.contentWindow?.print();
+            setTimeout(() => {
+              document.body.removeChild(printIframe);
+              URL.revokeObjectURL(pdfUrl);
+            }, 60000);
+          } catch (e2) {
+            console.error("Iframe print triggered error:", e2);
+            const printWindow = window.open(pdfUrl, '_blank');
+            printWindow?.focus();
+          }
+        };
       } catch (err) {
-        console.warn("Iframe print setup failed or blocked, downloading PDF as fallback", err);
+        console.warn("Iframe native print failed or blocked, downloading PDF as fallback", err);
         doc.save(`Medicao_${equipment.code || "EQ"}_${measurement.month.replace("/", "-")}.pdf`);
       }
     } else {
@@ -2102,6 +2134,7 @@ export default function ControlView({
     const margin = 15;
     const cw = pageWidth - margin * 2;
 
+    // PAGE 1: EXPORT MANUAL
     // Header Background Accent Bar (Indigo/Blue Slate)
     doc.setFillColor(29, 78, 216);
     doc.rect(margin, margin, cw, 25, "F");
@@ -2110,11 +2143,11 @@ export default function ControlView({
     doc.setTextColor(255, 255, 255);
     doc.setFont("helvetica", "bold");
     doc.setFontSize(13);
-    doc.text("MANUAL DE EXPORTAÇÃO PERSONALIZADA (TAGS)", pageWidth / 2, margin + 10, { align: "center" });
+    doc.text("MANUAL DE INTEGRACAO (EXPORTACAO & IMPORTACAO)", pageWidth / 2, margin + 10, { align: "center" });
     
     doc.setFont("helvetica", "normal");
     doc.setFontSize(9);
-    doc.text("Instruções e Mapeamento de Tags para Criação de Modelos de Medição", pageWidth / 2, margin + 17, { align: "center" });
+    doc.text("Instrucoes e Mapeamento de Tags para Exportacao e de Planilhas de Importacao", pageWidth / 2, margin + 17, { align: "center" });
 
     // Intro Text
     doc.setTextColor(50, 50, 50);
@@ -2125,10 +2158,10 @@ export default function ControlView({
     doc.setFont("helvetica", "normal");
     doc.setFontSize(9.5);
     const introLines = [
-      "O sistema permite exportar a medição do período diretamente dentro do seu próprio arquivo Excel de modelo.",
+      "O sistema permite exportar a medicao do periodo diretamente dentro do seu proprio arquivo Excel de modelo.",
       "Para fazer isso, basta desenhar a sua planilha exatamente como sua empresa precisa, e preencher",
-      "as células com as tags de mapeamento abaixo nas posições desejadas. Ao exportar, o sistema lerá o arquivo,",
-      "substituirá as tags pelos valores reais e preservará todo o seu layout original, estilos, fontes e fórmulas.",
+      "as celulas com as tags de mapeamento abaixo nas posicoes desejadas. Ao exportar, o sistema lera o arquivo,",
+      "substituira as tags pelos valores reais e preservara todo o seu layout original, estilos, fontes e formulas.",
     ];
     let y = margin + 41;
     introLines.forEach(line => {
@@ -2142,18 +2175,18 @@ export default function ControlView({
     doc.text("Tags de Dados do Equipamento - Formato [tag]", margin, y + 5);
     y += 9;
 
-    const eqHeaders = [["Tag no Excel", "Dado Substituído", "Exemplo de Valor Realizada"]];
+    const eqHeaders = [["Tag no Excel", "Dado Substituido", "Exemplo de Valor Realizado"]];
     const eqBody = [
-      ["[codigo]", "Código de Identificação do Ativo", "TR-01"],
-      ["[nome]", "Nome ou Descrição Comercial do Equipamento", "Escavadeira Hidráulica SANY"],
+      ["[codigo]", "Codigo de Identificacao do Ativo", "TR-01"],
+      ["[nome]", "Nome ou Descricao Comercial do Equipamento", "Escavadeira Hidraulica SANY"],
       ["[placa]", "Placa / Registro do Ativo", "ABC-1234"],
-      ["[modelo]", "Modelo específico do fabricante", "SY215C"],
-      ["[unidade]", "Unidade contratual de Medição", "Horímetro (ou Odômetro, etc.)"],
-      ["[preco_contratado]", "Valor financeiro pactuado por unidade", "R$ 150,00"],
-      ["[periodo]", "Intervalo de datas da medição", "01/06/2026 a 30/06/2026"],
-      ["[mes]", "Mês / Ano de referência", "06/2026"],
-      ["[total_unidades]", "Total de unidades / horas produzidas", "180.5"],
-      ["[total_valor]", "Faturamento Total Calculado (unidades * preço)", "R$ 27.075,00"],
+      ["[modelo]", "Modelo especifico do fabricante", "SY215C"],
+      ["[unidade]", "Unidade contratual de Medicao", "Horimetro (ou Odometro, etc.)"],
+      ["[preco_contratado]", "Valor faturamento unitario do ativo", "R$ 150,00"],
+      ["[periodo]", "Intervalo de datas da medicao", "01/06/2026 a 30/06/2026"],
+      ["[mes]", "Mes / Ano de referencia", "06/2026"],
+      ["[total_unidades]", "Total de unidades / horas produzidas", "180.50"],
+      ["[total_valor]", "Faturamento Total Calculado (unidades * preco)", "R$ 27.075,00"],
     ];
 
     autoTable(doc, {
@@ -2171,22 +2204,22 @@ export default function ControlView({
       }
     });
 
-    y = (doc as any).lastAutoTable.finalY + 10;
+    y = (doc as any).lastAutoTable.finalY + 8;
 
     // Columns Tags Table
     doc.setFont("helvetica", "bold");
     doc.setFontSize(11);
-    doc.text("Tags de Lista de Colunas Diárias - Formato #tag", margin, y);
+    doc.text("Tags do Intervalo de Colunas Diarias - Formato #tag", margin, y);
     y += 5;
 
-    const colHeaders = [["Tag no Excel", "Descrição da Coluna (Repete para cada dia)", "Resultado Esperado"]];
+    const colHeaders = [["Tag no Excel", "Descricao da Coluna (Repete para cada dia)", "Resultado Esperado"]];
     const colBody = [
-      ["#data", "Coluna onde serão inseridas as datas do período", "01/06, 02/06, 03/06..."],
-      ["#inicial", "Horímetro / Odômetro Inicial de cada dia", "1020.50, 1025.20..."],
-      ["#final", "Horímetro / Odômetro Final de cada dia", "1025.20, 1032.00..."],
-      ["#producao", "Produção Líquida computada do dia (exclui descontos)", "4.70, 6.80, 0 (caso desconto)"],
-      ["#status", "Situação registrada de trabalho no respectivo dia", "Trabalhando, Chuva, Manutenção..."],
-      ["#desconto", "Se houve aplicação de desconto no dia faturado", "Não, Sim"],
+      ["#data", "Coluna onde serao inseridas as datas do periodo", "01/06, 02/06..."],
+      ["#inicial", "Horimetro / Odometro Inicial do respectivo dia", "1020.50, 1025.20..."],
+      ["#final", "Horimetro / Odometro Final do respectivo dia", "1025.20, 1032.00..."],
+      ["#producao", "Producao Liquida computada do dia (exclui descontos)", "4.70, 6.80..."],
+      ["#status", "Situacao de trabalho registrada naquele dia", "Trabalhando, Chuva..."],
+      ["#desconto", "Se houve faturamento / desconto do dia de operacao", "Nao, Sim"],
     ];
 
     autoTable(doc, {
@@ -2204,36 +2237,127 @@ export default function ControlView({
       }
     });
 
-    y = (doc as any).lastAutoTable.finalY + 10;
-
-    // Golden Rules Card
-    doc.setFillColor(248, 250, 252);
-    doc.setDrawColor(226, 232, 240);
-    doc.setLineWidth(0.5);
-    doc.rect(margin, y, cw, 25, "FD");
-
-    doc.setTextColor(30, 41, 59);
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(9.5);
-    doc.text("Regra Importante sobre Colunas (#tag) :", margin + 5, y + 7);
-    
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(8);
-    const rules = [
-      "- As tags de colunas (#data, #inicial...) preencherão as linhas automaticamente para baixo a partir de sua célula.",
-      "- Mantenha espaço de 31 linhas limpas abaixo destas células para evitar sobrepor outras informações estáticas.",
-    ];
-    let ruleY = y + 13;
-    rules.forEach(rule => {
-      doc.text(rule, margin + 5, ruleY);
-      ruleY += 5;
-    });
-
-    // Footer signature
+    // Footer signature Page 1
     doc.setTextColor(148, 163, 184);
     doc.setFont("helvetica", "italic");
     doc.setFontSize(7.5);
-    doc.text("Manual de Instruções para Modelos Personalizados de Medição - SYNERA", pageWidth / 2, pageHeight - 10, { align: "center" });
+    doc.text("Manual de Instrucoes e Modelos Personalizados (Exportacao) - Pag 1 de 2", pageWidth / 2, pageHeight - 8, { align: "center" });
+
+    // PAGE 2: IMPORT MANUAL AND EXAMPLE
+    doc.addPage();
+    
+    // Header Background Accent Bar (Emerald/Green Teal)
+    doc.setFillColor(5, 150, 105);
+    doc.rect(margin, margin, cw, 25, "F");
+
+    // Title Page 2
+    doc.setTextColor(255, 255, 255);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(13);
+    doc.text("MANUAL DE IMPORTACAO DE MEDICOES POR PLANILHA", pageWidth / 2, margin + 10, { align: "center" });
+    
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
+    doc.text("Criacao de Planilhas e Integracao de Leituras Diarias em Lote via Excel", pageWidth / 2, margin + 17, { align: "center" });
+
+    // Section Intro
+    doc.setTextColor(50, 50, 50);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(11);
+    doc.text("Como Funciona o Sistema de Importacao?", margin, margin + 35);
+
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9.5);
+    const importIntroLines = [
+      "O importador do SYNERA e inteligente e reutiliza a exata mesma nomenclatura das tags do seu modelo.",
+      "Voce pode criar uma planilha do zero ou usar a planilha exportada do proprio modelo personalizado.",
+      "Ao carregar a planilha na tela de medicao de ativos, o sistema cruza as datas e populara as leituras iniciais,",
+      "finais, status de faturamento e descontos diarios automaticamente.",
+    ];
+    let y2 = margin + 41;
+    importIntroLines.forEach(line => {
+      doc.text(line, margin, y2);
+      y2 += 5;
+    });
+
+    // Example Import Layout Header
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(11);
+    doc.text("Exemplo Pratico de Planilha para Importar (#tag)", margin, y2 + 5);
+    y2 += 9;
+
+    const exampleHeaders = [["#data", "#inicial", "#final", "#status", "#desconto"]];
+    const exampleBody = [
+      ["01/06/2026", "1020.50", "1025.20", "Trabalhando", "Nao"],
+      ["02/06/2026", "1025.20", "1032.00", "Trabalhando", "Nao"],
+      ["03/06/2026", "1032.00", "1032.00", "Chuva", "Sim"],
+      ["04/06/2026", "1032.00", "1038.50", "Trabalhando", "Nao"],
+      ["05/06/2026", "1038.50", "1038.50", "Manutencao", "Sim"],
+    ];
+
+    autoTable(doc, {
+      startY: y2,
+      margin: { left: margin, right: margin },
+      head: exampleHeaders,
+      body: exampleBody,
+      theme: "grid",
+      headStyles: { fillColor: [5, 150, 105], fontSize: 8, fontStyle: "bold" },
+      bodyStyles: { fontSize: 8, fontStyle: "normal" },
+      columnStyles: {
+        0: { fontStyle: "bold", cellWidth: 35 },
+        1: { cellWidth: 35 },
+        2: { cellWidth: 35 },
+        3: { cellWidth: 40 },
+        4: { cellWidth: 35 }
+      }
+    });
+
+    y2 = (doc as any).lastAutoTable.finalY + 10;
+
+    // Rules Section
+    doc.setTextColor(50, 50, 50);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(11);
+    doc.text("Regras Criticas e Flexibilidade do Importador:", margin, y2);
+    y2 += 6;
+
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
+    const ruleTexts = [
+      "- FLEXIBILIDADE DE CABECALHOS: O sistema aceita tanto tags (#data, #inicial, #final, #status, #desconto)",
+      "  quanto os nomes correspondentes comuns (Data, Inicial, Final, Status, Desconto).",
+      "- COMPATIBILIDADE DE FORMATO DE DATA: Datas sao aceitas em formato convencional brasileiro DD/MM/AAAA",
+      "  ou padrao ISO AAAA-MM-DD. O sistema cruzara apenas as datas contidas no periodo de medicao ativo.",
+      "- TRATAMENTO FINANCEIRO: Leituras com virgula ou ponto sao detectadas automaticamente como numeros.",
+      "- RECONHECIMENTO DE STATUS: O sistema mapeia os termos 'chuva' para faturar com desconto e 'manutencao'",
+      "  ou status equivalentes aplicando o desconto de faturamento diario correspondente.",
+    ];
+    ruleTexts.forEach(line => {
+      doc.text(line, margin, y2);
+      y2 += 5.5;
+    });
+
+    // Interactive Callout
+    y2 += 3;
+    doc.setFillColor(239, 246, 255);
+    doc.setDrawColor(191, 219, 254);
+    doc.setLineWidth(0.5);
+    doc.rect(margin, y2, cw, 22, "FD");
+
+    doc.setTextColor(30, 64, 175);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(9.5);
+    doc.text("Fluxo Completo de Operacao Sincronizada:", margin + 5, y2 + 7);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8);
+    doc.text("1. Baixe o Modelo -> 2. Insira as Tags [Ativo] e #Colunas -> 3. Exporte a Medicao -> 4. Forneca o arquivo ao motorista/campo", margin + 5, y2 + 13);
+    doc.text("5. Preencha as Leituras e Status -> 6. Importe a planilha preenchida de volta no sistema para atualizar instantaneamente!", margin + 5, y2 + 18);
+
+    // Footer signature Page 2
+    doc.setTextColor(148, 163, 184);
+    doc.setFont("helvetica", "italic");
+    doc.setFontSize(7.5);
+    doc.text("Manual de Instrucoes e Modelos Personalizados (Importacao) - Pag 2 de 2", pageWidth / 2, pageHeight - 8, { align: "center" });
 
     doc.save("Manual_Tags_Modelo_Exportacao.pdf");
   };
