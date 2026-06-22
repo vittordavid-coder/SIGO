@@ -359,6 +359,8 @@ export default function ControlView({
   const [filterOnlyActive, setFilterOnlyActive] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const measurementInputRef = useRef<HTMLInputElement>(null);
+  const exportModelInputRef = useRef<HTMLInputElement>(null);
+  const [isExportSelectorOpen, setIsExportSelectorOpen] = useState(false);
 
   const handleImportMeasurement = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -1528,7 +1530,7 @@ export default function ControlView({
 
       doc.setFontSize(9);
       doc.setFont("helvetica", "bold");
-      doc.text("RELATÓRIO DE MEDIÇÃO TÉCNICA", pageWidth / 2, margin + 20, {
+      doc.text("MEDIÇÃO DE EQUIPAMENTOS", pageWidth / 2, margin + 20, {
         align: "center",
       });
 
@@ -1629,6 +1631,14 @@ export default function ControlView({
     // Two-Column Layout for Production and Fuel
     const colWidth = (contentWidth - 5) / 2;
 
+    // Col 1 & Col 2 Section Titles
+    doc.setFontSize(7.5);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(50, 50, 50);
+    doc.text("PRODUÇÃO DIÁRIA", margin, currentY);
+    doc.text("ABASTECIMENTOS", margin + colWidth + 5, currentY);
+    currentY += 2.5;
+
     // Production Table (Column 1)
     const measurementTableData = getFullPeriodDetails(
       measurement.details || [],
@@ -1657,20 +1667,24 @@ export default function ControlView({
 
     const productionFinalY = (doc as any).lastAutoTable.finalY;
 
-    // Fuel Table (Column 2)
+    // Fuel Table (Column 2) - Render always
+    const fuelBody = relatedFuel.length > 0
+      ? relatedFuel.map((f) => [
+          new Date(f.date).toLocaleDateString("pt-BR", {
+            day: "2-digit",
+            month: "2-digit",
+          }),
+          f.quantity,
+          f.cost ? f.cost.toFixed(2) : "-",
+        ])
+      : [["-", "-", "-"]];
+
     autoTable(doc, {
       startY: currentY,
       margin: { left: margin + colWidth + 5 },
       tableWidth: colWidth,
       head: [["Data", "Qtd (L)", "Custo"]],
-      body: relatedFuel.map((f) => [
-        new Date(f.date).toLocaleDateString("pt-BR", {
-          day: "2-digit",
-          month: "2-digit",
-        }),
-        f.quantity,
-        f.cost ? f.cost.toFixed(2) : "-",
-      ]),
+      body: fuelBody,
       theme: "grid",
       headStyles: { fillColor: [50, 50, 50], fontSize: 6 },
       styles: { fontSize: 6, cellPadding: 1 },
@@ -1679,30 +1693,33 @@ export default function ControlView({
     const fuelFinalY = (doc as any).lastAutoTable.finalY;
     currentY = Math.max(productionFinalY, fuelFinalY) + 5;
 
-    // Maintenance Table (Full Width)
-    if (relatedMaint.length > 0) {
-      doc.setFontSize(7);
-      doc.setFont("helvetica", "bold");
-      doc.text("HISTÓRICO DE MANUTENÇÃO NO PERÍODO", margin, currentY);
-      currentY += 2;
+    // Maintenance Table (Full Width) - Render always
+    doc.setFontSize(7.5);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(50, 50, 50);
+    doc.text("HISTÓRICO DE MANUTENÇÃO NO PERÍODO", margin, currentY);
+    currentY += 2;
 
-      autoTable(doc, {
-        startY: currentY,
-        head: [["Entrada", "Saída", "Tipo", "Descrição"]],
-        body: relatedMaint.map((m) => [
+    const maintBody = relatedMaint.length > 0
+      ? relatedMaint.map((m) => [
           new Date(m.entryDate).toLocaleDateString("pt-BR"),
           m.exitDate
             ? new Date(m.exitDate).toLocaleDateString("pt-BR")
             : "Aberto",
           m.type === "preventive" ? "PREV" : "CORR",
           m.requestedItems || "",
-        ]),
-        theme: "grid",
-        headStyles: { fillColor: [80, 80, 80], fontSize: 6 },
-        styles: { fontSize: 6, cellPadding: 1 },
-      });
-      currentY = (doc as any).lastAutoTable.finalY + 5;
-    }
+        ])
+      : [["-", "-", "-", "Nenhuma manutenção registrada neste período"]];
+
+    autoTable(doc, {
+      startY: currentY,
+      head: [["Entrada", "Saída", "Tipo", "Descrição"]],
+      body: maintBody,
+      theme: "grid",
+      headStyles: { fillColor: [80, 80, 80], fontSize: 6 },
+      styles: { fontSize: 6, cellPadding: 1 },
+    });
+    currentY = (doc as any).lastAutoTable.finalY + 5;
 
     // Totals Summary at the bottom
     const totalY = pageHeight - 25;
@@ -1822,6 +1839,111 @@ export default function ControlView({
       wb,
       `Medicao_${equipment.name}_${measurement.month.replace("/", "-")}.xlsx`,
     );
+  };
+
+  const generateMeasurementFromModel = (
+    file: File,
+    measurement: EquipmentMeasurement,
+    equipment: ControllerEquipment,
+  ) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const data = new Uint8Array(e.target?.result as ArrayBuffer);
+        const workbook = XLSX.read(data, { type: "array" });
+
+        const pStartDay = measurement.period.split(" a ")[0];
+        const pEndDay = measurement.period.split(" a ")[1];
+        const periodDetails = getFullPeriodDetails(
+          measurement.details || [],
+          pStartDay,
+          pEndDay,
+        );
+
+        // Map column details for tag lists (#data, #inicial, #final, #status, #desconto, #producao)
+        const listData: Record<string, any[]> = {
+          "#data": periodDetails.map((day) => new Date(day.date + "T12:00:00").toLocaleDateString("pt-BR")),
+          "#inicial": periodDetails.map((day) => day.initialReading || 0),
+          "#final": periodDetails.map((day) => day.finalReading || 0),
+          "#producao": periodDetails.map((day) => day.discount ? 0 : (day.finalReading - day.initialReading)),
+          "#produção": periodDetails.map((day) => day.discount ? 0 : (day.finalReading - day.initialReading)),
+          "#status": periodDetails.map((day) => day.status || "Trabalhando"),
+          "#desconto": periodDetails.map((day) => day.discount ? "Sim" : "Não"),
+        };
+
+        const singleData: Record<string, string | number> = {
+          "[codigo]": equipment.code || "",
+          "[código]": equipment.code || "",
+          "[nome]": equipment.name || "",
+          "[placa]": equipment.plate || "",
+          "[modelo]": equipment.model || "",
+          "[unidade]": equipment.measurementUnit || "Horímetro",
+          "[preco_contratado]": equipment.contractedPrice || 0,
+          "[preço_contratado]": equipment.contractedPrice || 0,
+          "[periodo]": `${pStartDay} a ${pEndDay}`,
+          "[período]": `${pStartDay} a ${pEndDay}`,
+          "[mes]": measurement.month,
+          "[mês]": measurement.month,
+          "[total_unidades]": measurement.totalUnits || 0,
+          "[total_producao]": measurement.totalUnits || 0,
+          "[total_produção]": measurement.totalUnits || 0,
+          "[total_valor]": measurement.totalValue || 0,
+        };
+
+        workbook.SheetNames.forEach((sheetName) => {
+          const sheet = workbook.Sheets[sheetName];
+          if (!sheet) return;
+
+          const cellKeys = Object.keys(sheet).filter((key) => !key.startsWith("!"));
+
+          cellKeys.forEach((cellKey) => {
+            const cell = sheet[cellKey];
+            if (cell && cell.v !== undefined && cell.v !== null) {
+              const cellValStr = String(cell.v).toLowerCase().trim();
+
+              if (listData[cellValStr]) {
+                const arrayValues = listData[cellValStr];
+                const match = cellKey.match(/^([A-Z]+)(\d+)$/);
+                if (match) {
+                  const colStr = match[1];
+                  const startRow = parseInt(match[2], 10);
+
+                  arrayValues.forEach((val, offset) => {
+                    const targetCellKey = `${colStr}${startRow + offset}`;
+                    sheet[targetCellKey] = {
+                      v: val,
+                      t: typeof val === "number" ? "n" : "s",
+                    };
+                  });
+                }
+              } else if (singleData[cellValStr] !== undefined) {
+                const val = singleData[cellValStr];
+                cell.v = val;
+                cell.t = typeof val === "number" ? "n" : "s";
+                if ('w' in cell) delete (cell as any).w;
+              }
+            }
+          });
+        });
+
+        const finalWbout = XLSX.write(workbook, { bookType: "xlsx", type: "array" });
+        const blob = new Blob([finalWbout], { type: "application/octet-stream" });
+        const filename = `Medicao_Modelo_${equipment.code || "EQ"}_${measurement.month.replace("/", "-")}.xlsx`;
+        
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(blob);
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+
+        alert("Planilha de medição gerada com sucesso a partir do seu modelo!");
+      } catch (err: any) {
+        console.error("Error substituting model tags:", err);
+        alert("Ocorreu um erro ao processar o seu modelo de Excel. Verifique se o arquivo está correto e possua extensões válidas.");
+      }
+    };
+    reader.readAsArrayBuffer(file);
   };
 
   const getActiveMeasurementObject = (): EquipmentMeasurement => {
@@ -1971,6 +2093,149 @@ export default function ControlView({
     doc.text("Documento de Instrução de Importação de Medições - SYNERA", pageWidth / 2, pageHeight - 10, { align: "center" });
 
     doc.save("Manual_Importacao_Medicao.pdf");
+  };
+
+  const downloadExportTagsInstructionsPDF = () => {
+    const doc = new jsPDF() as any;
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    const margin = 15;
+    const cw = pageWidth - margin * 2;
+
+    // Header Background Accent Bar (Indigo/Blue Slate)
+    doc.setFillColor(29, 78, 216);
+    doc.rect(margin, margin, cw, 25, "F");
+
+    // Title
+    doc.setTextColor(255, 255, 255);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(13);
+    doc.text("MANUAL DE EXPORTAÇÃO PERSONALIZADA (TAGS)", pageWidth / 2, margin + 10, { align: "center" });
+    
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
+    doc.text("Instruções e Mapeamento de Tags para Criação de Modelos de Medição", pageWidth / 2, margin + 17, { align: "center" });
+
+    // Intro Text
+    doc.setTextColor(50, 50, 50);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(11);
+    doc.text("Como Funciona o Modelo Personalizado?", margin, margin + 35);
+
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9.5);
+    const introLines = [
+      "O sistema permite exportar a medição do período diretamente dentro do seu próprio arquivo Excel de modelo.",
+      "Para fazer isso, basta desenhar a sua planilha exatamente como sua empresa precisa, e preencher",
+      "as células com as tags de mapeamento abaixo nas posições desejadas. Ao exportar, o sistema lerá o arquivo,",
+      "substituirá as tags pelos valores reais e preservará todo o seu layout original, estilos, fontes e fórmulas.",
+    ];
+    let y = margin + 41;
+    introLines.forEach(line => {
+      doc.text(line, margin, y);
+      y += 5;
+    });
+
+    // Equipment Tags Table
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(11);
+    doc.text("Tags de Dados do Equipamento - Formato [tag]", margin, y + 5);
+    y += 9;
+
+    const eqHeaders = [["Tag no Excel", "Dado Substituído", "Exemplo de Valor Realizada"]];
+    const eqBody = [
+      ["[codigo]", "Código de Identificação do Ativo", "TR-01"],
+      ["[nome]", "Nome ou Descrição Comercial do Equipamento", "Escavadeira Hidráulica SANY"],
+      ["[placa]", "Placa / Registro do Ativo", "ABC-1234"],
+      ["[modelo]", "Modelo específico do fabricante", "SY215C"],
+      ["[unidade]", "Unidade contratual de Medição", "Horímetro (ou Odômetro, etc.)"],
+      ["[preco_contratado]", "Valor financeiro pactuado por unidade", "R$ 150,00"],
+      ["[periodo]", "Intervalo de datas da medição", "01/06/2026 a 30/06/2026"],
+      ["[mes]", "Mês / Ano de referência", "06/2026"],
+      ["[total_unidades]", "Total de unidades / horas produzidas", "180.5"],
+      ["[total_valor]", "Faturamento Total Calculado (unidades * preço)", "R$ 27.075,00"],
+    ];
+
+    autoTable(doc, {
+      startY: y,
+      margin: { left: margin, right: margin },
+      head: eqHeaders,
+      body: eqBody,
+      theme: "striped",
+      headStyles: { fillColor: [30, 41, 59], fontSize: 8, fontStyle: "bold" },
+      bodyStyles: { fontSize: 8 },
+      columnStyles: {
+        0: { fontStyle: "bold", cellWidth: 40 },
+        1: { cellWidth: 80 },
+        2: { cellWidth: 50 },
+      }
+    });
+
+    y = (doc as any).lastAutoTable.finalY + 10;
+
+    // Columns Tags Table
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(11);
+    doc.text("Tags de Lista de Colunas Diárias - Formato #tag", margin, y);
+    y += 5;
+
+    const colHeaders = [["Tag no Excel", "Descrição da Coluna (Repete para cada dia)", "Resultado Esperado"]];
+    const colBody = [
+      ["#data", "Coluna onde serão inseridas as datas do período", "01/06, 02/06, 03/06..."],
+      ["#inicial", "Horímetro / Odômetro Inicial de cada dia", "1020.50, 1025.20..."],
+      ["#final", "Horímetro / Odômetro Final de cada dia", "1025.20, 1032.00..."],
+      ["#producao", "Produção Líquida computada do dia (exclui descontos)", "4.70, 6.80, 0 (caso desconto)"],
+      ["#status", "Situação registrada de trabalho no respectivo dia", "Trabalhando, Chuva, Manutenção..."],
+      ["#desconto", "Se houve aplicação de desconto no dia faturado", "Não, Sim"],
+    ];
+
+    autoTable(doc, {
+      startY: y,
+      margin: { left: margin, right: margin },
+      head: colHeaders,
+      body: colBody,
+      theme: "striped",
+      headStyles: { fillColor: [13, 148, 136], fontSize: 8, fontStyle: "bold" },
+      bodyStyles: { fontSize: 8 },
+      columnStyles: {
+        0: { fontStyle: "bold", cellWidth: 40 },
+        1: { cellWidth: 80 },
+        2: { cellWidth: 50 },
+      }
+    });
+
+    y = (doc as any).lastAutoTable.finalY + 10;
+
+    // Golden Rules Card
+    doc.setFillColor(248, 250, 252);
+    doc.setDrawColor(226, 232, 240);
+    doc.setLineWidth(0.5);
+    doc.rect(margin, y, cw, 25, "FD");
+
+    doc.setTextColor(30, 41, 59);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(9.5);
+    doc.text("Regra Importante sobre Colunas (#tag) :", margin + 5, y + 7);
+    
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8);
+    const rules = [
+      "- As tags de colunas (#data, #inicial...) preencherão as linhas automaticamente para baixo a partir de sua célula.",
+      "- Mantenha espaço de 31 linhas limpas abaixo destas células para evitar sobrepor outras informações estáticas.",
+    ];
+    let ruleY = y + 13;
+    rules.forEach(rule => {
+      doc.text(rule, margin + 5, ruleY);
+      ruleY += 5;
+    });
+
+    // Footer signature
+    doc.setTextColor(148, 163, 184);
+    doc.setFont("helvetica", "italic");
+    doc.setFontSize(7.5);
+    doc.text("Manual de Instruções para Modelos Personalizados de Medição - SYNERA", pageWidth / 2, pageHeight - 10, { align: "center" });
+
+    doc.save("Manual_Tags_Modelo_Exportacao.pdf");
   };
 
   const handleOpenExportModal = (
@@ -7280,30 +7545,20 @@ export default function ControlView({
                     variant="outline"
                     size="sm"
                     onClick={() => generateMeasurementPDF(getActiveMeasurementObject(), selectedEquipment, true)}
-                    className="h-10 px-3 rounded-xl shadow-sm flex items-center gap-1.5 text-white border-white/30 bg-white/10 hover:bg-white/20 cursor-pointer"
+                    className="h-10 px-3 rounded-xl shadow-sm flex items-center gap-1.5 text-white border-white/30 bg-white/10 hover:bg-white/20 cursor-pointer font-bold"
                     title="Imprimir Medição"
                   >
-                    <Printer className="w-4 h-4" /> Imprimir
+                    <Printer className="w-4 h-4 text-purple-300" /> Imprimir
                   </Button>
 
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => generateMeasurementPDF(getActiveMeasurementObject(), selectedEquipment)}
-                    className="h-10 px-3 rounded-xl shadow-sm flex items-center gap-1.5 text-white border-white/30 bg-white/10 hover:bg-white/20 cursor-pointer"
-                    title="Exportar como PDF"
+                    onClick={() => setIsExportSelectorOpen(true)}
+                    className="h-10 px-4 rounded-xl shadow-sm flex items-center gap-1.5 text-white border-white/30 bg-white/10 hover:bg-white/20 cursor-pointer font-bold"
+                    title="Exportar medição nos formatos PDF, Excel ou Modelo Personalizado"
                   >
-                    <Download className="w-4 h-4" /> Exportar PDF
-                  </Button>
-
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => generateMeasurementExcel(getActiveMeasurementObject(), selectedEquipment)}
-                    className="h-10 px-3 rounded-xl shadow-sm flex items-center gap-1.5 text-white border-white/30 bg-white/10 hover:bg-white/20 cursor-pointer"
-                    title="Exportar como Excel"
-                  >
-                    <FileText className="w-4 h-4" /> Exportar Excel
+                    <Download className="w-4 h-4 text-blue-300" /> Exportar Medição
                   </Button>
 
                   <Button
@@ -7312,7 +7567,7 @@ export default function ControlView({
                     onClick={() => measurementInputRef.current?.click()}
                     className="h-10 px-4 rounded-xl shadow-sm flex items-center gap-2 text-white border-white/30 bg-white/10 hover:bg-white/20 cursor-pointer"
                   >
-                    <Upload className="w-4 h-4" /> Importar Planilha
+                    <Upload className="w-4 h-4 text-emerald-300" /> Importar Planilha
                   </Button>
                   <input
                     type="file"
@@ -7338,59 +7593,6 @@ export default function ControlView({
             <div className="flex-1 overflow-hidden flex flex-col lg:flex-row bg-slate-50/50">
               {/* Left Side: Daily Readings list */}
               <div className="flex-1 overflow-y-auto p-6 space-y-4">
-                {/* Sistema de Tags para Importação */}
-                <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-100 rounded-2xl p-5 space-y-3 shadow-sm text-left">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-blue-200/40 pb-2">
-                    <div className="flex items-center gap-2">
-                      <Tag className="w-4 h-4 text-blue-600 animate-pulse" />
-                      <h4 className="font-extrabold text-blue-900 text-xs uppercase tracking-wider">
-                        Tags das Colunas para Importação
-                      </h4>
-                    </div>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={downloadImportInstructionsPDF}
-                      className="bg-white hover:bg-blue-100 border-blue-200 text-blue-700 font-extrabold h-8 px-3 rounded-xl transition flex items-center gap-1.5 text-[11px] shadow-sm cursor-pointer"
-                    >
-                      <FileText className="w-3.5 h-3.5" /> Baixar Instruções (PDF)
-                    </Button>
-                  </div>
-                  
-                  <p className="text-xs text-slate-600 leading-normal">
-                    Mapeie as colunas da sua planilha utilizando as tags abaixo. Toque em qualquer tag para copiá-la:
-                  </p>
-                  
-                  <div className="flex flex-wrap gap-2 pt-1">
-                    {[
-                      { tag: "[Data]", desc: "Data da leitura (Ex: 01/06/2026)", req: true },
-                      { tag: "[Inicial]", desc: "Leitura inicial no início do dia", req: true },
-                      { tag: "[Final]", desc: "Leitura final do dia", req: true },
-                      { tag: "[Status]", desc: "Operação (Trabalhando, Chuva, Manutenção...)", req: false },
-                      { tag: "[Desconto]", desc: "Aplicar desconto de horas/km (Sim / Não)", req: false },
-                    ].map((item) => (
-                      <div
-                        key={item.tag}
-                        onClick={() => {
-                          navigator.clipboard.writeText(item.tag);
-                          alert(`Tag "${item.tag}" copiada para a área de transferência!`);
-                        }}
-                        className="group relative flex items-center gap-2 bg-white hover:bg-blue-50/50 hover:border-blue-400 border border-slate-200 px-3 py-1.5 rounded-xl cursor-pointer transition-all active:scale-95 shadow-sm"
-                        title={item.desc}
-                      >
-                        <span className="font-mono font-bold text-blue-700 text-xs">
-                          {item.tag}
-                        </span>
-                        {item.req ? (
-                          <span className="text-[8px] bg-red-100 text-red-600 px-1.5 py-0.5 rounded-md font-black uppercase tracking-wider">Obrigatório</span>
-                        ) : (
-                          <span className="text-[8px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded-md font-black uppercase tracking-wider">Opcional</span>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
                 <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
                   <h3 className="text-base font-black text-slate-800 uppercase tracking-wider mb-4 flex items-center gap-2">
                     <Calendar className="w-5 h-5 text-blue-600" /> Leituras Diárias
@@ -7508,106 +7710,173 @@ export default function ControlView({
                 </div>
               </div>
 
-              {/* Right Side: Fuel & Maintenance details in selected period */}
+              {/* Right Side: Equipment details, Maintenance underneath, and Fuel logs at the bottom */}
               <div className="w-full lg:w-[420px] bg-white border-l border-slate-100 p-6 overflow-y-auto flex flex-col gap-6 shrink-0 shadow-inner">
-                {/* Abastecimento Card */}
-                <div className="bg-slate-50 border border-slate-100 rounded-3xl p-5 flex flex-col space-y-4">
-                  <div className="flex items-center justify-between border-b border-gray-200/50 pb-3">
-                    <div className="flex items-center gap-3">
-                      <div className="p-2.5 bg-indigo-50 text-indigo-600 rounded-2xl border border-indigo-100">
-                        <Fuel className="w-5 h-5 animate-pulse" />
+                
+                {/* Quadro de Equipamento Card */}
+                <div className="bg-slate-50 border border-slate-150 rounded-3xl p-5 flex flex-col space-y-4">
+                  <div className="flex items-center justify-between border-b border-gray-255 pb-2.5">
+                    <div className="flex items-center gap-2.5">
+                      <div className="p-2 bg-blue-50 text-blue-600 rounded-2xl border border-blue-100">
+                        <Truck className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <h4 className="font-extrabold text-slate-800 tracking-tight text-base">Ativo de Equipamento</h4>
+                        <p className="text-slate-400 text-[10px] font-bold uppercase tracking-wider">Identificação do Equipamento</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2 text-xs">
+                    <div className="flex justify-between items-center pb-1.5 border-b border-slate-100">
+                      <span className="text-slate-400 font-bold uppercase tracking-widest text-[9px] heading-title">Nome / Modelo</span>
+                      <span className="font-bold text-slate-800 text-right max-w-[200px] truncate" title={`${selectedEquipment.name} (${selectedEquipment.model})`}>
+                        {selectedEquipment.name}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center pb-1.5 border-b border-slate-100">
+                      <span className="text-slate-400 font-bold uppercase tracking-widest text-[9px] heading-title">Código</span>
+                      <span className="font-bold text-slate-800 font-mono">{selectedEquipment.code || "S/C"}</span>
+                    </div>
+                    <div className="flex justify-between items-center pb-1.5 border-b border-slate-100">
+                      <span className="text-slate-400 font-bold uppercase tracking-widest text-[9px] heading-title">Placa</span>
+                      <span className="font-bold text-slate-800 font-mono">{selectedEquipment.plate || "-"}</span>
+                    </div>
+                    <div className="flex justify-between items-center pb-1.5 border-b border-slate-100">
+                      <span className="text-slate-400 font-bold uppercase tracking-widest text-[9px] heading-title">Preço Contratado</span>
+                      <span className="font-bold text-slate-800">
+                        {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(selectedEquipment.contractedPrice || 0)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-slate-400 font-bold uppercase tracking-widest text-[9px] heading-title">Unidade</span>
+                      <span className="px-2 py-0.5 rounded bg-slate-200 text-slate-700 font-bold text-[10px] uppercase font-mono">
+                        {selectedEquipment.measurementUnit || "Horímetro"}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Quadro de Manutenção Card (displayed BELOW the equipment details card) */}
+                <div className="bg-slate-50 border border-slate-150 rounded-3xl p-5 flex flex-col space-y-4">
+                  <div className="flex items-center justify-between border-b border-gray-255 pb-2.5">
+                    <div className="flex items-center gap-2.5">
+                      <div className="p-2 bg-orange-50 text-orange-600 rounded-2xl border border-orange-100">
+                        <Wrench className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <h4 className="font-extrabold text-slate-800 tracking-tight text-base">Manutenções</h4>
+                        <p className="text-slate-400 text-[10px] font-bold uppercase tracking-wider">{periodMaintenances.length} registros no período</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="bg-white p-3 rounded-2xl border border-slate-100 shadow-sm flex justify-between items-center">
+                    <span className="text-slate-400 text-[10px] font-bold uppercase tracking-wider">Custo Manutenção</span>
+                    <span className="text-sm font-black text-orange-600 font-mono">
+                      {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(totalMaintenanceCost)}
+                    </span>
+                  </div>
+
+                  <div className="overflow-x-auto">
+                    <Table className="w-full border-collapse">
+                      <TableHeader className="bg-slate-100">
+                        <TableRow className="border-b border-slate-200">
+                          <TableHead className="py-1.5 px-2 text-[10px] font-bold uppercase text-slate-500 w-[70px]">Data</TableHead>
+                          <TableHead className="py-1.5 px-2 text-[10px] font-bold uppercase text-slate-500">Descrição</TableHead>
+                          <TableHead className="py-1.5 px-2 text-[10px] font-bold uppercase text-slate-500 text-right w-[90px]">Valor</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {periodMaintenances.length > 0 ? (
+                          periodMaintenances.map((m) => (
+                            <TableRow key={m.id} className="border-b border-slate-100 hover:bg-white/80 transition-colors">
+                              <TableCell className="py-1.5 px-2 text-[11px] font-medium text-slate-600 font-mono">
+                                {new Date(m.entryDate + "T12:00:00").toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" })}
+                              </TableCell>
+                              <TableCell className="py-1.5 px-2 text-[11px] text-slate-600 max-w-[130px] truncate" title={m.requestedItems}>
+                                {m.requestedItems || "Sem descrição"}
+                              </TableCell>
+                              <TableCell className="py-1.5 px-2 text-[11px] font-mono text-right text-orange-600 font-bold">
+                                {m.totalCost ? new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(m.totalCost) : "R$ 0,00"}
+                              </TableCell>
+                            </TableRow>
+                          ))
+                        ) : (
+                          <TableRow>
+                            <TableCell colSpan={3} className="text-center text-[10.5px] text-slate-400 py-6 italic bg-white/40">
+                              Nenhuma manutenção registrada
+                            </TableCell>
+                          </TableRow>
+                        )}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </div>
+
+                {/* Quadro de Abastecimento Card */}
+                <div className="bg-slate-50 border border-slate-150 rounded-3xl p-5 flex flex-col space-y-4">
+                  <div className="flex items-center justify-between border-b border-gray-255 pb-2.5">
+                    <div className="flex items-center gap-2.5">
+                      <div className="p-2 bg-indigo-50 text-indigo-600 rounded-2xl border border-indigo-100">
+                        <Fuel className="w-5 h-5" />
                       </div>
                       <div>
                         <h4 className="font-extrabold text-slate-800 tracking-tight text-base">Abastecimentos</h4>
-                        <p className="text-slate-400 text-xs font-medium uppercase tracking-wider">{periodFuelLogs.length} registros no período</p>
+                        <p className="text-slate-400 text-[10px] font-bold uppercase tracking-wider">{periodFuelLogs.length} registros no período</p>
                       </div>
                     </div>
                   </div>
 
                   <div className="grid grid-cols-2 gap-3">
-                    <div className="bg-white p-3 rounded-2xl border border-slate-100/80 shadow-sm">
-                      <span className="text-slate-400 text-[10px] font-bold uppercase tracking-wider block">Total Abastecido</span>
-                      <span className="text-lg font-black text-indigo-700 font-mono leading-tight">{totalFuelLiters.toLocaleString("pt-BR")} L</span>
+                    <div className="bg-white p-2.5 rounded-2xl border border-slate-100 shadow-sm">
+                      <span className="text-slate-400 text-[9px] font-bold uppercase tracking-wider block">Total Abastecido</span>
+                      <span className="text-sm font-black text-indigo-700 font-mono leading-tight">{totalFuelLiters.toLocaleString("pt-BR")} L</span>
                     </div>
-                    <div className="bg-white p-3 rounded-2xl border border-slate-100/80 shadow-sm">
-                      <span className="text-slate-400 text-[10px] font-bold uppercase tracking-wider block">Custo Estimado</span>
-                      <span className="text-lg font-black text-slate-700 font-mono leading-tight">
+                    <div className="bg-white p-2.5 rounded-2xl border border-slate-100 shadow-sm">
+                      <span className="text-slate-400 text-[9px] font-bold uppercase tracking-wider block">Custo Estimado</span>
+                      <span className="text-sm font-black text-slate-700 font-mono leading-tight">
                         {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(totalFuelCost)}
                       </span>
                     </div>
                   </div>
 
-                  {periodFuelLogs.length > 0 ? (
-                    <div className="space-y-2 max-h-[160px] overflow-y-auto pr-1">
-                      {periodFuelLogs.map((log) => (
-                        <div key={log.id} className="bg-white px-3 py-2 rounded-xl border border-slate-100 text-xs flex justify-between items-center shadow-sm">
-                          <div className="flex flex-col">
-                            <span className="font-bold text-slate-700">
-                              {new Date(log.date + "T12:00:00").toLocaleDateString("pt-BR")}
-                            </span>
-                            {log.hourMeter !== undefined && (
-                              <span className="text-[10px] text-slate-400">Leitura: {log.hourMeter}h/km</span>
-                            )}
-                          </div>
-                          <span className="font-extrabold text-indigo-600 font-mono bg-indigo-50 px-2 py-1 rounded-lg">
-                            {log.quantity} L
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="text-xs text-center text-slate-400 py-3 italic">Nenhum abastecimento no período.</p>
-                  )}
+                  <div className="overflow-x-auto">
+                    <Table className="w-full border-collapse">
+                      <TableHeader className="bg-slate-100">
+                        <TableRow className="border-b border-slate-200">
+                          <TableHead className="py-1.5 px-2 text-[10px] font-bold uppercase text-slate-500 w-[70px]">Data</TableHead>
+                          <TableHead className="py-1.5 px-2 text-[10px] font-bold uppercase text-slate-500 text-right">Qtd (L)</TableHead>
+                          <TableHead className="py-1.5 px-2 text-[10px] font-bold uppercase text-slate-500 text-right w-[100px]">Valor</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {periodFuelLogs.length > 0 ? (
+                          periodFuelLogs.map((log) => (
+                            <TableRow key={log.id} className="border-b border-slate-100 hover:bg-white/80 transition-colors">
+                              <TableCell className="py-1.5 px-2 text-[11px] font-medium text-slate-600 font-mono">
+                                {new Date(log.date + "T12:00:00").toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" })}
+                              </TableCell>
+                              <TableCell className="py-1.5 px-2 text-[11px] font-mono text-right text-slate-600">
+                                {log.quantity} L
+                              </TableCell>
+                              <TableCell className="py-1.5 px-2 text-[11px] font-mono text-right text-indigo-600 font-bold">
+                                {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(log.cost || (log.quantity * (log.unitPrice || 0)) || 0)}
+                              </TableCell>
+                            </TableRow>
+                          ))
+                        ) : (
+                          <TableRow>
+                            <TableCell colSpan={3} className="text-center text-[10.5px] text-slate-400 py-6 italic bg-white/40">
+                              Nenhum abastecimento registrado
+                            </TableCell>
+                          </TableRow>
+                        )}
+                      </TableBody>
+                    </Table>
+                  </div>
                 </div>
 
-                {/* Manutenção Card */}
-                <div className="bg-slate-50 border border-slate-100 rounded-3xl p-5 flex flex-col space-y-4">
-                  <div className="flex items-center justify-between border-b border-gray-200/50 pb-3">
-                    <div className="flex items-center gap-3">
-                      <div className="p-2.5 bg-orange-50 text-orange-600 rounded-2xl border border-orange-100">
-                        <Wrench className="w-5 h-5" />
-                      </div>
-                      <div>
-                        <h4 className="font-extrabold text-slate-800 tracking-tight text-base">Manutenções</h4>
-                        <p className="text-slate-400 text-xs font-medium uppercase tracking-wider">{periodMaintenances.length} chamados no período</p>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="bg-white p-3.5 rounded-2xl border border-slate-100/80 shadow-sm flex justify-between items-center">
-                    <span className="text-slate-400 text-[10px] font-bold uppercase tracking-wider block">Custo de Manutenção</span>
-                    <span className="text-lg font-black text-orange-600 font-mono">
-                      {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(totalMaintenanceCost)}
-                    </span>
-                  </div>
-
-                  {periodMaintenances.length > 0 ? (
-                    <div className="space-y-2 max-h-[160px] overflow-y-auto pr-1">
-                      {periodMaintenances.map((m) => (
-                        <div key={m.id} className="bg-white p-3 rounded-xl border border-slate-100 text-xs space-y-1 shadow-sm">
-                          <div className="flex justify-between items-center border-b border-slate-50 pb-1.5 mb-1.5">
-                            <span className="font-bold text-slate-700">
-                              {new Date(m.entryDate + "T12:00:00").toLocaleDateString("pt-BR")}
-                            </span>
-                            <span className={`px-2 py-0.5 rounded-full font-black uppercase text-[9px] ${
-                              m.type === "preventive" ? "bg-green-50 text-green-600 border border-green-200/50" : "bg-red-50 text-red-600 border border-red-200/50"
-                            }`}>
-                              {m.type === "preventive" ? "Prev" : "Corr"}
-                            </span>
-                          </div>
-                          <p className="text-slate-500 truncate" title={m.requestedItems}>{m.requestedItems}</p>
-                          {m.totalCost !== undefined && (
-                            <span className="text-[10px] font-bold text-slate-400 block text-right">
-                              Custo: {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(m.totalCost)}
-                            </span>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="text-xs text-center text-slate-400 py-3 italic">Nenhuma manutenção no período.</p>
-                  )}
-                </div>
               </div>
             </div>
 
@@ -8943,6 +9212,139 @@ export default function ControlView({
               </div>
             );
           })()}
+      </Modal>
+
+      <Modal
+        isOpen={isExportSelectorOpen}
+        onClose={() => setIsExportSelectorOpen(false)}
+        title="Exportar Medição"
+        description={selectedEquipment ? `Escolha o formato de saída para o ativo ${selectedEquipment.name}` : "Selecione o formato de exportação"}
+        hideCancel={true}
+        className="sm:max-w-[650px]"
+      >
+        <div className="space-y-6 p-1">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {/* option 1: PDF */}
+            <button
+              onClick={() => {
+                const measurement = getActiveMeasurementObject();
+                if (measurement && selectedEquipment) {
+                  generateMeasurementPDF(measurement, selectedEquipment);
+                }
+                setIsExportSelectorOpen(false);
+              }}
+              className="flex flex-col items-center justify-center border-2 border-slate-100 hover:border-red-500 hover:bg-red-50/20 p-5 rounded-2xl transition group text-center cursor-pointer"
+            >
+              <div className="w-12 h-12 rounded-xl bg-red-50 text-red-600 flex items-center justify-center border border-red-100 group-hover:scale-110 transition-transform mb-3">
+                <FileText className="w-6 h-6" />
+              </div>
+              <span className="font-extrabold text-slate-800 text-sm">Relatório PDF</span>
+              <span className="text-slate-400 text-[10px] mt-1">Gera o PDF oficial com assinaturas</span>
+            </button>
+
+            {/* option 2: EXCEL standard */}
+            <button
+              onClick={() => {
+                const measurement = getActiveMeasurementObject();
+                if (measurement && selectedEquipment) {
+                  generateMeasurementExcel(measurement, selectedEquipment);
+                }
+                setIsExportSelectorOpen(false);
+              }}
+              className="flex flex-col items-center justify-center border-2 border-slate-100 hover:border-emerald-600 hover:bg-emerald-50/20 p-5 rounded-2xl transition group text-center cursor-pointer"
+            >
+              <div className="w-12 h-12 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center border border-emerald-100 group-hover:scale-110 transition-transform mb-3">
+                <Download className="w-6 h-6" />
+              </div>
+              <span className="font-extrabold text-slate-800 text-sm">Planilha Excel</span>
+              <span className="text-slate-400 text-[10px] mt-1">Agrupa produção, abastecimentos e manutenções</span>
+            </button>
+
+            {/* option 3: EXCEL Custom Template */}
+            <button
+              onClick={() => {
+                exportModelInputRef.current?.click();
+              }}
+              className="flex flex-col items-center justify-center border-2 border-slate-100 hover:border-blue-600 hover:bg-blue-50/20 p-5 rounded-2xl transition group text-center cursor-pointer"
+            >
+              <div className="w-12 h-12 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center border border-blue-100 group-hover:scale-110 transition-transform mb-3">
+                <Tag className="w-6 h-6" />
+              </div>
+              <span className="font-extrabold text-slate-800 text-sm font-sans">Carregar Modelo</span>
+              <span className="text-slate-400 text-[10px] mt-1">Carrega o seu próprio Excel modelo e atualiza as tags #</span>
+            </button>
+          </div>
+
+          <input
+            type="file"
+            ref={exportModelInputRef}
+            className="hidden"
+            accept=".xlsx,.xls"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              const measurement = getActiveMeasurementObject();
+              if (file && measurement && selectedEquipment) {
+                generateMeasurementFromModel(file, measurement, selectedEquipment);
+                setIsExportSelectorOpen(false);
+              }
+              e.target.value = ""; // clear so user can select same file again
+            }}
+          />
+
+          <div className="bg-slate-50 p-4 rounded-xl text-xs space-y-2 text-slate-600 border border-slate-105">
+            <p className="font-bold text-slate-800">Dica sobre a Substituição de Tags do Modelo:</p>
+            <p>Selecione um arquivo de modelo Excel (.xlsx) de seu computador. O sistema irá varrer todas as planilhas e substituir as tags pelos dados correspondentes:</p>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2">
+              <div className="space-y-1">
+                <p className="font-bold text-slate-700 text-[11px]">Dados do Equipamento: [dado]</p>
+                <div className="grid grid-cols-1 gap-1 font-mono text-[10px] text-blue-700 bg-white p-2 rounded-lg border border-slate-200">
+                  <div><span className="font-bold text-slate-600">[nome]</span> - nome equipamento</div>
+                  <div><span className="font-bold text-slate-600">[codigo]</span> - cod. do ativo</div>
+                  <div><span className="font-bold text-slate-600">[placa]</span> - placa do ativo</div>
+                  <div><span className="font-bold text-slate-600">[modelo]</span> - modelo ativo</div>
+                  <div><span className="font-bold text-slate-600">[unidade]</span> - un. de medida</div>
+                  <div><span className="font-bold text-slate-600">[total_unidades]</span> - total produzido</div>
+                  <div><span className="font-bold text-slate-600">[total_valor]</span> - faturamento total</div>
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <p className="font-bold text-slate-700 text-[11px]">Colunas da Medição: #coluna</p>
+                <div className="grid grid-cols-1 gap-1 font-mono text-[10px] text-emerald-700 bg-white p-2 rounded-lg border border-slate-200">
+                  <div><span className="font-bold text-slate-600">#data</span> - coluna datas diárias</div>
+                  <div><span className="font-bold text-slate-600">#inicial</span> - leituras iniciais</div>
+                  <div><span className="font-bold text-slate-600">#final</span> - leituras finais</div>
+                  <div><span className="font-bold text-slate-600">#producao</span> - produção líquida</div>
+                  <div><span className="font-bold text-slate-600">#status</span> - status do dia</div>
+                  <div><span className="font-bold text-slate-600">#desconto</span> - se houve desconto</div>
+                </div>
+              </div>
+            </div>
+            
+            <div className="pt-2">
+              <Button
+                variant="outline"
+                onClick={downloadExportTagsInstructionsPDF}
+                className="w-full h-11 rounded-xl shadow-sm border-blue-200 text-blue-700 hover:bg-blue-50/50 flex items-center justify-center gap-2 font-bold transition duration-200 text-xs cursor-pointer"
+                title="Baixar PDF com as Instruções de todas as Tags [Equipamento] e #Colunas"
+              >
+                <FileText className="w-4 h-4 text-blue-600" /> Baixar Manual de Instruções das Tags (PDF)
+              </Button>
+            </div>
+          </div>
+          
+          <div className="flex justify-end pt-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsExportSelectorOpen(false)}
+              className="px-6 py-2 rounded-xl text-slate-500 font-bold border-slate-200 hover:bg-slate-100 cursor-pointer"
+            >
+              Fechar Janela
+            </Button>
+          </div>
+        </div>
       </Modal>
 
       <Dialog open={isApplyStockOpen} onOpenChange={setIsApplyStockOpen}>
