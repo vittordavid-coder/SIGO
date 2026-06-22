@@ -701,6 +701,7 @@ export interface Supplier {
   registrationNumber: string;
   supplierCode: string;
   activity: string;
+  category?: string;
   name: string;
   contact: string;
   nextel: string;

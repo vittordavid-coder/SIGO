@@ -1090,6 +1090,21 @@ function SuppliersTab({ suppliers, setSuppliers, compId, contracts }: { supplier
   });
   const [groupByObra, setGroupByObra] = useState(true);
 
+  const existingCategories = useMemo(() => {
+    const cats = new Set<string>();
+    cats.add("Posto de Combustivel");
+    cats.add("Equipamentos");
+    cats.add("Serviços");
+    cats.add("Material de Construção");
+    cats.add("Ferramentas");
+    suppliers.forEach(s => {
+      if (s.category && s.category.trim()) {
+        cats.add(s.category.trim());
+      }
+    });
+    return Array.from(cats);
+  }, [suppliers]);
+
   const handleSave = () => {
     if (!currentSupplier.name) {
       alert('O nome do fornecedor é obrigatório.');
@@ -1284,7 +1299,7 @@ function SuppliersTab({ suppliers, setSuppliers, compId, contracts }: { supplier
                   />
                 </div>
 
-                <div className="space-y-2 col-span-2">
+                <div className="space-y-2 col-span-1">
                   <Label className="text-base font-semibold text-gray-700">Atividade</Label>
                   <Input 
                     className="bg-gray-50 border-gray-200 focus:border-blue-500 rounded-lg" 
@@ -1292,6 +1307,22 @@ function SuppliersTab({ suppliers, setSuppliers, compId, contracts }: { supplier
                     value={currentSupplier.activity || ''} 
                     onChange={e => setCurrentSupplier({...currentSupplier, activity: e.target.value})}
                   />
+                </div>
+
+                <div className="space-y-2 col-span-1">
+                  <Label className="text-base font-semibold text-gray-700">Categoria</Label>
+                  <Input 
+                    className="bg-gray-50 border-gray-200 focus:border-blue-500 rounded-lg animate-fade-in" 
+                    placeholder="Digite ou selecione..."
+                    value={currentSupplier.category || ''} 
+                    onChange={e => setCurrentSupplier({...currentSupplier, category: e.target.value})}
+                    list="supplier-categories-list"
+                  />
+                  <datalist id="supplier-categories-list">
+                    {existingCategories.map((cat, idx) => (
+                      <option key={idx} value={cat} />
+                    ))}
+                  </datalist>
                 </div>
 
                 <div className="space-y-2">
@@ -4141,7 +4172,14 @@ function SupplierTable({
                 <Mail className="w-3 h-3" /> {supplier.emailWebsite || 'N/I'}
               </div>
             </TableCell>
-            <TableCell className="text-base text-gray-600">{supplier.activity}</TableCell>
+            <TableCell className="text-base text-gray-600">
+              <div className="font-bold">{supplier.activity}</div>
+              {supplier.category && (
+                <Badge variant="outline" className="text-xs font-semibold bg-blue-50/50 text-blue-600 border-blue-100 mt-1">
+                  {supplier.category}
+                </Badge>
+              )}
+            </TableCell>
             <TableCell>
               <div className="text-base">{supplier.contact || 'N/I'}</div>
               <div className="text-base text-gray-500 flex items-center gap-1 mt-1">

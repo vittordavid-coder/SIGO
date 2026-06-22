@@ -4598,6 +4598,8 @@ export default function App() {
                   fuelLogs={fuelLogs}
                   setFuelLogs={updateFuelLogs}
                   onDeleteFuelLog={deleteFuelLog}
+                  suppliers={suppliers}
+                  setSuppliers={setSuppliers}
                   initialTab={activeControlTab}
                   companyLogo={companyLogo}
                   companyLogoRight={companyLogoRight}

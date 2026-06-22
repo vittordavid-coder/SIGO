@@ -63,6 +63,7 @@ import {
   ServiceHistoryEntry,
   EquipmentMeasurement,
   DailyEquipmentMeasurement,
+  Supplier,
 } from "../types";
 import {
   EQUIPMENT_TYPES,
@@ -104,6 +105,8 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
+  SelectGroup,
+  SelectLabel,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
@@ -159,6 +162,8 @@ interface ControlViewProps {
   setApplications?: React.Dispatch<React.SetStateAction<any[]>>;
   systemConfig?: any[];
   setSystemConfig?: React.Dispatch<React.SetStateAction<any[]>>;
+  suppliers?: Supplier[];
+  setSuppliers?: (val: Supplier[] | ((prev: Supplier[]) => Supplier[])) => void;
 }
 
 export default function ControlView({
@@ -195,6 +200,8 @@ export default function ControlView({
   setApplications,
   systemConfig = [],
   setSystemConfig,
+  suppliers = [],
+  setSuppliers,
 }: ControlViewProps) {
   const [activeTab, setActiveTab] = React.useState(initialTab || "list");
 
@@ -275,11 +282,26 @@ export default function ControlView({
   });
   const [customFuel, setCustomFuel] = useState("");
   const [openDest, setOpenDest] = useState(false);
+  const [destSearch, setDestSearch] = useState("");
+  const [isDestFocused, setIsDestFocused] = useState(false);
+  const [isNewSupplierModalOpen, setIsNewSupplierModalOpen] = useState(false);
+  const [newSupplierName, setNewSupplierName] = useState("");
 
   const handleEditFuelLog = (log: FuelLog) => {
     setEditingFuelLogId(log.id);
     setNewFuelLog({ ...log });
     setIsFuelLogModalOpen(true);
+    const eq = equipments.find((e) => e.id === log.equipmentId);
+    if (eq) {
+      setDestSearch(`${eq.name} (${eq.plate})`);
+    } else {
+      const tk = fuelTanks.find((t) => t.id === log.equipmentId);
+      if (tk) {
+        setDestSearch(`Reservatório: ${tk.name}`);
+      } else {
+        setDestSearch("");
+      }
+    }
   };
 
   const [isMaterialRequestModalOpen, setIsMaterialRequestModalOpen] =
@@ -943,7 +965,7 @@ export default function ControlView({
   const [selectedEquipment, setSelectedEquipment] =
     useState<ControllerEquipment | null>(null);
 
-  const handleApplyRequestToHistory = (request: PurchaseRequest) => {
+  const handleApplyRequestToHistory = async (request: PurchaseRequest) => {
     if (!request.equipmentId) {
       alert("Esta solicitação não está vinculada a um equipamento específico.");
       return;
@@ -970,22 +992,12 @@ export default function ControlView({
       })),
     };
 
-    onUpdateEquipments(
-      equipments.map((e) =>
-        e.id === equip.id
-          ? {
-              ...e,
-              history: [...(e.history || []), newHistoryEntry],
-            }
-          : e,
-      ),
-    );
-
-    // Update items to be marked as applied
+    // Update items to be marked as applied and change status to "Aplicado"
     const updatedRequests = purchaseRequests.map((r) =>
       r.id === request.id
         ? {
             ...r,
+            status: "Aplicado" as any,
             items: r.items.map((item) => ({
               ...item,
               appliedQuantity: item.quantity,
@@ -993,9 +1005,26 @@ export default function ControlView({
           }
         : r,
     );
-    onUpdatePurchaseRequests(updatedRequests);
 
-    alert("Peças aplicadas ao histórico do equipamento com sucesso!");
+    try {
+      await Promise.all([
+        onUpdateEquipments(
+          equipments.map((e) =>
+            e.id === equip.id
+              ? {
+                  ...e,
+                  history: [...(e.history || []), newHistoryEntry],
+                }
+              : e,
+          ),
+        ),
+        onUpdatePurchaseRequests(updatedRequests)
+      ]);
+      alert("Ativo aplicado com sucesso!!");
+    } catch (error) {
+      console.error("Erro ao aplicar ativo no banco de dados:", error);
+      alert("Erro ao aplicar ativo.");
+    }
   };
 
   const handleApplyStock = () => {
@@ -1882,7 +1911,7 @@ export default function ControlView({
     reader.onload = (e) => {
       try {
         const data = new Uint8Array(e.target?.result as ArrayBuffer);
-        const workbook = XLSX.read(data, { type: "array" });
+        const workbook = XLSX.read(data, { type: "array", cellStyles: true });
 
         const pStartDay = measurement.period.split(" a ")[0];
         const pEndDay = measurement.period.split(" a ")[1];
@@ -1942,10 +1971,17 @@ export default function ControlView({
 
                   arrayValues.forEach((val, offset) => {
                     const targetCellKey = `${colStr}${startRow + offset}`;
-                    sheet[targetCellKey] = {
-                      v: val,
-                      t: typeof val === "number" ? "n" : "s",
-                    };
+                    const existingCell = sheet[targetCellKey];
+                    if (existingCell) {
+                      existingCell.v = val;
+                      existingCell.t = typeof val === "number" ? "n" : "s";
+                      if ('w' in existingCell) delete (existingCell as any).w;
+                    } else {
+                      sheet[targetCellKey] = {
+                        v: val,
+                        t: typeof val === "number" ? "n" : "s",
+                      };
+                    }
                   });
                 }
               } else if (singleData[cellValStr] !== undefined) {
@@ -1958,7 +1994,7 @@ export default function ControlView({
           });
         });
 
-        const finalWbout = XLSX.write(workbook, { bookType: "xlsx", type: "array" });
+        const finalWbout = XLSX.write(workbook, { bookType: "xlsx", type: "array", cellStyles: true });
         const blob = new Blob([finalWbout], { type: "application/octet-stream" });
         const filename = `Medicao_Modelo_${equipment.code || "EQ"}_${measurement.month.replace("/", "-")}.xlsx`;
         
@@ -2537,11 +2573,37 @@ export default function ControlView({
     setEditingTankId(null);
   };
 
+  const handleCreateSupplier = () => {
+    if (!newSupplierName.trim()) return;
+    const newSup: Supplier = {
+      id: Math.random().toString(36).substring(2, 9),
+      name: newSupplierName.trim(),
+      supplierCode: `FORN-${Math.floor(100 + Math.random() * 900)}`,
+      category: "Posto de Combustivel",
+      activity: "Posto de Combustível",
+    };
+    setSuppliers([...suppliers, newSup]);
+    setNewSupplierName("");
+    setIsNewSupplierModalOpen(false);
+  };
+
   const handleCreateFuelLog = () => {
     if (!newFuelLog.tankId || !newFuelLog.quantity) return;
 
     const quantityNum = Number(newFuelLog.quantity);
     let updatedTanks = [...fuelTanks];
+    const isSupplier = newFuelLog.tankId.startsWith("supplier-");
+
+    if (isSupplier) {
+      if (newFuelLog.type === "entrada") {
+        alert("Entradas não são permitidas em fornecedores, apenas saídas.");
+        return;
+      }
+      if (!newFuelLog.unitPrice || !newFuelLog.fuelType) {
+        alert("Para saídas de fornecedor, informe o preço e o tipo de combustível.");
+        return;
+      }
+    }
 
     // Reverse previous level adjustments if editing
     if (editingFuelLogId) {
@@ -2555,11 +2617,13 @@ export default function ControlView({
               : t,
           );
         } else {
-          updatedTanks = updatedTanks.map((t) =>
-            t.id === oldLog.tankId
-              ? { ...t, currentLevel: t.currentLevel + oldQty }
-              : t,
-          );
+          if (!oldLog.tankId.startsWith("supplier-")) {
+            updatedTanks = updatedTanks.map((t) =>
+              t.id === oldLog.tankId
+                ? { ...t, currentLevel: t.currentLevel + oldQty }
+                : t,
+            );
+          }
           const oldDestId = oldLog.equipmentId;
           if (oldDestId && fuelTanks.some((t) => t.id === oldDestId)) {
             updatedTanks = updatedTanks.map((t) =>
@@ -2572,46 +2636,47 @@ export default function ControlView({
       }
     }
 
-    // Find source tank in the fresh list
-    const sourceTank = updatedTanks.find((t) => t.id === newFuelLog.tankId);
-    if (!sourceTank) return;
+    let unitPrice = Number(newFuelLog.unitPrice) || 0;
 
-    let unitPrice = newFuelLog.unitPrice || 0;
+    if (!isSupplier) {
+      const sourceTank = updatedTanks.find((t) => t.id === newFuelLog.tankId);
+      if (!sourceTank) return;
 
-    // Logic: for exit, use price from last entry of this tank
-    if (newFuelLog.type === "saida") {
-      const lastEntry = fuelLogs.find(
-        (l) =>
-          l.tankId === newFuelLog.tankId && l.type === "entrada" && l.unitPrice,
-      );
-      if (lastEntry) {
-        unitPrice = lastEntry.unitPrice || 0;
-      }
-    }
-
-    // Apply new level adjustments to source
-    const newSourceLevel =
-      newFuelLog.type === "entrada"
-        ? sourceTank.currentLevel + quantityNum
-        : sourceTank.currentLevel - quantityNum;
-
-    updatedTanks = updatedTanks.map((t) =>
-      t.id === sourceTank.id
-        ? { ...t, currentLevel: Math.max(0, newSourceLevel) }
-        : t,
-    );
-
-    // If it's a transfer, apply to destination tank too
-    if (newFuelLog.type === "saida" && newFuelLog.equipmentId) {
-      const destTank = updatedTanks.find(
-        (t) => t.id === newFuelLog.equipmentId,
-      );
-      if (destTank) {
-        updatedTanks = updatedTanks.map((t) =>
-          t.id === destTank.id
-            ? { ...t, currentLevel: t.currentLevel + quantityNum }
-            : t,
+      // Logic: for exit, use price from last entry of this tank
+      if (newFuelLog.type === "saida") {
+        const lastEntry = fuelLogs.find(
+          (l) =>
+            l.tankId === newFuelLog.tankId && l.type === "entrada" && l.unitPrice,
         );
+        if (lastEntry) {
+          unitPrice = lastEntry.unitPrice || 0;
+        }
+      }
+
+      // Apply new level adjustments to source
+      const newSourceLevel =
+        newFuelLog.type === "entrada"
+          ? sourceTank.currentLevel + quantityNum
+          : sourceTank.currentLevel - quantityNum;
+
+      updatedTanks = updatedTanks.map((t) =>
+        t.id === sourceTank.id
+          ? { ...t, currentLevel: Math.max(0, newSourceLevel) }
+          : t,
+      );
+
+      // If it's a transfer, apply to destination tank too
+      if (newFuelLog.type === "saida" && newFuelLog.equipmentId) {
+        const destTank = updatedTanks.find(
+          (t) => t.id === newFuelLog.equipmentId,
+        );
+        if (destTank) {
+          updatedTanks = updatedTanks.map((t) =>
+            t.id === destTank.id
+              ? { ...t, currentLevel: t.currentLevel + quantityNum }
+              : t,
+          );
+        }
       }
     }
 
@@ -3088,12 +3153,14 @@ export default function ControlView({
           : t,
       );
     } else {
-      // Removed exit: add back to source tank level
-      updatedTanks = updatedTanks.map((t) =>
-        t.id === fuelLogToDelete.tankId
-          ? { ...t, currentLevel: t.currentLevel + quantity }
-          : t,
-      );
+      // Removed exit: add back to source tank level (only if not supplier-based)
+      if (!fuelLogToDelete.tankId.startsWith("supplier-")) {
+        updatedTanks = updatedTanks.map((t) =>
+          t.id === fuelLogToDelete.tankId
+            ? { ...t, currentLevel: t.currentLevel + quantity }
+            : t,
+        );
+      }
 
       // If it was a transfer to another reservoir, subtract from destination
       const destId = fuelLogToDelete.equipmentId;
@@ -5681,107 +5748,231 @@ export default function ControlView({
 
         <TabsContent value="fuel">
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <Card className="col-span-1 border-none shadow-xl rounded-3xl overflow-hidden self-start">
-              <CardHeader className="border-b border-gray-50 flex flex-row items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <div className="p-2 bg-blue-50 rounded-xl">
-                    <Droplet className="w-5 h-5 text-blue-600" />
+            <div className="col-span-1 flex flex-col gap-6 self-start">
+              <Card className="w-full border-none shadow-xl rounded-3xl overflow-hidden bg-white">
+                <CardHeader className="border-b border-gray-50 flex flex-row items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="p-2 bg-blue-50 rounded-xl">
+                      <Droplet className="w-5 h-5 text-blue-600" />
+                    </div>
+                    <CardTitle className="text-lg font-black">
+                      Reservatórios
+                    </CardTitle>
                   </div>
-                  <CardTitle className="text-lg font-black">
-                    Reservatórios
-                  </CardTitle>
-                </div>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="rounded-xl font-bold gap-2 text-base"
-                  onClick={() => {
-                    setEditingTankId(null);
-                    setNewTank({
-                      name: "",
-                      capacity: 0,
-                      currentLevel: 0,
-                      fuelType: "Diesel S10",
-                    });
-                    setCustomFuel("");
-                    setIsTankModalOpen(true);
-                  }}
-                >
-                  <Plus className="w-4 h-4" /> Novo
-                </Button>
-              </CardHeader>
-              <CardContent className="p-4 space-y-4">
-                {fuelTanks
-                  .filter(
-                    (t) =>
-                      !selectedContractId ||
-                      t.contractId === selectedContractId,
-                  )
-                  .map((tank) => {
-                    const percent = (tank.currentLevel / tank.capacity) * 100;
-                    return (
-                      <div
-                        key={tank.id}
-                        className="p-4 bg-gray-50 rounded-2xl border border-gray-100 relative overflow-hidden group"
-                      >
-                        <div className="flex justify-between items-start mb-2 relative z-10">
-                          <div>
-                            <div className="flex items-center gap-2">
-                              <h4 className="font-bold text-gray-900">
-                                {tank.name}
-                              </h4>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-6 w-6 opacity-0 group-hover:opacity-100 text-blue-500 hover:bg-blue-50 transition-opacity"
-                                onClick={() => handleEditTank(tank)}
-                              >
-                                <Edit className="w-3 h-3" />
-                              </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="rounded-xl font-bold gap-2 text-base"
+                    onClick={() => {
+                      setEditingTankId(null);
+                      setNewTank({
+                        name: "",
+                        capacity: 0,
+                        currentLevel: 0,
+                        fuelType: "Diesel S10",
+                      });
+                      setCustomFuel("");
+                      setIsTankModalOpen(true);
+                    }}
+                  >
+                    <Plus className="w-4 h-4" /> Novo
+                  </Button>
+                </CardHeader>
+                <CardContent className="p-4 space-y-4">
+                  {fuelTanks
+                    .filter(
+                      (t) =>
+                        !selectedContractId ||
+                        t.contractId === selectedContractId,
+                    )
+                    .map((tank) => {
+                      const percent = (tank.currentLevel / tank.capacity) * 100;
+                      return (
+                        <div
+                          key={tank.id}
+                          className="p-4 bg-gray-50 rounded-2xl border border-gray-100 relative overflow-hidden group"
+                        >
+                          <div className="flex justify-between items-start mb-2 relative z-10">
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <h4 className="font-bold text-gray-900">
+                                  {tank.name}
+                                </h4>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-6 w-6 opacity-0 group-hover:opacity-100 text-blue-500 hover:bg-blue-50 transition-opacity"
+                                  onClick={() => handleEditTank(tank)}
+                                >
+                                  <Edit className="w-3 h-3" />
+                                </Button>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <p className="text-base uppercase font-bold text-gray-500">
+                                  {getContractName(tank.contractId)}
+                                </p>
+                                <Badge
+                                  variant="outline"
+                                  className="text-sm px-1 h-3.5 bg-blue-50 text-blue-600 border-blue-100 font-black"
+                                >
+                                  {tank.fuelType || "Diesel S10"}
+                                </Badge>
+                              </div>
                             </div>
-                            <div className="flex items-center gap-2">
-                              <p className="text-base uppercase font-bold text-gray-500">
-                                {getContractName(tank.contractId)}
+                            <p className="font-mono font-black text-base">
+                              {tank.currentLevel} / {tank.capacity} L
+                            </p>
+                          </div>
+                          <div className="h-4 bg-gray-200 rounded-full overflow-hidden mt-3 max-w-[80%] relative z-10">
+                            <motion.div
+                              className={cn(
+                                "h-full",
+                                percent > 20 ? "bg-blue-500" : "bg-red-500",
+                              )}
+                              initial={{ width: 0 }}
+                              animate={{ width: `${percent}%` }}
+                              transition={{ duration: 1 }}
+                            />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  {fuelTanks.filter(
+                    (t) =>
+                      !selectedContractId || t.contractId === selectedContractId,
+                  ).length === 0 && (
+                    <div className="text-center py-10 opacity-30">
+                      <Fuel className="w-8 h-8 mx-auto mb-2" />
+                      <p className="text-base font-bold uppercase">
+                        Nenhum reservatório cadastrado
+                      </p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              <Card className="w-full border-none shadow-xl rounded-3xl overflow-hidden bg-white">
+                <CardHeader className="border-b border-gray-50 flex flex-row items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="p-2 bg-amber-50 rounded-xl">
+                      <Truck className="w-5 h-5 text-amber-600" />
+                    </div>
+                    <CardTitle className="text-lg font-black">
+                      Fornecedores
+                    </CardTitle>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="rounded-xl font-bold gap-2 text-base text-amber-700 bg-amber-50 border-amber-100 hover:bg-amber-100"
+                    onClick={() => {
+                      setNewSupplierName("");
+                      setIsNewSupplierModalOpen(true);
+                    }}
+                  >
+                    <Plus className="w-4 h-4" /> Novo
+                  </Button>
+                </CardHeader>
+                <CardContent className="p-4 space-y-4">
+                  {suppliers.filter(s => {
+                    const cat = (s.category || "").trim().toLowerCase();
+                    return cat === "posto de combustivel" || cat === "posto de combustível";
+                  }).length > 0 ? (
+                    suppliers.filter(s => {
+                      const cat = (s.category || "").trim().toLowerCase();
+                      return cat === "posto de combustivel" || cat === "posto de combustível";
+                    }).map((supplier) => {
+                      // Find latest saídas for this supplier
+                      const supplierLogs = fuelLogs.filter(
+                        (l) => l.tankId === `supplier-${supplier.id}` && l.type === "saida"
+                      );
+
+                      const fuelTypesOfInterest = ["Diesel S10", "Diesel S500", "Gasolina", "Etanol", "Arla 32"];
+                      const pricesMap: { [key: string]: number | null } = {};
+
+                      fuelTypesOfInterest.forEach(type => {
+                        const lastLogOfThisType = supplierLogs.find(l => l.fuelType === type);
+                        pricesMap[type] = lastLogOfThisType ? lastLogOfThisType.unitPrice || 0 : null;
+                      });
+
+                      const hasAnyPrice = Object.values(pricesMap).some(v => v !== null);
+
+                      return (
+                        <div
+                          key={supplier.id}
+                          className="p-4 bg-gray-50 rounded-2xl border border-gray-100 relative group transition-colors hover:border-amber-100"
+                        >
+                          <div className="flex justify-between items-start mb-2">
+                            <div>
+                              <h4 className="font-extrabold text-gray-900 text-base">
+                                {supplier.name}
+                              </h4>
+                              <p className="text-xs font-bold text-gray-400 mt-0.5 uppercase tracking-wider">
+                                {supplier.supplierCode || "FORNECEDOR"}
                               </p>
-                              <Badge
-                                variant="outline"
-                                className="text-sm px-1 h-3.5 bg-blue-50 text-blue-600 border-blue-100 font-black"
-                              >
-                                {tank.fuelType || "Diesel S10"}
-                              </Badge>
+                            </div>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 rounded-lg font-bold gap-1 text-xs text-orange-600 hover:text-orange-700 hover:bg-orange-50"
+                              onClick={() => {
+                                setEditingFuelLogId(null);
+                                setDestSearch("");
+                                setNewFuelLog({
+                                  type: "saida",
+                                  date: new Date().toISOString().split("T")[0],
+                                  quantity: 0,
+                                  tankId: `supplier-${supplier.id}`,
+                                  equipmentId: "",
+                                  supplier: "",
+                                  invoiceNumber: "",
+                                  unitPrice: undefined,
+                                  cost: undefined,
+                                });
+                                setIsFuelLogModalOpen(true);
+                              }}
+                            >
+                              <Fuel className="w-3.5 h-3.5 mr-1" /> Dar Saída
+                            </Button>
+                          </div>
+
+                          <div className="mt-3 space-y-1 pt-2 border-t border-gray-100/60">
+                            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5">Últimos Preços Informados</p>
+                            <div className="grid grid-cols-1 gap-1.5">
+                              {fuelTypesOfInterest.map(type => {
+                                const price = pricesMap[type];
+                                if (price === null) return null;
+                                return (
+                                  <div key={type} className="flex justify-between items-center text-xs bg-white py-1.5 px-2 rounded-lg border border-gray-100/50">
+                                    <span className="font-bold text-gray-500">{type}</span>
+                                    <span className="font-mono font-black text-amber-600">
+                                      {(price).toLocaleString("pt-BR", {
+                                        style: "currency",
+                                        currency: "BRL",
+                                      })}
+                                    </span>
+                                  </div>
+                                );
+                              })}
+                              {!hasAnyPrice && (
+                                <p className="text-[11px] text-gray-400 italic font-bold">Nenhum abastecimento registrado</p>
+                              )}
                             </div>
                           </div>
-                          <p className="font-mono font-black text-base">
-                            {tank.currentLevel} / {tank.capacity} L
-                          </p>
                         </div>
-                        <div className="h-4 bg-gray-200 rounded-full overflow-hidden mt-3 max-w-[80%] relative z-10">
-                          <motion.div
-                            className={cn(
-                              "h-full",
-                              percent > 20 ? "bg-blue-500" : "bg-red-500",
-                            )}
-                            initial={{ width: 0 }}
-                            animate={{ width: `${percent}%` }}
-                            transition={{ duration: 1 }}
-                          />
-                        </div>
-                      </div>
-                    );
-                  })}
-                {fuelTanks.filter(
-                  (t) =>
-                    !selectedContractId || t.contractId === selectedContractId,
-                ).length === 0 && (
-                  <div className="text-center py-10 opacity-30">
-                    <Fuel className="w-8 h-8 mx-auto mb-2" />
-                    <p className="text-base font-bold uppercase">
-                      Nenhum reservatório cadastrado
-                    </p>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+                      );
+                    })
+                  ) : (
+                    <div className="text-center py-6 opacity-30">
+                      <Truck className="w-8 h-8 mx-auto mb-2 text-gray-400" />
+                      <p className="text-sm font-bold uppercase">
+                        Nenhum fornecedor cadastrado
+                      </p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
 
             <Card className="col-span-1 lg:col-span-2 border-none shadow-xl rounded-3xl overflow-hidden self-start">
               <CardHeader className="border-b border-gray-50 flex flex-row items-center justify-between">
@@ -5805,6 +5996,7 @@ export default function ControlView({
                     className="rounded-xl font-bold gap-2 text-base text-purple-700 bg-purple-50 border-purple-100 hover:bg-purple-100"
                     onClick={() => {
                       setEditingFuelLogId(null);
+                      setDestSearch("");
                       setNewFuelLog({
                         type: "entrada",
                         date: new Date().toISOString().split("T")[0],
@@ -5827,6 +6019,7 @@ export default function ControlView({
                     className="rounded-xl font-bold gap-2 text-base text-orange-700 bg-orange-50 border-orange-100 hover:bg-orange-100"
                     onClick={() => {
                       setEditingFuelLogId(null);
+                      setDestSearch("");
                       setNewFuelLog({
                         type: "saida",
                         date: new Date().toISOString().split("T")[0],
@@ -5947,10 +6140,21 @@ export default function ControlView({
                             <TableCell>
                               <div className="flex flex-col">
                                 <span className="text-base font-bold text-gray-900">
-                                  {tk?.name || "---"}
+                                  {log.tankId?.startsWith("supplier-") ? (
+                                    <>
+                                      <span className="text-amber-600 font-black mr-1">Fornecedor:</span>
+                                      {(() => {
+                                        const sId = log.tankId.replace("supplier-", "");
+                                        const foundSup = suppliers.find((s) => s.id === sId);
+                                        return foundSup ? foundSup.name : sId;
+                                      })()}
+                                    </>
+                                  ) : (
+                                    tk?.name || "---"
+                                  )}
                                 </span>
                                 <span className="text-sm text-gray-400 font-bold uppercase tracking-tight">
-                                  {tk?.fuelType || "Diesel"}
+                                  {log.tankId?.startsWith("supplier-") ? (log.fuelType || "Diesel") : (tk?.fuelType || "Diesel")}
                                 </span>
                               </div>
                             </TableCell>
@@ -8427,99 +8631,150 @@ export default function ControlView({
               </Label>
               <Select
                 value={newFuelLog.tankId || ""}
-                onValueChange={(val) =>
-                  setNewFuelLog({ ...newFuelLog, tankId: val })
-                }
+                onValueChange={(val) => {
+                  setNewFuelLog({ ...newFuelLog, tankId: val });
+                }}
               >
                 <SelectTrigger className="h-12 border-gray-100 bg-gray-50/50 rounded-xl font-bold">
-                  <SelectValue placeholder="Selecione o reservatório" />
+                  <SelectValue placeholder="Selecione o reservatório ou fornecedor" />
                 </SelectTrigger>
                 <SelectContent className="rounded-xl">
-                  {fuelTanks.map((t) => (
-                    <SelectItem key={t.id} value={t.id} className="font-bold">
-                      {t.name} ({t.currentLevel}/{t.capacity}L) - {t.fuelType}
-                    </SelectItem>
-                  ))}
+                  {newFuelLog.type === "saida" ? (
+                    <>
+                      <SelectGroup>
+                        <SelectLabel className="font-black text-gray-400 text-xs uppercase px-2 py-1.5">Reservatórios</SelectLabel>
+                        {fuelTanks.map((t) => (
+                          <SelectItem key={t.id} value={t.id} className="font-bold">
+                            {t.name} ({t.currentLevel}/{t.capacity}L) - {t.fuelType}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                      {suppliers.filter(
+                        (s) => {
+                          const cat = (s.category || "").trim().toLowerCase();
+                          return cat === "posto de combustivel" || cat === "posto de combustível";
+                        }
+                      ).length > 0 && (
+                        <SelectGroup>
+                          <SelectLabel className="font-black text-gray-400 text-xs uppercase px-2 py-1.5">Fornecedores</SelectLabel>
+                          {suppliers.filter(
+                            (s) => {
+                              const cat = (s.category || "").trim().toLowerCase();
+                              return cat === "posto de combustivel" || cat === "posto de combustível";
+                            }
+                          ).map((s) => (
+                            <SelectItem key={s.id} value={`supplier-${s.id}`} className="font-bold">
+                              Fornecedor: {s.name}
+                            </SelectItem>
+                          ))}
+                        </SelectGroup>
+                      )}
+                    </>
+                  ) : (
+                    <SelectGroup>
+                      <SelectLabel className="font-black text-gray-400 text-xs uppercase px-2 py-1.5">Reservatórios</SelectLabel>
+                      {fuelTanks.map((t) => (
+                        <SelectItem key={t.id} value={t.id} className="font-bold">
+                          {t.name} ({t.currentLevel}/{t.capacity}L) - {t.fuelType}
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
+                  )}
                 </SelectContent>
               </Select>
             </div>
 
             {newFuelLog.type === "saida" && (
               <div className="space-y-4">
-                <div className="space-y-2 text-left">
+                <div className="space-y-2 text-left relative">
                   <Label className="text-base font-black text-gray-400 uppercase tracking-widest">
                     Equipamento Destino
                   </Label>
-                  <Popover open={openDest} onOpenChange={setOpenDest}>
-                    <PopoverTrigger asChild>
-                      <Button
-                        variant="outline"
-                        role="combobox"
-                        className="w-full justify-between h-12 px-4 border-gray-100 bg-gray-50/50 rounded-xl font-bold text-base"
-                      >
-                        {(() => {
-                          if (!newFuelLog.equipmentId)
-                            return "Selecionar destino...";
-                          const eq = equipments.find(
-                            (e) => e.id === newFuelLog.equipmentId,
-                          );
-                          if (eq) return `${eq.name} (${eq.plate})`;
-                          const tk = fuelTanks.find(
-                            (t) => t.id === newFuelLog.equipmentId,
-                          );
-                          if (tk) return `Reservatório: ${tk.name}`;
-                          return "Destino selecionado";
-                        })()}
-                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent
-                      className="w-full p-0 max-w-[calc(100vw-2rem)] sm:max-w-md rounded-2xl overflow-hidden border-gray-100 shadow-2xl"
-                      align="start"
-                    >
-                      <Command>
-                        <CommandInput
-                          placeholder="Filtrar equipamentos..."
-                          className="border-none focus:ring-0 font-bold"
-                        />
-                        <CommandList className="max-h-[300px]">
-                          <CommandEmpty>
-                            Nenhum destino encontrado.
-                          </CommandEmpty>
+                  <div className="relative">
+                    <Input
+                      type="text"
+                      placeholder="Digite para buscar..."
+                      value={destSearch}
+                      onFocus={() => {
+                        setIsDestFocused(true);
+                        if (!destSearch && newFuelLog.equipmentId) {
+                          const eq = equipments.find((e) => e.id === newFuelLog.equipmentId);
+                          if (eq) {
+                            setDestSearch(`${eq.name} (${eq.plate})`);
+                          } else {
+                            const tk = fuelTanks.find((t) => t.id === newFuelLog.equipmentId);
+                            if (tk) setDestSearch(`Reservatório: ${tk.name}`);
+                          }
+                        }
+                      }}
+                      onBlur={() => {
+                        setTimeout(() => setIsDestFocused(false), 200);
+                      }}
+                      onChange={(e) => {
+                        setDestSearch(e.target.value);
+                        if (!e.target.value) {
+                          setNewFuelLog((prev) => ({ ...prev, equipmentId: "" }));
+                        }
+                      }}
+                      className="h-12 px-4 border-gray-100 bg-gray-50/50 rounded-xl font-bold text-base focus:ring-2 focus:ring-blue-500 w-full"
+                    />
+                    {newFuelLog.equipmentId && (
+                      <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
+                        <Check className="w-5 h-5 text-emerald-500" />
+                      </div>
+                    )}
+                  </div>
 
-                          {fuelTanks.filter(
-                            (t) =>
-                              t.id !== newFuelLog.tankId &&
-                              (!selectedContractId ||
-                                t.contractId === selectedContractId),
-                          ).length > 0 && (
-                            <CommandGroup heading="Reservatórios">
-                              {fuelTanks
-                                .filter((t) => t.id !== newFuelLog.tankId)
-                                .filter(
-                                  (t) =>
-                                    !selectedContractId ||
-                                    t.contractId === selectedContractId,
-                                )
-                                .map((t) => (
-                                  <CommandItem
+                  {isDestFocused && (
+                    <div className="absolute z-50 left-0 right-0 mt-1 bg-white border border-gray-100 rounded-2xl shadow-2xl overflow-hidden max-h-[300px] overflow-y-auto">
+                      {(() => {
+                        const filteredTanks = fuelTanks
+                          .filter((t) => t.id !== newFuelLog.tankId)
+                          .filter((t) => !selectedContractId || t.contractId === selectedContractId)
+                          .filter((t) => {
+                            if (!destSearch) return true;
+                            return t.name.toLowerCase().includes(destSearch.toLowerCase());
+                          });
+
+                        const filteredEqs = filteredEquipments
+                          .filter((e) => !e.exitDate)
+                          .filter((e) => {
+                            if (!destSearch) return true;
+                            const term = destSearch.toLowerCase();
+                            return e.name.toLowerCase().includes(term) || (e.plate && e.plate.toLowerCase().includes(term));
+                          });
+
+                        if (filteredTanks.length === 0 && filteredEqs.length === 0) {
+                          return (
+                            <div className="p-4 text-center text-sm text-gray-400 font-bold uppercase">
+                              Nenhum destino encontrado
+                            </div>
+                          );
+                        }
+
+                        return (
+                          <div className="p-2 space-y-2">
+                            {filteredTanks.length > 0 && (
+                              <div>
+                                <div className="px-3 py-1 text-[11px] font-black text-gray-400 uppercase tracking-widest">
+                                  Reservatórios
+                                </div>
+                                {filteredTanks.map((t) => (
+                                  <div
                                     key={t.id}
-                                    value={t.name + " reservatório"}
-                                    onSelect={() => {
-                                      setNewFuelLog({
-                                        ...newFuelLog,
-                                        equipmentId: t.id,
-                                      });
-                                      setOpenDest(false);
+                                    onMouseDown={() => {
+                                      setNewFuelLog((prev) => ({ ...prev, equipmentId: t.id }));
+                                      setDestSearch(`Reservatório: ${t.name}`);
                                     }}
-                                    className="py-3 px-4 rounded-xl cursor-pointer"
+                                    className={cn(
+                                      "flex items-center gap-2 py-2 px-3 rounded-xl cursor-pointer hover:bg-gray-50 text-left transition-colors",
+                                      newFuelLog.equipmentId === t.id && "bg-blue-50/50"
+                                    )}
                                   >
                                     <Check
                                       className={cn(
-                                        "mr-2 h-4 w-4 text-blue-600",
-                                        newFuelLog.equipmentId === t.id
-                                          ? "opacity-100"
-                                          : "opacity-0",
+                                        "h-4 w-4 text-blue-600 shrink-0",
+                                        newFuelLog.equipmentId === t.id ? "opacity-100" : "opacity-0"
                                       )}
                                     />
                                     <div className="flex flex-col">
@@ -8530,50 +8785,51 @@ export default function ControlView({
                                         Nível: {t.currentLevel}L / {t.capacity}L
                                       </span>
                                     </div>
-                                  </CommandItem>
-                                ))}
-                            </CommandGroup>
-                          )}
-
-                          <CommandGroup heading="Equipamentos">
-                            {filteredEquipments
-                              .filter((e) => !e.exitDate)
-                              .map((e) => (
-                                <CommandItem
-                                  key={e.id}
-                                  value={e.name + " " + e.plate}
-                                  onSelect={() => {
-                                    setNewFuelLog({
-                                      ...newFuelLog,
-                                      equipmentId: e.id,
-                                    });
-                                    setOpenDest(false);
-                                  }}
-                                  className="py-3 px-4 rounded-xl cursor-pointer"
-                                >
-                                  <Check
-                                    className={cn(
-                                      "mr-2 h-4 w-4 text-blue-600",
-                                      newFuelLog.equipmentId === e.id
-                                        ? "opacity-100"
-                                        : "opacity-0",
-                                    )}
-                                  />
-                                  <div className="flex flex-col">
-                                    <span className="font-black text-gray-900 uppercase text-base">
-                                      {e.name}
-                                    </span>
-                                    <span className="text-sm text-gray-500 font-bold tracking-tight">
-                                      PLACA: {e.plate || "S/N"}
-                                    </span>
                                   </div>
-                                </CommandItem>
-                              ))}
-                          </CommandGroup>
-                        </CommandList>
-                      </Command>
-                    </PopoverContent>
-                  </Popover>
+                                ))}
+                              </div>
+                            )}
+
+                            {filteredEqs.length > 0 && (
+                              <div>
+                                <div className="px-3 py-1 text-[11px] font-black text-gray-400 uppercase tracking-widest mt-2">
+                                  Equipamentos
+                                </div>
+                                {filteredEqs.map((e) => (
+                                  <div
+                                    key={e.id}
+                                    onMouseDown={() => {
+                                      setNewFuelLog((prev) => ({ ...prev, equipmentId: e.id }));
+                                      setDestSearch(`${e.name} (${e.plate})`);
+                                    }}
+                                    className={cn(
+                                      "flex items-center gap-2 py-2 px-3 rounded-xl cursor-pointer hover:bg-gray-50 text-left transition-colors",
+                                      newFuelLog.equipmentId === e.id && "bg-blue-50/50"
+                                    )}
+                                  >
+                                    <Check
+                                      className={cn(
+                                        "h-4 w-4 text-blue-600 shrink-0",
+                                        newFuelLog.equipmentId === e.id ? "opacity-100" : "opacity-0"
+                                      )}
+                                    />
+                                    <div className="flex flex-col">
+                                      <span className="font-black text-gray-900 uppercase text-base">
+                                        {e.name}
+                                      </span>
+                                      <span className="text-sm text-gray-500 font-bold">
+                                        Placa: {e.plate || "S/N"}
+                                      </span>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  )}
                 </div>
                 
                 {newFuelLog.equipmentId && !fuelTanks.some(t => t.id === newFuelLog.equipmentId) && (
@@ -8616,6 +8872,54 @@ export default function ControlView({
                 className="h-12 border-gray-100 bg-gray-50/50 rounded-xl font-black text-blue-600 focus:ring-blue-500"
               />
             </div>
+
+            {newFuelLog.type === "saida" && newFuelLog.tankId?.startsWith("supplier-") && (
+              <div className="grid grid-cols-2 gap-4 pt-4 border-t border-gray-100">
+                <div className="space-y-2 text-left">
+                  <Label className="text-base font-black text-gray-400 uppercase tracking-widest">
+                    Preço Un. (R$)
+                  </Label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    required
+                    value={newFuelLog.unitPrice || ""}
+                    onChange={(e) => {
+                      const up = Number(e.target.value);
+                      setNewFuelLog({
+                        ...newFuelLog,
+                        unitPrice: up,
+                        cost: up * (newFuelLog.quantity || 0),
+                      });
+                    }}
+                    placeholder="Ex: 5.89"
+                    className="h-12 border-gray-100 bg-gray-50/50 rounded-xl font-bold"
+                  />
+                </div>
+                <div className="space-y-2 text-left">
+                  <Label className="text-base font-black text-gray-400 uppercase tracking-widest">
+                    Tipo de Combustível
+                  </Label>
+                  <Select
+                    value={newFuelLog.fuelType || ""}
+                    onValueChange={(val) =>
+                      setNewFuelLog({ ...newFuelLog, fuelType: val })
+                    }
+                  >
+                    <SelectTrigger className="h-12 border-gray-100 bg-gray-50/50 rounded-xl font-bold">
+                      <SelectValue placeholder="Selecione o tipo" />
+                    </SelectTrigger>
+                    <SelectContent className="rounded-xl">
+                      <SelectItem value="Diesel S10" className="font-bold">Diesel S10</SelectItem>
+                      <SelectItem value="Diesel S500" className="font-bold">Diesel S500</SelectItem>
+                      <SelectItem value="Gasolina" className="font-bold">Gasolina</SelectItem>
+                      <SelectItem value="Etanol" className="font-bold">Etanol</SelectItem>
+                      <SelectItem value="Arla 32" className="font-bold">Arla 32</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            )}
 
             {newFuelLog.type === "entrada" && (
               <div className="grid grid-cols-1 gap-4 pt-4 border-t border-gray-100">
@@ -9653,6 +9957,46 @@ export default function ControlView({
               className="w-full h-12 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white font-bold shadow-lg shadow-blue-200"
             >
               Confirmar Aplicação
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isNewSupplierModalOpen} onOpenChange={setIsNewSupplierModalOpen}>
+        <DialogContent className="max-w-md rounded-3xl p-8">
+          <DialogHeader>
+            <DialogTitle className="text-2xl font-black text-amber-600">
+              Cadastrar Fornecedor
+            </DialogTitle>
+            <DialogDescription className="text-base font-bold text-gray-400 uppercase">
+              Adicionar parceiro comercial de combustível
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 pt-4">
+            <div className="space-y-2">
+              <Label className="text-base uppercase font-bold text-gray-400">
+                Nome do Fornecedor / Empresa
+              </Label>
+              <Input
+                placeholder="Ex: Auto Posto Rodovia Petro"
+                value={newSupplierName}
+                onChange={(e) => setNewSupplierName(e.target.value)}
+                className="h-12 border-gray-200 rounded-xl focus:ring-amber-500"
+              />
+            </div>
+            <p className="text-xs text-gray-400 font-medium italic">
+              * O código do fornecedor será gerado automaticamente.
+            </p>
+          </div>
+
+          <DialogFooter className="mt-8">
+            <Button
+              onClick={handleCreateSupplier}
+              disabled={!newSupplierName.trim()}
+              className="w-full h-12 rounded-2xl bg-amber-600 hover:bg-amber-700 text-white font-bold shadow-lg shadow-amber-200"
+            >
+              Criar Fornecedor
             </Button>
           </DialogFooter>
         </DialogContent>
