@@ -41,6 +41,9 @@ import {
   Camera,
   FileText,
   X,
+  Printer,
+  Download,
+  Tag,
 } from "lucide-react";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -1475,6 +1478,7 @@ export default function ControlView({
   const generateMeasurementPDF = (
     measurement: EquipmentMeasurement,
     equipment: ControllerEquipment,
+    print?: boolean,
   ) => {
     const doc = new jsPDF() as any;
     const pageWidth = doc.internal.pageSize.getWidth();
@@ -1720,9 +1724,29 @@ export default function ControlView({
       { align: "right" },
     );
 
-    doc.save(
-      `Medicao_${equipment.code || "EQ"}_${measurement.month.replace("/", "-")}.pdf`,
-    );
+    if (print) {
+      doc.autoPrint();
+      const pdfBlob = doc.output('blob');
+      const pdfUrl = URL.createObjectURL(pdfBlob);
+      try {
+        const printWindow = window.open(pdfUrl, '_blank');
+        if (printWindow) {
+          printWindow.focus();
+        } else {
+          throw new Error("Window open blocked");
+        }
+        setTimeout(() => {
+          URL.revokeObjectURL(pdfUrl);
+        }, 50000);
+      } catch (err) {
+        console.warn("Iframe print setup failed or blocked, downloading PDF as fallback", err);
+        doc.save(`Medicao_${equipment.code || "EQ"}_${measurement.month.replace("/", "-")}.pdf`);
+      }
+    } else {
+      doc.save(
+        `Medicao_${equipment.code || "EQ"}_${measurement.month.replace("/", "-")}.pdf`,
+      );
+    }
   };
 
   const handleOpenMaintenanceDiscountModal = (
@@ -1798,6 +1822,155 @@ export default function ControlView({
       wb,
       `Medicao_${equipment.name}_${measurement.month.replace("/", "-")}.xlsx`,
     );
+  };
+
+  const getActiveMeasurementObject = (): EquipmentMeasurement => {
+    const totalUnits = tempDailyData
+      .filter((d) => d.initialReading > 0 && d.finalReading > 0 && d.finalReading > d.initialReading)
+      .reduce((acc, curr) => acc + (curr.discount ? 0 : curr.finalReading - curr.initialReading), 0);
+    const totalValue = totalUnits * (selectedEquipment?.contractedPrice || 0);
+
+    return {
+      id: "temp",
+      equipmentId: selectedEquipment?.id || "",
+      companyId: currentUser?.companyId || "",
+      number: 0,
+      month: measurementMonth,
+      period: `${measurementPeriod.start} a ${measurementPeriod.end}`,
+      totalUnits,
+      totalValue,
+      details: tempDailyData,
+    };
+  };
+
+  const downloadImportInstructionsPDF = () => {
+    const doc = new jsPDF() as any;
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    const margin = 15;
+    const cw = pageWidth - margin * 2;
+
+    // Header Background Accent Bar (Navy Dark Slate)
+    doc.setFillColor(30, 41, 59);
+    doc.rect(margin, margin, cw, 25, "F");
+
+    // Title
+    doc.setTextColor(255, 255, 255);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(14);
+    doc.text("SYNERA - MANUAL DE IMPORTAÇÃO DE MEDIÇÕES", pageWidth / 2, margin + 11, { align: "center" });
+    
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
+    doc.text("Instruções e Padrões de Colunas para Planilhas (Excel / CSV)", pageWidth / 2, margin + 18, { align: "center" });
+
+    // Intro Text
+    doc.setTextColor(50, 50, 50);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(11);
+    doc.text("Sobre o Sistema de Importação", margin, margin + 35);
+
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9.5);
+    const introLines = [
+      "O sistema de medição inteligente permite carregar leituras diárias em lote através de arquivos Excel (.xlsx, .xls) ou CSV.",
+      "Para que a importação ocorra sem erros, você deve nomear as colunas da primeira linha do arquivo exatamente com as",
+      "tags de mapeamento descritas abaixo (o padrão [coluna] ou termos equivalentes associados).",
+    ];
+    let y = margin + 40;
+    introLines.forEach(line => {
+      doc.text(line, margin, y);
+      y += 5;
+    });
+
+    // Columns Table
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(11);
+    doc.text("Tags das Colunas Aceitas", margin, y + 5);
+    y += 8;
+
+    const tableHeaders = [["Tag Padrão", "Colunas de Equivalência", "Descrição do Campo", "Exemplo", "Obrigatoriedade"]];
+    const tableBody = [
+      ["[Data]", "Data, data, Date, date", "Indica o dia da leitura diária", "01/06/2026", "OBRIGATÓRIO"],
+      ["[Inicial]", "Inicial, inicial, Initial Reading", "O valor do horímetro/odômetro no início do dia", "1024.5", "OBRIGATÓRIO"],
+      ["[Final]", "Final, final, Final Reading", "O valor do horímetro/odômetro ao término do dia", "1032.0", "OBRIGATÓRIO"],
+      ["[Status]", "Status, Situação, status, situação", "Situação de trabalho do equipamento", "Trabalhando", "OPCIONAL"],
+      ["[Desconto]", "Desconto, Desconta, desconto", "Se a medição do dia será excluída do total", "Não (ou Sim)", "OPCIONAL"]
+    ];
+
+    autoTable(doc, {
+      startY: y,
+      margin: { left: margin, right: margin },
+      head: tableHeaders,
+      body: tableBody,
+      theme: "striped",
+      headStyles: { fillColor: [37, 99, 235], fontSize: 8, fontStyle: "bold" },
+      bodyStyles: { fontSize: 8 },
+      columnStyles: {
+        0: { fontStyle: "bold", cellWidth: 25 },
+        1: { cellWidth: 40 },
+        2: { cellWidth: 65 },
+        3: { cellWidth: 25 },
+        4: { fontStyle: "bold", cellWidth: 25 }
+      }
+    });
+
+    y = (doc as any).lastAutoTable.finalY + 10;
+
+    // Status Section
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(11);
+    doc.text("Valores Aceitos para o Status de Medição", margin, y);
+    y += 6;
+
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
+    const statusLines = [
+      "- \"Trabalhando\": Equipamento operando normalmente. É a situação padrão caso omitido.",
+      "- \"Chuva\": Atribui desconto automático à produção diária no faturamento daquele dia.",
+      "- \"Manutenção\": Atribui desconto automático de produção devido a reparos mecânicos.",
+      "- \"Aguardando Frente\": Descontado por ociosidade involuntária da equipe de campo.",
+      "- \"à Disposição\": Descontado por ociosidade voluntária / operacional.",
+    ];
+    statusLines.forEach(line => {
+      doc.text(line, margin, y);
+      y += 5;
+    });
+
+    y += 5;
+
+    // Golden Rules Card
+    doc.setFillColor(248, 250, 252);
+    doc.setDrawColor(226, 232, 240);
+    doc.setLineWidth(0.5);
+    doc.rect(margin, y, cw, 40, "FD");
+
+    doc.setTextColor(30, 41, 59);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(10);
+    doc.text("Regras de Ouro para Sucesso da Importação :", margin + 5, y + 8);
+    
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8.5);
+    const rules = [
+      "1. Certifique-se de que as datas correspondam exatamente ao período aberto para medição.",
+      "2. Valores numéricos de leituras devem usar ponto como separador decimal se necessário (ex: 125.4).",
+      "3. Evite mesclar células de cabeçalho ou incluir linhas vazias acima da linha de título.",
+      "4. Se o status for diferente de \"Trabalhando\", o sistema aplica o desconto automaticamente por segurança."
+    ];
+    let ruleY = y + 14;
+    rules.forEach(rule => {
+      doc.text(rule, margin + 5, ruleY);
+      ruleY += 5.5;
+    });
+
+    // Footer signature
+    doc.setTextColor(148, 163, 184);
+    doc.setFont("helvetica", "italic");
+    doc.setFontSize(7.5);
+    doc.text("Documento de Instrução de Importação de Medições - SYNERA", pageWidth / 2, pageHeight - 10, { align: "center" });
+
+    doc.save("Manual_Importacao_Medicao.pdf");
   };
 
   const handleOpenExportModal = (
@@ -7102,7 +7275,37 @@ export default function ControlView({
                   </div>
                 </div>
                 
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => generateMeasurementPDF(getActiveMeasurementObject(), selectedEquipment, true)}
+                    className="h-10 px-3 rounded-xl shadow-sm flex items-center gap-1.5 text-white border-white/30 bg-white/10 hover:bg-white/20 cursor-pointer"
+                    title="Imprimir Medição"
+                  >
+                    <Printer className="w-4 h-4" /> Imprimir
+                  </Button>
+
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => generateMeasurementPDF(getActiveMeasurementObject(), selectedEquipment)}
+                    className="h-10 px-3 rounded-xl shadow-sm flex items-center gap-1.5 text-white border-white/30 bg-white/10 hover:bg-white/20 cursor-pointer"
+                    title="Exportar como PDF"
+                  >
+                    <Download className="w-4 h-4" /> Exportar PDF
+                  </Button>
+
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => generateMeasurementExcel(getActiveMeasurementObject(), selectedEquipment)}
+                    className="h-10 px-3 rounded-xl shadow-sm flex items-center gap-1.5 text-white border-white/30 bg-white/10 hover:bg-white/20 cursor-pointer"
+                    title="Exportar como Excel"
+                  >
+                    <FileText className="w-4 h-4" /> Exportar Excel
+                  </Button>
+
                   <Button
                     variant="outline"
                     size="sm"
@@ -7122,7 +7325,7 @@ export default function ControlView({
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="text-white hover:bg-white/20 rounded-full h-10 w-10 p-0 flex items-center justify-center cursor-pointer"
+                    className="text-white hover:bg-white/20 rounded-full h-10 w-10 p-0 flex items-center justify-center cursor-pointer mb-0.5"
                     onClick={() => setIsNewMeasurementModalOpen(false)}
                   >
                     <X className="w-5 h-5" />
@@ -7135,6 +7338,59 @@ export default function ControlView({
             <div className="flex-1 overflow-hidden flex flex-col lg:flex-row bg-slate-50/50">
               {/* Left Side: Daily Readings list */}
               <div className="flex-1 overflow-y-auto p-6 space-y-4">
+                {/* Sistema de Tags para Importação */}
+                <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-100 rounded-2xl p-5 space-y-3 shadow-sm text-left">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-blue-200/40 pb-2">
+                    <div className="flex items-center gap-2">
+                      <Tag className="w-4 h-4 text-blue-600 animate-pulse" />
+                      <h4 className="font-extrabold text-blue-900 text-xs uppercase tracking-wider">
+                        Tags das Colunas para Importação
+                      </h4>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={downloadImportInstructionsPDF}
+                      className="bg-white hover:bg-blue-100 border-blue-200 text-blue-700 font-extrabold h-8 px-3 rounded-xl transition flex items-center gap-1.5 text-[11px] shadow-sm cursor-pointer"
+                    >
+                      <FileText className="w-3.5 h-3.5" /> Baixar Instruções (PDF)
+                    </Button>
+                  </div>
+                  
+                  <p className="text-xs text-slate-600 leading-normal">
+                    Mapeie as colunas da sua planilha utilizando as tags abaixo. Toque em qualquer tag para copiá-la:
+                  </p>
+                  
+                  <div className="flex flex-wrap gap-2 pt-1">
+                    {[
+                      { tag: "[Data]", desc: "Data da leitura (Ex: 01/06/2026)", req: true },
+                      { tag: "[Inicial]", desc: "Leitura inicial no início do dia", req: true },
+                      { tag: "[Final]", desc: "Leitura final do dia", req: true },
+                      { tag: "[Status]", desc: "Operação (Trabalhando, Chuva, Manutenção...)", req: false },
+                      { tag: "[Desconto]", desc: "Aplicar desconto de horas/km (Sim / Não)", req: false },
+                    ].map((item) => (
+                      <div
+                        key={item.tag}
+                        onClick={() => {
+                          navigator.clipboard.writeText(item.tag);
+                          alert(`Tag "${item.tag}" copiada para a área de transferência!`);
+                        }}
+                        className="group relative flex items-center gap-2 bg-white hover:bg-blue-50/50 hover:border-blue-400 border border-slate-200 px-3 py-1.5 rounded-xl cursor-pointer transition-all active:scale-95 shadow-sm"
+                        title={item.desc}
+                      >
+                        <span className="font-mono font-bold text-blue-700 text-xs">
+                          {item.tag}
+                        </span>
+                        {item.req ? (
+                          <span className="text-[8px] bg-red-100 text-red-600 px-1.5 py-0.5 rounded-md font-black uppercase tracking-wider">Obrigatório</span>
+                        ) : (
+                          <span className="text-[8px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded-md font-black uppercase tracking-wider">Opcional</span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
                 <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
                   <h3 className="text-base font-black text-slate-800 uppercase tracking-wider mb-4 flex items-center gap-2">
                     <Calendar className="w-5 h-5 text-blue-600" /> Leituras Diárias
