@@ -10,6 +10,7 @@ import {
   Search,
   Trash2,
   Edit,
+  ArrowLeft,
   Calendar,
   ChevronDown,
   ChevronUp,
@@ -354,6 +355,88 @@ export default function ControlView({
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
   const [filterOnlyActive, setFilterOnlyActive] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const measurementInputRef = useRef<HTMLInputElement>(null);
+
+  const handleImportMeasurement = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      try {
+        const bstr = evt.target?.result;
+        const wb = XLSX.read(bstr, { type: "binary" });
+        const wsname = wb.SheetNames[0];
+        const ws = wb.Sheets[wsname];
+        const data = XLSX.utils.sheet_to_json<any>(ws);
+
+        if (!data || data.length === 0) {
+          alert("Nenhuma dado encontrado no arquivo.");
+          return;
+        }
+
+        const newDays = [...tempDailyData];
+        let importedCount = 0;
+
+        data.forEach((row) => {
+          const rawDate = row["Data"] || row["data"] || row["Date"] || row["date"];
+          if (!rawDate) return;
+          
+          let dateStr = "";
+          if (typeof rawDate === "number") {
+             const d = new Date(Math.round((rawDate - 25569) * 86400 * 1000));
+             dateStr = d.toISOString().split("T")[0];
+          } else {
+             dateStr = String(rawDate).trim();
+          }
+
+          const existingIdx = newDays.findIndex((d) => d.date === dateStr);
+          if (existingIdx >= 0) {
+            const rowInit = row["Inicial"] || row["inicial"] || row["Initial Reading"];
+            const rowFinal = row["Final"] || row["final"] || row["Final Reading"];
+            const rowStatus = row["Status"] || row["Situação"] || row["status"] || row["situação"];
+            const rowDiscount = row["Desconto"] || row["Desconta"] || row["desconto"] || row["desconta"];
+
+            if (rowInit !== undefined) newDays[existingIdx].initialReading = Number(rowInit) || 0;
+            if (rowFinal !== undefined) newDays[existingIdx].finalReading = Number(rowFinal) || 0;
+
+            if (rowStatus !== undefined) {
+               const st = String(rowStatus).trim().toLowerCase();
+               if (st.includes("chuva")) newDays[existingIdx].status = "Chuva";
+               else if (st.includes("manuten")) newDays[existingIdx].status = "Manutenção";
+               else if (st.includes("aguardando")) newDays[existingIdx].status = "Aguardando Frente";
+               else if (st.includes("disposi")) newDays[existingIdx].status = "à Disposição";
+               else newDays[existingIdx].status = "Trabalhando";
+            }
+
+            if (rowDiscount !== undefined) {
+               const val = String(rowDiscount).trim().toLowerCase();
+               newDays[existingIdx].discount = (val === 'sim' || val === 'true' || val === '1' || val === 'v');
+            } else if (newDays[existingIdx].status && newDays[existingIdx].status !== "Trabalhando") {
+               newDays[existingIdx].discount = true;
+            } else {
+               newDays[existingIdx].discount = false;
+            }
+            importedCount++;
+          }
+        });
+
+        // AUTO PROPAGATE MISSING/ZERS IF NEEDED - standard routine already does it on table change, but here let's leave it manual or sequential as they might not import everything.
+        setTempDailyData(newDays);
+        alert(`Importação concluída. ${importedCount} linhas lidas baseadas nas datas da medição.`);
+
+      } catch (err) {
+        console.error(err);
+        alert("Erro ao importar o arquivo. Verifique o modelo.");
+      }
+      
+      if (measurementInputRef.current) {
+        measurementInputRef.current.value = '';
+      }
+    };
+    reader.readAsBinaryString(file);
+  };
+
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [isMaintenanceModalOpen, setIsMaintenanceModalOpen] = useState(false);
   const [isExitMaintenanceModalOpen, setIsExitMaintenanceModalOpen] =
@@ -1802,6 +1885,9 @@ export default function ControlView({
 
     setIsNewMeasurementModalOpen(false);
     setIsPeriodSelectionOpen(false);
+    setTimeout(() => {
+      alert("A medição do equipamento foi salva com sucesso na tabela do banco de dados!");
+    }, 100);
   };
 
   const handleDeleteMeasurement = (id: string) => {
@@ -2120,6 +2206,9 @@ export default function ControlView({
     );
     setIsEditOpen(false);
     setEquipmentToEdit(null);
+    setTimeout(() => {
+      alert("As alterações do equipamento e suas fotos foram salvas com sucesso na base de dados (controller_equipments)!");
+    }, 100);
   };
 
   const handlePermanentDelete = () => {
@@ -2893,9 +2982,12 @@ export default function ControlView({
           </div>
         </div>
       </div>
-      <div style={{ display: 'none' }}>
-        <div>
-          <h1 className="text-2xl font-black text-gray-900">
+
+      {!(isEditOpen && equipmentToEdit) && !isNewMeasurementModalOpen && (
+        <>
+          <div style={{ display: 'none' }}>
+            <div>
+              <h1 className="text-2xl font-black text-gray-900">
             Controlador de Equipamentos
           </h1>
           <p className="text-base text-gray-500 font-medium">
@@ -3150,20 +3242,21 @@ export default function ControlView({
                 >
                   <Plus className="w-4 h-4 mr-2" /> Novo
                 </Button>
-                <Modal
-                  isOpen={isAddOpen}
-                  onClose={() => setIsAddOpen(false)}
-                  hideCancel={true}
-                  maxWidth="custom"
-                  className="p-0 border-none sm:max-w-[800px] h-[600px] flex flex-col overflow-hidden"
-                  headerClassName="hidden"
-                >
-                  <div className="bg-gradient-to-r from-blue-600 to-indigo-700 p-8 flex justify-between items-center shrink-0 relative overflow-hidden">
-                    <Truck className="absolute -right-8 -bottom-8 w-40 h-40 opacity-10 rotate-12" />
-                    <div className="flex items-center gap-6 relative z-10">
-                      <div className="p-3 bg-white/10 backdrop-blur-md rounded-3xl">
-                        <Plus className="w-8 h-8 text-white" />
-                      </div>
+                {isAddOpen && (
+                  <div className="fixed inset-0 z-[100] bg-white overflow-hidden flex flex-col">
+                    <div className="bg-gradient-to-r from-blue-600 to-indigo-700 p-8 flex justify-between items-center shrink-0 relative overflow-hidden">
+                      <Truck className="absolute -right-8 -bottom-8 w-40 h-40 opacity-10 rotate-12" />
+                      <div className="flex items-center gap-6 relative z-10">
+                        <Button 
+                          variant="ghost" 
+                          className="text-white hover:bg-white/20 p-2 rounded-full"
+                          onClick={() => setIsAddOpen(false)}
+                        >
+                          <ArrowLeft className="w-8 h-8" />
+                        </Button>
+                        <div className="p-3 bg-white/10 backdrop-blur-md rounded-3xl">
+                          <Plus className="w-8 h-8 text-white" />
+                        </div>
                       <div>
                         <h2 className="text-2xl font-black text-white leading-tight">
                           Adicionar Equipamento
@@ -4024,7 +4117,8 @@ export default function ControlView({
                       </Button>
                     </div>
                   </Tabs>
-                </Modal>
+                  </div>
+                )}
               </div>
             </CardHeader>
             <CardContent className="p-0 overflow-x-auto scrollbar-thin-visible">
@@ -5818,34 +5912,45 @@ export default function ControlView({
           </Card>
         </TabsContent>
       </Tabs>
+        </>
+      )}
 
-      <Modal
-        isOpen={isEditOpen}
-        onClose={() => setIsEditOpen(false)}
-        hideCancel={true}
-        maxWidth="custom"
-        className="p-0 border-none sm:max-w-[800px] h-[600px] flex flex-col overflow-hidden"
-        headerClassName="hidden"
-      >
-        <div className="bg-gradient-to-r from-blue-700 to-indigo-800 p-8 flex justify-between items-center shrink-0 relative overflow-hidden">
-          <Truck className="absolute -right-8 -bottom-8 w-40 h-40 opacity-10 rotate-12" />
-          <div className="flex items-center gap-6 relative z-10">
-            <div className="p-3 bg-white/10 backdrop-blur-md rounded-3xl">
-              <Package className="w-8 h-8 text-white" />
+      {isEditOpen && equipmentToEdit && !isNewMeasurementModalOpen ? (
+        <div className="bg-white rounded-3xl border border-gray-100 shadow-xl overflow-hidden flex flex-col h-[800px] max-h-[85vh] mt-6">
+          <div className="bg-gradient-to-r from-blue-700 to-indigo-800 p-8 flex justify-between items-center shrink-0 relative overflow-hidden">
+            <Truck className="absolute -right-8 -bottom-8 w-40 h-40 opacity-10 rotate-12" />
+            <div className="flex items-center gap-6 relative z-10">
+              <Button 
+                variant="ghost" 
+                className="text-white hover:bg-white/20 p-2 rounded-full"
+                onClick={() => setIsEditOpen(false)}
+              >
+                <ArrowLeft className="w-8 h-8" />
+              </Button>
+              <div className="p-3 bg-white/10 backdrop-blur-md rounded-3xl">
+                <Package className="w-8 h-8 text-white" />
+              </div>
+              <div>
+                <h2 className="text-2xl font-black text-white leading-tight">
+                  Editar Equipamento
+                </h2>
+                <p className="text-blue-100 text-base font-bold uppercase tracking-widest mt-1 opacity-80">
+                  Alterar dados do ativo SYNERA
+                </p>
+              </div>
             </div>
-            <div>
-              <h2 className="text-2xl font-black text-white leading-tight">
-                Editar Equipamento
-              </h2>
-              <p className="text-blue-100 text-base font-bold uppercase tracking-widest mt-1 opacity-80">
-                Alterar dados do ativo SYNERA
-              </p>
+            <div className="flex items-center gap-4 relative z-10">
+              <Badge className="bg-white/20 text-white border-none font-black text-base px-4 py-1.5 uppercase rounded-xl backdrop-blur-md">
+                {equipmentToEdit.code || "S/C"}
+              </Badge>
+              <Button
+                className="bg-white text-blue-900 border-none hover:bg-gray-100 px-6 font-bold uppercase tracking-widest"
+                onClick={handleUpdateEquip}
+              >
+                Salvar Alterações
+              </Button>
             </div>
           </div>
-          <Badge className="bg-white/20 text-white border-none font-black text-base px-4 py-1.5 uppercase rounded-xl backdrop-blur-md">
-            {equipmentToEdit?.code || "S/C"}
-          </Badge>
-        </div>
 
         <Tabs
           defaultValue="basic"
@@ -6883,7 +6988,8 @@ export default function ControlView({
             </div>
           </div>
         </Tabs>
-      </Modal>
+        </div>
+      ) : null}
 
       <Modal
         hideCancel={true}
@@ -6938,12 +7044,13 @@ export default function ControlView({
             </div>
           </div>
           <Button
-            className="w-full h-12 rounded-xl bg-blue-600 font-bold"
+            className="w-full h-12 rounded-xl bg-blue-600 font-bold animate-pulse hover:animate-none"
             onClick={() => {
               generateDailyMeasurementData(
                 measurementPeriod.start,
                 measurementPeriod.end,
               );
+              setIsPeriodSelectionOpen(false);
               setIsNewMeasurementModalOpen(true);
             }}
           >
@@ -6952,276 +7059,338 @@ export default function ControlView({
         </div>
       </Modal>
 
-      <Modal
-        hideCancel={true}
-        isOpen={isNewMeasurementModalOpen}
-        onClose={() => setIsNewMeasurementModalOpen(false)}
-        title={
-          <div className="flex items-center justify-between w-full">
-            <span>{`Lançamento de Medição - ${measurementMonth}`}</span>
-            <button
-              onClick={() => setIsNewMeasurementModalOpen(false)}
-              className="p-2 rounded-full hover:bg-gray-100 flex items-center justify-center"
-            >
-              <X className="w-5 h-5 text-gray-500" />
-            </button>
-          </div>
-        }
-        description={`Período: ${measurementPeriod.start ? new Date(measurementPeriod.start + "T12:00:00").toLocaleDateString("pt-BR") : ""} a ${measurementPeriod.end ? new Date(measurementPeriod.end + "T12:00:00").toLocaleDateString("pt-BR") : ""}`}
-        maxWidth="7xl"
-        className="h-[95vh] !p-0"
-        headerClassName="sticky top-0 z-50 bg-white p-4 border-b"
-      >
-        <div className="flex flex-col h-full bg-white overflow-hidden">
-          <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4 scrollbar-thin-visible bg-white">
-            <Table className="w-full min-w-max border-collapse">
-              <TableHeader className="bg-white sticky top-0 z-20">
-                <TableRow className="border-b-2 border-slate-100">
-                  <TableHead className="w-24 text-base font-black uppercase text-slate-500">
-                    Data
-                  </TableHead>
-                  <TableHead className="w-32 text-base font-black uppercase text-slate-500">
-                    Inicial
-                  </TableHead>
-                  <TableHead className="w-32 text-base font-black uppercase text-slate-500">
-                    Final
-                  </TableHead>
-                  <TableHead className="w-24 text-base font-black uppercase text-slate-500 text-center">
-                    Desc.
-                  </TableHead>
-                  <TableHead className="w-24 text-base font-black uppercase text-slate-500 text-center">
-                    Total
-                  </TableHead>
-                  <TableHead className="w-48 text-base font-black uppercase text-slate-500">
-                    Status
-                  </TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {tempDailyData.map((day, idx) => (
-                  <TableRow
-                    key={day.date}
-                    className="hover:bg-slate-50 transition-colors h-14"
-                  >
-                    <TableCell className="text-base font-bold text-slate-600">
-                      {new Date(day.date + "T12:00:00").toLocaleDateString(
-                        "pt-BR",
-                        { weekday: "short", day: "2-digit", month: "2-digit" },
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <NumericInput
-                        value={day.initialReading}
-                        onChange={(val) => {
-                          const newDays = [...tempDailyData];
-                          newDays[idx].initialReading = val;
-                          setTempDailyData(newDays);
-                        }}
-                        onFocus={(e) =>
-                          requestAnimationFrame(() => e.target.select())
-                        }
-                        className="h-9 rounded-lg text-base font-bold border-slate-200"
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <NumericInput
-                        value={day.finalReading}
-                        onChange={(val) => {
-                          const newDays = [...tempDailyData];
-                          newDays[idx].finalReading = val;
-                          // AUTO PROPAGATE NEXT DAY INITIAL
-                          if (idx + 1 < newDays.length) {
-                            newDays[idx + 1].initialReading = val;
-                            if (
-                              newDays[idx + 1].finalReading < val &&
-                              newDays[idx + 1].finalReading > 0
-                            ) {
-                              newDays[idx + 1].finalReading = val;
-                            }
-                          }
-                          setTempDailyData(newDays);
-                        }}
-                        onFocus={(e) =>
-                          requestAnimationFrame(() => e.target.select())
-                        }
-                        className="h-9 rounded-lg text-base font-bold border-slate-200"
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex justify-center items-center">
-                        <input
-                          type="checkbox"
-                          tabIndex={-1}
-                          className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
-                          checked={day.discount}
-                          onChange={(e) => {
-                            const newDays = [...tempDailyData];
-                            newDays[idx].discount = e.target.checked;
-                            setTempDailyData(newDays);
-                          }}
-                        />
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-center font-black text-blue-600 text-base">
-                      {day.initialReading > 0 &&
-                      day.finalReading > 0 &&
-                      day.finalReading > day.initialReading
-                        ? (
-                            day.finalReading - day.initialReading
-                          ).toLocaleString("pt-BR")
-                        : "-"}
-                    </TableCell>
-                    <TableCell>
-                      <Select
-                        value={day.status}
-                        onValueChange={(val: any) => {
-                          const newDays = [...tempDailyData];
-                          newDays[idx].status = val;
-                          if (val !== "Trabalhando") {
-                            newDays[idx].discount = true;
-                          } else {
-                            newDays[idx].discount = false;
-                          }
-                          setTempDailyData(newDays);
-                        }}
-                      >
-                        <SelectTrigger
-                          className="h-9 rounded-lg text-base font-medium border-slate-200 px-2"
-                          tabIndex={-1}
-                        >
-                          <SelectValue placeholder="Selecione..." />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="Trabalhando" className="text-base">
-                            Trabalhando
-                          </SelectItem>
-                          <SelectItem value="Chuva" className="text-base">
-                            Chuva
-                          </SelectItem>
-                          <SelectItem value="Manutenção" className="text-base">
-                            Manutenção
-                          </SelectItem>
-                          <SelectItem
-                            value="Aguardando Frente"
-                            className="text-base"
-                          >
-                            Aguardando Frente
-                          </SelectItem>
-                          <SelectItem
-                            value="à Disposição"
-                            className="text-base"
-                          >
-                            à Disposição
-                          </SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
+      {isNewMeasurementModalOpen && selectedEquipment && (() => {
+        // Filter fuel logs during the measurement period
+        const periodFuelLogs = fuelLogs ? fuelLogs.filter((log) => {
+          if (log.equipmentId !== selectedEquipment?.id) return false;
+          if (log.type !== "saida") return false;
+          const logDate = log.date;
+          return logDate >= measurementPeriod.start && logDate <= measurementPeriod.end;
+        }) : [];
 
-          <div className="p-6 bg-slate-50 border-t flex flex-col gap-4 z-30 shadow-[0_-8px_30px_rgb(0,0,0,0.06)] relative">
-            <div className="flex items-center justify-between overflow-x-auto pb-2">
-              <div className="flex gap-10">
+        // Calculate totals
+        const totalFuelLiters = periodFuelLogs.reduce((acc, curr) => acc + (curr.quantity || 0), 0);
+        const totalFuelCost = periodFuelLogs.reduce((acc, curr) => acc + (curr.cost || (curr.quantity * (curr.unitPrice || 0)) || 0), 0);
+
+        // Filter maintenances during the measurement period
+        const periodMaintenances = equipmentMaintenance ? equipmentMaintenance.filter((m) => {
+          if (m.equipmentId !== selectedEquipment?.id) return false;
+          const mDate = m.entryDate;
+          return mDate >= measurementPeriod.start && mDate <= measurementPeriod.end;
+        }) : [];
+
+        const totalMaintenanceCost = periodMaintenances.reduce((acc, curr) => acc + (curr.totalCost || 0), 0);
+
+        return (
+          <div className="bg-white rounded-3xl border border-gray-150 shadow-xl overflow-hidden flex flex-col h-[850px] max-h-[90vh] mt-6 relative z-50 animate-in fade-in zoom-in-95 duration-200">
+            {/* Header */}
+            <div className="bg-gradient-to-r from-blue-700 to-indigo-800 p-6 text-white shrink-0">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <Button 
+                    variant="ghost" 
+                    className="text-white hover:bg-white/20 p-2 rounded-full h-10 w-10 flex items-center justify-center cursor-pointer"
+                    onClick={() => setIsNewMeasurementModalOpen(false)}
+                  >
+                    <ArrowLeft className="w-6 h-6" />
+                  </Button>
+                  <div>
+                    <h2 className="text-xl font-bold">{`Lançamento de Medição - ${measurementMonth}`}</h2>
+                    <p className="text-blue-100/80 text-sm">
+                      Período: {measurementPeriod.start ? new Date(measurementPeriod.start + "T12:00:00").toLocaleDateString("pt-BR") : ""} a {measurementPeriod.end ? new Date(measurementPeriod.end + "T12:00:00").toLocaleDateString("pt-BR") : ""}
+                    </p>
+                  </div>
+                </div>
+                
+                <div className="flex items-center gap-3">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => measurementInputRef.current?.click()}
+                    className="h-10 px-4 rounded-xl shadow-sm flex items-center gap-2 text-white border-white/30 bg-white/10 hover:bg-white/20 cursor-pointer"
+                  >
+                    <Upload className="w-4 h-4" /> Importar Planilha
+                  </Button>
+                  <input
+                    type="file"
+                    ref={measurementInputRef}
+                    className="hidden"
+                    accept=".xlsx,.xls,.csv"
+                    onChange={handleImportMeasurement}
+                  />
+                  
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="text-white hover:bg-white/20 rounded-full h-10 w-10 p-0 flex items-center justify-center cursor-pointer"
+                    onClick={() => setIsNewMeasurementModalOpen(false)}
+                  >
+                    <X className="w-5 h-5" />
+                  </Button>
+                </div>
+              </div>
+            </div>
+
+            {/* Content with columns */}
+            <div className="flex-1 overflow-hidden flex flex-col lg:flex-row bg-slate-50/50">
+              {/* Left Side: Daily Readings list */}
+              <div className="flex-1 overflow-y-auto p-6 space-y-4">
+                <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+                  <h3 className="text-base font-black text-slate-800 uppercase tracking-wider mb-4 flex items-center gap-2">
+                    <Calendar className="w-5 h-5 text-blue-600" /> Leituras Diárias
+                  </h3>
+                  
+                  <div className="overflow-x-auto w-full">
+                    <Table className="w-full min-w-max border-collapse">
+                      <TableHeader className="bg-white sticky top-0 z-20">
+                        <TableRow className="border-b-2 border-slate-100">
+                          <TableHead className="w-24 text-sm font-black uppercase text-slate-500">
+                            Data
+                          </TableHead>
+                          <TableHead className="w-32 text-sm font-black uppercase text-slate-500">
+                            Inicial
+                          </TableHead>
+                          <TableHead className="w-32 text-sm font-black uppercase text-slate-500">
+                            Final
+                          </TableHead>
+                          <TableHead className="w-24 text-sm font-black uppercase text-slate-500 text-center">
+                            Desc.
+                          </TableHead>
+                          <TableHead className="w-24 text-sm font-black uppercase text-slate-500 text-center">
+                            Total
+                          </TableHead>
+                          <TableHead className="w-48 text-sm font-black uppercase text-slate-500">
+                            Status
+                          </TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {tempDailyData.map((day, idx) => (
+                          <TableRow
+                            key={day.date}
+                            className="hover:bg-slate-50/50 transition-colors h-14"
+                          >
+                            <TableCell className="text-sm font-bold text-slate-600">
+                              {new Date(day.date + "T12:00:00").toLocaleDateString(
+                                "pt-BR",
+                                { weekday: "short", day: "2-digit", month: "2-digit" },
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              <div className="w-28">
+                                <input
+                                  type="number"
+                                  value={day.initialReading || ""}
+                                  onChange={(e) => {
+                                    const val = parseFloat(e.target.value) || 0;
+                                    const newDays = [...tempDailyData];
+                                    newDays[idx].initialReading = val;
+                                    setTempDailyData(newDays);
+                                  }}
+                                  onFocus={(e) => requestAnimationFrame(() => e.target.select())}
+                                  className="h-9 px-3 w-full rounded-lg text-sm font-bold border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                />
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <div className="w-28">
+                                <input
+                                  type="number"
+                                  value={day.finalReading || ""}
+                                  onChange={(e) => {
+                                    const val = parseFloat(e.target.value) || 0;
+                                    const newDays = [...tempDailyData];
+                                    newDays[idx].finalReading = val;
+                                    setTempDailyData(newDays);
+                                  }}
+                                  onFocus={(e) => requestAnimationFrame(() => e.target.select())}
+                                  className="h-9 px-3 w-full rounded-lg text-sm font-bold border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                />
+                              </div>
+                            </TableCell>
+                            <TableCell className="text-center">
+                              <input
+                                type="checkbox"
+                                checked={!!day.discount}
+                                onChange={(e) => {
+                                  const newDays = [...tempDailyData];
+                                  newDays[idx].discount = e.target.checked;
+                                  setTempDailyData(newDays);
+                                }}
+                                className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                              />
+                            </TableCell>
+                            <TableCell className="text-center text-sm font-bold text-slate-700">
+                              {day.discount
+                                ? "-"
+                                : day.finalReading > day.initialReading
+                                ? (day.finalReading - day.initialReading).toLocaleString("pt-BR")
+                                : "0"}
+                            </TableCell>
+                            <TableCell>
+                              <select
+                                value={day.status || "Trabalhando"}
+                                onChange={(e) => {
+                                  const newDays = [...tempDailyData];
+                                  newDays[idx].status = e.target.value as any;
+                                  setTempDailyData(newDays);
+                                }}
+                                className="h-9 w-full min-w-[120px] rounded-lg text-xs font-bold border border-slate-200 bg-white px-2 cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500"
+                              >
+                                <option value="Trabalhando">Trabalhando</option>
+                                <option value="Chuva">Chuva</option>
+                                <option value="Manutenção">Manutenção</option>
+                                <option value="Aguardando Frente">Aguardando Frente</option>
+                                <option value="à Disposição">À Disposição</option>
+                              </select>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </div>
+              </div>
+
+              {/* Right Side: Fuel & Maintenance details in selected period */}
+              <div className="w-full lg:w-[420px] bg-white border-l border-slate-100 p-6 overflow-y-auto flex flex-col gap-6 shrink-0 shadow-inner">
+                {/* Abastecimento Card */}
+                <div className="bg-slate-50 border border-slate-100 rounded-3xl p-5 flex flex-col space-y-4">
+                  <div className="flex items-center justify-between border-b border-gray-200/50 pb-3">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2.5 bg-indigo-50 text-indigo-600 rounded-2xl border border-indigo-100">
+                        <Fuel className="w-5 h-5 animate-pulse" />
+                      </div>
+                      <div>
+                        <h4 className="font-extrabold text-slate-800 tracking-tight text-base">Abastecimentos</h4>
+                        <p className="text-slate-400 text-xs font-medium uppercase tracking-wider">{periodFuelLogs.length} registros no período</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="bg-white p-3 rounded-2xl border border-slate-100/80 shadow-sm">
+                      <span className="text-slate-400 text-[10px] font-bold uppercase tracking-wider block">Total Abastecido</span>
+                      <span className="text-lg font-black text-indigo-700 font-mono leading-tight">{totalFuelLiters.toLocaleString("pt-BR")} L</span>
+                    </div>
+                    <div className="bg-white p-3 rounded-2xl border border-slate-100/80 shadow-sm">
+                      <span className="text-slate-400 text-[10px] font-bold uppercase tracking-wider block">Custo Estimado</span>
+                      <span className="text-lg font-black text-slate-700 font-mono leading-tight">
+                        {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(totalFuelCost)}
+                      </span>
+                    </div>
+                  </div>
+
+                  {periodFuelLogs.length > 0 ? (
+                    <div className="space-y-2 max-h-[160px] overflow-y-auto pr-1">
+                      {periodFuelLogs.map((log) => (
+                        <div key={log.id} className="bg-white px-3 py-2 rounded-xl border border-slate-100 text-xs flex justify-between items-center shadow-sm">
+                          <div className="flex flex-col">
+                            <span className="font-bold text-slate-700">
+                              {new Date(log.date + "T12:00:00").toLocaleDateString("pt-BR")}
+                            </span>
+                            {log.hourMeter !== undefined && (
+                              <span className="text-[10px] text-slate-400">Leitura: {log.hourMeter}h/km</span>
+                            )}
+                          </div>
+                          <span className="font-extrabold text-indigo-600 font-mono bg-indigo-50 px-2 py-1 rounded-lg">
+                            {log.quantity} L
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-center text-slate-400 py-3 italic">Nenhum abastecimento no período.</p>
+                  )}
+                </div>
+
+                {/* Manutenção Card */}
+                <div className="bg-slate-50 border border-slate-100 rounded-3xl p-5 flex flex-col space-y-4">
+                  <div className="flex items-center justify-between border-b border-gray-200/50 pb-3">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2.5 bg-orange-50 text-orange-600 rounded-2xl border border-orange-100">
+                        <Wrench className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <h4 className="font-extrabold text-slate-800 tracking-tight text-base">Manutenções</h4>
+                        <p className="text-slate-400 text-xs font-medium uppercase tracking-wider">{periodMaintenances.length} chamados no período</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="bg-white p-3.5 rounded-2xl border border-slate-100/80 shadow-sm flex justify-between items-center">
+                    <span className="text-slate-400 text-[10px] font-bold uppercase tracking-wider block">Custo de Manutenção</span>
+                    <span className="text-lg font-black text-orange-600 font-mono">
+                      {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(totalMaintenanceCost)}
+                    </span>
+                  </div>
+
+                  {periodMaintenances.length > 0 ? (
+                    <div className="space-y-2 max-h-[160px] overflow-y-auto pr-1">
+                      {periodMaintenances.map((m) => (
+                        <div key={m.id} className="bg-white p-3 rounded-xl border border-slate-100 text-xs space-y-1 shadow-sm">
+                          <div className="flex justify-between items-center border-b border-slate-50 pb-1.5 mb-1.5">
+                            <span className="font-bold text-slate-700">
+                              {new Date(m.entryDate + "T12:00:00").toLocaleDateString("pt-BR")}
+                            </span>
+                            <span className={`px-2 py-0.5 rounded-full font-black uppercase text-[9px] ${
+                              m.type === "preventive" ? "bg-green-50 text-green-600 border border-green-200/50" : "bg-red-50 text-red-600 border border-red-200/50"
+                            }`}>
+                              {m.type === "preventive" ? "Prev" : "Corr"}
+                            </span>
+                          </div>
+                          <p className="text-slate-500 truncate" title={m.requestedItems}>{m.requestedItems}</p>
+                          {m.totalCost !== undefined && (
+                            <span className="text-[10px] font-bold text-slate-400 block text-right">
+                              Custo: {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(m.totalCost)}
+                            </span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-center text-slate-400 py-3 italic">Nenhuma manutenção no período.</p>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Sticky bottom panel with totals & actions */}
+            <div className="p-6 bg-slate-100 border-t flex flex-col md:flex-row items-center justify-between gap-4 shrink-0 rounded-b-2xl">
+              <div className="flex flex-wrap items-center gap-6">
                 <div className="flex flex-col">
-                  <span className="text-sm uppercase font-black text-slate-400 tracking-wider">
-                    Total Líquido
+                  <span className="text-xs uppercase font-bold text-slate-400 tracking-wider">
+                    Total Acumulado
                   </span>
-                  <span className="text-2xl font-black text-blue-600 leading-none">
+                  <span className="text-2xl font-black text-slate-800 leading-none">
                     {tempDailyData
-                      .filter(
-                        (d) =>
-                          d.initialReading > 0 &&
-                          d.finalReading > 0 &&
-                          d.finalReading > d.initialReading,
-                      )
-                      .reduce(
-                        (acc, curr) =>
-                          acc +
-                          (curr.discount
-                            ? 0
-                            : curr.finalReading - curr.initialReading),
-                        0,
-                      )
-                      .toLocaleString("pt-BR")}
-                    <span className="text-base ml-1 uppercase">
-                      {selectedEquipment?.measurementUnit === "Horímetro"
-                        ? "h"
-                        : "km"}
+                      .filter((d) => d.initialReading > 0 && d.finalReading > 0 && d.finalReading > d.initialReading)
+                      .reduce((acc, curr) => acc + (curr.discount ? 0 : curr.finalReading - curr.initialReading), 0)
+                      .toLocaleString("pt-BR")}{" "}
+                    <span className="text-sm font-bold uppercase tracking-widest text-slate-400 ml-1">
+                      {selectedEquipment?.measurementUnit === "Horímetro" ? "h" : "km"}
                     </span>
                   </span>
                 </div>
-                <div className="flex flex-col">
-                  <span className="text-sm uppercase font-black text-slate-400 tracking-wider">
+                <div className="flex flex-col border-l border-slate-200 pl-6">
+                  <span className="text-xs uppercase font-bold text-slate-400 tracking-wider">
                     Valor Total
                   </span>
                   <span className="text-2xl font-black text-emerald-600 leading-none">
-                    {new Intl.NumberFormat("pt-BR", {
-                      style: "currency",
-                      currency: "BRL",
-                    }).format(
+                    {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(
                       tempDailyData
-                        .filter(
-                          (d) =>
-                            d.initialReading > 0 &&
-                            d.finalReading > 0 &&
-                            d.finalReading > d.initialReading,
-                        )
-                        .reduce(
-                          (acc, curr) =>
-                            acc +
-                            (curr.discount
-                              ? 0
-                              : curr.finalReading - curr.initialReading),
-                          0,
-                        ) * (selectedEquipment?.contractedPrice || 0),
+                        .filter((d) => d.initialReading > 0 && d.finalReading > 0 && d.finalReading > d.initialReading)
+                        .reduce((acc, curr) => acc + (curr.discount ? 0 : curr.finalReading - curr.initialReading), 0) * (selectedEquipment?.contractedPrice || 0)
                     )}
-                  </span>
-                </div>
-                <div className="hidden lg:flex flex-col">
-                  <span className="text-sm uppercase font-black text-slate-400 tracking-wider">
-                    Média Diária
-                  </span>
-                  <span className="text-2xl font-black text-slate-600 leading-none">
-                    {(
-                      tempDailyData
-                        .filter(
-                          (d) =>
-                            d.initialReading > 0 &&
-                            d.finalReading > 0 &&
-                            d.finalReading > d.initialReading,
-                        )
-                        .reduce(
-                          (acc, curr) =>
-                            acc +
-                            (curr.discount
-                              ? 0
-                              : curr.finalReading - curr.initialReading),
-                          0,
-                        ) /
-                      (tempDailyData.filter(
-                        (d) =>
-                          d.initialReading > 0 &&
-                          d.finalReading > 0 &&
-                          d.finalReading > d.initialReading,
-                      ).length || 1)
-                    )
-                      .toFixed(1)
-                      .toLocaleString()}
-                    <span className="text-base ml-1 uppercase font-bold text-slate-400">
-                      /dia
-                    </span>
                   </span>
                 </div>
               </div>
 
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-3 w-full md:w-auto">
                 <Button
                   variant="ghost"
                   onClick={() => setIsNewMeasurementModalOpen(false)}
-                  className="rounded-xl font-bold text-base uppercase tracking-widest px-6 h-12"
+                  className="rounded-xl font-bold text-sm uppercase tracking-widest px-6 h-12 flex-1 md:flex-none border border-slate-200 bg-white hover:bg-slate-50 cursor-pointer"
                 >
                   Descartar
                 </Button>
@@ -7230,22 +7399,21 @@ export default function ControlView({
                     handleSaveMeasurement();
                     setIsNewMeasurementModalOpen(false);
                   }}
-                  className="rounded-2xl bg-red-600 hover:bg-red-700 px-10 font-black text-base uppercase tracking-widest shadow-xl shadow-red-100 h-12 transition-all active:scale-95 group"
+                  className="rounded-2xl bg-red-600 hover:bg-red-700 text-white px-8 font-black text-sm uppercase tracking-widest shadow-xl shadow-red-100 h-12 transition-all active:scale-95 flex-1 md:flex-none cursor-pointer"
                 >
-                  <X className="w-5 h-5 mr-2" /> Encerrar Medição
+                  Encerrar Medição
                 </Button>
                 <Button
                   onClick={handleSaveMeasurement}
-                  className="rounded-2xl bg-blue-600 px-10 font-black text-base uppercase tracking-widest shadow-xl shadow-blue-100 h-12 transition-all active:scale-95 group"
+                  className="rounded-2xl bg-blue-600 text-white px-8 font-black text-sm uppercase tracking-widest shadow-xl shadow-blue-100 h-12 transition-all active:scale-95 flex-1 md:flex-none cursor-pointer"
                 >
-                  <Check className="w-5 h-5 mr-2 group-hover:scale-110 transition-transform" />{" "}
                   Confirmar e Salvar Medição
                 </Button>
               </div>
             </div>
           </div>
-        </div>
-      </Modal>
+        );
+      })()}
 
       <Modal
         hideCancel={true}

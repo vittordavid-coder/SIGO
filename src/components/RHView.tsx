@@ -43,6 +43,7 @@ import {
   ArrowRight,
   Upload,
   Printer,
+  X,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -1852,6 +1853,7 @@ export default function RHView({
         </div>
       </div>
 
+      {!isDialogOpen ? (
       <Tabs
         value={activeTab}
         onValueChange={setActiveTab}
@@ -2193,1225 +2195,15 @@ export default function RHView({
                     </DialogFooter>
                   </DialogContent>
                 </Dialog>
-                <Dialog
-                  open={isDialogOpen}
-                  onOpenChange={(open) => {
-                    setIsDialogOpen(open);
-                    if (!open) resetForm();
+                <Button
+                  className="gap-2"
+                  onClick={() => {
+                    resetForm();
+                    setIsDialogOpen(true);
                   }}
                 >
-                  <DialogTrigger asChild>
-                    <Button
-                      className="gap-2"
-                      onClick={() => {
-                        resetForm();
-                        setIsDialogOpen(true);
-                      }}
-                    >
-                      <UserPlus className="w-4 h-4" /> Novo Colaborador
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent className="max-w-[95vw] md:max-w-[95vw] h-[95vh] flex flex-col p-0 border border-border shadow-2xl">
-                    <div className="bg-blue-600 p-6 text-white shrink-0">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                          <div className="bg-white/20 p-2 rounded-lg backdrop-blur-sm">
-                            {editingEmployeeId ? (
-                              <Users className="w-6 h-6" />
-                            ) : (
-                              <UserPlus className="w-6 h-6" />
-                            )}
-                          </div>
-                          <div>
-                            <DialogTitle className="text-xl font-bold text-white">
-                              {editingEmployeeId
-                                ? `Editando Colaborador: ${newEmployee.name}`
-                                : "Ficha de Admissão Digital"}
-                            </DialogTitle>
-                            <DialogDescription className="text-blue-100 text-base">
-                              {editingEmployeeId
-                                ? "Atualização de registro oficial de colaborador"
-                                : "Registro oficial de colaborador - Ambiente Seguro e Criptografado"}
-                            </DialogDescription>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2 bg-blue-700/50 px-3 py-1.5 rounded-full border border-blue-400/30">
-                          <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />
-                          <span className="text-sm font-bold uppercase tracking-widest">
-                            Proteção LGPD Ativa
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="flex-1 overflow-hidden flex flex-col bg-gray-50/50">
-                      <div className="px-8 pt-6 pb-2">
-                        <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 flex items-center gap-3 mb-4">
-                          <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
-                          <p className="text-sm text-amber-800">
-                            <strong>Aviso de Privacidade:</strong> Os dados
-                            inseridos nesta ficha são confidenciais e protegidos
-                            por leis de proteção de dados. Apenas pessoal
-                            autorizado do RH tem acesso a estas informações.
-                          </p>
-                        </div>
-                      </div>
-
-                      <Tabs
-                        defaultValue="personal"
-                        className="flex-1 flex flex-col min-h-0 px-8 pb-8"
-                      >
-                        <TabsList className="flex w-full overflow-x-auto h-14 p-1 mb-8 gap-1 bg-gray-200/50 rounded-xl no-scrollbar shrink-0">
-                          <TabsTrigger
-                            value="personal"
-                            className="flex-1 gap-2 font-bold text-sm whitespace-nowrap data-[state=active]:bg-white data-[state=active]:text-blue-600 data-[state=active]:shadow-sm px-4"
-                          >
-                            <UserIcon className="w-4 h-4" /> Dados Pessoais
-                          </TabsTrigger>
-                          <TabsTrigger
-                            value="documents"
-                            className="flex-1 gap-2 font-bold text-sm whitespace-nowrap data-[state=active]:bg-white data-[state=active]:text-blue-600 data-[state=active]:shadow-sm px-4"
-                          >
-                            <CreditCard className="w-4 h-4" /> Documentação
-                          </TabsTrigger>
-                          <TabsTrigger
-                            value="contact"
-                            className="flex-1 gap-2 font-bold text-sm whitespace-nowrap data-[state=active]:bg-white data-[state=active]:text-blue-600 data-[state=active]:shadow-sm px-4"
-                          >
-                            <Smartphone className="w-4 h-4" /> Endereço &
-                            Contato
-                          </TabsTrigger>
-                          <TabsTrigger
-                            value="family"
-                            className="flex-1 gap-2 font-bold text-sm whitespace-nowrap data-[state=active]:bg-white data-[state=active]:text-blue-600 data-[state=active]:shadow-sm px-4"
-                          >
-                            <Heart className="w-4 h-4" /> Grupo Familiar
-                          </TabsTrigger>
-                          <TabsTrigger
-                            value="professional"
-                            className="flex-1 gap-2 font-bold text-sm whitespace-nowrap data-[state=active]:bg-white data-[state=active]:text-blue-600 data-[state=active]:shadow-sm px-4"
-                          >
-                            <Briefcase className="w-4 h-4" /> Contrato &
-                            Benefícios
-                          </TabsTrigger>
-                        </TabsList>
-
-                        <div className="flex-1 overflow-y-auto pr-1 scrollbar-thin-visible">
-                          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-8 min-h-[400px] max-w-6xl mx-auto">
-                            <TabsContent
-                              value="personal"
-                              className="mt-0 space-y-8 animate-in fade-in duration-300"
-                            >
-                              <div className="flex items-center gap-2 mb-2">
-                                <UserIcon className="w-5 h-5 text-blue-600" />
-                                <h3 className="text-lg font-bold text-gray-800">
-                                  Identificação Pessoal
-                                </h3>
-                              </div>
-
-                              <div className="bg-gray-50/50 p-6 rounded-2xl border border-gray-100 space-y-6">
-                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                                  <div className="space-y-2 lg:col-span-2">
-                                    <Label className="text-sm font-bold text-gray-500 uppercase">
-                                      Nome Completo <span className="text-red-500">*</span>
-                                    </Label>
-                                    <Input
-                                      value={newEmployee.name || ""}
-                                      onChange={(e) =>
-                                        setNewEmployee({
-                                          ...newEmployee,
-                                          name: e.target.value,
-                                        })
-                                      }
-                                      placeholder="Nome conforme certidão"
-                                      className="h-11 shadow-sm"
-                                    />
-                                  </div>
-                                  <div className="space-y-2">
-                                    <Label className="text-sm font-bold text-gray-500 uppercase">
-                                      CPF (Apenas Números) <span className="text-red-500">*</span>
-                                    </Label>
-                                    <Input
-                                      value={newEmployee.cpf || ""}
-                                      onChange={(e) =>
-                                        setNewEmployee({
-                                          ...newEmployee,
-                                          cpf: applyCPFMask(e.target.value),
-                                        })
-                                      }
-                                      placeholder="000.000.000-00"
-                                      className="h-11 font-mono shadow-sm"
-                                    />
-                                  </div>
-                                </div>
-                              </div>
-
-                              <div className="bg-blue-50/30 p-6 rounded-2xl border border-blue-100/50 space-y-6">
-                                <h4 className="text-sm font-bold text-blue-900 uppercase tracking-widest flex items-center gap-2">
-                                  <Calendar className="w-3 h-3" /> Nascimento &
-                                  Origem
-                                </h4>
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                                  <div className="space-y-2">
-                                    <Label className="text-sm font-bold text-gray-500 uppercase">
-                                      Data de Nascimento
-                                    </Label>
-                                    <Input
-                                      type="date"
-                                      value={newEmployee.birthDate || ""}
-                                      onChange={(e) =>
-                                        setNewEmployee({
-                                          ...newEmployee,
-                                          birthDate: e.target.value,
-                                        })
-                                      }
-                                      className="h-11 shadow-sm"
-                                    />
-                                  </div>
-                                  <div className="space-y-2">
-                                    <Label className="text-sm font-bold text-gray-500 uppercase">
-                                      Naturalidade (Cidade)
-                                    </Label>
-                                    <Input
-                                      value={newEmployee.birthPlace || ""}
-                                      onChange={(e) =>
-                                        setNewEmployee({
-                                          ...newEmployee,
-                                          birthPlace: e.target.value,
-                                        })
-                                      }
-                                      placeholder="Ex: São Paulo"
-                                      className="h-11 shadow-sm"
-                                    />
-                                  </div>
-                                  <div className="space-y-2">
-                                    <Label className="text-sm font-bold text-gray-500 uppercase">
-                                      UF
-                                    </Label>
-                                    <Input
-                                      value={newEmployee.birthState || ""}
-                                      onChange={(e) =>
-                                        setNewEmployee({
-                                          ...newEmployee,
-                                          birthState: e.target.value,
-                                        })
-                                      }
-                                      placeholder="UF"
-                                      maxLength={2}
-                                      className="h-11 uppercase shadow-sm"
-                                    />
-                                  </div>
-                                </div>
-                              </div>
-                            </TabsContent>
-
-                            <TabsContent
-                              value="documents"
-                              className="mt-0 space-y-8 animate-in fade-in duration-300"
-                            >
-                              <div className="flex items-center gap-2 mb-2">
-                                <CreditCard className="w-5 h-5 text-blue-600" />
-                                <h3 className="text-lg font-bold text-gray-800">
-                                  Documentação Civil
-                                </h3>
-                              </div>
-
-                              <div className="bg-gray-50/50 p-6 rounded-2xl border border-gray-100 space-y-6">
-                                <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                                  <div className="space-y-2 md:col-span-2">
-                                    <Label className="text-sm font-bold text-gray-500 uppercase">
-                                      RG Nº
-                                    </Label>
-                                    <Input
-                                      value={newEmployee.rgNumber || ""}
-                                      onChange={(e) =>
-                                        setNewEmployee({
-                                          ...newEmployee,
-                                          rgNumber: e.target.value,
-                                        })
-                                      }
-                                      className="h-11 shadow-sm"
-                                    />
-                                  </div>
-                                  <div className="grid grid-cols-3 gap-3 md:col-span-2">
-                                    <div className="space-y-2">
-                                      <Label className="text-sm font-bold text-gray-500 uppercase">
-                                        Data de Emissão
-                                      </Label>
-                                      <Input
-                                        type="date"
-                                        value={newEmployee.rgAgency || ""}
-                                        onChange={(e) =>
-                                          setNewEmployee({
-                                            ...newEmployee,
-                                            rgAgency: e.target.value,
-                                          })
-                                        }
-                                        className="h-11 shadow-sm"
-                                      />
-                                    </div>
-                                    <div className="space-y-2">
-                                      <Label className="text-sm font-bold text-gray-500 uppercase">
-                                        Orgão Emissor
-                                      </Label>
-                                      <Input
-                                        value={newEmployee.rgIssuer || ""}
-                                        onChange={(e) =>
-                                          setNewEmployee({
-                                            ...newEmployee,
-                                            rgIssuer: e.target.value,
-                                          })
-                                        }
-                                        placeholder="Ex: SSP/SP"
-                                        className="h-11 shadow-sm"
-                                      />
-                                    </div>
-                                    <div className="space-y-2">
-                                      <Label className="text-sm font-bold text-gray-500 uppercase">
-                                        UF
-                                      </Label>
-                                      <Input
-                                        value={newEmployee.rgState || ""}
-                                        onChange={(e) =>
-                                          setNewEmployee({
-                                            ...newEmployee,
-                                            rgState: e.target.value,
-                                          })
-                                        }
-                                        maxLength={2}
-                                        className="h-11 uppercase shadow-sm"
-                                      />
-                                    </div>
-                                  </div>
-                                </div>
-                              </div>
-
-                              <div className="bg-blue-50/30 p-6 rounded-2xl border border-blue-100/50 space-y-6">
-                                <h4 className="text-sm font-bold text-blue-900 uppercase tracking-widest flex items-center gap-2">
-                                  <FileText className="w-3 h-3" /> Dados do
-                                  Trabalho (CTPS/PIS)
-                                </h4>
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                                  <div className="space-y-2">
-                                    <Label className="text-sm font-bold text-gray-500 uppercase">
-                                      Carteira de Trabalho (CTPS)
-                                    </Label>
-                                    <Input
-                                      value={
-                                        newEmployee.workBookletNumber || ""
-                                      }
-                                      onChange={(e) =>
-                                        setNewEmployee({
-                                          ...newEmployee,
-                                          workBookletNumber: e.target.value,
-                                        })
-                                      }
-                                      className="h-11 shadow-sm"
-                                    />
-                                  </div>
-                                  <div className="space-y-2">
-                                    <Label className="text-sm font-bold text-gray-500 uppercase">
-                                      Série
-                                    </Label>
-                                    <Input
-                                      value={
-                                        newEmployee.workBookletSeries || ""
-                                      }
-                                      onChange={(e) =>
-                                        setNewEmployee({
-                                          ...newEmployee,
-                                          workBookletSeries: e.target.value,
-                                        })
-                                      }
-                                      className="h-11 shadow-sm"
-                                    />
-                                  </div>
-                                  <div className="space-y-2">
-                                    <Label className="text-sm font-bold text-gray-500 uppercase">
-                                      PIS
-                                    </Label>
-                                    <Input
-                                      value={newEmployee.pis || ""}
-                                      onChange={(e) =>
-                                        setNewEmployee({
-                                          ...newEmployee,
-                                          pis: e.target.value,
-                                        })
-                                      }
-                                      className="h-11 shadow-sm"
-                                    />
-                                  </div>
-                                </div>
-                              </div>
-
-                              <div className="bg-purple-50/30 p-6 rounded-2xl border border-purple-100/50 space-y-6">
-                                <h4 className="text-sm font-bold text-purple-900 uppercase tracking-widest flex items-center gap-2">
-                                  <Users className="w-3 h-3" /> Título de
-                                  Eleitor & Exercício Civil
-                                </h4>
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                                  <div className="space-y-2">
-                                    <Label className="text-sm font-bold text-gray-500 uppercase">
-                                      Título de Eleitor
-                                    </Label>
-                                    <Input
-                                      value={newEmployee.voterIdNumber || ""}
-                                      onChange={(e) =>
-                                        setNewEmployee({
-                                          ...newEmployee,
-                                          voterIdNumber: e.target.value,
-                                        })
-                                      }
-                                      className="h-11 font-mono shadow-sm"
-                                    />
-                                  </div>
-                                  <div className="space-y-2">
-                                    <Label className="text-sm font-bold text-gray-500 uppercase">
-                                      Zona
-                                    </Label>
-                                    <Input
-                                      value={newEmployee.voterZone || ""}
-                                      onChange={(e) =>
-                                        setNewEmployee({
-                                          ...newEmployee,
-                                          voterZone: e.target.value,
-                                        })
-                                      }
-                                      className="h-11 shadow-sm"
-                                    />
-                                  </div>
-                                  <div className="space-y-2">
-                                    <Label className="text-sm font-bold text-gray-500 uppercase">
-                                      Seção
-                                    </Label>
-                                    <Input
-                                      value={newEmployee.voterSection || ""}
-                                      onChange={(e) =>
-                                        setNewEmployee({
-                                          ...newEmployee,
-                                          voterSection: e.target.value,
-                                        })
-                                      }
-                                      className="h-11 shadow-sm"
-                                    />
-                                  </div>
-                                </div>
-                              </div>
-                            </TabsContent>
-
-                            <TabsContent
-                              value="contact"
-                              className="mt-0 space-y-8 animate-in fade-in duration-300"
-                            >
-                              <div className="flex items-center gap-2 mb-2">
-                                <Smartphone className="w-5 h-5 text-blue-600" />
-                                <h3 className="text-lg font-bold text-gray-800">
-                                  Endereço & Canais de Contato
-                                </h3>
-                              </div>
-
-                              <div className="bg-gray-50/50 p-6 rounded-2xl border border-gray-100 space-y-6">
-                                <h4 className="text-sm font-bold text-gray-900 uppercase tracking-widest flex items-center gap-2">
-                                  <Mail className="w-3 h-3" /> Contato Direto
-                                </h4>
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                                  <div className="space-y-2">
-                                    <Label className="text-sm font-bold text-gray-500 uppercase">
-                                      Telefone Residencial
-                                    </Label>
-                                    <Input
-                                      value={newEmployee.phone || ""}
-                                      onChange={(e) =>
-                                        setNewEmployee({
-                                          ...newEmployee,
-                                          phone: applyPhoneMask(e.target.value),
-                                        })
-                                      }
-                                      placeholder="(00) 0000-0000"
-                                      className="h-11 shadow-sm"
-                                    />
-                                  </div>
-                                  <div className="space-y-2">
-                                    <Label className="text-sm font-bold text-gray-500 uppercase">
-                                      Celular / WhatsApp
-                                    </Label>
-                                    <Input
-                                      value={newEmployee.mobile || ""}
-                                      onChange={(e) =>
-                                        setNewEmployee({
-                                          ...newEmployee,
-                                          mobile: applyPhoneMask(
-                                            e.target.value,
-                                          ),
-                                        })
-                                      }
-                                      placeholder="(00) 90000-0000"
-                                      className="h-11 shadow-sm"
-                                    />
-                                  </div>
-                                  <div className="space-y-2">
-                                    <Label className="text-sm font-bold text-gray-500 uppercase">
-                                      E-mail Pessoal
-                                    </Label>
-                                    <Input
-                                      value={newEmployee.email || ""}
-                                      onChange={(e) =>
-                                        setNewEmployee({
-                                          ...newEmployee,
-                                          email: e.target.value,
-                                        })
-                                      }
-                                      placeholder="exemplo@gmail.com"
-                                      className="h-11 shadow-sm"
-                                    />
-                                  </div>
-                                </div>
-                              </div>
-
-                              <div className="bg-blue-50/30 p-6 rounded-2xl border border-blue-100/50 space-y-6">
-                                <h4 className="text-sm font-bold text-blue-900 uppercase tracking-widest flex items-center gap-2">
-                                  <MapPin className="w-3 h-3" /> Localização
-                                  Residencial
-                                </h4>
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                                  <div className="space-y-2 md:col-span-2">
-                                    <Label className="text-sm font-bold text-gray-500 uppercase">
-                                      Rua / Logradouro
-                                    </Label>
-                                    <Input
-                                      value={
-                                        newEmployee.addressLogradouro || ""
-                                      }
-                                      onChange={(e) =>
-                                        setNewEmployee({
-                                          ...newEmployee,
-                                          addressLogradouro: e.target.value,
-                                        })
-                                      }
-                                      placeholder="Rua, Avenida, Logradouro..."
-                                      className="h-11 shadow-sm"
-                                    />
-                                  </div>
-                                  <div className="grid grid-cols-2 gap-3">
-                                    <div className="space-y-2">
-                                      <Label className="text-sm font-bold text-gray-500 uppercase">
-                                        Número
-                                      </Label>
-                                      <Input
-                                        value={newEmployee.addressNumber || ""}
-                                        onChange={(e) =>
-                                          setNewEmployee({
-                                            ...newEmployee,
-                                            addressNumber: e.target.value,
-                                          })
-                                        }
-                                        className="h-11 shadow-sm"
-                                      />
-                                    </div>
-                                    <div className="space-y-2">
-                                      <Label className="text-sm font-bold text-gray-500 uppercase">
-                                        CEP
-                                      </Label>
-                                      <Input
-                                        value={newEmployee.addressZipCode || ""}
-                                        onChange={(e) =>
-                                          setNewEmployee({
-                                            ...newEmployee,
-                                            addressZipCode: applyCEPMask(
-                                              e.target.value,
-                                            ),
-                                          })
-                                        }
-                                        placeholder="00000-000"
-                                        className="h-11 shadow-sm font-mono"
-                                      />
-                                    </div>
-                                  </div>
-                                  <div className="space-y-2">
-                                    <Label className="text-sm font-bold text-gray-500 uppercase">
-                                      Complemento
-                                    </Label>
-                                    <Input
-                                      value={
-                                        newEmployee.addressComplement || ""
-                                      }
-                                      onChange={(e) =>
-                                        setNewEmployee({
-                                          ...newEmployee,
-                                          addressComplement: e.target.value,
-                                        })
-                                      }
-                                      className="h-11 shadow-sm"
-                                    />
-                                  </div>
-                                  <div className="space-y-2">
-                                    <Label className="text-sm font-bold text-gray-500 uppercase">
-                                      Bairro
-                                    </Label>
-                                    <Input
-                                      value={
-                                        newEmployee.addressNeighborhood || ""
-                                      }
-                                      onChange={(e) =>
-                                        setNewEmployee({
-                                          ...newEmployee,
-                                          addressNeighborhood: e.target.value,
-                                        })
-                                      }
-                                      className="h-11 shadow-sm"
-                                    />
-                                  </div>
-                                  <div className="grid grid-cols-3 gap-3">
-                                    <div className="space-y-2 col-span-2">
-                                      <Label className="text-sm font-bold text-gray-500 uppercase">
-                                        Cidade
-                                      </Label>
-                                      <Input
-                                        value={newEmployee.addressCity || ""}
-                                        onChange={(e) =>
-                                          setNewEmployee({
-                                            ...newEmployee,
-                                            addressCity: e.target.value,
-                                          })
-                                        }
-                                        className="h-11 shadow-sm"
-                                      />
-                                    </div>
-                                    <div className="space-y-2">
-                                      <Label className="text-sm font-bold text-gray-500 uppercase">
-                                        UF
-                                      </Label>
-                                      <Input
-                                        value={newEmployee.addressState || ""}
-                                        onChange={(e) =>
-                                          setNewEmployee({
-                                            ...newEmployee,
-                                            addressState: e.target.value,
-                                          })
-                                        }
-                                        maxLength={2}
-                                        className="h-11 uppercase shadow-sm"
-                                      />
-                                    </div>
-                                  </div>
-                                </div>
-                              </div>
-                            </TabsContent>
-
-                            <TabsContent
-                              value="family"
-                              className="mt-0 space-y-8 animate-in fade-in duration-300"
-                            >
-                              <div className="flex items-center gap-2 mb-2">
-                                <Heart className="w-5 h-5 text-blue-600" />
-                                <h3 className="text-lg font-bold text-gray-800">
-                                  Núcleo Familiar & Filiação
-                                </h3>
-                              </div>
-
-                              <div className="bg-gray-50/50 p-6 rounded-2xl border border-gray-100 space-y-6">
-                                <h4 className="text-sm font-bold text-gray-900 uppercase tracking-widest flex items-center gap-2">
-                                  <Users className="w-3 h-3" /> Genitores &
-                                  Cônjuge
-                                </h4>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                  <div className="space-y-2">
-                                    <Label className="text-sm font-bold text-gray-500 uppercase">
-                                      Nome do Pai
-                                    </Label>
-                                    <Input
-                                      value={newEmployee.fatherName || ""}
-                                      onChange={(e) =>
-                                        setNewEmployee({
-                                          ...newEmployee,
-                                          fatherName: e.target.value,
-                                        })
-                                      }
-                                      className="h-11 shadow-sm"
-                                    />
-                                  </div>
-                                  <div className="space-y-2">
-                                    <Label className="text-sm font-bold text-gray-500 uppercase">
-                                      Nome da Mãe
-                                    </Label>
-                                    <Input
-                                      value={newEmployee.motherName || ""}
-                                      onChange={(e) =>
-                                        setNewEmployee({
-                                          ...newEmployee,
-                                          motherName: e.target.value,
-                                        })
-                                      }
-                                      className="h-11 shadow-sm"
-                                    />
-                                  </div>
-                                  <div className="space-y-2 md:col-span-2">
-                                    <Label className="text-sm font-bold text-gray-500 uppercase">
-                                      Nome do Cônjuge (Se casado/união estável)
-                                    </Label>
-                                    <Input
-                                      value={newEmployee.spouseName || ""}
-                                      onChange={(e) =>
-                                        setNewEmployee({
-                                          ...newEmployee,
-                                          spouseName: e.target.value,
-                                        })
-                                      }
-                                      className="h-11 shadow-sm"
-                                    />
-                                  </div>
-                                </div>
-                              </div>
-
-                              <div className="bg-blue-50/30 p-6 rounded-2xl border border-blue-100/50 space-y-6">
-                                <div className="flex items-center justify-between mb-2">
-                                  <div className="flex items-center gap-2">
-                                    <Baby className="w-5 h-5 text-blue-500" />
-                                    <h4 className="text-base font-bold text-gray-700 uppercase tracking-wide">
-                                      Dependentes e Filhos
-                                    </h4>
-                                  </div>
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={addDependent}
-                                    className="h-9 px-4 text-sm gap-2 border-blue-200 text-blue-600 hover:bg-blue-50 bg-white"
-                                  >
-                                    <Plus className="w-4 h-4" /> Compor Novo
-                                    Dependente
-                                  </Button>
-                                </div>
-
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                  {(newEmployee.dependents || []).map(
-                                    (dep, idx) => (
-                                      <div
-                                        key={idx}
-                                        className="flex gap-3 items-end border border-gray-200 p-4 rounded-xl bg-white shadow-sm animate-in zoom-in-95 duration-200"
-                                      >
-                                        <div className="flex-1 space-y-2">
-                                          <Label className="text-sm uppercase font-bold text-gray-400">
-                                            Nome Completo do Filho(a)
-                                          </Label>
-                                          <Input
-                                            value={dep.name || ""}
-                                            onChange={(e) =>
-                                              updateDependent(
-                                                idx,
-                                                "name",
-                                                e.target.value,
-                                              )
-                                            }
-                                            className="h-10 text-base"
-                                          />
-                                        </div>
-                                        <div className="w-32 space-y-2">
-                                          <Label className="text-sm uppercase font-bold text-gray-400">
-                                            CPF
-                                          </Label>
-                                          <Input
-                                            value={dep.cpf || ""}
-                                            onChange={(e) =>
-                                              updateDependent(
-                                                idx,
-                                                "cpf",
-                                                e.target.value,
-                                              )
-                                            }
-                                            placeholder="000.000.000-00"
-                                            className="h-10 text-base"
-                                          />
-                                        </div>
-                                        <div className="w-40 space-y-2">
-                                          <Label className="text-sm uppercase font-bold text-gray-400">
-                                            Data Nasc.
-                                          </Label>
-                                          <Input
-                                            type="date"
-                                            value={dep.birthDate || ""}
-                                            onChange={(e) =>
-                                              updateDependent(
-                                                idx,
-                                                "birthDate",
-                                                e.target.value,
-                                              )
-                                            }
-                                            className="h-10 text-base"
-                                          />
-                                        </div>
-                                        <Button
-                                          variant="ghost"
-                                          size="icon"
-                                          onClick={() => removeDependent(idx)}
-                                          className="h-10 w-10 text-gray-400 hover:text-red-500 hover:bg-red-50"
-                                        >
-                                          <Trash2 className="w-4 h-4" />
-                                        </Button>
-                                      </div>
-                                    ),
-                                  )}
-                                  {(newEmployee.dependents || []).length ===
-                                    0 && (
-                                    <div className="md:col-span-2 py-10 flex flex-col items-center justify-center border-2 border-dashed border-gray-100 rounded-2xl bg-gray-50/20">
-                                      <Baby className="w-8 h-8 text-gray-200 mb-2" />
-                                      <p className="text-base text-gray-400 font-medium">
-                                        Nenhum filho ou dependente cadastrado.
-                                      </p>
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-                            </TabsContent>
-
-                            <TabsContent
-                              value="professional"
-                              className="mt-0 space-y-8 animate-in fade-in duration-300"
-                            >
-                              <div className="flex items-center gap-2 mb-2">
-                                <Briefcase className="w-5 h-5 text-blue-600" />
-                                <h3 className="text-lg font-bold text-gray-800">
-                                  Contrato de Trabalho & Benefícios
-                                </h3>
-                              </div>
-
-                              <div className="bg-gray-50/50 p-6 rounded-2xl border border-gray-100 space-y-6">
-                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                                  <div className="space-y-2 lg:col-span-2 relative">
-                                    <Label className="text-sm font-bold text-gray-500 uppercase tracking-wide">
-                                      Função / Cargo Pretendido <span className="text-red-500">*</span>
-                                    </Label>
-                                    <Input
-                                      value={newEmployee.role || ""}
-                                      onChange={(e) =>
-                                        setNewEmployee({
-                                          ...newEmployee,
-                                          role: e.target.value,
-                                        })
-                                      }
-                                      onFocus={() => setIsRoleFocused(true)}
-                                      onBlur={() => {
-                                        setTimeout(() => {
-                                          setIsRoleFocused(false);
-                                        }, 250);
-                                      }}
-                                      placeholder="Ex: Operador de Máquinas"
-                                      autoComplete="off"
-                                      className="h-11 shadow-sm focus:ring-blue-500 bg-white"
-                                    />
-                                    {isRoleFocused && (() => {
-                                      const term = (newEmployee.role || '').toLowerCase().trim();
-                                      const suggestions = term.length === 0 ? existingRoles : existingRoles.filter(r => r.toLowerCase().includes(term));
-                                      
-                                      if (suggestions.length === 0) return null;
-
-                                      return (
-                                        <div className="absolute left-0 right-0 top-[100%] mt-1 bg-white border border-gray-200 rounded-xl shadow-2xl z-50 max-h-60 overflow-y-auto divide-y divide-gray-50 text-left min-w-[320px]">
-                                          {suggestions.map((suggestion, sIdx) => (
-                                            <button
-                                              key={sIdx}
-                                              type="button"
-                                              onMouseDown={() => {
-                                                setNewEmployee({
-                                                  ...newEmployee,
-                                                  role: suggestion
-                                                });
-                                                setIsRoleFocused(false);
-                                              }}
-                                              className="w-full text-left px-4 py-2 hover:bg-blue-50 transition-colors flex justify-between items-center"
-                                            >
-                                              <span className="text-xs font-bold text-slate-800">{suggestion}</span>
-                                            </button>
-                                          ))}
-                                        </div>
-                                      );
-                                    })()}
-                                  </div>
-                                  <div className="space-y-2">
-                                    <Label className="text-sm font-bold text-gray-500 uppercase tracking-wide">
-                                      Data de Admissão <span className="text-red-500">*</span>
-                                    </Label>
-                                    <Input
-                                      type="date"
-                                      value={newEmployee.admissionDate || ""}
-                                      onChange={(e) =>
-                                        setNewEmployee({
-                                          ...newEmployee,
-                                          admissionDate: e.target.value,
-                                        })
-                                      }
-                                      className="h-11 shadow-sm"
-                                    />
-                                  </div>
-                                  <div className="space-y-2">
-                                    <div className="flex items-center justify-between">
-                                      <Label className="text-sm font-bold text-gray-500 uppercase tracking-tighter">
-                                        Remuneração Base (R$)
-                                      </Label>
-                                      <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        onClick={() =>
-                                          setShowSalary(!showSalary)
-                                        }
-                                        className="h-5 text-xs text-blue-600 gap-1 hover:bg-blue-50 px-1"
-                                      >
-                                        {showSalary ? (
-                                          <EyeOff className="w-3 h-3" />
-                                        ) : (
-                                          <Eye className="w-3 h-3" />
-                                        )}
-                                        {showSalary ? "Ocultar" : "Exibir"}
-                                      </Button>
-                                    </div>
-                                    <div className="relative">
-                                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 font-bold text-sm">
-                                        R$
-                                      </span>
-                                      <Input
-                                        type={
-                                          showSalary ? "number" : "password"
-                                        }
-                                        value={newEmployee.salary || 0}
-                                        onChange={(e) =>
-                                          setNewEmployee({
-                                            ...newEmployee,
-                                            salary:
-                                              parseFloat(e.target.value) || 0,
-                                          })
-                                        }
-                                        placeholder="0.00"
-                                        className="h-11 pl-9 shadow-sm"
-                                      />
-                                    </div>
-                                  </div>
-                                </div>
-                              </div>
-
-                              <div className="bg-slate-50 p-6 rounded-2xl border border-slate-200/50">
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                                  <div className="space-y-2">
-                                    <Label className="text-sm font-bold text-gray-500 uppercase tracking-wide">
-                                      Modalidade de Contratação
-                                    </Label>
-                                    <Select
-                                      value={newEmployee.paymentType}
-                                      onValueChange={(v: any) =>
-                                        setNewEmployee({
-                                          ...newEmployee,
-                                          paymentType: v,
-                                        })
-                                      }
-                                    >
-                                      <SelectTrigger className="h-11 bg-white shadow-sm border-slate-200">
-                                        <SelectValue placeholder="Selecione a modalidade" />
-                                      </SelectTrigger>
-                                      <SelectContent>
-                                        <SelectItem value="hour">
-                                          Contrato por Hora (Horista)
-                                        </SelectItem>
-                                        <SelectItem value="day">
-                                          Contrato por Dia (Diarista)
-                                        </SelectItem>
-                                        <SelectItem value="month">
-                                          Contrato Mensal (Mensalista)
-                                        </SelectItem>
-                                      </SelectContent>
-                                    </Select>
-                                  </div>
-                                  <div className="space-y-2">
-                                    <Label className="text-sm font-bold text-gray-500 uppercase tracking-wide">
-                                      Contrato Vinculado <span className="text-red-500">*</span>
-                                    </Label>
-                                    <Select
-                                      value={newEmployee.contractId || ""}
-                                      onValueChange={(v: any) =>
-                                        setNewEmployee({
-                                          ...newEmployee,
-                                          contractId: v,
-                                        })
-                                      }
-                                    >
-                                      <SelectTrigger className="w-full h-11 bg-white shadow-sm border-blue-100 focus:ring-blue-500 rounded-xl font-medium text-blue-900 ring-offset-blue-50">
-                                        <SelectValue placeholder="Selecione o contrato">
-                                          {newEmployee.contractId
-                                            ? (() => {
-                                                const c = contracts.find(
-                                                  (x) =>
-                                                    x.id ===
-                                                    newEmployee.contractId,
-                                                );
-                                                if (!c)
-                                                  return "Contrato não encontrado";
-                                                return `${c.workName || c.client || "Sem nome"} (${c.contractNumber || "S/N"})`;
-                                              })()
-                                            : "Selecione o contrato"}
-                                        </SelectValue>
-                                      </SelectTrigger>
-                                      <SelectContent className="max-h-80 rounded-xl border-blue-100">
-                                        {contracts.map((c) => {
-                                          const label = `${c.workName || "Obra sem nome"} - ${c.client || "Cliente não definido"} (${c.contractNumber || "S/N"})`;
-                                          return (
-                                            <SelectItem
-                                              key={c.id}
-                                              value={c.id}
-                                              textValue={label}
-                                            >
-                                              <div className="flex flex-col py-1">
-                                                <span className="font-bold text-blue-900">
-                                                  {c.workName ||
-                                                    "Obra sem nome"}
-                                                </span>
-                                                <span className="text-sm text-gray-500">
-                                                  {c.client ||
-                                                    "Cliente não definido"}{" "}
-                                                  • {c.contractNumber || "S/N"}
-                                                </span>
-                                              </div>
-                                            </SelectItem>
-                                          );
-                                        })}
-                                      </SelectContent>
-                                    </Select>
-                                  </div>
-                                  <div className="space-y-2">
-                                    <Label className="text-sm font-bold text-gray-500 uppercase tracking-wide">
-                                      Equipe Vinculada
-                                    </Label>
-                                    <Select
-                                      value={newEmployee.team || "none"}
-                                      onValueChange={(val) =>
-                                        setNewEmployee({
-                                          ...newEmployee,
-                                          team:
-                                            val === "none" ? undefined : val,
-                                        })
-                                      }
-                                    >
-                                      <SelectTrigger className="w-full h-11 bg-white shadow-sm border-slate-200 rounded-xl font-medium text-gray-900 focus:ring-blue-500">
-                                        <SelectValue placeholder="Sem equipe" />
-                                      </SelectTrigger>
-                                      <SelectContent className="max-h-80 rounded-xl border-slate-200 bg-white">
-                                        <SelectItem value="none">
-                                          Sem equipe
-                                        </SelectItem>
-                                        {(controllerTeams || [])
-                                          .filter(
-                                            (t) =>
-                                              !newEmployee.contractId ||
-                                              t.contractId ===
-                                                newEmployee.contractId,
-                                          )
-                                          .map((t) => (
-                                            <SelectItem
-                                              key={t.id}
-                                              value={t.name}
-                                            >
-                                              {t.name}
-                                            </SelectItem>
-                                          ))}
-                                      </SelectContent>
-                                    </Select>
-                                  </div>
-                                </div>
-                              </div>
-
-                              <div className="mt-2 p-6 bg-blue-50/50 rounded-2xl border border-blue-100/50 space-y-6">
-                                <div className="flex items-center justify-between">
-                                  <div className="flex items-center gap-3">
-                                    <div className="bg-blue-600 p-2 rounded-lg text-white shadow-md">
-                                      <MapPin className="w-4 h-4" />
-                                    </div>
-                                    <div>
-                                      <h4 className="text-base font-bold text-blue-900 uppercase">
-                                        Vale-Transporte & Mobilidade
-                                      </h4>
-                                      <p className="text-sm text-blue-700 font-medium">
-                                        Desconto legal de 6% ou custeio integral
-                                        da empresa
-                                      </p>
-                                    </div>
-                                  </div>
-                                  <Switch
-                                    id="commuter"
-                                    checked={!!newEmployee.commuterBenefits}
-                                    onCheckedChange={(checked) =>
-                                      setNewEmployee({
-                                        ...newEmployee,
-                                        commuterBenefits: !!checked,
-                                      })
-                                    }
-                                  />
-                                </div>
-
-                                {newEmployee.commuterBenefits && (
-                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-in slide-in-from-top-2 duration-300">
-                                    <div className="space-y-3 bg-white p-5 rounded-xl border border-blue-100 shadow-sm transition-all hover:shadow-md">
-                                      <Label className="text-sm font-bold uppercase text-gray-400 tracking-widest">
-                                        Trajeto 01 (Principal)
-                                      </Label>
-                                      <Input
-                                        placeholder="Cidade de Origem"
-                                        className="h-10 text-base border-gray-100 focus:border-blue-400"
-                                        value={newEmployee.commuterCity1 || ""}
-                                        onChange={(e) =>
-                                          setNewEmployee({
-                                            ...newEmployee,
-                                            commuterCity1: e.target.value,
-                                          })
-                                        }
-                                      />
-                                      <div className="relative">
-                                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm font-bold">
-                                          R$
-                                        </span>
-                                        <Input
-                                          type="number"
-                                          placeholder="Tarifa Unitária R$"
-                                          className="h-10 text-base pl-9 border-gray-100 focus:border-blue-400"
-                                          value={newEmployee.commuterValue1}
-                                          onChange={(e) =>
-                                            setNewEmployee({
-                                              ...newEmployee,
-                                              commuterValue1:
-                                                parseFloat(e.target.value) || 0,
-                                            })
-                                          }
-                                        />
-                                      </div>
-                                    </div>
-                                    <div className="space-y-3 bg-white p-5 rounded-xl border border-blue-100 shadow-sm transition-all hover:shadow-md">
-                                      <Label className="text-sm font-bold uppercase text-gray-400 tracking-widest">
-                                        Trajeto 02 (Integração/Extra)
-                                      </Label>
-                                      <Input
-                                        placeholder="Cidade de Conexão ou 2º Trecho"
-                                        className="h-10 text-base border-gray-100 focus:border-blue-400"
-                                        value={newEmployee.commuterCity2 || ""}
-                                        onChange={(e) =>
-                                          setNewEmployee({
-                                            ...newEmployee,
-                                            commuterCity2: e.target.value,
-                                          })
-                                        }
-                                      />
-                                      <div className="relative">
-                                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm font-bold">
-                                          R$
-                                        </span>
-                                        <Input
-                                          type="number"
-                                          placeholder="Tarifa Unitária R$"
-                                          className="h-10 text-base pl-9 border-gray-100 focus:border-blue-400"
-                                          value={newEmployee.commuterValue2}
-                                          onChange={(e) =>
-                                            setNewEmployee({
-                                              ...newEmployee,
-                                              commuterValue2:
-                                                parseFloat(e.target.value) || 0,
-                                            })
-                                          }
-                                        />
-                                      </div>
-                                    </div>
-                                  </div>
-                                )}
-                              </div>
-                            </TabsContent>
-                          </div>
-                        </div>
-                      </Tabs>
-                    </div>
-
-                    <div className="p-8 bg-white border-t shrink-0 flex flex-col items-center">
-                      <div className="max-w-6xl w-full grid grid-cols-1 md:grid-cols-2 gap-8">
-                        <div className="flex items-start gap-4 p-4 rounded-xl bg-gray-50 border border-gray-100 shadow-inner">
-                          <Checkbox
-                            id="privacy-accept"
-                            className="mt-1"
-                            checked={privacyAccepted}
-                            onCheckedChange={(c) => setPrivacyAccepted(!!c)}
-                          />
-                          <div className="space-y-1">
-                            <Label
-                              htmlFor="privacy-accept"
-                              className="text-sm leading-tight text-gray-600 cursor-pointer font-medium italic"
-                            >
-                              Eu declaro que as informações acima são
-                              verdadeiras e que estou ciente das
-                              responsabilidades legais sobre o manuseio de dados
-                              pessoais (LGPD). Confirmo que este registro é
-                              necessário para fins contratuais e
-                              administrativos.
-                            </Label>
-                          </div>
-                        </div>
-
-                        <div className="flex flex-col gap-3">
-                          <div className="flex items-center justify-end gap-3 text-gray-400 mb-1">
-                            <Lock className="w-4 h-4 text-green-500" />
-                            <span className="text-sm font-bold uppercase tracking-widest flex items-center gap-2">
-                              Criptografia AES-256 Ativa
-                              <Separator
-                                orientation="vertical"
-                                className="h-3 mx-2"
-                              />
-                              Operador: {currentUser.name}
-                            </span>
-                          </div>
-                          <div className="flex gap-3 relative">
-                            {isSavingEmployee && saveEmployeeProgress && (
-                              <div className="absolute inset-0 z-10 flex items-center justify-center bg-white/90 backdrop-blur-sm rounded-xl">
-                                <div className="w-full px-4 text-center">
-                                  <p className="text-xs font-bold uppercase tracking-widest text-blue-600 mb-2 truncate">
-                                    {saveEmployeeProgress.step}
-                                  </p>
-                                  <div className="h-2 w-full bg-blue-100 rounded-full overflow-hidden">
-                                    <div 
-                                      className="h-full bg-blue-600 transition-all duration-300 ease-out" 
-                                      style={{ width: `${saveEmployeeProgress.progress}%` }} 
-                                    />
-                                  </div>
-                                </div>
-                              </div>
-                            )}
-                            <DialogTrigger asChild>
-                              <Button
-                                variant="outline"
-                                disabled={isSavingEmployee}
-                                className="flex-1 h-12 font-bold uppercase tracking-wider text-sm border-gray-200 hover:bg-gray-50"
-                              >
-                                Cancelar
-                              </Button>
-                            </DialogTrigger>
-                            <Button
-                              onClick={handleAddEmployee}
-                              disabled={!privacyAccepted || isSavingEmployee}
-                              className={`flex-[2] h-12 font-bold uppercase tracking-wider text-sm shadow-lg transition-all ${
-                                privacyAccepted
-                                  ? "bg-blue-600 hover:bg-blue-700 shadow-blue-200"
-                                  : "bg-gray-200 text-gray-500 cursor-not-allowed opacity-70"
-                              }`}
-                            >
-                              {isSavingEmployee ? (
-                                <span className="flex items-center gap-2">
-                                  <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                                  Salvando...
-                                </span>
-                              ) : (
-                                <>
-                                  <ShieldAlert className="w-4 h-4 mr-2" />{" "}
-                                  {editingEmployeeId
-                                    ? "Salvar Alterações"
-                                    : "Efetivar Registro Seguro"}
-                                </>
-                              )}
-                            </Button>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </DialogContent>
-                </Dialog>
+                  <UserPlus className="w-4 h-4" /> Novo Colaborador
+                </Button>
               </div>
             </CardHeader>
             <CardContent className="p-0">
@@ -4236,6 +3028,1223 @@ export default function RHView({
           </DialogContent>
         </Dialog>
       </Tabs>
+      ) : (
+        <div className="bg-white rounded-3xl border border-gray-100 shadow-xl overflow-hidden flex flex-col h-[800px] max-h-[85vh] mt-6 relative z-50">
+                    <div className="bg-blue-600 p-6 text-white shrink-0">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className="bg-white/20 p-2 rounded-lg backdrop-blur-sm">
+                            {editingEmployeeId ? (
+                              <Users className="w-6 h-6" />
+                            ) : (
+                              <UserPlus className="w-6 h-6" />
+                            )}
+                          </div>
+                          <div>
+                            <h2 className="text-xl font-bold text-white">
+                              {editingEmployeeId
+                                ? `Editando Colaborador: ${newEmployee.name}`
+                                : "Ficha de Admissão Digital"}
+                            </h2>
+                            <p className="text-blue-100 text-base">
+                              {editingEmployeeId
+                                ? "Atualização de registro oficial de colaborador"
+                                : "Registro oficial de colaborador - Ambiente Seguro e Criptografado"}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-4">
+                        <div className="flex items-center gap-2 bg-blue-700/50 px-3 py-1.5 rounded-full border border-blue-400/30">
+                          <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />
+                          <span className="text-sm font-bold uppercase tracking-widest">
+                            Proteção LGPD Ativa
+                          </span>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="text-white hover:bg-white/20 rounded-full h-8 w-8 p-0 flex items-center justify-center cursor-pointer"
+                          onClick={() => {
+                            setIsDialogOpen(false);
+                            resetForm();
+                          }}
+                        >
+                          <X className="w-5 h-5" />
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+
+                    <div className="flex-1 overflow-hidden flex flex-col bg-gray-50/50">
+                      <div className="px-8 pt-6 pb-2">
+                        <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 flex items-center gap-3 mb-4">
+                          <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                          <p className="text-sm text-amber-800">
+                            <strong>Aviso de Privacidade:</strong> Os dados
+                            inseridos nesta ficha são confidenciais e protegidos
+                            por leis de proteção de dados. Apenas pessoal
+                            autorizado do RH tem acesso a estas informações.
+                          </p>
+                        </div>
+                      </div>
+
+                      <Tabs
+                        defaultValue="personal"
+                        className="flex-1 flex flex-col min-h-0 px-8 pb-8"
+                      >
+                        <TabsList className="flex w-full overflow-x-auto h-14 p-1 mb-8 gap-1 bg-gray-200/50 rounded-xl no-scrollbar shrink-0">
+                          <TabsTrigger
+                            value="personal"
+                            className="flex-1 gap-2 font-bold text-sm whitespace-nowrap data-[state=active]:bg-white data-[state=active]:text-blue-600 data-[state=active]:shadow-sm px-4"
+                          >
+                            <UserIcon className="w-4 h-4" /> Dados Pessoais
+                          </TabsTrigger>
+                          <TabsTrigger
+                            value="documents"
+                            className="flex-1 gap-2 font-bold text-sm whitespace-nowrap data-[state=active]:bg-white data-[state=active]:text-blue-600 data-[state=active]:shadow-sm px-4"
+                          >
+                            <CreditCard className="w-4 h-4" /> Documentação
+                          </TabsTrigger>
+                          <TabsTrigger
+                            value="contact"
+                            className="flex-1 gap-2 font-bold text-sm whitespace-nowrap data-[state=active]:bg-white data-[state=active]:text-blue-600 data-[state=active]:shadow-sm px-4"
+                          >
+                            <Smartphone className="w-4 h-4" /> Endereço &
+                            Contato
+                          </TabsTrigger>
+                          <TabsTrigger
+                            value="family"
+                            className="flex-1 gap-2 font-bold text-sm whitespace-nowrap data-[state=active]:bg-white data-[state=active]:text-blue-600 data-[state=active]:shadow-sm px-4"
+                          >
+                            <Heart className="w-4 h-4" /> Grupo Familiar
+                          </TabsTrigger>
+                          <TabsTrigger
+                            value="professional"
+                            className="flex-1 gap-2 font-bold text-sm whitespace-nowrap data-[state=active]:bg-white data-[state=active]:text-blue-600 data-[state=active]:shadow-sm px-4"
+                          >
+                            <Briefcase className="w-4 h-4" /> Contrato &
+                            Benefícios
+                          </TabsTrigger>
+                        </TabsList>
+
+                        <div className="flex-1 overflow-y-auto pr-1 scrollbar-thin-visible">
+                          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-8 min-h-[400px] max-w-6xl mx-auto">
+                            <TabsContent
+                              value="personal"
+                              className="mt-0 space-y-8 animate-in fade-in duration-300"
+                            >
+                              <div className="flex items-center gap-2 mb-2">
+                                <UserIcon className="w-5 h-5 text-blue-600" />
+                                <h3 className="text-lg font-bold text-gray-800">
+                                  Identificação Pessoal
+                                </h3>
+                              </div>
+
+                              <div className="bg-gray-50/50 p-6 rounded-2xl border border-gray-100 space-y-6">
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                  <div className="space-y-2 lg:col-span-2">
+                                    <Label className="text-sm font-bold text-gray-500 uppercase">
+                                      Nome Completo <span className="text-red-500">*</span>
+                                    </Label>
+                                    <Input
+                                      value={newEmployee.name || ""}
+                                      onChange={(e) =>
+                                        setNewEmployee({
+                                          ...newEmployee,
+                                          name: e.target.value,
+                                        })
+                                      }
+                                      placeholder="Nome conforme certidão"
+                                      className="h-11 shadow-sm"
+                                    />
+                                  </div>
+                                  <div className="space-y-2">
+                                    <Label className="text-sm font-bold text-gray-500 uppercase">
+                                      CPF (Apenas Números) <span className="text-red-500">*</span>
+                                    </Label>
+                                    <Input
+                                      value={newEmployee.cpf || ""}
+                                      onChange={(e) =>
+                                        setNewEmployee({
+                                          ...newEmployee,
+                                          cpf: applyCPFMask(e.target.value),
+                                        })
+                                      }
+                                      placeholder="000.000.000-00"
+                                      className="h-11 font-mono shadow-sm"
+                                    />
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div className="bg-blue-50/30 p-6 rounded-2xl border border-blue-100/50 space-y-6">
+                                <h4 className="text-sm font-bold text-blue-900 uppercase tracking-widest flex items-center gap-2">
+                                  <Calendar className="w-3 h-3" /> Nascimento &
+                                  Origem
+                                </h4>
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                  <div className="space-y-2">
+                                    <Label className="text-sm font-bold text-gray-500 uppercase">
+                                      Data de Nascimento
+                                    </Label>
+                                    <Input
+                                      type="date"
+                                      value={newEmployee.birthDate || ""}
+                                      onChange={(e) =>
+                                        setNewEmployee({
+                                          ...newEmployee,
+                                          birthDate: e.target.value,
+                                        })
+                                      }
+                                      className="h-11 shadow-sm"
+                                    />
+                                  </div>
+                                  <div className="space-y-2">
+                                    <Label className="text-sm font-bold text-gray-500 uppercase">
+                                      Naturalidade (Cidade)
+                                    </Label>
+                                    <Input
+                                      value={newEmployee.birthPlace || ""}
+                                      onChange={(e) =>
+                                        setNewEmployee({
+                                          ...newEmployee,
+                                          birthPlace: e.target.value,
+                                        })
+                                      }
+                                      placeholder="Ex: São Paulo"
+                                      className="h-11 shadow-sm"
+                                    />
+                                  </div>
+                                  <div className="space-y-2">
+                                    <Label className="text-sm font-bold text-gray-500 uppercase">
+                                      UF
+                                    </Label>
+                                    <Input
+                                      value={newEmployee.birthState || ""}
+                                      onChange={(e) =>
+                                        setNewEmployee({
+                                          ...newEmployee,
+                                          birthState: e.target.value,
+                                        })
+                                      }
+                                      placeholder="UF"
+                                      maxLength={2}
+                                      className="h-11 uppercase shadow-sm"
+                                    />
+                                  </div>
+                                </div>
+                              </div>
+                            </TabsContent>
+
+                            <TabsContent
+                              value="documents"
+                              className="mt-0 space-y-8 animate-in fade-in duration-300"
+                            >
+                              <div className="flex items-center gap-2 mb-2">
+                                <CreditCard className="w-5 h-5 text-blue-600" />
+                                <h3 className="text-lg font-bold text-gray-800">
+                                  Documentação Civil
+                                </h3>
+                              </div>
+
+                              <div className="bg-gray-50/50 p-6 rounded-2xl border border-gray-100 space-y-6">
+                                <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                                  <div className="space-y-2 md:col-span-2">
+                                    <Label className="text-sm font-bold text-gray-500 uppercase">
+                                      RG Nº
+                                    </Label>
+                                    <Input
+                                      value={newEmployee.rgNumber || ""}
+                                      onChange={(e) =>
+                                        setNewEmployee({
+                                          ...newEmployee,
+                                          rgNumber: e.target.value,
+                                        })
+                                      }
+                                      className="h-11 shadow-sm"
+                                    />
+                                  </div>
+                                  <div className="grid grid-cols-3 gap-3 md:col-span-2">
+                                    <div className="space-y-2">
+                                      <Label className="text-sm font-bold text-gray-500 uppercase">
+                                        Data de Emissão
+                                      </Label>
+                                      <Input
+                                        type="date"
+                                        value={newEmployee.rgAgency || ""}
+                                        onChange={(e) =>
+                                          setNewEmployee({
+                                            ...newEmployee,
+                                            rgAgency: e.target.value,
+                                          })
+                                        }
+                                        className="h-11 shadow-sm"
+                                      />
+                                    </div>
+                                    <div className="space-y-2">
+                                      <Label className="text-sm font-bold text-gray-500 uppercase">
+                                        Orgão Emissor
+                                      </Label>
+                                      <Input
+                                        value={newEmployee.rgIssuer || ""}
+                                        onChange={(e) =>
+                                          setNewEmployee({
+                                            ...newEmployee,
+                                            rgIssuer: e.target.value,
+                                          })
+                                        }
+                                        placeholder="Ex: SSP/SP"
+                                        className="h-11 shadow-sm"
+                                      />
+                                    </div>
+                                    <div className="space-y-2">
+                                      <Label className="text-sm font-bold text-gray-500 uppercase">
+                                        UF
+                                      </Label>
+                                      <Input
+                                        value={newEmployee.rgState || ""}
+                                        onChange={(e) =>
+                                          setNewEmployee({
+                                            ...newEmployee,
+                                            rgState: e.target.value,
+                                          })
+                                        }
+                                        maxLength={2}
+                                        className="h-11 uppercase shadow-sm"
+                                      />
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div className="bg-blue-50/30 p-6 rounded-2xl border border-blue-100/50 space-y-6">
+                                <h4 className="text-sm font-bold text-blue-900 uppercase tracking-widest flex items-center gap-2">
+                                  <FileText className="w-3 h-3" /> Dados do
+                                  Trabalho (CTPS/PIS)
+                                </h4>
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                  <div className="space-y-2">
+                                    <Label className="text-sm font-bold text-gray-500 uppercase">
+                                      Carteira de Trabalho (CTPS)
+                                    </Label>
+                                    <Input
+                                      value={
+                                        newEmployee.workBookletNumber || ""
+                                      }
+                                      onChange={(e) =>
+                                        setNewEmployee({
+                                          ...newEmployee,
+                                          workBookletNumber: e.target.value,
+                                        })
+                                      }
+                                      className="h-11 shadow-sm"
+                                    />
+                                  </div>
+                                  <div className="space-y-2">
+                                    <Label className="text-sm font-bold text-gray-500 uppercase">
+                                      Série
+                                    </Label>
+                                    <Input
+                                      value={
+                                        newEmployee.workBookletSeries || ""
+                                      }
+                                      onChange={(e) =>
+                                        setNewEmployee({
+                                          ...newEmployee,
+                                          workBookletSeries: e.target.value,
+                                        })
+                                      }
+                                      className="h-11 shadow-sm"
+                                    />
+                                  </div>
+                                  <div className="space-y-2">
+                                    <Label className="text-sm font-bold text-gray-500 uppercase">
+                                      PIS
+                                    </Label>
+                                    <Input
+                                      value={newEmployee.pis || ""}
+                                      onChange={(e) =>
+                                        setNewEmployee({
+                                          ...newEmployee,
+                                          pis: e.target.value,
+                                        })
+                                      }
+                                      className="h-11 shadow-sm"
+                                    />
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div className="bg-purple-50/30 p-6 rounded-2xl border border-purple-100/50 space-y-6">
+                                <h4 className="text-sm font-bold text-purple-900 uppercase tracking-widest flex items-center gap-2">
+                                  <Users className="w-3 h-3" /> Título de
+                                  Eleitor & Exercício Civil
+                                </h4>
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                  <div className="space-y-2">
+                                    <Label className="text-sm font-bold text-gray-500 uppercase">
+                                      Título de Eleitor
+                                    </Label>
+                                    <Input
+                                      value={newEmployee.voterIdNumber || ""}
+                                      onChange={(e) =>
+                                        setNewEmployee({
+                                          ...newEmployee,
+                                          voterIdNumber: e.target.value,
+                                        })
+                                      }
+                                      className="h-11 font-mono shadow-sm"
+                                    />
+                                  </div>
+                                  <div className="space-y-2">
+                                    <Label className="text-sm font-bold text-gray-500 uppercase">
+                                      Zona
+                                    </Label>
+                                    <Input
+                                      value={newEmployee.voterZone || ""}
+                                      onChange={(e) =>
+                                        setNewEmployee({
+                                          ...newEmployee,
+                                          voterZone: e.target.value,
+                                        })
+                                      }
+                                      className="h-11 shadow-sm"
+                                    />
+                                  </div>
+                                  <div className="space-y-2">
+                                    <Label className="text-sm font-bold text-gray-500 uppercase">
+                                      Seção
+                                    </Label>
+                                    <Input
+                                      value={newEmployee.voterSection || ""}
+                                      onChange={(e) =>
+                                        setNewEmployee({
+                                          ...newEmployee,
+                                          voterSection: e.target.value,
+                                        })
+                                      }
+                                      className="h-11 shadow-sm"
+                                    />
+                                  </div>
+                                </div>
+                              </div>
+                            </TabsContent>
+
+                            <TabsContent
+                              value="contact"
+                              className="mt-0 space-y-8 animate-in fade-in duration-300"
+                            >
+                              <div className="flex items-center gap-2 mb-2">
+                                <Smartphone className="w-5 h-5 text-blue-600" />
+                                <h3 className="text-lg font-bold text-gray-800">
+                                  Endereço & Canais de Contato
+                                </h3>
+                              </div>
+
+                              <div className="bg-gray-50/50 p-6 rounded-2xl border border-gray-100 space-y-6">
+                                <h4 className="text-sm font-bold text-gray-900 uppercase tracking-widest flex items-center gap-2">
+                                  <Mail className="w-3 h-3" /> Contato Direto
+                                </h4>
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                  <div className="space-y-2">
+                                    <Label className="text-sm font-bold text-gray-500 uppercase">
+                                      Telefone Residencial
+                                    </Label>
+                                    <Input
+                                      value={newEmployee.phone || ""}
+                                      onChange={(e) =>
+                                        setNewEmployee({
+                                          ...newEmployee,
+                                          phone: applyPhoneMask(e.target.value),
+                                        })
+                                      }
+                                      placeholder="(00) 0000-0000"
+                                      className="h-11 shadow-sm"
+                                    />
+                                  </div>
+                                  <div className="space-y-2">
+                                    <Label className="text-sm font-bold text-gray-500 uppercase">
+                                      Celular / WhatsApp
+                                    </Label>
+                                    <Input
+                                      value={newEmployee.mobile || ""}
+                                      onChange={(e) =>
+                                        setNewEmployee({
+                                          ...newEmployee,
+                                          mobile: applyPhoneMask(
+                                            e.target.value,
+                                          ),
+                                        })
+                                      }
+                                      placeholder="(00) 90000-0000"
+                                      className="h-11 shadow-sm"
+                                    />
+                                  </div>
+                                  <div className="space-y-2">
+                                    <Label className="text-sm font-bold text-gray-500 uppercase">
+                                      E-mail Pessoal
+                                    </Label>
+                                    <Input
+                                      value={newEmployee.email || ""}
+                                      onChange={(e) =>
+                                        setNewEmployee({
+                                          ...newEmployee,
+                                          email: e.target.value,
+                                        })
+                                      }
+                                      placeholder="exemplo@gmail.com"
+                                      className="h-11 shadow-sm"
+                                    />
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div className="bg-blue-50/30 p-6 rounded-2xl border border-blue-100/50 space-y-6">
+                                <h4 className="text-sm font-bold text-blue-900 uppercase tracking-widest flex items-center gap-2">
+                                  <MapPin className="w-3 h-3" /> Localização
+                                  Residencial
+                                </h4>
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                  <div className="space-y-2 md:col-span-2">
+                                    <Label className="text-sm font-bold text-gray-500 uppercase">
+                                      Rua / Logradouro
+                                    </Label>
+                                    <Input
+                                      value={
+                                        newEmployee.addressLogradouro || ""
+                                      }
+                                      onChange={(e) =>
+                                        setNewEmployee({
+                                          ...newEmployee,
+                                          addressLogradouro: e.target.value,
+                                        })
+                                      }
+                                      placeholder="Rua, Avenida, Logradouro..."
+                                      className="h-11 shadow-sm"
+                                    />
+                                  </div>
+                                  <div className="grid grid-cols-2 gap-3">
+                                    <div className="space-y-2">
+                                      <Label className="text-sm font-bold text-gray-500 uppercase">
+                                        Número
+                                      </Label>
+                                      <Input
+                                        value={newEmployee.addressNumber || ""}
+                                        onChange={(e) =>
+                                          setNewEmployee({
+                                            ...newEmployee,
+                                            addressNumber: e.target.value,
+                                          })
+                                        }
+                                        className="h-11 shadow-sm"
+                                      />
+                                    </div>
+                                    <div className="space-y-2">
+                                      <Label className="text-sm font-bold text-gray-500 uppercase">
+                                        CEP
+                                      </Label>
+                                      <Input
+                                        value={newEmployee.addressZipCode || ""}
+                                        onChange={(e) =>
+                                          setNewEmployee({
+                                            ...newEmployee,
+                                            addressZipCode: applyCEPMask(
+                                              e.target.value,
+                                            ),
+                                          })
+                                        }
+                                        placeholder="00000-000"
+                                        className="h-11 shadow-sm font-mono"
+                                      />
+                                    </div>
+                                  </div>
+                                  <div className="space-y-2">
+                                    <Label className="text-sm font-bold text-gray-500 uppercase">
+                                      Complemento
+                                    </Label>
+                                    <Input
+                                      value={
+                                        newEmployee.addressComplement || ""
+                                      }
+                                      onChange={(e) =>
+                                        setNewEmployee({
+                                          ...newEmployee,
+                                          addressComplement: e.target.value,
+                                        })
+                                      }
+                                      className="h-11 shadow-sm"
+                                    />
+                                  </div>
+                                  <div className="space-y-2">
+                                    <Label className="text-sm font-bold text-gray-500 uppercase">
+                                      Bairro
+                                    </Label>
+                                    <Input
+                                      value={
+                                        newEmployee.addressNeighborhood || ""
+                                      }
+                                      onChange={(e) =>
+                                        setNewEmployee({
+                                          ...newEmployee,
+                                          addressNeighborhood: e.target.value,
+                                        })
+                                      }
+                                      className="h-11 shadow-sm"
+                                    />
+                                  </div>
+                                  <div className="grid grid-cols-3 gap-3">
+                                    <div className="space-y-2 col-span-2">
+                                      <Label className="text-sm font-bold text-gray-500 uppercase">
+                                        Cidade
+                                      </Label>
+                                      <Input
+                                        value={newEmployee.addressCity || ""}
+                                        onChange={(e) =>
+                                          setNewEmployee({
+                                            ...newEmployee,
+                                            addressCity: e.target.value,
+                                          })
+                                        }
+                                        className="h-11 shadow-sm"
+                                      />
+                                    </div>
+                                    <div className="space-y-2">
+                                      <Label className="text-sm font-bold text-gray-500 uppercase">
+                                        UF
+                                      </Label>
+                                      <Input
+                                        value={newEmployee.addressState || ""}
+                                        onChange={(e) =>
+                                          setNewEmployee({
+                                            ...newEmployee,
+                                            addressState: e.target.value,
+                                          })
+                                        }
+                                        maxLength={2}
+                                        className="h-11 uppercase shadow-sm"
+                                      />
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            </TabsContent>
+
+                            <TabsContent
+                              value="family"
+                              className="mt-0 space-y-8 animate-in fade-in duration-300"
+                            >
+                              <div className="flex items-center gap-2 mb-2">
+                                <Heart className="w-5 h-5 text-blue-600" />
+                                <h3 className="text-lg font-bold text-gray-800">
+                                  Núcleo Familiar & Filiação
+                                </h3>
+                              </div>
+
+                              <div className="bg-gray-50/50 p-6 rounded-2xl border border-gray-100 space-y-6">
+                                <h4 className="text-sm font-bold text-gray-900 uppercase tracking-widest flex items-center gap-2">
+                                  <Users className="w-3 h-3" /> Genitores &
+                                  Cônjuge
+                                </h4>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                  <div className="space-y-2">
+                                    <Label className="text-sm font-bold text-gray-500 uppercase">
+                                      Nome do Pai
+                                    </Label>
+                                    <Input
+                                      value={newEmployee.fatherName || ""}
+                                      onChange={(e) =>
+                                        setNewEmployee({
+                                          ...newEmployee,
+                                          fatherName: e.target.value,
+                                        })
+                                      }
+                                      className="h-11 shadow-sm"
+                                    />
+                                  </div>
+                                  <div className="space-y-2">
+                                    <Label className="text-sm font-bold text-gray-500 uppercase">
+                                      Nome da Mãe
+                                    </Label>
+                                    <Input
+                                      value={newEmployee.motherName || ""}
+                                      onChange={(e) =>
+                                        setNewEmployee({
+                                          ...newEmployee,
+                                          motherName: e.target.value,
+                                        })
+                                      }
+                                      className="h-11 shadow-sm"
+                                    />
+                                  </div>
+                                  <div className="space-y-2 md:col-span-2">
+                                    <Label className="text-sm font-bold text-gray-500 uppercase">
+                                      Nome do Cônjuge (Se casado/união estável)
+                                    </Label>
+                                    <Input
+                                      value={newEmployee.spouseName || ""}
+                                      onChange={(e) =>
+                                        setNewEmployee({
+                                          ...newEmployee,
+                                          spouseName: e.target.value,
+                                        })
+                                      }
+                                      className="h-11 shadow-sm"
+                                    />
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div className="bg-blue-50/30 p-6 rounded-2xl border border-blue-100/50 space-y-6">
+                                <div className="flex items-center justify-between mb-2">
+                                  <div className="flex items-center gap-2">
+                                    <Baby className="w-5 h-5 text-blue-500" />
+                                    <h4 className="text-base font-bold text-gray-700 uppercase tracking-wide">
+                                      Dependentes e Filhos
+                                    </h4>
+                                  </div>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={addDependent}
+                                    className="h-9 px-4 text-sm gap-2 border-blue-200 text-blue-600 hover:bg-blue-50 bg-white"
+                                  >
+                                    <Plus className="w-4 h-4" /> Compor Novo
+                                    Dependente
+                                  </Button>
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                  {(newEmployee.dependents || []).map(
+                                    (dep, idx) => (
+                                      <div
+                                        key={idx}
+                                        className="flex gap-3 items-end border border-gray-200 p-4 rounded-xl bg-white shadow-sm animate-in zoom-in-95 duration-200"
+                                      >
+                                        <div className="flex-1 space-y-2">
+                                          <Label className="text-sm uppercase font-bold text-gray-400">
+                                            Nome Completo do Filho(a)
+                                          </Label>
+                                          <Input
+                                            value={dep.name || ""}
+                                            onChange={(e) =>
+                                              updateDependent(
+                                                idx,
+                                                "name",
+                                                e.target.value,
+                                              )
+                                            }
+                                            className="h-10 text-base"
+                                          />
+                                        </div>
+                                        <div className="w-32 space-y-2">
+                                          <Label className="text-sm uppercase font-bold text-gray-400">
+                                            CPF
+                                          </Label>
+                                          <Input
+                                            value={dep.cpf || ""}
+                                            onChange={(e) =>
+                                              updateDependent(
+                                                idx,
+                                                "cpf",
+                                                e.target.value,
+                                              )
+                                            }
+                                            placeholder="000.000.000-00"
+                                            className="h-10 text-base"
+                                          />
+                                        </div>
+                                        <div className="w-40 space-y-2">
+                                          <Label className="text-sm uppercase font-bold text-gray-400">
+                                            Data Nasc.
+                                          </Label>
+                                          <Input
+                                            type="date"
+                                            value={dep.birthDate || ""}
+                                            onChange={(e) =>
+                                              updateDependent(
+                                                idx,
+                                                "birthDate",
+                                                e.target.value,
+                                              )
+                                            }
+                                            className="h-10 text-base"
+                                          />
+                                        </div>
+                                        <Button
+                                          variant="ghost"
+                                          size="icon"
+                                          onClick={() => removeDependent(idx)}
+                                          className="h-10 w-10 text-gray-400 hover:text-red-500 hover:bg-red-50"
+                                        >
+                                          <Trash2 className="w-4 h-4" />
+                                        </Button>
+                                      </div>
+                                    ),
+                                  )}
+                                  {(newEmployee.dependents || []).length ===
+                                    0 && (
+                                    <div className="md:col-span-2 py-10 flex flex-col items-center justify-center border-2 border-dashed border-gray-100 rounded-2xl bg-gray-50/20">
+                                      <Baby className="w-8 h-8 text-gray-200 mb-2" />
+                                      <p className="text-base text-gray-400 font-medium">
+                                        Nenhum filho ou dependente cadastrado.
+                                      </p>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            </TabsContent>
+
+                            <TabsContent
+                              value="professional"
+                              className="mt-0 space-y-8 animate-in fade-in duration-300"
+                            >
+                              <div className="flex items-center gap-2 mb-2">
+                                <Briefcase className="w-5 h-5 text-blue-600" />
+                                <h3 className="text-lg font-bold text-gray-800">
+                                  Contrato de Trabalho & Benefícios
+                                </h3>
+                              </div>
+
+                              <div className="bg-gray-50/50 p-6 rounded-2xl border border-gray-100 space-y-6">
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                                  <div className="space-y-2 lg:col-span-2 relative">
+                                    <Label className="text-sm font-bold text-gray-500 uppercase tracking-wide">
+                                      Função / Cargo Pretendido <span className="text-red-500">*</span>
+                                    </Label>
+                                    <Input
+                                      value={newEmployee.role || ""}
+                                      onChange={(e) =>
+                                        setNewEmployee({
+                                          ...newEmployee,
+                                          role: e.target.value,
+                                        })
+                                      }
+                                      onFocus={() => setIsRoleFocused(true)}
+                                      onBlur={() => {
+                                        setTimeout(() => {
+                                          setIsRoleFocused(false);
+                                        }, 250);
+                                      }}
+                                      placeholder="Ex: Operador de Máquinas"
+                                      autoComplete="off"
+                                      className="h-11 shadow-sm focus:ring-blue-500 bg-white"
+                                    />
+                                    {isRoleFocused && (() => {
+                                      const term = (newEmployee.role || '').toLowerCase().trim();
+                                      const suggestions = term.length === 0 ? existingRoles : existingRoles.filter(r => r.toLowerCase().includes(term));
+                                      
+                                      if (suggestions.length === 0) return null;
+
+                                      return (
+                                        <div className="absolute left-0 right-0 top-[100%] mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 max-h-60 overflow-y-auto divide-y divide-gray-50 text-left">
+                                          {suggestions.map((suggestion, sIdx) => (
+                                            <button
+                                              key={sIdx}
+                                              type="button"
+                                              onMouseDown={() => {
+                                                setNewEmployee({
+                                                  ...newEmployee,
+                                                  role: suggestion
+                                                });
+                                                setIsRoleFocused(false);
+                                              }}
+                                              className="w-full text-left px-4 py-2 hover:bg-blue-50 transition-colors flex justify-between items-center"
+                                            >
+                                              <span className="text-xs font-bold text-slate-800">{suggestion}</span>
+                                            </button>
+                                          ))}
+                                        </div>
+                                      );
+                                    })()}
+                                  </div>
+                                  <div className="space-y-2">
+                                    <Label className="text-sm font-bold text-gray-500 uppercase tracking-wide">
+                                      Data de Admissão <span className="text-red-500">*</span>
+                                    </Label>
+                                    <Input
+                                      type="date"
+                                      value={newEmployee.admissionDate || ""}
+                                      onChange={(e) =>
+                                        setNewEmployee({
+                                          ...newEmployee,
+                                          admissionDate: e.target.value,
+                                        })
+                                      }
+                                      className="h-11 shadow-sm"
+                                    />
+                                  </div>
+                                  <div className="space-y-2">
+                                    <div className="flex items-center justify-between">
+                                      <Label className="text-sm font-bold text-gray-500 uppercase tracking-tighter">
+                                        Remuneração Base (R$)
+                                      </Label>
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() =>
+                                          setShowSalary(!showSalary)
+                                        }
+                                        className="h-5 text-xs text-blue-600 gap-1 hover:bg-blue-50 px-1"
+                                      >
+                                        {showSalary ? (
+                                          <EyeOff className="w-3 h-3" />
+                                        ) : (
+                                          <Eye className="w-3 h-3" />
+                                        )}
+                                        {showSalary ? "Ocultar" : "Exibir"}
+                                      </Button>
+                                    </div>
+                                    <div className="relative">
+                                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 font-bold text-sm">
+                                        R$
+                                      </span>
+                                      <Input
+                                        type={
+                                          showSalary ? "number" : "password"
+                                        }
+                                        value={newEmployee.salary || 0}
+                                        onChange={(e) =>
+                                          setNewEmployee({
+                                            ...newEmployee,
+                                            salary:
+                                              parseFloat(e.target.value) || 0,
+                                          })
+                                        }
+                                        placeholder="0.00"
+                                        className="h-11 pl-9 shadow-sm"
+                                      />
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div className="bg-slate-50 p-6 rounded-2xl border border-slate-200/50">
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                  <div className="space-y-2">
+                                    <Label className="text-sm font-bold text-gray-500 uppercase tracking-wide">
+                                      Modalidade de Contratação
+                                    </Label>
+                                    <Select
+                                      value={newEmployee.paymentType}
+                                      onValueChange={(v: any) =>
+                                        setNewEmployee({
+                                          ...newEmployee,
+                                          paymentType: v,
+                                        })
+                                      }
+                                    >
+                                      <SelectTrigger className="h-11 bg-white shadow-sm border-slate-200">
+                                        <SelectValue placeholder="Selecione a modalidade" />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        <SelectItem value="hour">
+                                          Contrato por Hora (Horista)
+                                        </SelectItem>
+                                        <SelectItem value="day">
+                                          Contrato por Dia (Diarista)
+                                        </SelectItem>
+                                        <SelectItem value="month">
+                                          Contrato Mensal (Mensalista)
+                                        </SelectItem>
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
+                                  <div className="space-y-2">
+                                    <Label className="text-sm font-bold text-gray-500 uppercase tracking-wide">
+                                      Contrato Vinculado <span className="text-red-500">*</span>
+                                    </Label>
+                                    <Select
+                                      value={newEmployee.contractId || ""}
+                                      onValueChange={(v: any) =>
+                                        setNewEmployee({
+                                          ...newEmployee,
+                                          contractId: v,
+                                        })
+                                      }
+                                    >
+                                      <SelectTrigger className="w-full h-11 bg-white shadow-sm border-blue-100 focus:ring-blue-500 rounded-xl font-medium text-blue-900 ring-offset-blue-50">
+                                        <SelectValue placeholder="Selecione o contrato">
+                                          {newEmployee.contractId
+                                            ? (() => {
+                                                const c = contracts.find(
+                                                  (x) =>
+                                                    x.id ===
+                                                    newEmployee.contractId,
+                                                );
+                                                if (!c)
+                                                  return "Contrato não encontrado";
+                                                return `${c.workName || c.client || "Sem nome"} (${c.contractNumber || "S/N"})`;
+                                              })()
+                                            : "Selecione o contrato"}
+                                        </SelectValue>
+                                      </SelectTrigger>
+                                      <SelectContent className="max-h-80 rounded-xl border-blue-100">
+                                        {contracts.map((c) => {
+                                          const label = `${c.workName || "Obra sem nome"} - ${c.client || "Cliente não definido"} (${c.contractNumber || "S/N"})`;
+                                          return (
+                                            <SelectItem
+                                              key={c.id}
+                                              value={c.id}
+                                              textValue={label}
+                                            >
+                                              <div className="flex flex-col py-1">
+                                                <span className="font-bold text-blue-900">
+                                                  {c.workName ||
+                                                    "Obra sem nome"}
+                                                </span>
+                                                <span className="text-sm text-gray-500">
+                                                  {c.client ||
+                                                    "Cliente não definido"}{" "}
+                                                  • {c.contractNumber || "S/N"}
+                                                </span>
+                                              </div>
+                                            </SelectItem>
+                                          );
+                                        })}
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
+                                  <div className="space-y-2">
+                                    <Label className="text-sm font-bold text-gray-500 uppercase tracking-wide">
+                                      Equipe Vinculada
+                                    </Label>
+                                    <Select
+                                      value={newEmployee.team || "none"}
+                                      onValueChange={(val) =>
+                                        setNewEmployee({
+                                          ...newEmployee,
+                                          team:
+                                            val === "none" ? undefined : val,
+                                        })
+                                      }
+                                    >
+                                      <SelectTrigger className="w-full h-11 bg-white shadow-sm border-slate-200 rounded-xl font-medium text-gray-900 focus:ring-blue-500">
+                                        <SelectValue placeholder="Sem equipe" />
+                                      </SelectTrigger>
+                                      <SelectContent className="max-h-80 rounded-xl border-slate-200 bg-white">
+                                        <SelectItem value="none">
+                                          Sem equipe
+                                        </SelectItem>
+                                        {(controllerTeams || [])
+                                          .filter(
+                                            (t) =>
+                                              !newEmployee.contractId ||
+                                              t.contractId ===
+                                                newEmployee.contractId,
+                                          )
+                                          .map((t) => (
+                                            <SelectItem
+                                              key={t.id}
+                                              value={t.name}
+                                            >
+                                              {t.name}
+                                            </SelectItem>
+                                          ))}
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div className="mt-2 p-6 bg-blue-50/50 rounded-2xl border border-blue-100/50 space-y-6">
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center gap-3">
+                                    <div className="bg-blue-600 p-2 rounded-lg text-white shadow-md">
+                                      <MapPin className="w-4 h-4" />
+                                    </div>
+                                    <div>
+                                      <h4 className="text-base font-bold text-blue-900 uppercase">
+                                        Vale-Transporte & Mobilidade
+                                      </h4>
+                                      <p className="text-sm text-blue-700 font-medium">
+                                        Desconto legal de 6% ou custeio integral
+                                        da empresa
+                                      </p>
+                                    </div>
+                                  </div>
+                                  <Switch
+                                    id="commuter"
+                                    checked={!!newEmployee.commuterBenefits}
+                                    onCheckedChange={(checked) =>
+                                      setNewEmployee({
+                                        ...newEmployee,
+                                        commuterBenefits: !!checked,
+                                      })
+                                    }
+                                  />
+                                </div>
+
+                                {newEmployee.commuterBenefits && (
+                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-in slide-in-from-top-2 duration-300">
+                                    <div className="space-y-3 bg-white p-5 rounded-xl border border-blue-100 shadow-sm transition-all hover:shadow-md">
+                                      <Label className="text-sm font-bold uppercase text-gray-400 tracking-widest">
+                                        Trajeto 01 (Principal)
+                                      </Label>
+                                      <Input
+                                        placeholder="Cidade de Origem"
+                                        className="h-10 text-base border-gray-100 focus:border-blue-400"
+                                        value={newEmployee.commuterCity1 || ""}
+                                        onChange={(e) =>
+                                          setNewEmployee({
+                                            ...newEmployee,
+                                            commuterCity1: e.target.value,
+                                          })
+                                        }
+                                      />
+                                      <div className="relative">
+                                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm font-bold">
+                                          R$
+                                        </span>
+                                        <Input
+                                          type="number"
+                                          placeholder="Tarifa Unitária R$"
+                                          className="h-10 text-base pl-9 border-gray-100 focus:border-blue-400"
+                                          value={newEmployee.commuterValue1}
+                                          onChange={(e) =>
+                                            setNewEmployee({
+                                              ...newEmployee,
+                                              commuterValue1:
+                                                parseFloat(e.target.value) || 0,
+                                            })
+                                          }
+                                        />
+                                      </div>
+                                    </div>
+                                    <div className="space-y-3 bg-white p-5 rounded-xl border border-blue-100 shadow-sm transition-all hover:shadow-md">
+                                      <Label className="text-sm font-bold uppercase text-gray-400 tracking-widest">
+                                        Trajeto 02 (Integração/Extra)
+                                      </Label>
+                                      <Input
+                                        placeholder="Cidade de Conexão ou 2º Trecho"
+                                        className="h-10 text-base border-gray-100 focus:border-blue-400"
+                                        value={newEmployee.commuterCity2 || ""}
+                                        onChange={(e) =>
+                                          setNewEmployee({
+                                            ...newEmployee,
+                                            commuterCity2: e.target.value,
+                                          })
+                                        }
+                                      />
+                                      <div className="relative">
+                                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm font-bold">
+                                          R$
+                                        </span>
+                                        <Input
+                                          type="number"
+                                          placeholder="Tarifa Unitária R$"
+                                          className="h-10 text-base pl-9 border-gray-100 focus:border-blue-400"
+                                          value={newEmployee.commuterValue2}
+                                          onChange={(e) =>
+                                            setNewEmployee({
+                                              ...newEmployee,
+                                              commuterValue2:
+                                                parseFloat(e.target.value) || 0,
+                                            })
+                                          }
+                                        />
+                                      </div>
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            </TabsContent>
+                          </div>
+                        </div>
+                      </Tabs>
+                    </div>
+
+                    <div className="p-8 bg-white border-t shrink-0 flex flex-col items-center">
+                      <div className="max-w-6xl w-full grid grid-cols-1 md:grid-cols-2 gap-8">
+                        <div className="flex items-start gap-4 p-4 rounded-xl bg-gray-50 border border-gray-100 shadow-inner">
+                          <Checkbox
+                            id="privacy-accept"
+                            className="mt-1"
+                            checked={privacyAccepted}
+                            onCheckedChange={(c) => setPrivacyAccepted(!!c)}
+                          />
+                          <div className="space-y-1">
+                            <Label
+                              htmlFor="privacy-accept"
+                              className="text-sm leading-tight text-gray-600 cursor-pointer font-medium italic"
+                            >
+                              Eu declaro que as informações acima são
+                              verdadeiras e que estou ciente das
+                              responsabilidades legais sobre o manuseio de dados
+                              pessoais (LGPD). Confirmo que este registro é
+                              necessário para fins contratuais e
+                              administrativos.
+                            </Label>
+                          </div>
+                        </div>
+
+                        <div className="flex flex-col gap-3">
+                          <div className="flex items-center justify-end gap-3 text-gray-400 mb-1">
+                            <Lock className="w-4 h-4 text-green-500" />
+                            <span className="text-sm font-bold uppercase tracking-widest flex items-center gap-2">
+                              Criptografia AES-256 Ativa
+                              <Separator
+                                orientation="vertical"
+                                className="h-3 mx-2"
+                              />
+                              Operador: {currentUser.name}
+                            </span>
+                          </div>
+                          <div className="flex gap-3 relative">
+                            {isSavingEmployee && saveEmployeeProgress && (
+                              <div className="absolute inset-0 z-10 flex items-center justify-center bg-white/90 backdrop-blur-sm rounded-xl">
+                                <div className="w-full px-4 text-center">
+                                  <p className="text-xs font-bold uppercase tracking-widest text-blue-600 mb-2 truncate">
+                                    {saveEmployeeProgress.step}
+                                  </p>
+                                  <div className="h-2 w-full bg-blue-100 rounded-full overflow-hidden">
+                                    <div 
+                                      className="h-full bg-blue-600 transition-all duration-300 ease-out" 
+                                      style={{ width: `${saveEmployeeProgress.progress}%` }} 
+                                    />
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+                            <Button
+                                variant="outline"
+                                disabled={isSavingEmployee}
+                                className="flex-1 h-12 font-bold uppercase tracking-wider text-sm border-gray-200 hover:bg-gray-50"
+                                onClick={() => {
+                                  setIsDialogOpen(false);
+                                  resetForm();
+                                }}
+                              >
+                                Cancelar
+                              </Button>
+                            <Button
+                              onClick={handleAddEmployee}
+                              disabled={!privacyAccepted || isSavingEmployee}
+                              className={`flex-[2] h-12 font-bold uppercase tracking-wider text-sm shadow-lg transition-all ${
+                                privacyAccepted
+                                  ? "bg-blue-600 hover:bg-blue-700 shadow-blue-200"
+                                  : "bg-gray-200 text-gray-500 cursor-not-allowed opacity-70"
+                              }`}
+                            >
+                              {isSavingEmployee ? (
+                                <span className="flex items-center gap-2">
+                                  <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                  Salvando...
+                                </span>
+                              ) : (
+                                <>
+                                  <ShieldAlert className="w-4 h-4 mr-2" />{" "}
+                                  {editingEmployeeId
+                                    ? "Salvar Alterações"
+                                    : "Efetivar Registro Seguro"}
+                                </>
+                              )}
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+        </div>
+      )}
     </div>
   );
 }

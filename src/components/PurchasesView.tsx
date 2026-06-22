@@ -2106,6 +2106,476 @@ function OrdersTab({
     }, 15000);
   };
 
+  if (isDialogOpen) {
+    return (
+      <Card className="border-[10px] border-white shadow-xl rounded-3xl overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-500">
+        <div className="bg-emerald-600 p-8 text-white relative overflow-hidden">
+          <Package className="absolute -right-8 -bottom-8 w-40 h-40 opacity-10 rotate-12" />
+          <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4 text-left">
+            <div>
+              <h2 className="text-3xl font-black tracking-tight">Ordem de Compra</h2>
+              <p className="text-emerald-100 font-bold uppercase text-base tracking-widest mt-1">Pedido nº {currentOrder.orderNumber}</p>
+            </div>
+            <Button 
+              type="button"
+              variant="outline" 
+              onClick={() => setIsDialogOpen(false)} 
+              className="bg-white/10 hover:bg-white/20 border-white/20 text-white font-bold h-11 px-6 rounded-xl transition flex items-center gap-2"
+            >
+              <ArrowLeft className="w-5 h-5" /> Voltar para Ordens de Compra
+            </Button>
+          </div>
+        </div>
+
+        <div className="p-8 space-y-8 bg-white text-left">
+          {/* Header Info */}
+          <div className="bg-white p-5 rounded-xl border border-gray-100 shadow-sm grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
+            <div className="space-y-2">
+              <Label className="text-base font-semibold text-gray-500 uppercase">Contrato / Obra</Label>
+              <Select 
+                disabled={isReadOnly}
+                value={currentOrder.contractId || ''}
+                onValueChange={(v) => setCurrentOrder({ ...currentOrder, contractId: v })}
+              >
+                <SelectTrigger className="w-full bg-white border-blue-100 focus:ring-blue-500 rounded-xl text-base h-10 font-medium text-blue-900 ring-offset-blue-50">
+                  <SelectValue placeholder="Selecione o contrato...">
+                    {(() => {
+                       const val = currentOrder.contractId;
+                       if (!val || val === 'none') return 'Sem vínculo';
+                       const c = contracts.find(curr => curr.id === val);
+                       if (!c) return null;
+                       return `${c.workName || 'Obra sem nome'} (${c.contractNumber || 'S/N'})`;
+                    })()}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent className="max-h-80 rounded-xl border-blue-100">
+                  <SelectItem value="none" textValue="Sem vínculo">Sem vínculo</SelectItem>
+                  {contracts.map(c => {
+                    const label = `${c.workName || 'Obra sem nome'} - ${c.client || 'Cliente não definido'} (${c.contractNumber || 'S/N'})`;
+                    return (
+                      <SelectItem key={c.id} value={c.id} textValue={label}>
+                        <div className="flex flex-col py-1">
+                          <span className="font-bold text-blue-900">{c.workName || 'Obra sem nome'}</span>
+                          <span className="text-base text-gray-500">{c.client || 'Cliente não definido'} • {c.contractNumber || 'S/N'}</span>
+                        </div>
+                      </SelectItem>
+                    );
+                  })}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label className="text-base font-semibold text-gray-500 uppercase">Fornecedor</Label>
+              <select 
+                disabled={isReadOnly}
+                className="w-full h-10 px-3 bg-gray-50 border border-gray-200 focus:border-emerald-500 rounded-lg outline-none text-base disabled:opacity-70 disabled:cursor-not-allowed"
+                value={currentOrder.supplierId || ''}
+                onChange={(e) => {
+                  const id = e.target.value;
+                  const sup = suppliers.find(s => s.id === id);
+                  if (sup) {
+                    setCurrentOrder({...currentOrder, supplierId: id, supplierName: sup.name, phone: sup.phone || sup.mobile, email: sup.emailWebsite});
+                  }
+                }}
+              >
+                <option value="">Selecione um fornecedor...</option>
+                {suppliers.map(s => <option key={s.id} value={s.id}>{s.name} ({s.supplierCode})</option>)}
+              </select>
+            </div>
+
+            <div className="space-y-2">
+              <Label className="text-base font-semibold text-gray-500 uppercase">Categoria</Label>
+              <Select 
+                disabled={isReadOnly}
+                value={currentOrder.category || ''}
+                onValueChange={(v) => setCurrentOrder({ ...currentOrder, category: v })}
+              >
+                <SelectTrigger className="w-full bg-gray-50 border-gray-200 rounded-lg text-base h-10">
+                  <SelectValue placeholder="Selecione ou digite..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <div className="p-2 border-b">
+                    <Input 
+                      placeholder="Nova categoria..." 
+                      className="h-8 text-base" 
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          const val = (e.currentTarget as HTMLInputElement).value;
+                          if (val) {
+                            setCurrentOrder({ ...currentOrder, category: val });
+                            (e.currentTarget as HTMLInputElement).value = '';
+                            e.preventDefault();
+                          }
+                        }
+                      }}
+                    />
+                  </div>
+                  {Array.from(new Set([
+                    'Materiais de Construção', 'Equipamentos', 'EPIs', 'Escritório', 'Serviços',
+                    ...orders.map(o => o.category).filter(Boolean),
+                    ...requests.map(r => r.category).filter(Boolean)
+                  ])).map(cat => (
+                    <SelectItem key={cat} value={cat!}>{cat}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label className="text-base font-semibold text-gray-500 uppercase">Centro de Custo</Label>
+              <Select 
+                disabled={isReadOnly}
+                value={currentOrder.costCenter || ''}
+                onValueChange={(v) => setCurrentOrder({ ...currentOrder, costCenter: v })}
+              >
+                <SelectTrigger className="w-full bg-gray-50 border-gray-200 rounded-lg text-base h-10">
+                  <SelectValue placeholder="Selecione ou digite..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <div className="p-2 border-b">
+                    <Input 
+                      placeholder="Novo centro de custo..." 
+                      className="h-8 text-base" 
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          const val = (e.currentTarget as HTMLInputElement).value;
+                          if (val) {
+                            setCurrentOrder({ ...currentOrder, costCenter: val });
+                            (e.currentTarget as HTMLInputElement).value = '';
+                            e.preventDefault();
+                          }
+                        }
+                      }}
+                    />
+                  </div>
+                  {Array.from(new Set([
+                    'Obra Direta', 'Manutenção', 'Administrativo', 'Logística',
+                    ...orders.map(o => o.costCenter).filter(Boolean)
+                  ])).map(cc => (
+                    <SelectItem key={cc} value={cc!}>{cc}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label className="text-base font-semibold text-gray-500 uppercase">Data do Pedido</Label>
+                <Input 
+                  disabled={isReadOnly}
+                  type="date"
+                  className="bg-gray-50 border-gray-200 focus:border-emerald-500 rounded-lg text-base" 
+                  value={currentOrder.orderDate || ''} 
+                  onChange={e => setCurrentOrder({...currentOrder, orderDate: e.target.value})}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-base font-semibold text-gray-500 uppercase">Data de Entrega</Label>
+                <Input 
+                  disabled={isReadOnly}
+                  type="date"
+                  className="bg-gray-50 border-gray-200 focus:border-emerald-500 rounded-lg text-base" 
+                  value={currentOrder.deliveryDate || ''} 
+                  onChange={e => setCurrentOrder({...currentOrder, deliveryDate: e.target.value})}
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label className="text-base font-semibold text-gray-500 uppercase">Telefone</Label>
+              <Input 
+                disabled={isReadOnly}
+                className="bg-gray-50 border-gray-200 focus:border-emerald-500 rounded-lg text-base"
+                value={currentOrder.phone || ''}
+                onChange={e => setCurrentOrder({...currentOrder, phone: e.target.value})}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label className="text-base font-semibold text-gray-500 uppercase">Email</Label>
+              <Input 
+                disabled={isReadOnly}
+                className="bg-gray-50 border-gray-200 focus:border-emerald-500 rounded-lg text-base"
+                value={currentOrder.email || ''}
+                onChange={e => setCurrentOrder({...currentOrder, email: e.target.value})}
+              />
+            </div>
+          </div>
+
+          {/* Delivery Address */}
+          <div className="bg-white p-5 rounded-xl border border-gray-100 shadow-sm">
+             <h4 className="text-base font-bold text-gray-900 mb-4 flex items-center gap-2">
+                <MapPin className="w-4 h-4 text-emerald-600" />
+                Endereço de Entrega
+              </h4>
+              <div className="grid grid-cols-6 gap-x-4 gap-y-4">
+                <div className="col-span-3 space-y-2">
+                  <Label className="text-base font-semibold text-gray-500 uppercase tracking-wider">Endereço</Label>
+                  <Input disabled={isReadOnly} className="bg-gray-50 border-gray-200 h-9 text-base rounded-lg" value={currentOrder.deliveryAddress?.street || ''} onChange={e => setCurrentOrder({...currentOrder, deliveryAddress: {...currentOrder.deliveryAddress!, street: e.target.value}})} />
+                </div>
+                <div className="col-span-1 space-y-2">
+                  <Label className="text-base font-semibold text-gray-500 uppercase tracking-wider">Número</Label>
+                  <Input disabled={isReadOnly} className="bg-gray-50 border-gray-200 h-9 text-base rounded-lg" value={currentOrder.deliveryAddress?.number || ''} onChange={e => setCurrentOrder({...currentOrder, deliveryAddress: {...currentOrder.deliveryAddress!, number: e.target.value}})} />
+                </div>
+                <div className="col-span-2 space-y-2">
+                  <Label className="text-base font-semibold text-gray-500 uppercase tracking-wider">Complemento</Label>
+                  <Input disabled={isReadOnly} className="bg-gray-50 border-gray-200 h-9 text-base rounded-lg" value={currentOrder.deliveryAddress?.complement || ''} onChange={e => setCurrentOrder({...currentOrder, deliveryAddress: {...currentOrder.deliveryAddress!, complement: e.target.value}})} />
+                </div>
+                <div className="col-span-2 space-y-2">
+                  <Label className="text-base font-semibold text-gray-500 uppercase tracking-wider">Bairro</Label>
+                  <Input disabled={isReadOnly} className="bg-gray-50 border-gray-200 h-9 text-base rounded-lg" value={currentOrder.deliveryAddress?.neighborhood || ''} onChange={e => setCurrentOrder({...currentOrder, deliveryAddress: {...currentOrder.deliveryAddress!, neighborhood: e.target.value}})} />
+                </div>
+                <div className="col-span-2 space-y-2">
+                  <Label className="text-base font-semibold text-gray-500 uppercase tracking-wider">CEP</Label>
+                  <Input disabled={isReadOnly} className="bg-gray-50 border-gray-200 h-9 text-base rounded-lg" value={currentOrder.deliveryAddress?.zipCode || ''} onChange={e => setCurrentOrder({...currentOrder, deliveryAddress: {...currentOrder.deliveryAddress!, zipCode: applyCEPMask(e.target.value)}})} />
+                </div>
+                <div className="col-span-1 space-y-2">
+                  <Label className="text-base font-semibold text-gray-500 uppercase tracking-wider">Cidade</Label>
+                  <Input disabled={isReadOnly} className="bg-gray-50 border-gray-200 h-9 text-base rounded-lg" value={currentOrder.deliveryAddress?.city || ''} onChange={e => setCurrentOrder({...currentOrder, deliveryAddress: {...currentOrder.deliveryAddress!, city: e.target.value}})} />
+                </div>
+                <div className="col-span-1 space-y-2">
+                  <Label className="text-base font-semibold text-gray-500 uppercase tracking-wider">UF</Label>
+                  <Input disabled={isReadOnly} className="bg-gray-50 border-gray-200 h-9 text-base rounded-lg" value={currentOrder.deliveryAddress?.state || ''} onChange={e => setCurrentOrder({...currentOrder, deliveryAddress: {...currentOrder.deliveryAddress!, state: e.target.value}})} />
+                </div>
+              </div>
+          </div>
+
+          {/* Items */}
+          <div className="bg-white p-5 rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+            <div className="flex justify-between items-center mb-4">
+              <h4 className="text-base font-bold text-gray-900 flex items-center gap-2">
+                <ShoppingCart className="w-4 h-4 text-emerald-600" />
+                Itens do Pedido
+              </h4>
+              <Button variant="outline" size="sm" onClick={addItem} disabled={isReadOnly} className="h-8 text-base font-bold text-emerald-600 border-emerald-200 bg-emerald-50 hover:bg-emerald-100 disabled:opacity-50">
+                <Plus className="w-3 h-3 mr-1" /> Adicionar Item
+              </Button>
+            </div>
+            
+            <div className="border border-gray-200 rounded-lg overflow-hidden">
+              <Table>
+                <TableHeader className="bg-gray-100/80">
+                  <TableRow>
+                    <TableHead className="w-[50px] font-bold text-base text-gray-600 uppercase">Item</TableHead>
+                    <TableHead className="w-[100px] font-bold text-base text-gray-600 uppercase">Cod</TableHead>
+                    <TableHead className="font-bold text-base text-gray-600 uppercase">Descrição dos Produtos</TableHead>
+                    <TableHead className="w-[80px] font-bold text-base text-gray-600 uppercase text-center">Un</TableHead>
+                    <TableHead className="w-[100px] font-bold text-base text-gray-600 uppercase text-center">Qtde</TableHead>
+                    <TableHead className="w-[120px] font-bold text-base text-gray-600 uppercase text-right">Preço (R$)</TableHead>
+                    <TableHead className="w-[120px] font-bold text-base text-gray-600 uppercase text-right">Total</TableHead>
+                    <TableHead className="w-[50px]"></TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {currentOrder.items?.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={8} className="text-center text-gray-400 py-6">
+                        Nenhum item adicionado
+                      </TableCell>
+                    </TableRow>
+                  )}
+                  {currentOrder.items?.map((item, index) => (
+                    <TableRow key={item.id} className="bg-white">
+                      <TableCell className="text-center text-base font-medium text-gray-500">{index + 1}</TableCell>
+                      <TableCell className="p-1">
+                        <Input disabled={isReadOnly} className="h-8 text-base bg-transparent border-transparent hover:border-gray-200 focus:border-emerald-500 focus:bg-white" value={item.code} onChange={e => updateItem(index, 'code', e.target.value)} />
+                      </TableCell>
+                      <TableCell className="p-1 relative">
+                        <Input 
+                          disabled={isReadOnly} 
+                          className="h-8 text-base bg-transparent border-transparent hover:border-gray-200 focus:border-emerald-500 focus:bg-white" 
+                          value={item.description} 
+                          onChange={e => {
+                            updateItem(index, 'description', e.target.value);
+                            setActiveOrderItemFocusedIdx(index);
+                          }} 
+                          onFocus={() => setActiveOrderItemFocusedIdx(index)}
+                          onBlur={() => {
+                            setTimeout(() => {
+                              setActiveOrderItemFocusedIdx(prev => prev === index ? null : prev);
+                            }, 250);
+                          }}
+                        />
+                        {activeOrderItemFocusedIdx === index && (() => {
+                          const term = (item.description || '').toLowerCase().trim();
+                          if (term.length === 0) return null;
+
+                          const suggestions = insumosOrdem.filter(i => 
+                            i.name.toLowerCase().includes(term) ||
+                            i.code.toLowerCase().includes(term)
+                          ).slice(0, 10);
+
+                          if (suggestions.length === 0) return null;
+
+                          return (
+                            <div className="absolute left-0 right-0 top-[100%] mt-1 bg-white border border-gray-200 rounded-xl shadow-2xl z-50 max-h-48 overflow-y-auto divide-y divide-gray-50 text-left min-w-[320px]">
+                              {suggestions.map((suggestion, sIdx) => (
+                                <button
+                                  key={sIdx}
+                                  type="button"
+                                  onMouseDown={() => {
+                                    updateItemFields(index, {
+                                      description: suggestion.name,
+                                      unit: suggestion.unit || 'un',
+                                      code: suggestion.code || '',
+                                      price: suggestion.price || 0
+                                    });
+                                    setActiveOrderItemFocusedIdx(null);
+                                  }}
+                                  className="w-full text-left px-4 py-2 hover:bg-blue-50 transition-colors flex justify-between items-center"
+                                >
+                                  <div className="flex flex-col">
+                                    <span className="text-xs font-bold text-slate-800">{suggestion.name}</span>
+                                    <span className="text-[10px] text-slate-400 font-semibold uppercase">{suggestion.code} - {suggestion.source}</span>
+                                  </div>
+                                  <span className="text-[10px] bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded font-mono font-bold uppercase">{suggestion.unit}</span>
+                                </button>
+                              ))}
+                            </div>
+                          );
+                        })()}
+                      </TableCell>
+                      <TableCell className="p-1">
+                        <Input disabled={isReadOnly} className="h-8 text-base text-center bg-transparent border-transparent hover:border-gray-200 focus:border-emerald-500 focus:bg-white" value={item.unit} onChange={e => updateItem(index, 'unit', e.target.value)} />
+                      </TableCell>
+                      <TableCell className="p-1">
+                        <NumericInput disabled={isReadOnly} className="h-8 text-base text-center bg-transparent border-transparent hover:border-gray-200 focus:border-emerald-500 focus:bg-white" value={item.quantity || 0} onChange={val => updateItem(index, 'quantity', val)} />
+                      </TableCell>
+                      <TableCell className="p-1">
+                        <NumericInput disabled={isReadOnly} className="h-8 text-base text-right bg-transparent border-transparent hover:border-gray-200 focus:border-emerald-500 focus:bg-white" value={item.price || 0} onChange={val => updateItem(index, 'price', val)} />
+                      </TableCell>
+                      <TableCell className="p-1 text-right text-base font-medium pr-4">
+                        R$ {((item.quantity ?? 0) * (item.price ?? 0)).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                      </TableCell>
+                      <TableCell className="p-1 text-center">
+                        <Button disabled={isReadOnly} variant="ghost" size="icon" className="h-6 w-6 text-red-400 hover:text-red-600 hover:bg-red-50 disabled:opacity-30" onClick={() => removeItem(index)}>
+                          <Trash2 className="w-3 h-3" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+            
+            {/* Totals Section */}
+            <div className="flex justify-end mt-4 text-base">
+              <div className="w-64 space-y-2">
+                 <div className="flex justify-between items-center px-2">
+                   <span className="text-gray-500 font-medium">Subtotal:</span>
+                   <span className="font-semibold text-gray-700">R$ {(currentOrder.subtotal ?? 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                 </div>
+                 <div className="flex justify-between items-center px-2">
+                   <span className="text-gray-500 font-medium">Desconto:</span>
+                   <NumericInput 
+                     className="h-7 w-28 text-right text-base border-gray-200 font-bold" 
+                     value={currentOrder.discount || 0} 
+                     onChange={val => updateTotals(currentOrder.items || [], val, currentOrder.additions || 0)}
+                   />
+                 </div>
+                 <div className="flex justify-between items-center px-2">
+                   <span className="text-gray-500 font-medium">Acréscimos:</span>
+                   <NumericInput 
+                     className="h-7 w-28 text-right text-base border-gray-200 font-bold" 
+                     value={currentOrder.additions || 0} 
+                     onChange={val => updateTotals(currentOrder.items || [], currentOrder.discount || 0, val)}
+                   />
+                 </div>
+                 <div className="flex justify-between items-center pt-2 px-2 border-t border-gray-200">
+                   <span className="text-gray-900 font-bold text-base">TOTAL:</span>
+                   <span className="text-emerald-700 font-black text-lg">R$ {(currentOrder.total ?? 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                 </div>
+              </div>
+            </div>
+          </div>
+          
+          {/* Payments */}
+          <div className="bg-white p-5 rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+            <div className="flex justify-between items-center mb-4">
+              <h4 className="text-base font-bold text-gray-900 uppercase">
+                Forma / Condições de Pagamento
+              </h4>
+              <Button variant="outline" size="sm" onClick={addPayment} disabled={isReadOnly} className="h-8 text-base font-bold text-emerald-600 border-emerald-200 bg-emerald-50 hover:bg-emerald-100 disabled:opacity-50">
+                <Plus className="w-3 h-3 mr-1" /> Adicionar Parcela
+              </Button>
+            </div>
+            
+            <div className="border border-gray-200 rounded-lg overflow-hidden">
+              <Table>
+                <TableHeader className="bg-gray-100/80">
+                  <TableRow>
+                    <TableHead className="font-bold text-base text-gray-600 uppercase">Condições de Pagamento</TableHead>
+                    <TableHead className="w-[150px] font-bold text-base text-gray-600 uppercase">Vencimento</TableHead>
+                    <TableHead className="w-[150px] font-bold text-base text-gray-600 uppercase text-right">Valor</TableHead>
+                    <TableHead className="font-bold text-base text-gray-600 uppercase">Observação</TableHead>
+                    <TableHead className="w-[50px]"></TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {currentOrder.paymentConditions?.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={5} className="text-center text-gray-400 py-4 text-base">
+                        Nenhuma condição informada
+                      </TableCell>
+                    </TableRow>
+                  )}
+                  {currentOrder.paymentConditions?.map((pay, index) => (
+                    <TableRow key={index} className="bg-white">
+                      <TableCell className="p-1">
+                        <Input disabled={isReadOnly} className="h-8 text-base bg-transparent border-transparent hover:border-gray-200 focus:border-emerald-500 focus:bg-white" value={pay.condition} onChange={e => updatePayment(index, 'condition', e.target.value)} placeholder="Ex: DINHEIRO (À VISTA) [1 / 1]" />
+                      </TableCell>
+                      <TableCell className="p-1">
+                        <Input disabled={isReadOnly} type="date" className="h-8 text-base bg-transparent border-transparent hover:border-gray-200 focus:border-emerald-500 focus:bg-white" value={pay.dueDate} onChange={e => updatePayment(index, 'dueDate', e.target.value)} />
+                      </TableCell>
+                      <TableCell className="p-1">
+                        <NumericInput disabled={isReadOnly} className="h-8 text-base text-right bg-transparent border-transparent hover:border-gray-200 focus:border-emerald-500 focus:bg-white" value={pay.value || 0} onChange={val => updatePayment(index, 'value', val)} />
+                      </TableCell>
+                      <TableCell className="p-1">
+                        <Input disabled={isReadOnly} className="h-8 text-base bg-transparent border-transparent hover:border-gray-200 focus:border-emerald-500 focus:bg-white" value={pay.observation} onChange={e => updatePayment(index, 'observation', e.target.value)} />
+                      </TableCell>
+                       <TableCell className="p-1 text-center">
+                        <Button disabled={isReadOnly} variant="ghost" size="icon" className="h-6 w-6 text-red-400 hover:text-red-600 hover:bg-red-50 disabled:opacity-30" onClick={() => removePayment(index)}>
+                          <Trash2 className="w-3 h-3" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </div>
+
+           <div className="bg-white p-5 rounded-xl border border-gray-100 shadow-sm text-left">
+             <Label className="text-base font-bold text-gray-900 uppercase">Observações Gerais</Label>
+             <textarea 
+               className="w-full h-20 p-3 mt-2 bg-gray-50 border border-gray-200 focus:border-emerald-500 rounded-lg outline-none resize-none text-base text-gray-700" 
+               value={currentOrder.observations || ''}
+               onChange={e => setCurrentOrder({...currentOrder, observations: e.target.value})}
+             />
+           </div>
+
+          <div className="flex justify-end gap-3 p-6 pt-4 border-t border-gray-200 bg-white rounded-2xl">
+            <Button 
+              variant="outline"
+              type="button"
+              onClick={() => setIsDialogOpen(false)}
+              className="rounded-xl px-6 font-medium text-gray-600 hover:bg-gray-50"
+            >
+              Cancelar
+            </Button>
+            <Button 
+              onClick={handleSave} 
+              className="rounded-xl px-8 bg-emerald-600 hover:bg-emerald-700 text-white font-bold shadow-md shadow-emerald-200 animate-pulse hover:animate-none"
+            >
+              {isReadOnly ? "Visualizar Ordem" : "Salvar Ordem"}
+            </Button>
+          </div>
+        </div>
+      </Card>
+    );
+  }
+
   return (
     <>
       <Card className="border-[10px] border-white shadow-xl rounded-3xl">
@@ -2461,6 +2931,7 @@ function OrdersTab({
           </div>
         </Modal>
 
+        {false && (
         <Modal hideCancel={true}
           isOpen={isDialogOpen}
           onClose={() => setIsDialogOpen(false)}
@@ -2922,6 +3393,7 @@ function OrdersTab({
                 </Button>
               </div>
         </Modal>
+        )}
       </CardContent>
     </Card>
     </>
