@@ -13,6 +13,7 @@ import {
   ChevronLeft,
   ChevronRight,
   ChevronDown,
+  Settings,
   ChevronUp,
   FileDown,
   AlertCircle,
@@ -40,6 +41,7 @@ import {
   LogOut,
   FileSpreadsheet,
   Edit,
+  Check,
   ArrowRight,
   Upload,
   Printer,
@@ -215,7 +217,54 @@ export default function RHView({
   onUpdateAssignments,
 }: RHViewProps) {
   const [activeTab, setActiveTab] = useState(initialTab || "employees");
+  const [rhParams, setRhParams] = useState(() => {
+    const defaultParams = {
+      workEntryTime: "08:00",
+      workExitTime: "17:00",
+      lunchStart: "12:00",
+      lunchEnd: "13:00",
+      dailyHours: 8,
+      weeklyHours: 44,
+      workSchedule: "5x2",
+      delayTolerance: 5,
+      extraHoursTolerance: 10,
+      overtimeRate50: 50,
+      overtimeRate100: 100,
+      nightShiftStart: "22:00",
+      nightShiftEnd: "05:00",
+      nightShiftAllowance: 20,
+      timeBankEnabled: true,
+      timeBankMaxPositive: 40,
+      timeBankMaxNegative: -20,
+      timeBankValidityMonths: 6,
+      autoCompensate: true,
+      periodStartDay: 21,
+      periodEndDay: 20,
+      extraCosts: [
+        { id: "1", name: "FGTS", percentage: 8 },
+        { id: "2", name: "INSS Patronal", percentage: 20 },
+        { id: "3", name: "Férias + 1/3 Proporcional", percentage: 11.11 },
+        { id: "4", name: "13º Salário Proporcional", percentage: 8.33 }
+      ]
+    };
+    const saved = localStorage.getItem("rh_parameters_config");
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        return { ...defaultParams, ...parsed };
+      } catch (e) {
+        console.error("Error parsing RH parameters:", e);
+      }
+    }
+    return defaultParams;
+  });
   const [searchTerm, setSearchTerm] = useState("");
+  const [showLoadedSalary, setShowLoadedSalary] = useState(false);
+  const [newCostName, setNewCostName] = useState("");
+  const [newCostPercentage, setNewCostPercentage] = useState("");
+  const [editingCostId, setEditingCostId] = useState<string | null>(null);
+  const [editingCostName, setEditingCostName] = useState("");
+  const [editingCostPercentage, setEditingCostPercentage] = useState("");
 
   // States for Lodgings (Alojamentos)
   const [showAddAlojamento, setShowAddAlojamento] = useState(false);
@@ -235,9 +284,319 @@ export default function RHView({
       setActiveTab(initialTab);
     }
   }, [initialTab]);
+
+  // Load RH Parameters from Supabase if enabled
+  useEffect(() => {
+    const fetchParamsFromDB = async () => {
+      const configObj = getSupabaseConfig();
+      if (configObj.enabled) {
+        const supabase = createSupabaseClient(configObj.url, configObj.key);
+        if (supabase) {
+          try {
+            const compId = currentUser?.companyId || "default";
+            const { data, error } = await supabase
+              .from("system_config")
+              .select("config_value")
+              .eq("company_id", compId)
+              .eq("config_key", "rh_parameters_config")
+              .maybeSingle();
+
+            if (data && data.config_value) {
+              setRhParams((prev: any) => ({
+                ...prev,
+                ...data.config_value,
+              }));
+            }
+          } catch (e) {
+            console.error("Error loading RH parameters from DB:", e);
+          }
+        }
+      }
+    };
+    fetchParamsFromDB();
+  }, [currentUser?.companyId]);
   const [selectedMonth, setSelectedMonth] = useState(
     new Date().toISOString().slice(0, 7),
   ); // YYYY-MM
+
+  const [colabSelectedMonth, setColabSelectedMonth] = useState("");
+  const [colabClosingRecordsMap, setColabClosingRecordsMap] = useState<Record<string, any>>({});
+
+  // States and logic for Fechamento de Jornada
+  const [closingRecordsMap, setClosingRecordsMap] = useState<Record<string, any>>({});
+  const [isSavingClosings, setIsSavingClosings] = useState(false);
+  const [isLoadingClosings, setIsLoadingClosings] = useState(false);
+
+  useEffect(() => {
+    if (!colabSelectedMonth) {
+      setColabClosingRecordsMap({});
+      return;
+    }
+    const fetchColabClosings = async () => {
+      const compId = currentUser?.companyId || "default";
+      const key = `rh_fechamento_jornada_${compId}_${colabSelectedMonth}`;
+      
+      let initialMap: Record<string, any> = {};
+      const saved = localStorage.getItem(key);
+      if (saved) {
+        try {
+          initialMap = JSON.parse(saved);
+        } catch (e) {
+          console.error("Error parsing saved colab closings:", e);
+        }
+      }
+
+      // Check if Supabase is active
+      const configObj = getSupabaseConfig();
+      if (configObj.enabled) {
+        const supabase = createSupabaseClient(configObj.url, configObj.key);
+        if (supabase) {
+          try {
+            const { data } = await supabase
+              .from("period_closing_records")
+              .select("*")
+              .eq("company_id", compId)
+              .eq("closing_month", colabSelectedMonth);
+
+            if (data && data.length > 0) {
+              const dbMap: Record<string, any> = {};
+              data.forEach((row: any) => {
+                dbMap[row.employee_id] = {
+                  workedDays: row.worked_days,
+                  absences: row.absences,
+                  medicalCertificates: row.medical_certificates,
+                  vacationDays: row.vacation_days,
+                  leaveDays: row.leave_days,
+                  overtime50: parseFloat(row.overtime_50) || 0,
+                  overtime100: parseFloat(row.overtime_100) || 0,
+                  nightShift: parseFloat(row.night_shift) || 0,
+                  notes: row.notes || "",
+                };
+              });
+              setColabClosingRecordsMap({ ...initialMap, ...dbMap });
+              return;
+            }
+          } catch (e) {
+            console.error("Error fetching colab closings from db:", e);
+          }
+        }
+      }
+      setColabClosingRecordsMap(initialMap);
+    };
+
+    fetchColabClosings();
+  }, [colabSelectedMonth, employees, currentUser?.companyId]);
+
+  const calculateEmployeeRemuneration = (emp: Employee, monthRecord?: any) => {
+    const baseSalary = emp.salary || 0;
+    
+    if (!colabSelectedMonth || !monthRecord) {
+      return {
+        baseSalary,
+        hourlyValue: baseSalary / 220,
+        overtime50Value: 0,
+        overtime100Value: 0,
+        absencesDiscount: 0,
+        nightShiftValue: 0,
+        finalSalary: baseSalary,
+        overtime50Qty: 0,
+        overtime100Qty: 0,
+        absencesDays: 0,
+        workedDays: 22,
+        nightShiftQty: 0,
+      };
+    }
+
+    const hourlyValue = baseSalary / 220;
+    const overtime50Qty = parseFloat(monthRecord.overtime50) || 0;
+    const overtime100Qty = parseFloat(monthRecord.overtime100) || 0;
+    const absencesDays = parseInt(monthRecord.absences, 10) || 0;
+    const nightShiftQty = parseFloat(monthRecord.nightShift) || 0;
+    const workedDays = parseInt(monthRecord.workedDays, 10) || 0;
+
+    // Hora Extra 50% = Valor Hora × 1,5 × Quantidade
+    const overtime50Value = hourlyValue * 1.5 * overtime50Qty;
+
+    // Hora Extra 100% = Valor Hora × 2,0 × Quantidade
+    const overtime100Value = hourlyValue * 2.0 * overtime100Qty;
+
+    // Faltas = Salário ÷ 30 × Dias Faltados
+    const absencesDiscount = (baseSalary / 30) * absencesDays;
+
+    // Adicional Noturno (opcional, mas let's use standard 20% value)
+    const nightShiftValue = hourlyValue * 0.2 * nightShiftQty;
+
+    let finalSalary = baseSalary + overtime50Value + overtime100Value - absencesDiscount + nightShiftValue;
+    if (finalSalary < 0) finalSalary = 0;
+
+    return {
+      baseSalary,
+      hourlyValue,
+      overtime50Value,
+      overtime100Value,
+      absencesDiscount,
+      nightShiftValue,
+      finalSalary,
+      overtime50Qty,
+      overtime100Qty,
+      absencesDays,
+      workedDays,
+      nightShiftQty,
+    };
+  };
+
+  useEffect(() => {
+    const fetchClosings = async () => {
+      setIsLoadingClosings(true);
+      const compId = currentUser?.companyId || "default";
+      const key = `rh_fechamento_jornada_${compId}_${selectedMonth}`;
+      
+      // Try local storage first
+      const localData = localStorage.getItem(key);
+      let initialMap: Record<string, any> = {};
+      if (localData) {
+        try {
+          initialMap = JSON.parse(localData);
+        } catch (e) {
+          console.error("Error parsing local closing data:", e);
+        }
+      }
+
+      // Check if Supabase is active
+      const configObj = getSupabaseConfig();
+      if (configObj.enabled) {
+        const supabase = createSupabaseClient(configObj.url, configObj.key);
+        if (supabase) {
+          try {
+            const { data, error } = await supabase
+              .from("period_closing_records")
+              .select("*")
+              .eq("company_id", compId)
+              .eq("closing_month", selectedMonth);
+
+            if (data && data.length > 0) {
+              const dbMap: Record<string, any> = {};
+              data.forEach((row: any) => {
+                dbMap[row.employee_id] = {
+                  workedDays: row.worked_days,
+                  absences: row.absences,
+                  medicalCertificates: row.medical_certificates,
+                  vacationDays: row.vacation_days,
+                  leaveDays: row.leave_days,
+                  overtime50: parseFloat(row.overtime_50) || 0,
+                  overtime100: parseFloat(row.overtime_100) || 0,
+                  nightShift: parseFloat(row.night_shift) || 0,
+                  notes: row.notes || "",
+                };
+              });
+              setClosingRecordsMap(dbMap);
+              setIsLoadingClosings(false);
+              return;
+            }
+          } catch (e) {
+            console.error("Error fetching closings from database:", e);
+          }
+        }
+      }
+
+      // If no Database data, use local storage/default placeholders
+      const mergedMap: Record<string, any> = {};
+      employees.filter(e => e.status === "active").forEach(emp => {
+        if (initialMap[emp.id]) {
+          mergedMap[emp.id] = initialMap[emp.id];
+        } else {
+          mergedMap[emp.id] = {
+            workedDays: 22,
+            absences: 0,
+            medicalCertificates: 0,
+            vacationDays: 0,
+            leaveDays: 0,
+            overtime50: 0,
+            overtime100: 0,
+            nightShift: 0,
+            notes: "",
+          };
+        }
+      });
+      setClosingRecordsMap(mergedMap);
+      setIsLoadingClosings(false);
+    };
+
+    fetchClosings();
+  }, [selectedMonth, employees, currentUser?.companyId]);
+
+  const handleSaveClosings = async () => {
+    setIsSavingClosings(true);
+    const compId = currentUser?.companyId || "default";
+    const key = `rh_fechamento_jornada_${compId}_${selectedMonth}`;
+    
+    // Save to local storage
+    localStorage.setItem(key, JSON.stringify(closingRecordsMap));
+
+    // Prepare records for database
+    const configObj = getSupabaseConfig();
+    let dbSuccess = false;
+    let dbErrDetail = "";
+
+    if (configObj.enabled) {
+      const supabase = createSupabaseClient(configObj.url, configObj.key);
+      if (supabase) {
+        try {
+          const upsertPromises = Object.entries(closingRecordsMap).map(([empId, val]) => {
+            const emp = employees.find(e => e.id === empId);
+            const employeeName = emp?.name || "Colaborador";
+            const employeeRole = emp?.role || "Função";
+            const id = `${compId}_${selectedMonth}_${empId}`;
+            
+            return supabase
+              .from("period_closing_records")
+              .upsert({
+                id,
+                company_id: compId,
+                closing_month: selectedMonth,
+                employee_id: empId,
+                employee_name: employeeName,
+                employee_role: employeeRole,
+                worked_days: parseInt(val.workedDays, 10) || 0,
+                absences: parseInt(val.absences, 10) || 0,
+                medical_certificates: parseInt(val.medicalCertificates, 10) || 0,
+                vacation_days: parseInt(val.vacationDays, 10) || 0,
+                leave_days: parseInt(val.leaveDays, 10) || 0,
+                overtime_50: parseFloat(val.overtime50) || 0,
+                overtime_100: parseFloat(val.overtime100) || 0,
+                night_shift: parseFloat(val.nightShift) || 0,
+                notes: val.notes || "",
+                updated_at: new Date().toISOString(),
+              }, {
+                onConflict: "company_id,closing_month,employee_id"
+              });
+          });
+
+          const results = await Promise.all(upsertPromises);
+          const errors = results.filter(r => r.error);
+          if (errors.length > 0) {
+            console.error("Errors saving to DB:", errors);
+            dbErrDetail = errors.map(e => e.error?.message).join(", ");
+          } else {
+            dbSuccess = true;
+          }
+        } catch (e: any) {
+          console.error("Exception saving to DB:", e);
+          dbErrDetail = e.message;
+        }
+      }
+    }
+
+    setIsSavingClosings(false);
+    if (!configObj.enabled) {
+      alert(`✅ SUCESSO! O Fechamento de Jornada do mês ${selectedMonth} foi salvo com sucesso no banco de dados de desenvolvimento local.`);
+    } else if (dbSuccess) {
+      alert(`✅ SUCESSO! O Fechamento de Jornada do mês ${selectedMonth} foi salvo e persistido com sucesso no banco de dados para todos os colaboradores.`);
+    } else {
+      alert(`⚠️ AVISO: O fechamento foi salvo no banco local, mas ocorreu uma falha ao sincronizar com o banco de dados principal.\nDetalhe: ${dbErrDetail}`);
+    }
+  };
+
 
   const getEmployeeTeamId = (emp: Employee) => {
     const currentMonth = selectedMonth || new Date().toISOString().slice(0, 7);
@@ -288,10 +647,16 @@ export default function RHView({
     null,
   );
   const [sortField, setSortField] = useState<
-    "name" | "cpf" | "role" | "admissionDate"
+    "name" | "cpf" | "role" | "admissionDate" | "salary"
   >("name");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
 
+  const totalExtraCostsPercentage = useMemo(() => {
+    const list = rhParams.extraCosts || [];
+    return list.reduce((sum, item) => sum + (item.percentage || 0), 0);
+  }, [rhParams.extraCosts]);
+
+  const [isExportSelectorOpen, setIsExportSelectorOpen] = useState(false);
   const [isPrintColumnsModalOpen, setIsPrintColumnsModalOpen] = useState(false);
   const [printColumns, setPrintColumns] = useState({
     name: true,
@@ -451,6 +816,276 @@ export default function RHView({
     });
 
     doc.save(`Ficha_Admissao_${e.name.replace(/\s+/g, "_")}.pdf`);
+  };
+
+  const exportFechamentoToPDF = () => {
+    const doc = new jsPDF("landscape");
+    
+    // Header
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(14);
+    doc.setTextColor(234, 88, 12); // orange-600
+    doc.text("SYNERA - GESTÃO DE RECURSOS HUMANOS", 14, 15);
+
+    doc.setFontSize(11);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(30, 41, 59); // slate-800
+    doc.text(`RELATÓRIO DE FECHAMENTO DE JORNADA`, 14, 21);
+    
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(100, 116, 139); // slate-500
+    doc.text(
+      `Mês de Referência: ${selectedMonth} - Gerado em ${new Date().toLocaleDateString("pt-BR")}`,
+      14,
+      27
+    );
+
+    const tableHeaders = [
+      [
+        "Colaborador",
+        "Função",
+        "Dias Trab.",
+        "Faltas",
+        "Atestado",
+        "Férias",
+        "HE 50%",
+        "HE 100%",
+        "Salário Base",
+        "Líquido"
+      ]
+    ];
+
+    const activeEmployees = employees.filter(e => e.status === "active");
+
+    const tableRows = activeEmployees.map((emp) => {
+      const val = closingRecordsMap[emp.id] || {
+        workedDays: 22,
+        absences: 0,
+        medicalCertificates: 0,
+        vacationDays: 0,
+        leaveDays: 0,
+        overtime50: 0,
+        overtime100: 0,
+      };
+
+      const baseSalary = emp.salary || 0;
+      const hourlyValue = baseSalary / 220;
+      const ot50Qty = parseFloat(val.overtime50) || 0;
+      const ot100Qty = parseFloat(val.overtime100) || 0;
+      const absDays = parseInt(val.absences, 10) || 0;
+
+      const overtime50Val = hourlyValue * 1.5 * ot50Qty;
+      const overtime100Val = hourlyValue * 2.0 * ot100Qty;
+      const absencesVal = (baseSalary / 30) * absDays;
+
+      let netPay = baseSalary + overtime50Val + overtime100Val - absencesVal;
+      if (netPay < 0) netPay = 0;
+
+      return [
+        emp.name || "-",
+        emp.role || "-",
+        String(val.workedDays),
+        String(val.absences),
+        String(val.medicalCertificates),
+        String(val.vacationDays),
+        `${ot50Qty}h (${overtime50Val.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })})`,
+        `${ot100Qty}h (${overtime100Val.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })})`,
+        baseSalary.toLocaleString("pt-BR", { style: "currency", currency: "BRL" }),
+        netPay.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })
+      ];
+    });
+
+    autoTable(doc, {
+      startY: 32,
+      head: tableHeaders,
+      body: tableRows,
+      theme: "striped",
+      styles: { fontSize: 8, cellPadding: 2 },
+      headStyles: {
+        fillColor: [234, 88, 12], // orange-600
+        textColor: 255,
+        fontStyle: "bold",
+      }
+    });
+
+    doc.save(
+      `Fechamento_Jornada_${selectedMonth}_Gerado_${new Date().toISOString().split("T")[0]}.pdf`
+    );
+  };
+
+  const exportIndividualSlipToPDF = (emp: Employee, month: string) => {
+    const doc = new jsPDF("p", "mm", "a4");
+    const compId = currentUser?.companyId || "default";
+    const key = `rh_fechamento_jornada_${compId}_${month}`;
+    const localData = localStorage.getItem(key);
+    let monthRecord: any = undefined;
+    if (localData) {
+      try {
+        const parsed = JSON.parse(localData);
+        monthRecord = parsed[emp.id];
+      } catch (e) {
+        console.error(e);
+      }
+    }
+    
+    const calc = calculateEmployeeRemuneration(emp, monthRecord);
+
+    // Frame Border
+    doc.setDrawColor(203, 213, 225); // slate-300
+    doc.rect(5, 5, 200, 287);
+
+    // Logo & Header block
+    doc.setFillColor(30, 41, 59); // slate-800
+    doc.rect(5, 5, 200, 25, "F");
+
+    doc.setTextColor(255, 255, 255);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(14);
+    doc.text("RECIBO DE PAGAMENTO DE SALÁRIO (HOLERITE)", 105, 15, { align: "center" });
+    
+    doc.setFontSize(9);
+    doc.setFont("helvetica", "normal");
+    doc.text(`Mês de Referência: ${month.split("-")[1]}/${month.split("-")[0]} - SYNERA RH`, 105, 22, { align: "center" });
+
+    // Employee & Company info box
+    doc.setTextColor(30, 41, 59);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(10);
+    doc.text("DADOS DO EMPREGADOR", 10, 38);
+    
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
+    doc.text(`Empresa ID: ${currentUser.companyId || "Synera Enterprise LLC"}`, 10, 44);
+    doc.text(`Setor / Equipe: ${emp.team || "Geral"}`, 10, 49);
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(10);
+    doc.text("DADOS DO COLABORADOR", 110, 38);
+    
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
+    doc.text(`Nome: ${emp.name}`, 110, 44);
+    doc.text(`CPF: ${emp.cpf}`, 110, 49);
+    doc.text(`Cargo: ${emp.role}`, 110, 54);
+    doc.text(`Data Admissão: ${formatDateForDisplay(emp.admissionDate)}`, 110, 59);
+
+    // Line separator
+    doc.setDrawColor(226, 232, 240);
+    doc.setLineWidth(0.5);
+    doc.line(10, 65, 200, 65);
+
+    // Demonstrative
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(10);
+    doc.text("DEMONSTRATIVO DE VALORES", 10, 73);
+
+    const slipHeaders = [["Cód.", "Descrição", "Referência", "Proventos", "Descontos"]];
+    const baseHourVal = calc.baseSalary / 220;
+    
+    const slipRows = [
+      ["001", "SALÁRIO BASE CONTRATUAL", "30 Dias", calc.baseSalary.toLocaleString("pt-BR", { style: "currency", currency: "BRL" }), "-"],
+    ];
+
+    if (calc.overtime50Qty > 0) {
+      slipRows.push([
+        "150", 
+        "HORA EXTRA 50%", 
+        `${calc.overtime50Qty}h`, 
+        calc.overtime50Value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" }), 
+        "-"
+      ]);
+    }
+    if (calc.overtime100Qty > 0) {
+      slipRows.push([
+        "151", 
+        "HORA EXTRA 100%", 
+        `${calc.overtime100Qty}h`, 
+        calc.overtime100Value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" }), 
+        "-"
+      ]);
+    }
+    if (calc.nightShiftQty > 0) {
+      slipRows.push([
+        "160", 
+        "ADICIONAL NOTURNO 20%", 
+        `${calc.nightShiftQty}h`, 
+        calc.nightShiftValue.toLocaleString("pt-BR", { style: "currency", currency: "BRL" }), 
+        "-"
+      ]);
+    }
+    if (calc.absencesDays > 0) {
+      slipRows.push([
+        "400", 
+        "FALTAS INTEGRALMENTE DESCONTADAS", 
+        `${calc.absencesDays} Dia(s)`, 
+        "-", 
+        calc.absencesDiscount.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })
+      ]);
+    }
+
+    const totalEarnings = calc.baseSalary + calc.overtime50Value + calc.overtime100Value + calc.nightShiftValue;
+    const totalDeductions = calc.absencesDiscount;
+    const netPayable = calc.finalSalary;
+
+    autoTable(doc, {
+      startY: 78,
+      head: slipHeaders,
+      body: slipRows,
+      theme: "plain",
+      styles: { fontSize: 9, cellPadding: 3 },
+      headStyles: {
+        fillColor: [241, 245, 249],
+        textColor: 30,
+        fontStyle: "bold",
+      },
+    });
+
+    // Totals section below table
+    const finalY = (doc as any).lastAutoTable.finalY + 10;
+    doc.setDrawColor(203, 213, 225);
+    doc.rect(10, finalY, 190, 30);
+
+    doc.setFont("helvetica", "normal");
+    doc.text("Valor Hora:", 15, finalY + 10);
+    doc.setFont("helvetica", "bold");
+    doc.text(baseHourVal.toLocaleString("pt-BR", { style: "currency", currency: "BRL" }), 45, finalY + 10);
+
+    doc.setFont("helvetica", "normal");
+    doc.text("Total Proventos:", 110, finalY + 10);
+    doc.setFont("helvetica", "bold");
+    doc.text(totalEarnings.toLocaleString("pt-BR", { style: "currency", currency: "BRL" }), 150, finalY + 10);
+
+    doc.setFont("helvetica", "normal");
+    doc.text("Total Descontos:", 110, finalY + 18);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(220, 38, 38);
+    doc.text(totalDeductions.toLocaleString("pt-BR", { style: "currency", currency: "BRL" }), 150, finalY + 18);
+    doc.setTextColor(30, 41, 59);
+
+    // Net Payable section
+    doc.setFillColor(248, 250, 252);
+    doc.rect(10, finalY + 35, 190, 15, "F");
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(11);
+    doc.text("VALOR LÍQUIDO A RECEBER:", 15, finalY + 44);
+    doc.setFontSize(12);
+    doc.setTextColor(16, 185, 129); // emerald-500
+    doc.text(netPayable.toLocaleString("pt-BR", { style: "currency", currency: "BRL" }), 150, finalY + 44);
+    doc.setTextColor(30, 41, 59);
+
+    // Signatures
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
+    doc.text("DECLARO TER RECEBIDO A IMPORTÂNCIA LÍQUIDA DISCRIMINADA NESTE DOCUMENTO.", 10, finalY + 65);
+    
+    doc.line(10, finalY + 95, 95, finalY + 95);
+    doc.text("DATA", 10, finalY + 100);
+
+    doc.line(110, finalY + 95, 190, finalY + 95);
+    doc.text("ASSINATURA DO COLABORADOR", 110, finalY + 100);
+
+    doc.save(`Holerite_${emp.name.replace(/\s+/g, "_")}_${month}.pdf`);
   };
 
   const exportEmployeeToExcel = (e: Employee) => {
@@ -1144,11 +1779,15 @@ export default function RHView({
       "CPF",
       "Cargo",
       "Data Admissão",
-      "Remuneração",
+      showLoadedSalary ? "Remuneração (com Encargos)" : "Remuneração",
       "Tipo Contrato",
     ]);
 
     filteredEmployees.forEach((e) => {
+      const baseSalary = e.salary || 0;
+      const finalSalary = showLoadedSalary
+        ? baseSalary * (1 + totalExtraCostsPercentage / 100)
+        : baseSalary;
       wsData.push([
         e.name,
         e.cpf,
@@ -1156,7 +1795,7 @@ export default function RHView({
         e.admissionDate
           ? new Date(e.admissionDate).toLocaleDateString("pt-BR")
           : "",
-        e.salary,
+        finalSalary,
         e.paymentType === "month"
           ? "Mensalista"
           : e.paymentType === "hour"
@@ -1205,24 +1844,30 @@ export default function RHView({
     }
 
     const tableHeaders = [
-      ["Nome", "CPF", "Cargo", "Data Admissão", "Remuneração", "Status"],
+      ["Nome", "CPF", "Cargo", "Data Admissão", showLoadedSalary ? "Remuneração (c/ Encargos)" : "Remuneração", "Status"],
     ];
 
-    const tableRows = filteredEmployees.map((e) => [
-      e.name || "-",
-      e.cpf || "-",
-      e.role || "-",
-      e.admissionDate
-        ? new Date(e.admissionDate).toLocaleDateString("pt-BR")
-        : "-",
-      e.salary
-        ? e.salary.toLocaleString("pt-BR", {
-            style: "currency",
-            currency: "BRL",
-          })
-        : "R$ 0,00",
-      e.status === "active" ? "Ativo" : "Desligado",
-    ]);
+    const tableRows = filteredEmployees.map((e) => {
+      const baseSalary = e.salary || 0;
+      const finalSalary = showLoadedSalary
+        ? baseSalary * (1 + totalExtraCostsPercentage / 100)
+        : baseSalary;
+      return [
+        e.name || "-",
+        e.cpf || "-",
+        e.role || "-",
+        e.admissionDate
+          ? new Date(e.admissionDate).toLocaleDateString("pt-BR")
+          : "-",
+        finalSalary
+          ? finalSalary.toLocaleString("pt-BR", {
+              style: "currency",
+              currency: "BRL",
+            })
+          : "R$ 0,00",
+        e.status === "active" ? "Ativo" : "Desligado",
+      ];
+    });
 
     autoTable(doc, {
       startY: contract ? 32 : 28,
@@ -1261,7 +1906,7 @@ export default function RHView({
         case "admissionDate":
           return "Admissão";
         case "salary":
-          return "Salário";
+          return showLoadedSalary ? "Remuneração (c/ Encargos)" : "Remuneração";
         case "mobile":
           return "Contato";
         case "email":
@@ -1287,8 +1932,12 @@ export default function RHView({
         return val ? new Date(val).toLocaleDateString("pt-BR") : "-";
       }
       if (field === "salary") {
-        return val
-          ? val.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })
+        const baseSalary = emp.salary || 0;
+        const finalSalary = showLoadedSalary
+          ? baseSalary * (1 + totalExtraCostsPercentage / 100)
+          : baseSalary;
+        return finalSalary
+          ? finalSalary.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })
           : "R$ 0,00";
       }
       return val || "-";
@@ -1297,7 +1946,7 @@ export default function RHView({
     const headersHtml = selectedFields
       .map(
         (f) =>
-          `<th style="text-align: left; padding: 8px; border-bottom: 2px solid #cbd5e1; font-size: 11px; text-transform: uppercase; color: #1e293b;">${getHeaderLabel(f)}</th>`,
+          `<th style="text-align: left; padding: 10px; border-bottom: 2px solid #cbd5e1; font-size: 11px; text-transform: uppercase; color: #1e293b; font-family: sans-serif;">${getHeaderLabel(f)}</th>`,
       )
       .join("");
 
@@ -1305,101 +1954,86 @@ export default function RHView({
       .map((emp) => {
         const cells = selectedFields
           .map((f) => {
-            return `<td style="padding: 8px; border-bottom: 1px solid #e2e8f0; font-size: 11px; color: #334155;">${getFieldValue(emp, f)}</td>`;
+            return `<td style="padding: 10px; border-bottom: 1px solid #e2e8f0; font-size: 11px; color: #334155; font-family: sans-serif;">${getFieldValue(emp, f)}</td>`;
           })
           .join("");
         return `<tr>${cells}</tr>`;
       })
       .join("");
 
-    const iframe = document.createElement("iframe");
-    iframe.style.position = "fixed";
-    iframe.style.bottom = "0";
-    iframe.style.right = "0";
-    iframe.style.width = "1024px";
-    iframe.style.height = "1024px";
-    iframe.style.border = "0";
-    iframe.style.zIndex = "-9999";
-    iframe.style.opacity = "0";
-    iframe.style.pointerEvents = "none";
-    document.body.appendChild(iframe);
+    // Create unique print container
+    const printContainerId = "synera-rh-print-container";
+    let printContainer = document.getElementById(printContainerId);
+    if (!printContainer) {
+      printContainer = document.createElement("div");
+      printContainer.id = printContainerId;
+      document.body.appendChild(printContainer);
+    }
 
-    if (!iframe.contentWindow) return;
-
-    const styles = Array.from(
-      document.head.querySelectorAll('style, link[rel="stylesheet"]'),
-    )
-      .map((n) => n.outerHTML)
-      .join("\n");
-
-    iframe.contentWindow.document.open();
-    iframe.contentWindow.document.write(`
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <title>Lista_Colaboradores_SYNERA</title>
-          ${styles}
-          <style>
-            @page { margin: 12mm; size: landscape; }
-            body { 
-              font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
-              color: #1e293b;
-              background: white; 
-              margin: 0;
-              padding: 0;
-            }
-            .header-info {
-              display: flex;
-              justify-content: space-between;
-              align-items: center;
-              border-bottom: 2px solid #1e3a8a;
-              padding-bottom: 10px;
-              margin-bottom: 20px;
-            }
-            .main-table {
-              width: 100%;
-              border-collapse: collapse;
-            }
-            @media print {
-              body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-            }
-          </style>
-        </head>
-        <body>
-          <div class="header-info">
-            <div>
-              <h1 style="font-size: 18px; font-weight: bold; color: #1e3a8a; margin: 0; text-transform: uppercase;">SYNERA - Gestão e Planejamento</h1>
-              <h2 style="font-size: 13px; font-weight: bold; color: #475569; margin: 4px 0 0 0;">RELATÓRIO: LISTA DE COLABORADORES</h2>
-              \${contract ? \`<div style="font-size: 11px; margin-top: 4px; color: #1e3a8a;"><strong>CONTRATO:</strong> \${contract.contractNumber} - \${contract.object || ''}</div>\` : ''}
-            </div>
-            <div style="text-align: right; font-size: 11px; color: #64748b;">
-              Total: <strong>\${filteredEmployees.length} colaboradores</strong><br>
-              Gerado em: \${new Date().toLocaleDateString('pt-BR')}
-            </div>
+    printContainer.innerHTML = `
+      <div style="font-family: sans-serif; color: #1e293b; background: white; padding: 20px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #ea580c; padding-bottom: 12px; margin-bottom: 20px;">
+          <div>
+            <h1 style="font-size: 20px; font-weight: 800; color: #1e293b; margin: 0; letter-spacing: -0.025em;">SYNERA</h1>
+            <h2 style="font-size: 13px; font-weight: 700; color: #475569; margin: 4px 0 0 0; text-transform: uppercase; letter-spacing: 0.05em;">Relatório de Colaboradores</h2>
+            ${contract ? `<div style="font-size: 11px; margin-top: 6px; color: #ea580c;"><strong>CONTRATO:</strong> ${contract.contractNumber} - ${contract.object || ''}</div>` : ''}
           </div>
+          <div style="text-align: right; font-size: 11px; color: #64748b; line-height: 1.4;">
+            Total: <strong>${filteredEmployees.length} colaboradores</strong><br>
+            Gerado em: ${new Date().toLocaleDateString('pt-BR')}<br>
+            ${showLoadedSalary ? '<span style="color: #16a34a; font-weight: bold;">(Encargos de ' + totalExtraCostsPercentage.toFixed(2) + '% inclusos)</span>' : ''}
+          </div>
+        </div>
 
-          <table class="main-table">
-            <thead>
-              <tr>
-                \${headersHtml}
-              </tr>
-            </thead>
-            <tbody>
-              \${rowsHtml}
-            </tbody>
-          </table>
-          <script>
-            window.onload = () => {
-              setTimeout(() => {
-                window.print();
-              }, 500);
-            };
-          </script>
-        </body>
-      </html>
-    `);
-    iframe.contentWindow.document.close();
+        <table style="width: 100%; border-collapse: collapse;">
+          <thead>
+            <tr>
+              ${headersHtml}
+            </tr>
+          </thead>
+          <tbody>
+            ${rowsHtml}
+          </tbody>
+        </table>
+      </div>
+    `;
+
+    // Add CSS styles specifically for handling screen vs printer view for the custom block
+    const printStyleId = "synera-rh-print-style";
+    let printStyle = document.getElementById(printStyleId);
+    if (!printStyle) {
+      printStyle = document.createElement("style");
+      printStyle.id = printStyleId;
+      document.head.appendChild(printStyle);
+    }
+    printStyle.innerHTML = `
+      @media print {
+        body > *:not(#${printContainerId}) {
+          display: none !important;
+        }
+        #${printContainerId} {
+          display: block !important;
+          position: absolute !important;
+          left: 0 !important;
+          top: 0 !important;
+          width: 100% !important;
+          z-index: 9999999 !important;
+          background: white !important;
+        }
+      }
+      @media screen {
+        #${printContainerId} {
+          display: none !important;
+        }
+      }
+    `;
+
     setIsPrintColumnsModalOpen(false);
+
+    // Call browser's native print trigger
+    setTimeout(() => {
+      window.print();
+    }, 150);
   };
 
   const filteredEmployees = useMemo(() => {
@@ -1429,6 +2063,8 @@ export default function RHView({
         comparison = (a.admissionDate || "").localeCompare(
           b.admissionDate || "",
         );
+      else if (sortField === "salary")
+        comparison = (a.salary || 0) - (b.salary || 0);
 
       return sortOrder === "asc" ? comparison : -comparison;
     });
@@ -1453,7 +2089,7 @@ export default function RHView({
     }
   }, [selectedContractId, filteredEmployees, selectedEmployeeId]);
 
-  const handleSort = (field: "name" | "cpf" | "role" | "admissionDate") => {
+  const handleSort = (field: "name" | "cpf" | "role" | "admissionDate" | "salary") => {
     if (sortField === field) {
       setSortOrder(sortOrder === "asc" ? "desc" : "asc");
     } else {
@@ -1863,22 +2499,74 @@ export default function RHView({
           <TabsTrigger value="employees" className="gap-2">
             <Users className="w-4 h-4" /> Colaboradores
           </TabsTrigger>
+          <TabsTrigger value="fechamento_jornada" className="gap-2">
+            <Clock className="w-4 h-4" /> Fechamento de Jornada
+          </TabsTrigger>
           <TabsTrigger value="documents" className="gap-2">
             <FileText className="w-4 h-4" /> Documentos
           </TabsTrigger>
           <TabsTrigger value="alojamentos" className="gap-2">
             <Home className="w-4 h-4" /> Alojamento
           </TabsTrigger>
+          <TabsTrigger value="parameters" className="gap-2">
+            <Settings className="w-4 h-4" /> Parâmetros
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="employees">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-            <Card className="border-none shadow-sm bg-orange-50/20">
+            <Card className="border-none shadow-sm bg-orange-50/20 flex flex-col justify-between">
               <CardHeader className="pb-2">
-                <CardDescription className="font-medium text-orange-900">Total de Funcionários</CardDescription>
+                <CardDescription className="font-bold text-orange-900">Total de Funcionários</CardDescription>
               </CardHeader>
-              <CardContent>
+              <CardContent className="mt-auto">
                 <div className="text-3xl font-black text-gray-900">{employees.filter(e => e.status === 'active').length}</div>
+                <p className="text-[10px] text-orange-600 font-semibold mt-1">Colaboradores Ativos</p>
+              </CardContent>
+            </Card>
+
+            <Card className="border-none shadow-sm bg-indigo-50/30 flex flex-col md:col-span-1 lg:col-span-2">
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-2">
+                  <div className="p-1.5 bg-indigo-100 text-indigo-700 rounded-lg">
+                    <Calendar className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <CardTitle className="text-sm font-bold text-indigo-950">Seletor de Mês (Remuneração Dinâmica)</CardTitle>
+                    <CardDescription className="text-indigo-900/60 text-[11px]">
+                      Selecione um mês para calcular a remuneração com os dados do Fechamento de Jornada.
+                    </CardDescription>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+                <div className="w-full sm:w-auto">
+                  <Input
+                    type="month"
+                    value={colabSelectedMonth}
+                    onChange={(e) => setColabSelectedMonth(e.target.value)}
+                    className="w-full sm:w-48 h-10 text-sm font-bold border-indigo-200 focus:border-indigo-500 rounded-xl bg-white font-mono shadow-sm"
+                  />
+                </div>
+                {colabSelectedMonth ? (
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge className="bg-indigo-600 text-white font-bold text-xs px-2.5 py-1">
+                      Mês Ativo: {colabSelectedMonth.split("-")[1]}/{colabSelectedMonth.split("-")[0]}
+                    </Badge>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setColabSelectedMonth("")}
+                      className="text-xs text-rose-600 hover:text-rose-800 hover:bg-rose-50 font-bold px-2.5 h-8 rounded-lg"
+                    >
+                      <X className="w-3.5 h-3.5 mr-1" /> Remover Filtro
+                    </Button>
+                  </div>
+                ) : (
+                  <span className="text-xs text-slate-500 italic">
+                    Exibindo valores contratuais fixos. Escolha um mês para aplicar as horas extras, faltas e adicionais.
+                  </span>
+                )}
               </CardContent>
             </Card>
           </div>
@@ -1892,7 +2580,20 @@ export default function RHView({
                 </CardDescription>
               </div>
               <div className="flex flex-wrap items-center gap-2">
-                <div className="relative">
+                <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 h-10 select-none shadow-sm mr-2">
+                  <Switch
+                    id="show-loaded-salary"
+                    checked={showLoadedSalary}
+                    onCheckedChange={setShowLoadedSalary}
+                  />
+                  <Label
+                    htmlFor="show-loaded-salary"
+                    className="text-xs font-bold text-slate-700 cursor-pointer whitespace-nowrap"
+                  >
+                    Encargos
+                  </Label>
+                </div>
+                <div className="relative mr-2">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                   <Input
                     placeholder="Buscar nome ou CPF..."
@@ -1903,10 +2604,10 @@ export default function RHView({
                 </div>
                 <Button
                   variant="outline"
-                  className="gap-2"
-                  onClick={handleDownloadTemplate}
+                  className="gap-2 text-slate-700 border-slate-200 h-10"
+                  onClick={() => setIsExportSelectorOpen(true)}
                 >
-                  <Download className="w-4 h-4" /> Download Modelo
+                  <Download className="w-4 h-4 text-emerald-600" /> Exportar
                 </Button>
                 <div className="relative">
                   <Input
@@ -1921,7 +2622,7 @@ export default function RHView({
                   />
                   <Button
                     variant="outline"
-                    className="gap-2 pointer-events-none"
+                    className="gap-2 pointer-events-none h-10"
                     disabled={isImporting}
                   >
                     {isImporting ? (
@@ -1931,7 +2632,7 @@ export default function RHView({
                       </div>
                     ) : (
                       <>
-                        <Upload className="w-4 h-4" /> Importar RH
+                        <Upload className="w-4 h-4 text-blue-600" /> Importar
                       </>
                     )}
                   </Button>
@@ -1939,42 +2640,21 @@ export default function RHView({
 
                 <Button
                   variant="outline"
-                  className="gap-2 text-slate-700 border-slate-200"
+                  className="gap-2 text-slate-700 border-slate-200 h-10"
                   onClick={() => setIsPrintColumnsModalOpen(true)}
                 >
-                  <Printer className="w-4 h-4 text-indigo-505" /> Imprimir Lista
+                  <Printer className="w-4 h-4 text-indigo-600" /> Imprimir
                 </Button>
 
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button
-                      variant="outline"
-                      className="gap-2 text-slate-700 border-slate-200"
-                    >
-                      <Download className="w-4 h-4 text-emerald-505" /> Exportar
-                      Lista
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent
-                    align="end"
-                    className="w-48 border border-slate-200 shadow-xl rounded-xl bg-white p-1.5 z-50"
-                  >
-                    <DropdownMenuItem
-                      onClick={exportAllEmployeesToPDF}
-                      className="flex items-center gap-2 text-sm font-semibold text-slate-700 cursor-pointer hover:bg-slate-50 rounded-lg py-2 px-2.5"
-                    >
-                      <FileText className="w-4 h-4 text-red-500" />
-                      Exportar em PDF
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      onClick={exportAllEmployeesToExcel}
-                      className="flex items-center gap-2 text-sm font-semibold text-slate-700 cursor-pointer hover:bg-slate-50 rounded-lg py-2 px-2.5"
-                    >
-                      <FileSpreadsheet className="w-4 h-4 text-emerald-500" />
-                      Exportar em EXCEL
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
+                <Button
+                  className="gap-2 bg-orange-600 hover:bg-orange-700 text-white font-bold h-10"
+                  onClick={() => {
+                    resetForm();
+                    setIsDialogOpen(true);
+                  }}
+                >
+                  <UserPlus className="w-4 h-4" /> Novo Colaborador
+                </Button>
 
                 <Dialog
                   open={isPrintColumnsModalOpen}
@@ -2195,16 +2875,81 @@ export default function RHView({
                     </DialogFooter>
                   </DialogContent>
                 </Dialog>
-                <Button
-                  className="gap-2"
-                  onClick={() => {
-                    resetForm();
-                    setIsDialogOpen(true);
-                  }}
-                >
-                  <UserPlus className="w-4 h-4" /> Novo Colaborador
-                </Button>
               </div>
+
+              {/* Novo modal Bento-style de Exportar Colaboradores e Download de Modelo */}
+              <Dialog
+                open={isExportSelectorOpen}
+                onOpenChange={setIsExportSelectorOpen}
+              >
+                <DialogContent className="max-w-2xl bg-white border border-slate-200 shadow-2xl rounded-2xl p-6 text-left">
+                  <DialogHeader className="text-left space-y-2">
+                    <DialogTitle className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                      <Download className="w-5 h-5 text-emerald-600" />
+                      Exportar Banco de RH / Colaboradores
+                    </DialogTitle>
+                    <DialogDescription className="text-sm text-slate-500">
+                      Selecione o formato para exportação de dados ou baixe o modelo padrão de cabeçalho para importações de lotes.
+                    </DialogDescription>
+                  </DialogHeader>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 py-4">
+                    {/* Opção 1: Relatório PDF */}
+                    <button
+                      onClick={() => {
+                        exportAllEmployeesToPDF();
+                        setIsExportSelectorOpen(false);
+                      }}
+                      className="flex flex-col items-center justify-center border-2 border-slate-100 hover:border-red-500 hover:bg-red-50/20 p-5 rounded-2xl transition group text-center cursor-pointer"
+                    >
+                      <div className="w-12 h-12 rounded-xl bg-red-50 text-red-600 flex items-center justify-center border border-red-100 group-hover:scale-110 transition-transform mb-3">
+                        <FileText className="w-6 h-6" />
+                      </div>
+                      <span className="font-extrabold text-slate-800 text-sm">Relatório PDF</span>
+                      <span className="text-slate-400 text-[10px] mt-1">Gera PDF formato Landscape para impressão/assinaturas</span>
+                    </button>
+
+                    {/* Opção 2: Planilha Excel */}
+                    <button
+                      onClick={() => {
+                        exportAllEmployeesToExcel();
+                        setIsExportSelectorOpen(false);
+                      }}
+                      className="flex flex-col items-center justify-center border-2 border-slate-100 hover:border-emerald-600 hover:bg-emerald-50/20 p-5 rounded-2xl transition group text-center cursor-pointer"
+                    >
+                      <div className="w-12 h-12 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center border border-emerald-100 group-hover:scale-110 transition-transform mb-3">
+                        <FileSpreadsheet className="w-6 h-6" />
+                      </div>
+                      <span className="font-extrabold text-slate-800 text-sm">Planilha Excel</span>
+                      <span className="text-slate-400 text-[10px] mt-1">Exporta base completa de colaboradores para auditoria</span>
+                    </button>
+
+                    {/* Opção 3: Baixar Modelo de Importação */}
+                    <button
+                      onClick={() => {
+                        handleDownloadTemplate();
+                        setIsExportSelectorOpen(false);
+                      }}
+                      className="flex flex-col items-center justify-center border-2 border-slate-100 hover:border-blue-600 hover:bg-blue-50/20 p-5 rounded-2xl transition group text-center cursor-pointer"
+                    >
+                      <div className="w-12 h-12 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center border border-blue-100 group-hover:scale-110 transition-transform mb-3">
+                        <Download className="w-6 h-6" />
+                      </div>
+                      <span className="font-extrabold text-slate-800 text-sm">Baixar Modelo</span>
+                      <span className="text-slate-400 text-[10px] mt-1">Planilha padrão necessária para futuras importações em lote</span>
+                    </button>
+                  </div>
+
+                  <DialogFooter className="flex justify-end gap-2 border-t pt-4">
+                    <Button
+                      variant="outline"
+                      onClick={() => setIsExportSelectorOpen(false)}
+                    >
+                      Fechar
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
             </CardHeader>
             <CardContent className="p-0">
               <div className="overflow-x-auto w-full">
@@ -2268,8 +3013,19 @@ export default function RHView({
                             ))}
                         </div>
                       </TableHead>
-                      <TableHead className="font-bold text-center">
-                        Obra / Contrato
+                      <TableHead
+                        className="font-bold text-center cursor-pointer hover:bg-gray-100 transition-colors"
+                        onClick={() => handleSort("salary")}
+                      >
+                        <div className="flex items-center justify-center gap-1">
+                          {showLoadedSalary ? "Salário Carregado" : "Salário Base"}
+                          {sortField === "salary" &&
+                            (sortOrder === "asc" ? (
+                              <ChevronUp className="w-3 h-3" />
+                            ) : (
+                              <ChevronDown className="w-3 h-3" />
+                            ))}
+                        </div>
                       </TableHead>
                       <TableHead className="font-bold text-center">
                         Equipe
@@ -2377,25 +3133,60 @@ export default function RHView({
                           <TableCell className="text-center text-base text-gray-600">
                             {formatDateForDisplay(e.admissionDate)}
                           </TableCell>
-                          <TableCell className="text-center">
+                          <TableCell className="text-center font-mono animate-fade-in py-2 select-none">
                             {(() => {
-                              const contract = contracts.find(
-                                (c) => c.id === e.contractId,
-                              );
-                              if (!contract)
-                                return (
-                                  <span className="text-gray-400 italic text-sm">
-                                    Não Alocado
-                                  </span>
-                                );
+                              const monthRecord = colabClosingRecordsMap[e.id];
+                              const calc = calculateEmployeeRemuneration(e, monthRecord);
+                              
+                              const displaySalary = colabSelectedMonth ? calc.finalSalary : calc.baseSalary;
+                              const finalDisplaySalary = showLoadedSalary
+                                ? displaySalary * (1 + totalExtraCostsPercentage / 100)
+                                : displaySalary;
+
                               return (
-                                <div className="flex flex-col items-center">
-                                  <span className="text-sm font-bold text-blue-700">
-                                    {contract.contractNumber}
+                                <div className="flex flex-col items-center justify-center gap-1">
+                                  <span className={cn(
+                                    "text-sm font-black",
+                                    colabSelectedMonth ? "text-indigo-600 font-black" : "text-gray-800"
+                                  )}>
+                                    {finalDisplaySalary.toLocaleString("pt-BR", {
+                                      style: "currency",
+                                      currency: "BRL",
+                                    })}
                                   </span>
-                                  <span className="text-xs text-gray-500 uppercase font-medium max-w-[120px] truncate">
-                                    {contract.workName || contract.client}
-                                  </span>
+                                  {showLoadedSalary && (
+                                    <span className="text-[9px] font-bold uppercase tracking-wider bg-emerald-50 text-emerald-800 px-1.5 py-0.5 rounded-full border border-emerald-200">
+                                      +{totalExtraCostsPercentage.toFixed(1)}% encargos
+                                    </span>
+                                  )}
+                                  {colabSelectedMonth && monthRecord && (
+                                    <div className="flex flex-col items-center text-[10px] text-slate-500 mt-1 leading-normal font-sans border-t border-slate-100/80 pt-1 w-full max-w-[150px] gap-0.5">
+                                      {calc.overtime50Qty > 0 && (
+                                        <div className="flex justify-between w-full px-1 gap-1">
+                                          <span>H.Ext 50% ({calc.overtime50Qty}h):</span>
+                                          <span className="text-emerald-600 font-bold">+{calc.overtime50Value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</span>
+                                        </div>
+                                      )}
+                                      {calc.overtime100Qty > 0 && (
+                                        <div className="flex justify-between w-full px-1 gap-1">
+                                          <span>H.Ext 100% ({calc.overtime100Qty}h):</span>
+                                          <span className="text-emerald-600 font-bold">+{calc.overtime100Value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</span>
+                                        </div>
+                                      )}
+                                      {calc.absencesDays > 0 && (
+                                        <div className="flex justify-between w-full px-1 gap-1 text-rose-600">
+                                          <span>Faltas ({calc.absencesDays}d):</span>
+                                          <span className="font-bold">-{calc.absencesDiscount.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</span>
+                                        </div>
+                                      )}
+                                      {!calc.overtime50Qty && !calc.overtime100Qty && !calc.absencesDays && (
+                                        <span className="text-slate-400 italic text-[9px]">Salário Base (Limpo)</span>
+                                      )}
+                                    </div>
+                                  )}
+                                  {colabSelectedMonth && !monthRecord && (
+                                    <span className="text-[10px] text-slate-400 italic">Sem folha fechada</span>
+                                  )}
                                 </div>
                               );
                             })()}
@@ -2512,6 +3303,20 @@ export default function RHView({
                               >
                                 <FileSpreadsheet className="w-4 h-4" />
                               </Button>
+                              {colabSelectedMonth && (
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8 text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50"
+                                  onClick={(ev) => {
+                                    ev.stopPropagation();
+                                    exportIndividualSlipToPDF(e, colabSelectedMonth);
+                                  }}
+                                  title="Gerar Holerite PDF"
+                                >
+                                  <FileText className="w-4 h-4 text-indigo-650" />
+                                </Button>
+                              )}
                               {e.status !== "dismissed" && (
                                 <Button
                                   variant="ghost"
@@ -2564,6 +3369,221 @@ export default function RHView({
               </div>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="fechamento_jornada">
+          <div className="space-y-6">
+            <Card className="border-none shadow-sm rounded-3xl overflow-hidden bg-white">
+              <CardHeader className="bg-orange-500/5 pb-6 border-b border-orange-100/30 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-3 bg-orange-100 text-orange-600 rounded-2xl shadow-sm">
+                    <Clock className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <CardTitle className="text-xl font-bold text-gray-900">Fechamento de Jornada</CardTitle>
+                    <CardDescription className="text-gray-500 text-xs">
+                      Insira dias trabalhados, faltas, atestados, férias, horas extras e adicionais dos colaboradores para o fechamento mensal da jornada.
+                    </CardDescription>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-3">
+                  <div className="flex items-center gap-3 bg-slate-50 border border-slate-200 p-2 rounded-2xl shadow-sm">
+                    <Label htmlFor="closing-month" className="text-sm font-extrabold text-slate-800 whitespace-nowrap font-sans pl-2">Mês de Referência:</Label>
+                    <Input
+                      id="closing-month"
+                      type="month"
+                      value={selectedMonth}
+                      onChange={(e) => setSelectedMonth(e.target.value)}
+                      className="w-56 h-12 text-base font-black px-4 border-slate-300 rounded-xl bg-white font-mono focus:border-orange-500 focus:ring-1 focus:ring-orange-500"
+                    />
+                  </div>
+
+                  <Button
+                    onClick={handleSaveClosings}
+                    disabled={isSavingClosings}
+                    className="bg-orange-600 hover:bg-orange-700 text-white font-bold h-10 px-5 rounded-xl shadow-sm hover:shadow transition-all flex items-center gap-2 cursor-pointer text-sm"
+                  >
+                    {isSavingClosings ? (
+                      <>Salvando...</>
+                    ) : (
+                      <>
+                        <Check className="w-4 h-4" /> Salvar Fechamento (Mês)
+                      </>
+                    )}
+                  </Button>
+
+                  <Button
+                    onClick={exportFechamentoToPDF}
+                    className="bg-slate-800 hover:bg-slate-900 text-white font-bold h-10 px-5 rounded-xl shadow-sm hover:shadow transition-all flex items-center gap-2 cursor-pointer text-sm"
+                    title="Exportar PDF do Fechamento Geral"
+                  >
+                    <FileText className="w-4 h-4 text-orange-400" /> Gerar PDF do Fechamento
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent className="p-0">
+                {isLoadingClosings ? (
+                  <div className="flex flex-col items-center justify-center py-20 text-gray-400 gap-2">
+                    <span className="animate-spin text-orange-600 w-8 h-8 border-4 border-current border-t-transparent rounded-full" />
+                    <p className="text-sm font-semibold italic text-slate-500">Buscando dados de fechamento...</p>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader className="bg-slate-50/75 border-b border-gray-100">
+                        <TableRow>
+                          <TableHead className="font-bold text-slate-700 text-xs py-3 max-w-[200px]">Colaborador</TableHead>
+                          <TableHead className="font-bold text-slate-700 text-xs py-3">Função</TableHead>
+                          <TableHead className="font-bold text-slate-700 text-xs py-3 text-center w-20">Dias Trab.</TableHead>
+                          <TableHead className="font-bold text-slate-700 text-xs py-3 text-center w-20">Faltas</TableHead>
+                          <TableHead className="font-bold text-slate-700 text-xs py-3 text-center w-20">Atestado</TableHead>
+                          <TableHead className="font-bold text-slate-700 text-xs py-3 text-center w-20">Férias</TableHead>
+                          <TableHead className="font-bold text-slate-700 text-xs py-3 text-center w-20">Afastamento</TableHead>
+                          <TableHead className="font-bold text-slate-700 text-xs py-3 text-center w-24">HE 50%</TableHead>
+                          <TableHead className="font-bold text-slate-700 text-xs py-3 text-center w-24">HE 100%</TableHead>
+                          <TableHead className="font-bold text-slate-700 text-xs py-3 text-center w-24">Adic. Noturno</TableHead>
+                          <TableHead className="font-bold text-slate-700 text-xs py-3 min-w-[150px]">Obs.</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {employees.filter(e => e.status === "active").length === 0 ? (
+                          <TableRow>
+                            <TableCell colSpan={11} className="py-10 text-center text-gray-400 font-medium">
+                              Nenhum colaborador ativo cadastrado ou encontrado.
+                            </TableCell>
+                          </TableRow>
+                        ) : (
+                          employees.filter(e => e.status === "active").map((emp) => {
+                            const val = closingRecordsMap[emp.id] || {
+                              workedDays: 22,
+                              absences: 0,
+                              medicalCertificates: 0,
+                              vacationDays: 0,
+                              leaveDays: 0,
+                              overtime50: 0,
+                              overtime100: 0,
+                              nightShift: 0,
+                              notes: "",
+                            };
+
+                            const updateField = (field: string, newValue: any) => {
+                              setClosingRecordsMap((prev) => ({
+                                ...prev,
+                                [emp.id]: {
+                                  ...val,
+                                  [field]: newValue,
+                                },
+                              }));
+                            };
+
+                            return (
+                              <TableRow key={emp.id} className="hover:bg-slate-50/40 divide-x divide-transparent">
+                                <TableCell className="py-2.5 font-bold text-slate-900 max-w-[200px] truncate">
+                                  {emp.name}
+                                </TableCell>
+                                <TableCell className="py-2.5 text-xs text-slate-500 font-medium">
+                                  {emp.role || "Não definida"}
+                                </TableCell>
+                                <TableCell className="py-2 px-1 text-center">
+                                  <Input
+                                    type="number"
+                                    min="0"
+                                    max="31"
+                                    value={val.workedDays}
+                                    onChange={(e) => updateField("workedDays", parseInt(e.target.value, 10) || 0)}
+                                    className="w-16 h-8 text-center text-sm font-mono rounded-lg border-slate-200 bg-white"
+                                  />
+                                </TableCell>
+                                <TableCell className="py-2 px-1 text-center">
+                                  <Input
+                                    type="number"
+                                    min="0"
+                                    max="31"
+                                    value={val.absences}
+                                    onChange={(e) => updateField("absences", parseInt(e.target.value, 10) || 0)}
+                                    className="w-16 h-8 text-center text-sm font-mono rounded-lg border-slate-200 bg-white text-red-600 font-bold"
+                                  />
+                                </TableCell>
+                                <TableCell className="py-2 px-1 text-center">
+                                  <Input
+                                    type="number"
+                                    min="0"
+                                    max="31"
+                                    value={val.medicalCertificates}
+                                    onChange={(e) => updateField("medicalCertificates", parseInt(e.target.value, 10) || 0)}
+                                    className="w-16 h-8 text-center text-sm font-mono rounded-lg border-slate-200 bg-white text-emerald-600 font-semibold"
+                                  />
+                                </TableCell>
+                                <TableCell className="py-2 px-1 text-center">
+                                  <Input
+                                    type="number"
+                                    min="0"
+                                    max="31"
+                                    value={val.vacationDays}
+                                    onChange={(e) => updateField("vacationDays", parseInt(e.target.value, 10) || 0)}
+                                    className="w-16 h-8 text-center text-sm font-mono rounded-lg border-slate-200 bg-white text-blue-600 font-semibold"
+                                  />
+                                </TableCell>
+                                <TableCell className="py-2 px-1 text-center">
+                                  <Input
+                                    type="number"
+                                    min="0"
+                                    max="31"
+                                    value={val.leaveDays}
+                                    onChange={(e) => updateField("leaveDays", parseInt(e.target.value, 10) || 0)}
+                                    className="w-16 h-8 text-center text-sm font-mono rounded-lg border-slate-200 bg-white text-amber-600 font-semibold"
+                                  />
+                                </TableCell>
+                                <TableCell className="py-2 px-1 text-center">
+                                  <Input
+                                    type="number"
+                                    step="0.5"
+                                    min="0"
+                                    value={val.overtime50}
+                                    onChange={(e) => updateField("overtime50", parseFloat(e.target.value) || 0)}
+                                    className="w-20 h-8 text-center text-sm font-mono rounded-lg border-slate-200 bg-white"
+                                  />
+                                </TableCell>
+                                <TableCell className="py-2 px-1 text-center">
+                                  <Input
+                                    type="number"
+                                    step="0.5"
+                                    min="0"
+                                    value={val.overtime100}
+                                    onChange={(e) => updateField("overtime100", parseFloat(e.target.value) || 0)}
+                                    className="w-20 h-8 text-center text-sm font-mono rounded-lg border-slate-200 bg-white"
+                                  />
+                                </TableCell>
+                                <TableCell className="py-2 px-1 text-center">
+                                  <Input
+                                    type="number"
+                                    step="0.5"
+                                    min="0"
+                                    value={val.nightShift}
+                                    onChange={(e) => updateField("nightShift", parseFloat(e.target.value) || 0)}
+                                    className="w-20 h-8 text-center text-sm font-mono rounded-lg border-slate-200 bg-white"
+                                  />
+                                </TableCell>
+                                <TableCell className="py-2 px-1">
+                                  <Input
+                                    value={val.notes}
+                                    onChange={(e) => updateField("notes", e.target.value)}
+                                    placeholder="Obs do fechamento..."
+                                    className="w-full h-8 text-xs rounded-lg border-slate-200 bg-white"
+                                  />
+                                </TableCell>
+                              </TableRow>
+                            );
+                          })
+                        )}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
         </TabsContent>
 
         <TabsContent value="documents">
@@ -2765,6 +3785,715 @@ export default function RHView({
                 </div>
               </CardContent>
             </Card>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="parameters">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-fade-in">
+            {/* Form Section */}
+            <div className="lg:col-span-2 space-y-6">
+              {/* Card 1: Jornada */}
+              <Card className="border-none shadow-sm rounded-3xl overflow-hidden bg-white">
+                <CardHeader className="bg-orange-500/5 pb-4 border-b border-orange-100/30">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-orange-100 text-orange-600 rounded-xl">
+                      <Clock className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <CardTitle className="text-lg font-bold text-gray-900">Jornada de Trabalho</CardTitle>
+                      <CardDescription className="text-gray-500 text-xs">Defina o padrão de expediente, intervalos e escala operacional.</CardDescription>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent className="p-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label className="text-gray-700 font-bold text-xs">Horário de Entrada Padrão</Label>
+                    <Input
+                      type="time"
+                      value={rhParams.workEntryTime}
+                      onChange={(e) => setRhParams({ ...rhParams, workEntryTime: e.target.value })}
+                      className="rounded-xl border-gray-100 bg-gray-50/50 hover:bg-gray-50 focus:bg-white text-gray-950 font-medium"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-gray-700 font-bold text-xs">Horário de Saída Padrão</Label>
+                    <Input
+                      type="time"
+                      value={rhParams.workExitTime}
+                      onChange={(e) => setRhParams({ ...rhParams, workExitTime: e.target.value })}
+                      className="rounded-xl border-gray-100 bg-gray-50/50 hover:bg-gray-50 focus:bg-white text-gray-950 font-medium"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-gray-700 font-bold text-xs">Início do Almoço</Label>
+                    <Input
+                      type="time"
+                      value={rhParams.lunchStart}
+                      onChange={(e) => setRhParams({ ...rhParams, lunchStart: e.target.value })}
+                      className="rounded-xl border-gray-100 bg-gray-50/50 hover:bg-gray-50 focus:bg-white text-gray-950 font-medium"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-gray-700 font-bold text-xs">Fim do Almoço</Label>
+                    <Input
+                      type="time"
+                      value={rhParams.lunchEnd}
+                      onChange={(e) => setRhParams({ ...rhParams, lunchEnd: e.target.value })}
+                      className="rounded-xl border-gray-100 bg-gray-50/50 hover:bg-gray-50 focus:bg-white text-gray-950 font-medium"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-gray-700 font-bold text-xs">Carga Horária Diária (Horas)</Label>
+                    <Input
+                      type="number"
+                      step="0.5"
+                      min="1"
+                      max="24"
+                      value={rhParams.dailyHours}
+                      onChange={(e) => setRhParams({ ...rhParams, dailyHours: parseFloat(e.target.value) || 0 })}
+                      className="rounded-xl border-gray-100 bg-gray-50/50 hover:bg-gray-50 focus:bg-white text-gray-950 font-medium"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-gray-700 font-bold text-xs">Carga Horária Semanal (Horas)</Label>
+                    <Input
+                      type="number"
+                      min="1"
+                      max="168"
+                      value={rhParams.weeklyHours}
+                      onChange={(e) => setRhParams({ ...rhParams, weeklyHours: parseInt(e.target.value, 10) || 0 })}
+                      className="rounded-xl border-gray-100 bg-gray-50/50 hover:bg-gray-50 focus:bg-white text-gray-950 font-medium"
+                    />
+                  </div>
+                  <div className="space-y-2 col-span-1 sm:col-span-2">
+                    <Label className="text-gray-700 font-bold text-xs">Escala Operacional</Label>
+                    <Select
+                      value={rhParams.workSchedule}
+                      onValueChange={(val) => setRhParams({ ...rhParams, workSchedule: val })}
+                    >
+                      <SelectTrigger className="w-full rounded-xl border-gray-100 bg-gray-50/50 text-gray-950 font-medium">
+                        <SelectValue placeholder="Selecione a escala" />
+                      </SelectTrigger>
+                      <SelectContent className="bg-white text-gray-900 border-gray-100 rounded-xl">
+                        <SelectItem value="5x2" className="font-medium">5x2 - Cinco dias de trabalho, dois de folga (Administrativo / Obras)</SelectItem>
+                        <SelectItem value="6x1" className="font-medium">6x1 - Seis dias de trabalho, um de folga (Campo / Operacional)</SelectItem>
+                        <SelectItem value="12x36" className="font-medium">12x36 - Doze horas de trabalho por trinta e seis de descanso (Segurança)</SelectItem>
+                        <SelectItem value="outra" className="font-medium">Outra escala customizada</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-gray-700 font-bold text-xs">Dia de Início da Jornada (Ciclo)</Label>
+                    <Input
+                      type="number"
+                      min="1"
+                      max="31"
+                      value={rhParams.periodStartDay ?? 21}
+                      onChange={(e) => setRhParams({ ...rhParams, periodStartDay: parseInt(e.target.value, 10) || 1 })}
+                      className="rounded-xl border-gray-100 bg-gray-50/50 hover:bg-gray-50 focus:bg-white text-gray-950 font-medium"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-gray-700 font-bold text-xs">Dia de Fechamento da Jornada (Ciclo)</Label>
+                    <Input
+                      type="number"
+                      min="1"
+                      max="31"
+                      value={rhParams.periodEndDay ?? 20}
+                      onChange={(e) => setRhParams({ ...rhParams, periodEndDay: parseInt(e.target.value, 10) || 1 })}
+                      className="rounded-xl border-gray-100 bg-gray-50/50 hover:bg-gray-50 focus:bg-white text-gray-950 font-medium"
+                    />
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Card 2: Horas Extras */}
+              <Card className="border-none shadow-sm rounded-3xl overflow-hidden bg-white">
+                <CardHeader className="bg-blue-500/5 pb-4 border-b border-blue-100/30">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-blue-100 text-blue-600 rounded-xl">
+                      <Clock className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <CardTitle className="text-lg font-bold text-gray-900">Horas Extras e Adicionais</CardTitle>
+                      <CardDescription className="text-gray-500 text-xs">Configure limites de tolerância e multiplicadores para horas adicionais.</CardDescription>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent className="p-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label className="text-gray-700 font-bold text-xs">Tolerância para Atraso (Minutos)</Label>
+                    <Input
+                      type="number"
+                      min="0"
+                      max="120"
+                      value={rhParams.delayTolerance}
+                      onChange={(e) => setRhParams({ ...rhParams, delayTolerance: parseInt(e.target.value, 10) || 0 })}
+                      className="rounded-xl border-gray-100 bg-gray-50/50 hover:bg-gray-50 focus:bg-white text-gray-950 font-medium"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-gray-700 font-bold text-xs">Tolerância para Hora Extra (Minutos)</Label>
+                    <Input
+                      type="number"
+                      min="0"
+                      max="120"
+                      value={rhParams.extraHoursTolerance}
+                      onChange={(e) => setRhParams({ ...rhParams, extraHoursTolerance: parseInt(e.target.value, 10) || 0 })}
+                      className="rounded-xl border-gray-100 bg-gray-50/50 hover:bg-gray-50 focus:bg-white text-gray-950 font-medium"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-gray-700 font-bold text-xs">Percentual Hora Extra Semanal / Dias Úteis (50%)</Label>
+                    <div className="relative">
+                      <Input
+                        type="number"
+                        min="0"
+                        max="300"
+                        value={rhParams.overtimeRate50}
+                        onChange={(e) => setRhParams({ ...rhParams, overtimeRate50: parseInt(e.target.value, 10) || 0 })}
+                        className="rounded-xl border-gray-100 bg-gray-50/50 hover:bg-gray-50 focus:bg-white text-gray-950 font-medium pr-8"
+                      />
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs font-bold">%</span>
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-gray-700 font-bold text-xs">Percentual Hora Extra Domingos / Feriados (100%)</Label>
+                    <div className="relative">
+                      <Input
+                        type="number"
+                        min="0"
+                        max="300"
+                        value={rhParams.overtimeRate100}
+                        onChange={(e) => setRhParams({ ...rhParams, overtimeRate100: parseInt(e.target.value, 10) || 0 })}
+                        className="rounded-xl border-gray-100 bg-gray-50/50 hover:bg-gray-50 focus:bg-white text-gray-950 font-medium pr-8"
+                      />
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs font-bold">%</span>
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-gray-700 font-bold text-xs">Início do Horário Noturno</Label>
+                    <Input
+                      type="time"
+                      value={rhParams.nightShiftStart}
+                      onChange={(e) => setRhParams({ ...rhParams, nightShiftStart: e.target.value })}
+                      className="rounded-xl border-gray-100 bg-gray-50/50 hover:bg-gray-50 focus:bg-white text-gray-950 font-medium"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-gray-700 font-bold text-xs">Previsão Fim do Horário Noturno</Label>
+                    <Input
+                      type="time"
+                      value={rhParams.nightShiftEnd}
+                      onChange={(e) => setRhParams({ ...rhParams, nightShiftEnd: e.target.value })}
+                      className="rounded-xl border-gray-100 bg-gray-50/50 hover:bg-gray-50 focus:bg-white text-gray-950 font-medium"
+                    />
+                  </div>
+                  <div className="space-y-2 col-span-1 sm:col-span-2">
+                    <Label className="text-gray-700 font-bold text-xs">Adicional Noturno (%)</Label>
+                    <div className="relative">
+                      <Input
+                        type="number"
+                        min="0"
+                        max="100"
+                        value={rhParams.nightShiftAllowance}
+                        onChange={(e) => setRhParams({ ...rhParams, nightShiftAllowance: parseInt(e.target.value, 10) || 0 })}
+                        className="rounded-xl border-gray-100 bg-gray-50/50 hover:bg-gray-50 focus:bg-white text-gray-950 font-medium pr-8"
+                      />
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs font-bold">%</span>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Card 3: Banco de Horas */}
+              <Card className="border-none shadow-sm rounded-3xl overflow-hidden bg-white">
+                <CardHeader className="bg-emerald-500/5 pb-4 border-b border-emerald-100/30">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 bg-emerald-100 text-emerald-600 rounded-xl">
+                        <Calendar className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <CardTitle className="text-lg font-bold text-gray-900">Banco de Horas</CardTitle>
+                        <CardDescription className="text-gray-500 text-xs">Habilite, controle créditos e compensações de saldo.</CardDescription>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-bold text-gray-500">Ativado</span>
+                      <Switch
+                        checked={rhParams.timeBankEnabled}
+                        onCheckedChange={(checked) => setRhParams({ ...rhParams, timeBankEnabled: checked })}
+                        className="data-[state=checked]:bg-emerald-500"
+                      />
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent className="p-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {rhParams.timeBankEnabled ? (
+                    <>
+                      <div className="space-y-2">
+                        <Label className="text-gray-700 font-bold text-xs">Limite de Horas Positivas (Máximo)</Label>
+                        <div className="relative">
+                          <Input
+                            type="number"
+                            min="0"
+                            value={rhParams.timeBankMaxPositive}
+                            onChange={(e) => setRhParams({ ...rhParams, timeBankMaxPositive: parseInt(e.target.value, 10) || 0 })}
+                            className="rounded-xl border-gray-100 bg-gray-50/50 hover:bg-gray-50 focus:bg-white text-gray-950 font-medium pr-12"
+                          />
+                          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs font-semibold">Horas</span>
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-gray-700 font-bold text-xs">Limite de Horas Negativas (Mínimo)</Label>
+                        <div className="relative">
+                          <Input
+                            type="number"
+                            max="0"
+                            value={rhParams.timeBankMaxNegative}
+                            onChange={(e) => setRhParams({ ...rhParams, timeBankMaxNegative: parseInt(e.target.value, 10) || 0 })}
+                            className="rounded-xl border-gray-100 bg-gray-50/50 hover:bg-gray-50 focus:bg-white text-gray-950 font-medium pr-12"
+                          />
+                          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs font-semibold">Horas</span>
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-gray-700 font-bold text-xs">Validade do Banco de Horas (Meses)</Label>
+                        <div className="relative">
+                          <Input
+                            type="number"
+                            min="1"
+                            max="24"
+                            value={rhParams.timeBankValidityMonths}
+                            onChange={(e) => setRhParams({ ...rhParams, timeBankValidityMonths: parseInt(e.target.value, 10) || 0 })}
+                            className="rounded-xl border-gray-100 bg-gray-50/50 hover:bg-gray-50 focus:bg-white text-gray-950 font-medium pr-14"
+                          />
+                          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs font-semibold">Meses</span>
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-between p-4 bg-gray-50/50 rounded-2xl border border-gray-100 col-span-1 sm:col-span-2">
+                        <div>
+                          <p className="text-sm font-bold text-gray-950">Compensação Automática de Horas</p>
+                          <p className="text-xs text-gray-500">Compensa atrasos e faltas diretamente com o saldo acumulado antes de gerar descontos.</p>
+                        </div>
+                        <Switch
+                          checked={rhParams.autoCompensate}
+                          onCheckedChange={(checked) => setRhParams({ ...rhParams, autoCompensate: checked })}
+                          className="data-[state=checked]:bg-emerald-500"
+                        />
+                      </div>
+                    </>
+                  ) : (
+                    <div className="col-span-1 sm:col-span-2 text-center py-6 text-gray-400">
+                      Banco de horas desativado. Horas extras excedentes serão pagas mensalmente na folha de ponto.
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Taxes and Extra Costs Card */}
+              <Card className="border-none shadow-sm rounded-3xl overflow-hidden animate-fade-in-up">
+                <CardHeader className="bg-orange-500/5 pb-4 border-b border-gray-100">
+                  <div className="flex items-center gap-2">
+                    <div className="bg-orange-100 p-2 rounded-xl text-orange-600">
+                      <DollarSign className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <CardTitle className="text-lg font-bold text-gray-900">Impostos e Custos Extras</CardTitle>
+                      <CardDescription className="text-xs">
+                        Adicione impostos patronais, encargos trabalhistas ou custos extras associados ao salário base.
+                      </CardDescription>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent className="p-6 space-y-4">
+                  {/* Form to add a new tax item */}
+                  <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-end p-4 bg-orange-50/35 rounded-2xl border border-orange-100/50">
+                    <div className="sm:col-span-7 space-y-1.5">
+                      <Label htmlFor="extra-cost-name" className="text-xs font-bold text-slate-700">Nome do Imposto / Benefício</Label>
+                      <Input
+                        id="extra-cost-name"
+                        placeholder="Ex: FGTS, INSS Patronal, RAT"
+                        value={newCostName}
+                        onChange={(e) => setNewCostName(e.target.value)}
+                        className="bg-white border-slate-200 focus-visible:ring-orange-500 text-sm h-10 rounded-xl"
+                      />
+                    </div>
+                    <div className="sm:col-span-3 space-y-1.5 relative">
+                      <Label htmlFor="extra-cost-pct" className="text-xs font-bold text-slate-700">Alíquota / Custo (%)</Label>
+                      <div className="relative">
+                        <Input
+                          id="extra-cost-pct"
+                          type="number"
+                          step="0.01"
+                          placeholder="8.00"
+                          value={newCostPercentage}
+                          onChange={(e) => setNewCostPercentage(e.target.value)}
+                          className="bg-white border-slate-200 focus-visible:ring-orange-500 text-sm h-10 pl-3 pr-8 rounded-xl font-mono"
+                        />
+                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm font-semibold">%</span>
+                      </div>
+                    </div>
+                    <div className="sm:col-span-2">
+                      <Button
+                        type="button"
+                        onClick={() => {
+                          if (!newCostName.trim()) {
+                            alert("Por favor, digite o nome do imposto ou custo extra.");
+                            return;
+                          }
+                          const pct = parseFloat(newCostPercentage);
+                          if (isNaN(pct) || pct < 0) {
+                            alert("Por favor, informe uma porcentagem válida igual ou maior que zero.");
+                            return;
+                          }
+                          const list = rhParams.extraCosts || [];
+                          const newId = Math.random().toString(36).substring(2, 9);
+                          const updated = [
+                            ...list,
+                            { id: newId, name: newCostName.trim(), percentage: pct }
+                          ];
+                          setRhParams({ ...rhParams, extraCosts: updated });
+                          setNewCostName("");
+                          setNewCostPercentage("");
+                        }}
+                        className="bg-slate-900 hover:bg-slate-800 text-white font-bold h-10 w-full rounded-xl flex items-center justify-center gap-1.5 cursor-pointer"
+                      >
+                        <Plus className="w-4 h-4" /> Adicionar
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* List of configuration items */}
+                  <div className="space-y-2 border border-dashed border-gray-200 rounded-2xl p-4">
+                    <span className="text-xs font-extrabold text-slate-500 uppercase tracking-wider block mb-2">Encargos Configurados atualmente</span>
+                    {(!rhParams.extraCosts || rhParams.extraCosts.length === 0) ? (
+                      <p className="text-sm text-gray-400 italic py-4 text-center">Nenhum imposto ou custo extra adicionado.</p>
+                    ) : (
+                      <div className="divide-y divide-gray-100 max-h-60 overflow-y-auto pr-1">
+                        {rhParams.extraCosts.map((item: any) => (
+                          <div key={item.id} className="py-2.5 hover:bg-slate-50/50 px-2 rounded-lg transition-colors">
+                            {editingCostId === item.id ? (
+                              <div className="flex flex-col sm:flex-row items-center gap-2 w-full animate-fade-in">
+                                <Input
+                                  value={editingCostName}
+                                  onChange={(e) => setEditingCostName(e.target.value)}
+                                  className="bg-white border-slate-200 text-sm h-9 rounded-lg flex-1"
+                                  placeholder="Nome do encargo"
+                                />
+                                <div className="relative w-28">
+                                  <Input
+                                    type="number"
+                                    step="0.01"
+                                    value={editingCostPercentage}
+                                    onChange={(e) => setEditingCostPercentage(e.target.value)}
+                                    className="bg-white border-slate-200 text-sm h-9 rounded-lg pl-2 pr-6 font-mono"
+                                    placeholder="8.00"
+                                  />
+                                  <span className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 text-xs font-semibold">%</span>
+                                </div>
+                                <div className="flex items-center gap-1.5 shrink-0">
+                                  <Button
+                                    variant="outline"
+                                    size="icon"
+                                    className="h-8 w-8 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 rounded-lg border-emerald-100 cursor-pointer"
+                                    onClick={() => {
+                                      if (!editingCostName.trim()) {
+                                        alert("Por favor, digite o nome do imposto.");
+                                        return;
+                                      }
+                                      const pct = parseFloat(editingCostPercentage);
+                                      if (isNaN(pct) || pct < 0) {
+                                        alert("Por favor, informe uma porcentagem válida igual ou maior que zero.");
+                                        return;
+                                      }
+                                      const updatedList = rhParams.extraCosts.map((c: any) => {
+                                        if (c.id === item.id) {
+                                          return { ...c, name: editingCostName.trim(), percentage: pct };
+                                        }
+                                        return c;
+                                      });
+                                      setRhParams({ ...rhParams, extraCosts: updatedList });
+                                      setEditingCostId(null);
+                                    }}
+                                  >
+                                    <Check className="w-4 h-4" />
+                                  </Button>
+                                  <Button
+                                    variant="outline"
+                                    size="icon"
+                                    className="h-8 w-8 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg border-red-100 cursor-pointer"
+                                    onClick={() => setEditingCostId(null)}
+                                  >
+                                    <X className="w-4 h-4" />
+                                  </Button>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="flex items-center justify-between w-full">
+                                <div className="flex items-center gap-2">
+                                  <span className="w-2 h-2 rounded-full bg-orange-500"></span>
+                                  <span className="font-semibold text-slate-700 text-sm">{item.name}</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <span className="font-mono text-sm font-bold text-slate-900 bg-slate-100 px-2.5 py-0.5 rounded-full border border-slate-200">
+                                    {item.percentage.toFixed(2)} %
+                                  </span>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={() => {
+                                      setEditingCostId(item.id);
+                                      setEditingCostName(item.name);
+                                      setEditingCostPercentage(item.percentage.toString());
+                                    }}
+                                    className="h-8 w-8 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg cursor-pointer transition-colors"
+                                  >
+                                    <Edit className="w-4 h-4" />
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={() => {
+                                      const updated = (rhParams.extraCosts || []).filter((c: any) => c.id !== item.id);
+                                      setRhParams({ ...rhParams, extraCosts: updated });
+                                    }}
+                                    className="h-8 w-8 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg cursor-pointer transition-colors"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </Button>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Total Extra Costs Percentage Indicator */}
+                  <div className="flex justify-between items-center bg-orange-950 font-bold p-4 rounded-2xl text-white shadow-inner">
+                    <div className="flex flex-col">
+                      <span className="text-xs text-orange-300 uppercase tracking-widest font-extrabold">Carga de Encargos Total</span>
+                      <span className="text-xs font-medium text-orange-200/80 mt-0.5">Soma acumulada de todos os impostos configurados</span>
+                    </div>
+                    <div className="text-2xl font-black font-mono">
+                      +{totalExtraCostsPercentage.toFixed(2)}%
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Action Buttons */}
+              <div className="flex items-center gap-3 pt-2">
+                <Button
+                  onClick={async () => {
+                    const confirmSave = window.confirm("Deseja realmente salvar estes parâmetros de Recursos Humanos no banco de dados e atualizar em toda a empresa?");
+                    if (!confirmSave) return;
+
+                    // First save to national device storage (localStorage)
+                    localStorage.setItem("rh_parameters_config", JSON.stringify(rhParams));
+
+                    const configObj = getSupabaseConfig();
+                    if (configObj.enabled) {
+                      const supabase = createSupabaseClient(configObj.url, configObj.key);
+                      if (supabase) {
+                        try {
+                          const compId = currentUser?.companyId || "default";
+                          const { error } = await supabase
+                            .from("system_config")
+                            .upsert({
+                              id: `${compId}_rh_parameters_config`,
+                              company_id: compId,
+                              config_key: "rh_parameters_config",
+                              config_value: rhParams,
+                              updated_at: new Date().toISOString(),
+                            }, {
+                              onConflict: "company_id,config_key"
+                            });
+
+                          if (error) {
+                            console.error("Supabase parameters error:", error);
+                            alert(`⚠️ AVISO: Salvamento efetuado localmente neste navegador, mas ocorreu uma falha ao sincronizar com o banco de dados principal.\nDetalhe do erro: ${error.message}`);
+                          } else {
+                            alert("✅ SUCESSO! Confirmado: Os Parâmetros de Recursos Humanos foram persistidos com sucesso e estão consolidados no banco de dados.");
+                          }
+                        } catch (e: any) {
+                          console.error("Error saving parameters to database:", e);
+                          alert(`⚠️ AVISO: Salvamento salvo localmente, mas não foi possível conectar com o banco de dados.\nErro de conexão: ${e.message}`);
+                        }
+                      } else {
+                        alert("✅ Salvo de forma persistente no storage do navegador! (A conexão com o banco de dados não está totalmente ativa).");
+                      }
+                    } else {
+                      alert("✅ Salvo localmente! Se desejar persistir multi-usuário em nuvem, por favor certifique-se que o Supabase/banco de dados está totalmente configurado.");
+                    }
+                  }}
+                  className="bg-orange-600 hover:bg-orange-700 text-white font-bold h-12 px-6 rounded-2xl shadow-md transition-all duration-200 flex items-center gap-2 cursor-pointer"
+                >
+                  <Settings className="w-5 h-5" />
+                  Salvar Parâmetros de Recursos Humanos
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    if (confirm("Deseja realmente restaurar os valores padrão de fábrica?")) {
+                      localStorage.removeItem("rh_parameters_config");
+                      setRhParams({
+                        workEntryTime: "08:00",
+                        workExitTime: "17:00",
+                        lunchStart: "12:00",
+                        lunchEnd: "13:00",
+                        dailyHours: 8,
+                        weeklyHours: 44,
+                        workSchedule: "5x2",
+                        delayTolerance: 5,
+                        extraHoursTolerance: 10,
+                        overtimeRate50: 50,
+                        overtimeRate100: 100,
+                        nightShiftStart: "22:00",
+                        nightShiftEnd: "05:00",
+                        nightShiftAllowance: 20,
+                        timeBankEnabled: true,
+                        timeBankMaxPositive: 40,
+                        timeBankMaxNegative: -20,
+                        timeBankValidityMonths: 6,
+                        autoCompensate: true,
+                        periodStartDay: 21,
+                        periodEndDay: 20,
+                        extraCosts: [
+                          { id: "1", name: "FGTS", percentage: 8 },
+                          { id: "2", name: "INSS Patronal", percentage: 20 },
+                          { id: "3", name: "Férias + 1/3 Proporcional", percentage: 11.11 },
+                          { id: "4", name: "13º Salário Proporcional", percentage: 8.33 }
+                        ]
+                      });
+                    }
+                  }}
+                  className="border-gray-200 text-gray-600 hover:bg-gray-100 rounded-2xl h-12 px-5 font-bold cursor-pointer"
+                >
+                  Restaurar Padrões
+                </Button>
+              </div>
+            </div>
+
+            {/* Sidebar Visual Summary Indicator */}
+            <div className="space-y-6">
+              <Card className="border-none shadow-sm rounded-3xl overflow-hidden bg-gray-900 text-white animate-fade-in-right">
+                <CardHeader className="bg-white/5 pb-4 border-b border-white/10">
+                  <span className="text-xs text-orange-400 font-extrabold uppercase tracking-wider">Simulador de Jornada Ativa</span>
+                  <CardTitle className="text-lg font-bold text-white">Resumo Visual das Regras</CardTitle>
+                </CardHeader>
+                <CardContent className="p-6 space-y-6">
+                  {/* Visual timeline */}
+                  <div className="relative border-l-2 border-orange-500 pl-4 space-y-5 py-2">
+                    <div>
+                      <div className="flex items-center gap-1.5 text-xs text-orange-400 font-bold uppercase">
+                        <Clock className="w-3.5 h-3.5" />
+                        Ref.: {rhParams.workEntryTime}h
+                      </div>
+                      <p className="text-sm font-bold mt-1 text-white">Entrada Autorizada</p>
+                      <p className="text-xs text-gray-400 mt-0.5">
+                        Tolerância de atraso configurada em <span className="font-bold text-orange-300">{rhParams.delayTolerance} min</span> (até {((): string => {
+                          const [h, m] = rhParams.workEntryTime.split(":").map(Number);
+                          if (isNaN(h) || isNaN(m)) return "";
+                          const t = new Date();
+                          t.setHours(h, m + rhParams.delayTolerance, 0);
+                          return t.toTimeString().slice(0, 5);
+                        })()}h sem atraso registrado).
+                      </p>
+                    </div>
+
+                    <div>
+                      <div className="flex items-center gap-1.5 text-xs text-orange-400 font-bold uppercase">
+                        <Clock className="w-3.5 h-3.5" />
+                        Intervalo {rhParams.lunchStart}h às {rhParams.lunchEnd}h
+                      </div>
+                      <p className="text-sm font-bold mt-1 text-white">Repouso e Alimentação</p>
+                      <p className="text-xs text-gray-400 mt-0.5">
+                        Intervalo intrajornada padrão para almoço técnico de obras de campo.
+                      </p>
+                    </div>
+
+                    <div>
+                      <div className="flex items-center gap-1.5 text-xs text-orange-400 font-bold uppercase">
+                        <Clock className="w-3.5 h-3.5" />
+                        Saída às {rhParams.workExitTime}h
+                      </div>
+                      <p className="text-sm font-bold mt-1 text-white">Final do Expediente</p>
+                      <p className="text-xs text-gray-400 mt-0.5">
+                        Tolerância para início de contagem de extras de <span className="font-bold text-orange-300">{rhParams.extraHoursTolerance} min</span> (a partir de {((): string => {
+                          const [h, m] = rhParams.workExitTime.split(":").map(Number);
+                          if (isNaN(h) || isNaN(m)) return "";
+                          const t = new Date();
+                          t.setHours(h, m + rhParams.extraHoursTolerance, 0);
+                          return t.toTimeString().slice(0, 5);
+                        })()}h acumula extra).
+                      </p>
+                    </div>
+
+                    <div>
+                      <div className="flex items-center gap-1.5 text-xs text-orange-400 font-bold uppercase">
+                        <Clock className="w-3.5 h-3.5" />
+                        Noturno {rhParams.nightShiftStart}h às {rhParams.nightShiftEnd}h
+                      </div>
+                      <p className="text-sm font-bold mt-1 text-white">Período Noturno (+{rhParams.nightShiftAllowance}%)</p>
+                      <p className="text-xs text-gray-400 mt-0.5">
+                        Horas registradas neste intervalo acumulam adicional noturno legal no contracheque.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Summary Indicators */}
+                  <div className="border-t border-white/10 pt-4 space-y-3.5">
+                    <div className="flex justify-between items-center text-xs">
+                      <span className="text-gray-400 font-medium">Período Mensal:</span>
+                      <span className="font-bold text-orange-400">Dia {rhParams.periodStartDay ?? 21} ao Dia {rhParams.periodEndDay ?? 20}</span>
+                    </div>
+                    <div className="flex justify-between items-center text-xs">
+                      <span className="text-gray-400 font-medium">Bco. Horas Ativado:</span>
+                      <span className={cn("font-bold text-xs uppercase px-2.5 py-0.5 rounded-full", rhParams.timeBankEnabled ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30" : "bg-red-500/20 text-red-100 border border-red-500/30")}>
+                        {rhParams.timeBankEnabled ? "Sim" : "Não"}
+                      </span>
+                    </div>
+                    {rhParams.timeBankEnabled && (
+                      <>
+                        <div className="flex justify-between items-center text-xs">
+                          <span className="text-gray-400 font-medium">Limite Positivo:</span>
+                          <span className="font-black text-gray-200">+{rhParams.timeBankMaxPositive} Horas</span>
+                        </div>
+                        <div className="flex justify-between items-center text-xs">
+                          <span className="text-gray-400 font-medium">Limite Negativo:</span>
+                          <span className="font-black text-red-400">{rhParams.timeBankMaxNegative} Horas</span>
+                        </div>
+                        <div className="flex justify-between items-center text-xs">
+                          <span className="text-gray-400 font-medium">Validade do Saldo:</span>
+                          <span className="font-bold text-orange-400">{rhParams.timeBankValidityMonths} meses</span>
+                        </div>
+                        <div className="flex justify-between items-center text-xs">
+                          <span className="text-gray-400 font-medium">Altas (50% / 100%):</span>
+                          <span className="font-black text-blue-400">+{rhParams.overtimeRate50}% / +{rhParams.overtimeRate100}%</span>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Compliance Info banner */}
+              <div className="bg-orange-50/30 border border-orange-100 rounded-2xl p-5">
+                <div className="flex gap-3">
+                  <AlertCircle className="w-5 h-5 text-orange-500 shrink-0 mt-0.5" />
+                  <div>
+                    <h4 className="text-xs font-bold text-gray-900 uppercase tracking-wide">Acordo Ortodoxo de Obras</h4>
+                    <p className="text-xs text-gray-500 mt-1 leading-relaxed">
+                      Sempre revise as legislações vigentes e convenções coletivas de trabalho do respectivo estado/local de atuação antes de alterar as tolerâncias regulamentares para evitar disputas trabalhistas.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </TabsContent>
 

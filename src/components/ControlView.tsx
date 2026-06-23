@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useRef } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import * as XLSX from "xlsx";
+import ExcelJS from "exceljs";
 import { saveAs } from "file-saver";
 import { v4 as uuidv4 } from "uuid";
 import {
@@ -1908,10 +1909,13 @@ export default function ControlView({
     equipment: ControllerEquipment,
   ) => {
     const reader = new FileReader();
-    reader.onload = (e) => {
+    reader.onload = async (e) => {
       try {
-        const data = new Uint8Array(e.target?.result as ArrayBuffer);
-        const workbook = XLSX.read(data, { type: "array", cellStyles: true });
+        const data = e.target?.result as ArrayBuffer;
+        if (!data) return;
+
+        const workbook = new ExcelJS.Workbook();
+        await workbook.xlsx.load(data);
 
         const pStartDay = measurement.period.split(" a ")[0];
         const pEndDay = measurement.period.split(" a ")[1];
@@ -1921,16 +1925,68 @@ export default function ControlView({
           pEndDay,
         );
 
+        const startRange = new Date(pStartDay + "T00:00:00");
+        const endRange = new Date(pEndDay + "T23:59:59");
+
+        const periodFuelLogs = (fuelLogs || []).filter(
+          (f) =>
+            f.equipmentId === equipment.id &&
+            new Date(f.date) >= startRange &&
+            new Date(f.date) <= endRange,
+        );
+
+        const periodMaintLogs = (equipmentMaintenance || []).filter(
+          (m) =>
+            m.equipmentId === equipment.id &&
+            new Date(m.entryDate) >= startRange &&
+            new Date(m.entryDate) <= endRange,
+        );
+
+        const createExcelDate = (dateStr: string) => {
+          if (!dateStr) return "";
+          const d = new Date(dateStr);
+          if (isNaN(d.getTime())) return dateStr;
+          return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+        };
+
         // Map column details for tag lists (#data, #inicial, #final, #status, #desconto, #producao)
         const listData: Record<string, any[]> = {
-          "#data": periodDetails.map((day) => new Date(day.date + "T12:00:00").toLocaleDateString("pt-BR")),
+          "#data": periodDetails.map((day) => {
+            const dateParts = day.date.split("-");
+            if (dateParts.length === 3) {
+              // Create native Date object so Excel can format it properly if formatted as Date
+              return new Date(parseInt(dateParts[0], 10), parseInt(dateParts[1], 10) - 1, parseInt(dateParts[2], 10));
+            }
+            return new Date(day.date + "T12:00:00").toLocaleDateString("pt-BR");
+          }),
           "#inicial": periodDetails.map((day) => day.initialReading || 0),
           "#final": periodDetails.map((day) => day.finalReading || 0),
           "#producao": periodDetails.map((day) => day.discount ? 0 : (day.finalReading - day.initialReading)),
           "#produção": periodDetails.map((day) => day.discount ? 0 : (day.finalReading - day.initialReading)),
           "#status": periodDetails.map((day) => day.status || "Trabalhando"),
           "#desconto": periodDetails.map((day) => day.discount ? "Sim" : "Não"),
+
+          // Abastecimentos (Fuel Supply) tags
+          "#abast_data": periodFuelLogs.map((f) => createExcelDate(f.date)),
+          "#abast_qtd": periodFuelLogs.map((f) => f.quantity || 0),
+          "#abast_quantidade": periodFuelLogs.map((f) => f.quantity || 0),
+          "#abast_litros": periodFuelLogs.map((f) => f.quantity || 0),
+          "#abast_custo": periodFuelLogs.map((f) => f.cost || 0),
+
+          // Manutenção (Upkeep/Maintenance) tags
+          "#maint_entrada": periodMaintLogs.map((m) => createExcelDate(m.entryDate)),
+          "#maint_data": periodMaintLogs.map((m) => createExcelDate(m.entryDate)),
+          "#maint_saida": periodMaintLogs.map((m) => m.exitDate ? createExcelDate(m.exitDate) : "Aberto"),
+          "#maint_saída": periodMaintLogs.map((m) => m.exitDate ? createExcelDate(m.exitDate) : "Aberto"),
+          "#maint_tipo": periodMaintLogs.map((m) => m.type === "preventive" ? "PREV" : "CORR"),
+          "#maint_desc": periodMaintLogs.map((m) => m.requestedItems || ""),
+          "#maint_descricao": periodMaintLogs.map((m) => m.requestedItems || ""),
+          "#maint_descrição": periodMaintLogs.map((m) => m.requestedItems || ""),
         };
+
+        const totalFuelQtd = periodFuelLogs.reduce((sum, f) => sum + (f.quantity || 0), 0);
+        const totalFuelCusto = periodFuelLogs.reduce((sum, f) => sum + (f.cost || 0), 0);
+        const totalMaintCount = periodMaintLogs.length;
 
         const singleData: Record<string, string | number> = {
           "[codigo]": equipment.code || "",
@@ -1949,55 +2005,79 @@ export default function ControlView({
           "[total_producao]": measurement.totalUnits || 0,
           "[total_produção]": measurement.totalUnits || 0,
           "[total_valor]": measurement.totalValue || 0,
+
+          // Total single variables for both systems
+          "[total_abast_qtd]": totalFuelQtd,
+          "[total_abast_quantidade]": totalFuelQtd,
+          "[total_abast_litros]": totalFuelQtd,
+          "[total_abast_custo]": totalFuelCusto,
+          "[total_maint]": totalMaintCount,
+          "[total_manutencoes]": totalMaintCount,
+          "[total_manutenções]": totalMaintCount,
         };
 
-        workbook.SheetNames.forEach((sheetName) => {
-          const sheet = workbook.Sheets[sheetName];
-          if (!sheet) return;
+        workbook.eachSheet((worksheet) => {
+          const cellUpdates: Array<{ row: number; col: number; val: any }> = [];
 
-          const cellKeys = Object.keys(sheet).filter((key) => !key.startsWith("!"));
+          worksheet.eachRow((row) => {
+            row.eachCell({ includeEmpty: false }, (cell, colNumber) => {
+              let cellValStr = "";
+              if (cell.value !== null && cell.value !== undefined) {
+                if (typeof cell.value === "object" && cell.value !== null) {
+                  if ("richText" in (cell.value as any)) {
+                    cellValStr = (cell.value as any).richText
+                      .map((rt: any) => rt.text)
+                      .join("")
+                      .toLowerCase()
+                      .trim();
+                  } else if ("result" in (cell.value as any)) {
+                    cellValStr = String((cell.value as any).result || "").toLowerCase().trim();
+                  } else if ("formula" in (cell.value as any)) {
+                    cellValStr = String((cell.value as any).result || "").toLowerCase().trim();
+                  } else if ("text" in (cell.value as any)) {
+                    cellValStr = String((cell.value as any).text || "").toLowerCase().trim();
+                  } else {
+                    cellValStr = String((cell.value as any).toString ? (cell.value as any).toString() : "").toLowerCase().trim();
+                  }
+                } else {
+                  cellValStr = String(cell.value).toLowerCase().trim();
+                }
+              }
 
-          cellKeys.forEach((cellKey) => {
-            const cell = sheet[cellKey];
-            if (cell && cell.v !== undefined && cell.v !== null) {
-              const cellValStr = String(cell.v).toLowerCase().trim();
-
-              if (listData[cellValStr]) {
-                const arrayValues = listData[cellValStr];
-                const match = cellKey.match(/^([A-Z]+)(\d+)$/);
-                if (match) {
-                  const colStr = match[1];
-                  const startRow = parseInt(match[2], 10);
-
+              if (cellValStr) {
+                if (listData[cellValStr]) {
+                  const arrayValues = listData[cellValStr];
                   arrayValues.forEach((val, offset) => {
-                    const targetCellKey = `${colStr}${startRow + offset}`;
-                    const existingCell = sheet[targetCellKey];
-                    if (existingCell) {
-                      existingCell.v = val;
-                      existingCell.t = typeof val === "number" ? "n" : "s";
-                      if ('w' in existingCell) delete (existingCell as any).w;
-                    } else {
-                      sheet[targetCellKey] = {
-                        v: val,
-                        t: typeof val === "number" ? "n" : "s",
-                      };
-                    }
+                    cellUpdates.push({
+                      row: row.number + offset,
+                      col: colNumber,
+                      val: val,
+                    });
+                  });
+                } else if (singleData[cellValStr] !== undefined) {
+                  cellUpdates.push({
+                    row: row.number,
+                    col: colNumber,
+                    val: singleData[cellValStr],
                   });
                 }
-              } else if (singleData[cellValStr] !== undefined) {
-                const val = singleData[cellValStr];
-                cell.v = val;
-                cell.t = typeof val === "number" ? "n" : "s";
-                if ('w' in cell) delete (cell as any).w;
               }
-            }
+            });
+          });
+
+          // Apply updates, preserving cell formatting completely
+          cellUpdates.forEach(({ row, col, val }) => {
+            const targetCell = worksheet.getCell(row, col);
+            targetCell.value = val;
           });
         });
 
-        const finalWbout = XLSX.write(workbook, { bookType: "xlsx", type: "array", cellStyles: true });
-        const blob = new Blob([finalWbout], { type: "application/octet-stream" });
+        const finalBuffer = await workbook.xlsx.writeBuffer();
+        const blob = new Blob([finalBuffer], {
+          type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        });
         const filename = `Medicao_Modelo_${equipment.code || "EQ"}_${measurement.month.replace("/", "-")}.xlsx`;
-        
+
         const link = document.createElement("a");
         link.href = URL.createObjectURL(blob);
         link.download = filename;
@@ -2008,7 +2088,9 @@ export default function ControlView({
         alert("Planilha de medição gerada com sucesso a partir do seu modelo!");
       } catch (err: any) {
         console.error("Error substituting model tags:", err);
-        alert("Ocorreu um erro ao processar o seu modelo de Excel. Verifique se o arquivo está correto e possua extensões válidas.");
+        alert(
+          "Ocorreu um erro ao processar o seu modelo de Excel. Verifique se o arquivo está correto e possua extensões válidas.",
+        );
       }
     };
     reader.readAsArrayBuffer(file);
@@ -7956,11 +8038,27 @@ export default function ControlView({
                             key={day.date}
                             className="hover:bg-slate-50/50 transition-colors h-14"
                           >
-                            <TableCell className="text-sm font-bold text-slate-600">
-                              {new Date(day.date + "T12:00:00").toLocaleDateString(
-                                "pt-BR",
-                                { weekday: "short", day: "2-digit", month: "2-digit" },
-                              )}
+                            <TableCell className="text-sm font-bold text-slate-600 py-2">
+                              <div>
+                                {new Date(day.date + "T12:00:00").toLocaleDateString(
+                                  "pt-BR",
+                                  { weekday: "short", day: "2-digit", month: "2-digit" },
+                                )}
+                              </div>
+                              <div className="flex flex-wrap gap-1 mt-1">
+                                {(periodFuelLogs || []).some((f: any) => f.date === day.date) && (
+                                  <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[9px] font-extrabold uppercase rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200">
+                                    <span className="w-1 h-1 bg-indigo-600 rounded-full"></span>
+                                    Abast.
+                                  </span>
+                                )}
+                                {(periodMaintenances || []).some((m: any) => m.entryDate === day.date) && (
+                                  <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[9px] font-extrabold uppercase rounded-full bg-orange-50 text-orange-700 border border-orange-200">
+                                    <span className="w-1 h-1 bg-orange-600 rounded-full animate-pulse"></span>
+                                    Manut.
+                                  </span>
+                                )}
+                              </div>
                             </TableCell>
                             <TableCell>
                               <div className="w-28">
