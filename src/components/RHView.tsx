@@ -527,7 +527,7 @@ export default function RHView({
     };
 
     fetchClosings();
-  }, [selectedMonth, employees, currentUser?.companyId]);
+  }, [selectedMonth, currentUser?.companyId]);
 
   const handleSaveClosings = async () => {
     setIsSavingClosings(true);
@@ -3134,36 +3134,36 @@ export default function RHView({
                 </Dialog>
               </div>
 
-              {/* Novo modal Bento-style de Exportar Colaboradores e Download de Modelo */}
+              {/* Novo modal de Exportar Colaboradores e Download de Modelo */}
               <Dialog
                 open={isExportSelectorOpen}
                 onOpenChange={setIsExportSelectorOpen}
               >
-                <DialogContent className="w-[400px] max-w-full h-[600px] bg-white border border-slate-200 shadow-2xl rounded-2xl p-6 text-left flex flex-col overflow-y-auto">
+                <DialogContent className="sm:max-w-[750px] w-full bg-white border border-slate-200 shadow-2xl rounded-2xl p-6 text-left flex flex-col max-h-[90vh] overflow-y-auto">
                   <DialogHeader className="text-left space-y-2 shrink-0">
                     <DialogTitle className="text-lg font-bold text-slate-900 flex items-center gap-2">
                       <Download className="w-5 h-5 text-emerald-600" />
                       Exportar / Importar Banco de RH / Colaboradores
                     </DialogTitle>
-                    <DialogDescription className="text-sm text-slate-500">
+                    <DialogDescription className="text-xs text-slate-500">
                       Selecione o formato para exportação de dados, importe seus dados ou baixe o modelo padrão de cabeçalho para importações de lotes.
                     </DialogDescription>
                   </DialogHeader>
 
-                  <div className="grid grid-cols-2 gap-3 py-4 shrink-0">
+                  <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 py-4 shrink-0">
                     {/* Opção 1: Relatório PDF */}
                     <button
                       onClick={() => {
                         exportAllEmployeesToPDF();
                         setIsExportSelectorOpen(false);
                       }}
-                      className="flex flex-col items-center justify-center border border-slate-150 hover:border-red-500 hover:bg-red-50/20 p-4 rounded-xl transition group text-center cursor-pointer h-36"
+                      className="flex flex-col items-center justify-center border-2 border-slate-100 hover:border-red-500 hover:bg-red-50/20 p-5 rounded-2xl transition group text-center cursor-pointer"
                     >
-                      <div className="w-10 h-10 rounded-xl bg-red-50 text-red-600 flex items-center justify-center border border-red-100 group-hover:scale-110 transition-transform mb-2">
-                        <FileText className="w-5 h-5" />
+                      <div className="w-12 h-12 rounded-xl bg-red-50 text-red-600 flex items-center justify-center border border-red-100 group-hover:scale-110 transition-transform mb-3">
+                        <FileText className="w-6 h-6" />
                       </div>
-                      <span className="font-extrabold text-slate-800 text-xs">Relatório PDF</span>
-                      <span className="text-slate-400 text-[10px] mt-1 leading-tight">Formato Landscape para impressão</span>
+                      <span className="font-extrabold text-slate-800 text-sm">Relatório PDF</span>
+                      <span className="text-slate-400 text-[10px] mt-1 leading-tight">Gera PDF formato Landscape para impressão/assinatura</span>
                     </button>
 
                     {/* Opção 2: Planilha Excel */}
@@ -3172,13 +3172,13 @@ export default function RHView({
                         exportAllEmployeesToExcel();
                         setIsExportSelectorOpen(false);
                       }}
-                      className="flex flex-col items-center justify-center border border-slate-150 hover:border-emerald-600 hover:bg-emerald-50/20 p-4 rounded-xl transition group text-center cursor-pointer h-36"
+                      className="flex flex-col items-center justify-center border-2 border-slate-100 hover:border-emerald-600 hover:bg-emerald-50/20 p-5 rounded-2xl transition group text-center cursor-pointer"
                     >
-                      <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center border border-emerald-100 group-hover:scale-110 transition-transform mb-2">
-                        <FileSpreadsheet className="w-5 h-5" />
+                      <div className="w-12 h-12 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center border border-emerald-100 group-hover:scale-110 transition-transform mb-3">
+                        <FileSpreadsheet className="w-6 h-6" />
                       </div>
-                      <span className="font-extrabold text-slate-800 text-xs">Planilha Excel</span>
-                      <span className="text-slate-400 text-[10px] mt-1 leading-tight">Base completa de colaboradores</span>
+                      <span className="font-extrabold text-slate-800 text-sm">Planilha Excel</span>
+                      <span className="text-slate-400 text-[10px] mt-1 leading-tight">Exporta a base completa para conferência</span>
                     </button>
 
                     {/* Opção 3: Baixar Modelo de Importação */}
@@ -3186,17 +3186,17 @@ export default function RHView({
                       onClick={() => {
                         handleDownloadTemplate();
                       }}
-                      className="flex flex-col items-center justify-center border border-slate-150 hover:border-blue-600 hover:bg-blue-50/20 p-4 rounded-xl transition group text-center cursor-pointer h-36"
+                      className="flex flex-col items-center justify-center border-2 border-slate-100 hover:border-blue-600 hover:bg-blue-50/20 p-5 rounded-2xl transition group text-center cursor-pointer"
                     >
-                      <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center border border-blue-100 group-hover:scale-110 transition-transform mb-2">
-                        <Download className="w-5 h-5" />
+                      <div className="w-12 h-12 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center border border-blue-100 group-hover:scale-110 transition-transform mb-3">
+                        <Download className="w-6 h-6" />
                       </div>
-                      <span className="font-extrabold text-slate-800 text-xs">Baixar Modelo</span>
-                      <span className="text-slate-400 text-[10px] mt-1 leading-tight">Planilha para importações em lote</span>
+                      <span className="font-extrabold text-slate-800 text-sm">Baixar Modelo</span>
+                      <span className="text-slate-400 text-[10px] mt-1 leading-tight">Baixa a planilha base para preencher os dados</span>
                     </button>
 
                     {/* Opção 4: Importar Dados */}
-                    <div className="relative flex flex-col items-center justify-center border border-slate-150 hover:border-orange-500 hover:bg-orange-50/20 p-4 rounded-xl transition group text-center cursor-pointer overflow-hidden h-36">
+                    <div className="relative flex flex-col items-center justify-center border-2 border-slate-100 hover:border-orange-500 hover:bg-orange-50/20 p-5 rounded-2xl transition group text-center cursor-pointer overflow-hidden">
                       <input
                         type="file"
                         accept=".xlsx, .xls, .csv"
@@ -3210,14 +3210,14 @@ export default function RHView({
                         }}
                         disabled={isImporting}
                       />
-                      <div className="w-10 h-10 rounded-xl bg-orange-50 text-orange-600 flex items-center justify-center border border-orange-100 group-hover:scale-110 transition-transform mb-2">
+                      <div className="w-12 h-12 rounded-xl bg-orange-50 text-orange-600 flex items-center justify-center border border-orange-100 group-hover:scale-110 transition-transform mb-3">
                         {isImporting ? (
-                          <div className="w-5 h-5 border-2 border-orange-600 border-t-transparent rounded-full animate-spin"></div>
+                          <div className="w-6 h-6 border-2 border-orange-600 border-t-transparent rounded-full animate-spin"></div>
                         ) : (
-                          <Upload className="w-5 h-5" />
+                          <Upload className="w-6 h-6" />
                         )}
                       </div>
-                      <span className="font-extrabold text-slate-800 text-xs">
+                      <span className="font-extrabold text-slate-800 text-sm">
                         {isImporting ? "Importando..." : "Importar Dados"}
                       </span>
                       <span className="text-slate-400 text-[10px] mt-1 leading-tight">Envie sua planilha preenchida</span>
@@ -3920,31 +3920,31 @@ export default function RHView({
               open={isFechamentoExportSelectorOpen}
               onOpenChange={setIsFechamentoExportSelectorOpen}
             >
-              <DialogContent className="w-[400px] max-w-full h-[600px] bg-white border border-slate-200 shadow-2xl rounded-2xl p-6 text-left flex flex-col overflow-y-auto">
+              <DialogContent className="sm:max-w-[750px] w-full bg-white border border-slate-200 shadow-2xl rounded-2xl p-6 text-left flex flex-col max-h-[90vh] overflow-y-auto">
                 <DialogHeader className="text-left space-y-2 shrink-0">
                   <DialogTitle className="text-lg font-bold text-slate-900 flex items-center gap-2">
                     <Download className="w-5 h-5 text-emerald-600" />
                     Exportar / Importar Fechamento de Jornada
                   </DialogTitle>
-                  <DialogDescription className="text-sm text-slate-500">
+                  <DialogDescription className="text-xs text-slate-500">
                     Selecione o formato para exportação, importe seus dados ou baixe o modelo padrão com as tags (#) necessárias para a importação de lotes.
                   </DialogDescription>
                 </DialogHeader>
 
-                <div className="grid grid-cols-2 gap-3 py-4 shrink-0">
+                <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 py-4 shrink-0">
                   {/* Opção 1: Relatório PDF */}
                   <button
                     onClick={() => {
                       exportFechamentoToPDF();
                       setIsFechamentoExportSelectorOpen(false);
                     }}
-                    className="flex flex-col items-center justify-center border border-slate-150 hover:border-red-500 hover:bg-red-50/20 p-4 rounded-xl transition group text-center cursor-pointer h-36"
+                    className="flex flex-col items-center justify-center border-2 border-slate-100 hover:border-red-500 hover:bg-red-50/20 p-5 rounded-2xl transition group text-center cursor-pointer"
                   >
-                    <div className="w-10 h-10 rounded-xl bg-red-50 text-red-600 flex items-center justify-center border border-red-100 group-hover:scale-110 transition-transform mb-2">
-                      <FileText className="w-5 h-5" />
+                    <div className="w-12 h-12 rounded-xl bg-red-50 text-red-600 flex items-center justify-center border border-red-100 group-hover:scale-110 transition-transform mb-3">
+                      <FileText className="w-6 h-6" />
                     </div>
-                    <span className="font-extrabold text-slate-800 text-xs">Relatório PDF</span>
-                    <span className="text-slate-400 text-[10px] mt-1 leading-tight">Remunerações e apontamentos</span>
+                    <span className="font-extrabold text-slate-800 text-sm">Relatório PDF</span>
+                    <span className="text-slate-400 text-[10px] mt-1 leading-tight">Gera PDF de remunerações e apontamentos</span>
                   </button>
 
                   {/* Opção 2: Planilha Excel */}
@@ -3953,13 +3953,13 @@ export default function RHView({
                       exportFechamentoToExcel();
                       setIsFechamentoExportSelectorOpen(false);
                     }}
-                    className="flex flex-col items-center justify-center border border-slate-150 hover:border-emerald-600 hover:bg-emerald-50/20 p-4 rounded-xl transition group text-center cursor-pointer h-36"
+                    className="flex flex-col items-center justify-center border-2 border-slate-100 hover:border-emerald-600 hover:bg-emerald-50/20 p-5 rounded-2xl transition group text-center cursor-pointer"
                   >
-                    <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center border border-emerald-100 group-hover:scale-110 transition-transform mb-2">
-                      <FileSpreadsheet className="w-5 h-5" />
+                    <div className="w-12 h-12 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center border border-emerald-100 group-hover:scale-110 transition-transform mb-3">
+                      <FileSpreadsheet className="w-6 h-6" />
                     </div>
-                    <span className="font-extrabold text-slate-800 text-xs">Planilha Excel</span>
-                    <span className="text-slate-400 text-[10px] mt-1 leading-tight">Base de apontamentos em Excel</span>
+                    <span className="font-extrabold text-slate-800 text-sm">Planilha Excel</span>
+                    <span className="text-slate-400 text-[10px] mt-1 leading-tight">Exporta a base de apontamentos em Excel</span>
                   </button>
 
                   {/* Opção 3: Baixar Modelo de Importação */}
@@ -3984,17 +3984,17 @@ export default function RHView({
                         alert("Erro ao gerar o modelo de fechamento.");
                       }
                     }}
-                    className="flex flex-col items-center justify-center border border-slate-150 hover:border-blue-600 hover:bg-blue-50/20 p-4 rounded-xl transition group text-center cursor-pointer h-36"
+                    className="flex flex-col items-center justify-center border-2 border-slate-100 hover:border-blue-600 hover:bg-blue-50/20 p-5 rounded-2xl transition group text-center cursor-pointer"
                   >
-                    <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center border border-blue-100 group-hover:scale-110 transition-transform mb-2">
-                      <Download className="w-5 h-5" />
+                    <div className="w-12 h-12 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center border border-blue-100 group-hover:scale-110 transition-transform mb-3">
+                      <Download className="w-6 h-6" />
                     </div>
-                    <span className="font-extrabold text-slate-800 text-xs">Baixar Modelo</span>
-                    <span className="text-slate-400 text-[10px] mt-1 leading-tight">Planilha padrão para importações</span>
+                    <span className="font-extrabold text-slate-800 text-sm">Baixar Modelo</span>
+                    <span className="text-slate-400 text-[10px] mt-1 leading-tight">Planilha padrão para importações de lote</span>
                   </button>
 
                   {/* Opção 4: Importar Dados */}
-                  <div className="relative flex flex-col items-center justify-center border border-slate-150 hover:border-orange-500 hover:bg-orange-50/20 p-4 rounded-xl transition group text-center cursor-pointer overflow-hidden h-36">
+                  <div className="relative flex flex-col items-center justify-center border-2 border-slate-100 hover:border-orange-500 hover:bg-orange-50/20 p-5 rounded-2xl transition group text-center cursor-pointer overflow-hidden">
                     <input
                       type="file"
                       accept=".xlsx, .xls, .csv"
@@ -4008,17 +4008,17 @@ export default function RHView({
                       }}
                       disabled={isFechamentoImporting}
                     />
-                    <div className="w-10 h-10 rounded-xl bg-orange-50 text-orange-600 flex items-center justify-center border border-orange-100 group-hover:scale-110 transition-transform mb-2">
+                    <div className="w-12 h-12 rounded-xl bg-orange-50 text-orange-600 flex items-center justify-center border border-orange-100 group-hover:scale-110 transition-transform mb-3">
                       {isFechamentoImporting ? (
-                         <div className="w-5 h-5 border-2 border-orange-600 border-t-transparent rounded-full animate-spin"></div>
+                         <div className="w-6 h-6 border-2 border-orange-600 border-t-transparent rounded-full animate-spin"></div>
                       ) : (
-                         <Upload className="w-5 h-5" />
+                         <Upload className="w-6 h-6" />
                       )}
                     </div>
-                    <span className="font-extrabold text-slate-800 text-xs">
+                    <span className="font-extrabold text-slate-800 text-sm">
                       {isFechamentoImporting ? "Importando..." : "Importar Dados"}
                     </span>
-                    <span className="text-slate-400 text-[10px] mt-1 leading-tight">Atualize com planilha por tags</span>
+                    <span className="text-slate-400 text-[10px] mt-1 leading-tight">Atualize o fechamento com sua planilha</span>
                   </div>
                 </div>
 
