@@ -664,7 +664,138 @@ export default function RHView({
     return list.reduce((sum, item) => sum + (item.percentage || 0), 0);
   }, [rhParams.extraCosts]);
 
+  const handleImportFechamento = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setIsFechamentoImporting(true);
+    const reader = new FileReader();
+
+    reader.onerror = () => {
+      setIsFechamentoImporting(false);
+      alert("❌ Erro ao ler o arquivo físico.");
+    };
+
+    reader.onload = async (evt) => {
+      try {
+        console.log("[Fechamento Import] File loaded, starting processing...");
+        const buildData = evt.target?.result;
+        if (!buildData)
+          throw new Error("Falha ao ler o byte-stream do arquivo.");
+
+        const XLSX = await import("xlsx");
+        const wb = XLSX.read(buildData, { type: "array" });
+        console.log("[Fechamento Import] Workbook read successful, Sheets:", wb.SheetNames);
+
+        const wsname = wb.SheetNames[0];
+        const ws = wb.Sheets[wsname];
+
+        // Fetch row array instead of objects to properly parse headers with spaces or tags
+        const jsonData: any[][] = XLSX.utils.sheet_to_json(ws, { header: 1, defval: null });
+        if (!jsonData || jsonData.length < 2) {
+          alert("❌ Arquivo vazio ou formato incompatível. É necessário ao menos 1 linha de cabeçalho e 1 de dados.");
+          setIsFechamentoImporting(false);
+          return;
+        }
+
+        const headers = jsonData[0].map(h => (h ? String(h).toLowerCase().trim() : ""));
+        
+        // Match columns by exact tag or loose name
+        const findColIndex = (possibleTags: string[]) => {
+          return headers.findIndex(h => possibleTags.some(tag => h.includes(tag)));
+        };
+
+        const colNome = findColIndex(["#nome", "nome", "colaborador"]);
+        const colCpf = findColIndex(["#cpf", "cpf"]);
+        const colWorkedDays = findColIndex(["#dias_trabalhados", "dias trabalhados"]);
+        const colAbsences = findColIndex(["#faltas", "faltas"]);
+        const colMedCert = findColIndex(["#atestados", "atestados", "atestado"]);
+        const colVacation = findColIndex(["#ferias", "férias"]);
+        const colLeave = findColIndex(["#afastamentos", "afastamentos", "afastamento"]);
+        const colOvertime50 = findColIndex(["#hora_extra_50", "he 50%", "extra 50"]);
+        const colOvertime100 = findColIndex(["#hora_extra_100", "he 100%", "extra 100"]);
+        const colNightShift = findColIndex(["#adicional_noturno", "noturno"]);
+        const colNotes = findColIndex(["#observacoes", "#observações", "obs"]);
+
+        if (colNome === -1 && colCpf === -1) {
+          alert("❌ Não foi encontrada uma coluna de identificação (#nome ou #cpf).");
+          setIsFechamentoImporting(false);
+          return;
+        }
+
+        const newClosingRecords = { ...closingRecordsMap };
+        let matchCount = 0;
+
+        for (let i = 1; i < jsonData.length; i++) {
+          const row = jsonData[i];
+          if (!row || row.length === 0) continue;
+
+          const nomeVal = colNome !== -1 ? String(row[colNome] || "").trim() : "";
+          const cpfVal = colCpf !== -1 ? String(row[colCpf] || "").replace(/[^0-9]/g, "") : "";
+
+          // Find employee
+          const emp = employees.find(e => 
+            (cpfVal && e.cpf && e.cpf.replace(/[^0-9]/g, "") === cpfVal) || 
+            (nomeVal && e.name && e.name.toLowerCase() === nomeVal.toLowerCase())
+          );
+
+          if (emp) {
+            const currentRec = newClosingRecords[emp.id] || {
+              workedDays: 22,
+              absences: 0,
+              medicalCertificates: 0,
+              vacationDays: 0,
+              leaveDays: 0,
+              overtime50: 0,
+              overtime100: 0,
+              nightShift: 0,
+              notes: "",
+            };
+
+            const parseFloatSafe = (val: any, fallback: number) => {
+              if (val === null || val === undefined || val === "") return fallback;
+              const parsed = parseFloat(String(val).replace(",", "."));
+              return isNaN(parsed) ? fallback : parsed;
+            };
+
+            const parseIntSafe = (val: any, fallback: number) => {
+              if (val === null || val === undefined || val === "") return fallback;
+              const parsed = parseInt(String(val), 10);
+              return isNaN(parsed) ? fallback : parsed;
+            };
+
+            if (colWorkedDays !== -1) currentRec.workedDays = parseIntSafe(row[colWorkedDays], currentRec.workedDays);
+            if (colAbsences !== -1) currentRec.absences = parseIntSafe(row[colAbsences], currentRec.absences);
+            if (colMedCert !== -1) currentRec.medicalCertificates = parseIntSafe(row[colMedCert], currentRec.medicalCertificates);
+            if (colVacation !== -1) currentRec.vacationDays = parseIntSafe(row[colVacation], currentRec.vacationDays);
+            if (colLeave !== -1) currentRec.leaveDays = parseIntSafe(row[colLeave], currentRec.leaveDays);
+            if (colOvertime50 !== -1) currentRec.overtime50 = parseFloatSafe(row[colOvertime50], currentRec.overtime50);
+            if (colOvertime100 !== -1) currentRec.overtime100 = parseFloatSafe(row[colOvertime100], currentRec.overtime100);
+            if (colNightShift !== -1) currentRec.nightShift = parseFloatSafe(row[colNightShift], currentRec.nightShift);
+            if (colNotes !== -1) currentRec.notes = String(row[colNotes] || "");
+
+            newClosingRecords[emp.id] = currentRec;
+            matchCount++;
+          }
+        }
+
+        setClosingRecordsMap(newClosingRecords);
+        alert(`✅ Importação concluída! ${matchCount} registros atualizados.`);
+      } catch (err: any) {
+        console.error("[Fechamento Import] Error:", err);
+        alert("❌ Erro ao importar: " + err.message);
+      } finally {
+        setIsFechamentoImporting(false);
+      }
+    };
+    reader.readAsArrayBuffer(file);
+    // Reset file input
+    event.target.value = "";
+  };
+
   const [isExportSelectorOpen, setIsExportSelectorOpen] = useState(false);
+  const [isFechamentoExportSelectorOpen, setIsFechamentoExportSelectorOpen] = useState(false);
+  const [isFechamentoImporting, setIsFechamentoImporting] = useState(false);
   const [isPrintColumnsModalOpen, setIsPrintColumnsModalOpen] = useState(false);
   const [printColumns, setPrintColumns] = useState({
     name: true,
@@ -2761,36 +2892,8 @@ export default function RHView({
                   className="gap-2 text-slate-700 border-slate-200 h-10"
                   onClick={() => setIsExportSelectorOpen(true)}
                 >
-                  <Download className="w-4 h-4 text-emerald-600" /> Exportar
+                  <Download className="w-4 h-4 text-emerald-600" /> Exportar / Importar
                 </Button>
-                <div className="relative">
-                  <Input
-                    type="file"
-                    accept=".xlsx, .xls, .csv"
-                    className={cn(
-                      "absolute inset-0 w-full h-full opacity-0 cursor-pointer",
-                      isImporting && "pointer-events-none",
-                    )}
-                    onChange={handleImportData}
-                    disabled={isImporting}
-                  />
-                  <Button
-                    variant="outline"
-                    className="gap-2 pointer-events-none h-10"
-                    disabled={isImporting}
-                  >
-                    {isImporting ? (
-                      <div className="flex items-center gap-2">
-                        <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin"></div>
-                        Processando...
-                      </div>
-                    ) : (
-                      <>
-                        <Upload className="w-4 h-4 text-blue-600" /> Importar
-                      </>
-                    )}
-                  </Button>
-                </div>
 
                 <Button
                   variant="outline"
@@ -3036,31 +3139,31 @@ export default function RHView({
                 open={isExportSelectorOpen}
                 onOpenChange={setIsExportSelectorOpen}
               >
-                <DialogContent className="max-w-2xl bg-white border border-slate-200 shadow-2xl rounded-2xl p-6 text-left">
-                  <DialogHeader className="text-left space-y-2">
+                <DialogContent className="max-w-[600px] w-full bg-white border border-slate-200 shadow-2xl rounded-2xl p-6 text-left flex flex-col max-h-[95vh] overflow-y-auto">
+                  <DialogHeader className="text-left space-y-2 shrink-0">
                     <DialogTitle className="text-lg font-bold text-slate-900 flex items-center gap-2">
                       <Download className="w-5 h-5 text-emerald-600" />
-                      Exportar Banco de RH / Colaboradores
+                      Exportar / Importar Banco de RH / Colaboradores
                     </DialogTitle>
                     <DialogDescription className="text-sm text-slate-500">
-                      Selecione o formato para exportação de dados ou baixe o modelo padrão de cabeçalho para importações de lotes.
+                      Selecione o formato para exportação de dados, importe seus dados ou baixe o modelo padrão de cabeçalho para importações de lotes.
                     </DialogDescription>
                   </DialogHeader>
 
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 py-4">
+                  <div className="grid grid-cols-2 gap-3 py-4 shrink-0">
                     {/* Opção 1: Relatório PDF */}
                     <button
                       onClick={() => {
                         exportAllEmployeesToPDF();
                         setIsExportSelectorOpen(false);
                       }}
-                      className="flex flex-col items-center justify-center border-2 border-slate-100 hover:border-red-500 hover:bg-red-50/20 p-5 rounded-2xl transition group text-center cursor-pointer"
+                      className="flex flex-col items-center justify-center border border-slate-150 hover:border-red-500 hover:bg-red-50/20 p-4 rounded-xl transition group text-center cursor-pointer h-36"
                     >
-                      <div className="w-12 h-12 rounded-xl bg-red-50 text-red-600 flex items-center justify-center border border-red-100 group-hover:scale-110 transition-transform mb-3">
-                        <FileText className="w-6 h-6" />
+                      <div className="w-10 h-10 rounded-xl bg-red-50 text-red-600 flex items-center justify-center border border-red-100 group-hover:scale-110 transition-transform mb-2">
+                        <FileText className="w-5 h-5" />
                       </div>
-                      <span className="font-extrabold text-slate-800 text-sm">Relatório PDF</span>
-                      <span className="text-slate-400 text-[10px] mt-1">Gera PDF formato Landscape para impressão/assinaturas</span>
+                      <span className="font-extrabold text-slate-800 text-xs">Relatório PDF</span>
+                      <span className="text-slate-400 text-[10px] mt-1 leading-tight">Formato Landscape para impressão</span>
                     </button>
 
                     {/* Opção 2: Planilha Excel */}
@@ -3069,29 +3172,83 @@ export default function RHView({
                         exportAllEmployeesToExcel();
                         setIsExportSelectorOpen(false);
                       }}
-                      className="flex flex-col items-center justify-center border-2 border-slate-100 hover:border-emerald-600 hover:bg-emerald-50/20 p-5 rounded-2xl transition group text-center cursor-pointer"
+                      className="flex flex-col items-center justify-center border border-slate-150 hover:border-emerald-600 hover:bg-emerald-50/20 p-4 rounded-xl transition group text-center cursor-pointer h-36"
                     >
-                      <div className="w-12 h-12 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center border border-emerald-100 group-hover:scale-110 transition-transform mb-3">
-                        <FileSpreadsheet className="w-6 h-6" />
+                      <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center border border-emerald-100 group-hover:scale-110 transition-transform mb-2">
+                        <FileSpreadsheet className="w-5 h-5" />
                       </div>
-                      <span className="font-extrabold text-slate-800 text-sm">Planilha Excel</span>
-                      <span className="text-slate-400 text-[10px] mt-1">Exporta base completa de colaboradores para auditoria</span>
+                      <span className="font-extrabold text-slate-800 text-xs">Planilha Excel</span>
+                      <span className="text-slate-400 text-[10px] mt-1 leading-tight">Base completa de colaboradores</span>
                     </button>
 
                     {/* Opção 3: Baixar Modelo de Importação */}
                     <button
                       onClick={() => {
                         handleDownloadTemplate();
-                        setIsExportSelectorOpen(false);
                       }}
-                      className="flex flex-col items-center justify-center border-2 border-slate-100 hover:border-blue-600 hover:bg-blue-50/20 p-5 rounded-2xl transition group text-center cursor-pointer"
+                      className="flex flex-col items-center justify-center border border-slate-150 hover:border-blue-600 hover:bg-blue-50/20 p-4 rounded-xl transition group text-center cursor-pointer h-36"
                     >
-                      <div className="w-12 h-12 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center border border-blue-100 group-hover:scale-110 transition-transform mb-3">
-                        <Download className="w-6 h-6" />
+                      <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center border border-blue-100 group-hover:scale-110 transition-transform mb-2">
+                        <Download className="w-5 h-5" />
                       </div>
-                      <span className="font-extrabold text-slate-800 text-sm">Baixar Modelo</span>
-                      <span className="text-slate-400 text-[10px] mt-1">Planilha padrão necessária para futuras importações em lote</span>
+                      <span className="font-extrabold text-slate-800 text-xs">Baixar Modelo</span>
+                      <span className="text-slate-400 text-[10px] mt-1 leading-tight">Planilha para importações em lote</span>
                     </button>
+
+                    {/* Opção 4: Importar Dados */}
+                    <div className="relative flex flex-col items-center justify-center border border-slate-150 hover:border-orange-500 hover:bg-orange-50/20 p-4 rounded-xl transition group text-center cursor-pointer overflow-hidden h-36">
+                      <input
+                        type="file"
+                        accept=".xlsx, .xls, .csv"
+                        className={cn(
+                          "absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10",
+                          isImporting && "pointer-events-none"
+                        )}
+                        onChange={(e) => {
+                          handleImportData(e);
+                          setIsExportSelectorOpen(false);
+                        }}
+                        disabled={isImporting}
+                      />
+                      <div className="w-10 h-10 rounded-xl bg-orange-50 text-orange-600 flex items-center justify-center border border-orange-100 group-hover:scale-110 transition-transform mb-2">
+                        {isImporting ? (
+                          <div className="w-5 h-5 border-2 border-orange-600 border-t-transparent rounded-full animate-spin"></div>
+                        ) : (
+                          <Upload className="w-5 h-5" />
+                        )}
+                      </div>
+                      <span className="font-extrabold text-slate-800 text-xs">
+                        {isImporting ? "Importando..." : "Importar Dados"}
+                      </span>
+                      <span className="text-slate-400 text-[10px] mt-1 leading-tight">Envie sua planilha preenchida</span>
+                    </div>
+                  </div>
+
+                  <div className="bg-slate-50 p-4 rounded-xl text-xs space-y-2 text-slate-600 border border-slate-100">
+                    <p className="font-bold text-slate-800">Dica sobre a Importação e Tags de Colaboradores:</p>
+                    <p>Ao realizar a importação de dados por planilha Excel, certifique-se de usar os cabeçalhos das colunas exatamente como definidos no modelo, ou utilize as tags (#) opcionais para mapeamento automático das colunas:</p>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2">
+                      <div className="space-y-1">
+                        <p className="font-bold text-slate-700 text-[11px]">Identificação e Cargo:</p>
+                        <div className="grid grid-cols-1 gap-1 font-mono text-[10px] text-blue-700 bg-white p-2 rounded-lg border border-slate-200">
+                          <div><span className="font-bold text-slate-600">#nome</span> - Nome Completo</div>
+                          <div><span className="font-bold text-slate-600">#cpf</span> - CPF (apenas números ou formatado)</div>
+                          <div><span className="font-bold text-slate-600">#funcao</span> - Cargo / Função</div>
+                          <div><span className="font-bold text-slate-600">#salario</span> - Salário Bruto</div>
+                        </div>
+                      </div>
+
+                      <div className="space-y-1">
+                        <p className="font-bold text-slate-700 text-[11px]">Contatos e Outros:</p>
+                        <div className="grid grid-cols-1 gap-1 font-mono text-[10px] text-emerald-700 bg-white p-2 rounded-lg border border-slate-200">
+                          <div><span className="font-bold text-slate-600">#contrato</span> - Código do Contrato</div>
+                          <div><span className="font-bold text-slate-600">#email</span> - E-mail do colaborador</div>
+                          <div><span className="font-bold text-slate-600">#telefone</span> - Telefone celular de contato</div>
+                          <div><span className="font-bold text-slate-600">#pis</span> - Registro do PIS</div>
+                        </div>
+                      </div>
+                    </div>
                   </div>
 
                   <DialogFooter className="flex justify-end gap-2 border-t pt-4">
@@ -3106,9 +3263,9 @@ export default function RHView({
               </Dialog>
             </CardHeader>
             <CardContent className="p-0">
-              <div className="overflow-x-auto w-full">
+              <div className="w-full [&>div]:max-h-[70vh] [&>div]:overflow-y-auto [&>div]:overflow-x-auto">
                 <Table>
-                  <TableHeader className="bg-gray-50/50">
+                  <TableHeader className="bg-gray-50 sticky top-0 z-10 shadow-[0_1px_0_0_#e5e7eb]">
                     <TableRow>
                       <TableHead
                         className="font-bold cursor-pointer hover:bg-gray-100 transition-colors"
@@ -3567,24 +3724,13 @@ export default function RHView({
                     )}
                   </Button>
 
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button
-                        className="bg-slate-800 hover:bg-slate-900 text-white font-bold h-10 px-5 rounded-xl shadow-sm hover:shadow transition-all flex items-center gap-2 cursor-pointer text-sm"
-                        title="Exportar Fechamento"
-                      >
-                        <Download className="w-4 h-4 text-emerald-400" /> Exportar
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem onClick={exportFechamentoToPDF} className="cursor-pointer gap-2">
-                        <FileText className="w-4 h-4 text-orange-600" /> Exportar em PDF
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={exportFechamentoToExcel} className="cursor-pointer gap-2">
-                        <FileSpreadsheet className="w-4 h-4 text-green-600" /> Exportar em Excel
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
+                  <Button
+                    onClick={() => setIsFechamentoExportSelectorOpen(true)}
+                    className="bg-slate-800 hover:bg-slate-900 text-white font-bold h-10 px-5 rounded-xl shadow-sm hover:shadow transition-all flex items-center gap-2 cursor-pointer text-sm"
+                    title="Exportar / Importar Fechamento"
+                  >
+                    <Download className="w-4 h-4 text-emerald-400" /> Exportar / Importar
+                  </Button>
                 </div>
               </CardHeader>
               <CardContent className="p-0">
@@ -3594,9 +3740,9 @@ export default function RHView({
                     <p className="text-sm font-semibold italic text-slate-500">Buscando dados de fechamento...</p>
                   </div>
                 ) : (
-                  <div className="overflow-x-auto">
+                  <div className="w-full [&>div]:max-h-[70vh] [&>div]:overflow-y-auto [&>div]:overflow-x-auto">
                     <Table>
-                      <TableHeader className="bg-slate-50/75 border-b border-gray-100">
+                      <TableHeader className="bg-slate-50 sticky top-0 z-10 shadow-[0_1px_0_0_#e5e7eb]">
                         <TableRow>
                           <TableHead className="font-bold text-slate-700 text-xs py-3 max-w-[200px] cursor-pointer hover:bg-slate-100 transition-colors" onClick={() => handleSortFechamento("name")}>
                             <div className="flex items-center gap-1">Colaborador {getSortIconFechamento("name")}</div>
@@ -3768,6 +3914,160 @@ export default function RHView({
                 )}
               </CardContent>
             </Card>
+
+            {/* Modal de Exportar Fechamento de Jornada */}
+            <Dialog
+              open={isFechamentoExportSelectorOpen}
+              onOpenChange={setIsFechamentoExportSelectorOpen}
+            >
+              <DialogContent className="max-w-[600px] w-full bg-white border border-slate-200 shadow-2xl rounded-2xl p-6 text-left flex flex-col max-h-[95vh] overflow-y-auto">
+                <DialogHeader className="text-left space-y-2 shrink-0">
+                  <DialogTitle className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                    <Download className="w-5 h-5 text-emerald-600" />
+                    Exportar / Importar Fechamento de Jornada
+                  </DialogTitle>
+                  <DialogDescription className="text-sm text-slate-500">
+                    Selecione o formato para exportação, importe seus dados ou baixe o modelo padrão com as tags (#) necessárias para a importação de lotes.
+                  </DialogDescription>
+                </DialogHeader>
+
+                <div className="grid grid-cols-2 gap-3 py-4 shrink-0">
+                  {/* Opção 1: Relatório PDF */}
+                  <button
+                    onClick={() => {
+                      exportFechamentoToPDF();
+                      setIsFechamentoExportSelectorOpen(false);
+                    }}
+                    className="flex flex-col items-center justify-center border border-slate-150 hover:border-red-500 hover:bg-red-50/20 p-4 rounded-xl transition group text-center cursor-pointer h-36"
+                  >
+                    <div className="w-10 h-10 rounded-xl bg-red-50 text-red-600 flex items-center justify-center border border-red-100 group-hover:scale-110 transition-transform mb-2">
+                      <FileText className="w-5 h-5" />
+                    </div>
+                    <span className="font-extrabold text-slate-800 text-xs">Relatório PDF</span>
+                    <span className="text-slate-400 text-[10px] mt-1 leading-tight">Remunerações e apontamentos</span>
+                  </button>
+
+                  {/* Opção 2: Planilha Excel */}
+                  <button
+                    onClick={() => {
+                      exportFechamentoToExcel();
+                      setIsFechamentoExportSelectorOpen(false);
+                    }}
+                    className="flex flex-col items-center justify-center border border-slate-150 hover:border-emerald-600 hover:bg-emerald-50/20 p-4 rounded-xl transition group text-center cursor-pointer h-36"
+                  >
+                    <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center border border-emerald-100 group-hover:scale-110 transition-transform mb-2">
+                      <FileSpreadsheet className="w-5 h-5" />
+                    </div>
+                    <span className="font-extrabold text-slate-800 text-xs">Planilha Excel</span>
+                    <span className="text-slate-400 text-[10px] mt-1 leading-tight">Base de apontamentos em Excel</span>
+                  </button>
+
+                  {/* Opção 3: Baixar Modelo de Importação */}
+                  <button
+                    onClick={async () => {
+                      try {
+                        const ExcelJS = (await import("exceljs")).default;
+                        const workbook = new ExcelJS.Workbook();
+                        const worksheet = workbook.addWorksheet("Modelo Fechamento");
+                        
+                        worksheet.addRow([
+                          "#Nome", "#CPF", "#Dias_Trabalhados", "#Faltas", 
+                          "#Atestados", "#Ferias", "#Afastamentos", 
+                          "#Hora_Extra_50", "#Hora_Extra_100", "#Adicional_Noturno", "#Observacoes"
+                        ]);
+                        
+                        const buffer = await workbook.xlsx.writeBuffer();
+                        const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+                        saveAs(blob, "Modelo_Importacao_Fechamento.xlsx");
+                      } catch (e) {
+                        console.error("Erro ao gerar modelo: ", e);
+                        alert("Erro ao gerar o modelo de fechamento.");
+                      }
+                    }}
+                    className="flex flex-col items-center justify-center border border-slate-150 hover:border-blue-600 hover:bg-blue-50/20 p-4 rounded-xl transition group text-center cursor-pointer h-36"
+                  >
+                    <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center border border-blue-100 group-hover:scale-110 transition-transform mb-2">
+                      <Download className="w-5 h-5" />
+                    </div>
+                    <span className="font-extrabold text-slate-800 text-xs">Baixar Modelo</span>
+                    <span className="text-slate-400 text-[10px] mt-1 leading-tight">Planilha padrão para importações</span>
+                  </button>
+
+                  {/* Opção 4: Importar Dados */}
+                  <div className="relative flex flex-col items-center justify-center border border-slate-150 hover:border-orange-500 hover:bg-orange-50/20 p-4 rounded-xl transition group text-center cursor-pointer overflow-hidden h-36">
+                    <input
+                      type="file"
+                      accept=".xlsx, .xls, .csv"
+                      className={cn(
+                        "absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10",
+                        isFechamentoImporting && "pointer-events-none"
+                      )}
+                      onChange={(e) => {
+                        handleImportFechamento(e);
+                        setIsFechamentoExportSelectorOpen(false);
+                      }}
+                      disabled={isFechamentoImporting}
+                    />
+                    <div className="w-10 h-10 rounded-xl bg-orange-50 text-orange-600 flex items-center justify-center border border-orange-100 group-hover:scale-110 transition-transform mb-2">
+                      {isFechamentoImporting ? (
+                         <div className="w-5 h-5 border-2 border-orange-600 border-t-transparent rounded-full animate-spin"></div>
+                      ) : (
+                         <Upload className="w-5 h-5" />
+                      )}
+                    </div>
+                    <span className="font-extrabold text-slate-800 text-xs">
+                      {isFechamentoImporting ? "Importando..." : "Importar Dados"}
+                    </span>
+                    <span className="text-slate-400 text-[10px] mt-1 leading-tight">Atualize com planilha por tags</span>
+                  </div>
+                </div>
+
+                <div className="bg-slate-50 p-4 rounded-xl text-xs space-y-2 text-slate-600 border border-slate-100">
+                  <p className="font-bold text-slate-800">Dica sobre a Importação e Tags do Fechamento:</p>
+                  <p>A importação por tags mapeia automaticamente as colunas da sua planilha para atualizar os registros de fechamento de jornada no mês de referência selecionado. As seguintes tags podem ser incluídas no cabeçalho:</p>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2">
+                    <div className="space-y-1">
+                      <p className="font-bold text-slate-700 text-[11px]">Identificação (Pelo menos um):</p>
+                      <div className="grid grid-cols-1 gap-1 font-mono text-[10px] text-blue-700 bg-white p-2 rounded-lg border border-slate-200">
+                        <div><span className="font-bold text-slate-600">#nome</span> - Nome completo do colaborador</div>
+                        <div><span className="font-bold text-slate-600">#cpf</span> - CPF do colaborador (para correspondência exata)</div>
+                      </div>
+                      <p className="font-bold text-slate-700 text-[11px] mt-2">Apontamentos de Dias:</p>
+                      <div className="grid grid-cols-1 gap-1 font-mono text-[10px] text-indigo-700 bg-white p-2 rounded-lg border border-slate-200">
+                        <div><span className="font-bold text-slate-600">#dias_trabalhados</span> - Dias efetivos de trabalho</div>
+                        <div><span className="font-bold text-slate-600">#faltas</span> - Quantidade de faltas no mês</div>
+                        <div><span className="font-bold text-slate-600">#atestados</span> - Dias abonados por atestado médico</div>
+                        <div><span className="font-bold text-slate-600">#ferias</span> - Dias de férias usufruídos</div>
+                        <div><span className="font-bold text-slate-600">#afastamentos</span> - Dias de afastamento</div>
+                      </div>
+                    </div>
+
+                    <div className="space-y-1">
+                      <p className="font-bold text-slate-700 text-[11px]">Horas Extras e Adicionais:</p>
+                      <div className="grid grid-cols-1 gap-1 font-mono text-[10px] text-emerald-700 bg-white p-2 rounded-lg border border-slate-200">
+                        <div><span className="font-bold text-slate-600">#hora_extra_50</span> - Horas extras com adicional de 50%</div>
+                        <div><span className="font-bold text-slate-600">#hora_extra_100</span> - Horas extras com adicional de 100%</div>
+                        <div><span className="font-bold text-slate-600">#adicional_noturno</span> - Quantidade de horas noturnas trabalhadas</div>
+                      </div>
+                      <p className="font-bold text-slate-700 text-[11px] mt-2">Observações:</p>
+                      <div className="grid grid-cols-1 gap-1 font-mono text-[10px] text-amber-700 bg-white p-2 rounded-lg border border-slate-200">
+                        <div><span className="font-bold text-slate-600">#observacoes</span> - Campo de observações textuais para o fechamento</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <DialogFooter className="flex justify-end gap-2 border-t pt-4">
+                  <Button
+                    variant="outline"
+                    onClick={() => setIsFechamentoExportSelectorOpen(false)}
+                  >
+                    Fechar
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
           </div>
         </TabsContent>
 
