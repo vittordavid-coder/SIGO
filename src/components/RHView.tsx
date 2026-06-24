@@ -3139,7 +3139,7 @@ export default function RHView({
                 open={isExportSelectorOpen}
                 onOpenChange={setIsExportSelectorOpen}
               >
-                <DialogContent className="max-w-[600px] w-full bg-white border border-slate-200 shadow-2xl rounded-2xl p-6 text-left flex flex-col max-h-[95vh] overflow-y-auto">
+                <DialogContent className="w-[400px] max-w-full h-[600px] bg-white border border-slate-200 shadow-2xl rounded-2xl p-6 text-left flex flex-col overflow-y-auto">
                   <DialogHeader className="text-left space-y-2 shrink-0">
                     <DialogTitle className="text-lg font-bold text-slate-900 flex items-center gap-2">
                       <Download className="w-5 h-5 text-emerald-600" />
@@ -3920,7 +3920,7 @@ export default function RHView({
               open={isFechamentoExportSelectorOpen}
               onOpenChange={setIsFechamentoExportSelectorOpen}
             >
-              <DialogContent className="max-w-[600px] w-full bg-white border border-slate-200 shadow-2xl rounded-2xl p-6 text-left flex flex-col max-h-[95vh] overflow-y-auto">
+              <DialogContent className="w-[400px] max-w-full h-[600px] bg-white border border-slate-200 shadow-2xl rounded-2xl p-6 text-left flex flex-col overflow-y-auto">
                 <DialogHeader className="text-left space-y-2 shrink-0">
                   <DialogTitle className="text-lg font-bold text-slate-900 flex items-center gap-2">
                     <Download className="w-5 h-5 text-emerald-600" />

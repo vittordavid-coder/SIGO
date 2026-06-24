@@ -24,8 +24,9 @@ export default defineConfig(({mode}) => {
               if (id.includes('exceljs') || id.includes('file-saver') || id.includes('xlsx') || id.includes('jspdf') || id.includes('jszip')) {
                 return 'vendor-files';
               }
-              // Let Vite handle other node_modules automatically
-              return 'vendor';
+              if (id.includes('recharts') || id.includes('d3')) {
+                return 'vendor-charts';
+              }
             }
             if (id.includes('src/components/')) {
               const file = id.split('src/components/')[1];
