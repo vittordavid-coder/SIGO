@@ -167,6 +167,8 @@ export interface AporteItem {
   dataVencimento: string;
   valor: number;
   purchaseOrderId?: string;
+  notaFiscalUrl?: string;
+  notaFiscalName?: string;
 }
 
 export interface Aporte {
@@ -683,6 +685,9 @@ export interface PurchaseOrder {
   originQuotationId?: string;
   evaluation?: SupplierEvaluation;
   aporteId?: string;
+  nfNumber?: string;
+  nfUrl?: string;
+  nfName?: string;
 }
 
 export interface SupplierEvaluation {

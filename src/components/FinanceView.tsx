@@ -49,6 +49,45 @@ export const FinanceView = ({
   // Confirm delete state
   const [itemToDelete, setItemToDelete] = useState<string | null>(null);
   const [aporteToDelete, setAporteToDelete] = useState<string | null>(null);
+  
+  const [uploadingNF, setUploadingNF] = useState(false);
+
+  const handleUploadNF = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploadingNF(true);
+    try {
+      const config = getSupabaseConfig();
+      if (!config) throw new Error("Supabase config not found");
+      const supabase = createSupabaseClient(config.url, config.key);
+      if (!supabase) throw new Error("Could not initialize Supabase client");
+
+      const fileExt = file.name.split('.').pop();
+      const fileName = `nf_${Date.now()}_${uuidv4()}.${fileExt}`;
+      
+      const { data, error } = await supabase.storage
+        .from('synera_financeiro')
+        .upload(fileName, file);
+
+      if (error) throw error;
+
+      const { data: urlData } = supabase.storage
+        .from('synera_financeiro')
+        .getPublicUrl(fileName);
+
+      setItemFormData({
+        ...itemFormData,
+        notaFiscalUrl: urlData.publicUrl,
+        notaFiscalName: file.name
+      });
+    } catch (err: any) {
+      console.error("Error uploading NF:", err);
+      alert("Erro ao enviar a Nota Fiscal. Detalhes: " + err.message);
+    } finally {
+      setUploadingNF(false);
+    }
+  };
 
   // Purchase Orders states
   const [searchPO, setSearchPO] = useState('');
@@ -551,6 +590,8 @@ export const FinanceView = ({
       mesCompetencia: itemFormData.mesCompetencia || '',
       dataVencimento: itemFormData.dataVencimento || '',
       valor: Number(itemFormData.valor) || 0,
+      notaFiscalUrl: itemFormData.notaFiscalUrl || undefined,
+      notaFiscalName: itemFormData.notaFiscalName || undefined,
     };
 
     const updatedItems = editingItem 
@@ -919,13 +960,14 @@ export const FinanceView = ({
                           <TableHead onClick={() => handleItemsSort('descricao')} className="cursor-pointer hover:bg-slate-50">Descrição {renderItemsSortIndicator('descricao')}</TableHead>
                           <TableHead onClick={() => handleItemsSort('dataVencimento')} className="cursor-pointer hover:bg-slate-50">Vencimento {renderItemsSortIndicator('dataVencimento')}</TableHead>
                           <TableHead onClick={() => handleItemsSort('valor')} className="text-right cursor-pointer hover:bg-slate-50">Valor {renderItemsSortIndicator('valor')}</TableHead>
+                          <TableHead className="text-center w-[100px]">Anexo</TableHead>
                           <TableHead className="text-center w-[120px]">Ações</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
                         {(!selectedAporte.items || selectedAporte.items.length === 0) ? (
                           <TableRow>
-                            <TableCell colSpan={6} className="text-center text-slate-500 py-6">
+                            <TableCell colSpan={7} className="text-center text-slate-500 py-6">
                               Nenhum item adicionado a este aporte.
                             </TableCell>
                           </TableRow>
@@ -943,6 +985,21 @@ export const FinanceView = ({
                               </TableCell>
                               <TableCell className="text-right font-medium">
                                 {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(item.valor)}
+                              </TableCell>
+                              <TableCell className="text-center">
+                                {item.notaFiscalUrl ? (
+                                  <a 
+                                    href={item.notaFiscalUrl} 
+                                    target="_blank" 
+                                    rel="noopener noreferrer"
+                                    title={item.notaFiscalName || "Ver Nota Fiscal"}
+                                    className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-emerald-50 text-emerald-600 hover:bg-emerald-100 transition-colors"
+                                  >
+                                    <FileText className="w-4 h-4" />
+                                  </a>
+                                ) : (
+                                  <span className="text-slate-300 text-xs">-</span>
+                                )}
                               </TableCell>
                               <TableCell>
                                 <div className="flex items-center justify-center gap-1">
@@ -1302,6 +1359,40 @@ export const FinanceView = ({
                 onChange={(e) => setItemFormData({...itemFormData, valor: parseFloat(e.target.value)})} 
                 placeholder="0.00"
               />
+            </div>
+            
+            <div className="space-y-2 col-span-2">
+              <Label>Anexar Nota Fiscal (Opcional)</Label>
+              <div className="flex items-center gap-2">
+                <Input 
+                  type="file" 
+                  onChange={handleUploadNF}
+                  disabled={uploadingNF}
+                  className="file:mr-4 file:py-1 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer"
+                  accept="application/pdf,image/*"
+                />
+                {uploadingNF && <span className="text-sm text-gray-500 animate-pulse">Enviando...</span>}
+              </div>
+              {itemFormData.notaFiscalUrl && (
+                <div className="mt-2 text-sm">
+                  <a 
+                    href={itemFormData.notaFiscalUrl} 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="text-blue-600 hover:underline flex items-center gap-1"
+                  >
+                    <ExternalLink className="w-4 h-4" /> 
+                    {itemFormData.notaFiscalName || "Ver arquivo atual"}
+                  </a>
+                  <Button 
+                    variant="link" 
+                    className="text-red-500 p-0 h-auto text-xs ml-1 mt-1"
+                    onClick={() => setItemFormData({...itemFormData, notaFiscalUrl: undefined, notaFiscalName: undefined})}
+                  >
+                    Remover anexo
+                  </Button>
+                </div>
+              )}
             </div>
           </div>
           <DialogFooter>

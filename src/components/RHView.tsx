@@ -414,17 +414,21 @@ export default function RHView({
     const nightShiftQty = parseFloat(monthRecord.nightShift) || 0;
     const workedDays = parseInt(monthRecord.workedDays, 10) || 0;
 
-    // Hora Extra 50% = Valor Hora × 1,5 × Quantidade
-    const overtime50Value = hourlyValue * 1.5 * overtime50Qty;
+    const rate50 = rhParams.overtimeRate50 ?? 50;
+    const rate100 = rhParams.overtimeRate100 ?? 100;
+    const nightRate = rhParams.nightShiftAllowance ?? 20;
 
-    // Hora Extra 100% = Valor Hora × 2,0 × Quantidade
-    const overtime100Value = hourlyValue * 2.0 * overtime100Qty;
+    // Hora Extra = Valor Hora × (1 + percentual/100) × Quantidade
+    const overtime50Value = hourlyValue * (1 + rate50 / 100) * overtime50Qty;
+
+    // Hora Extra = Valor Hora × (1 + percentual/100) × Quantidade
+    const overtime100Value = hourlyValue * (1 + rate100 / 100) * overtime100Qty;
 
     // Faltas = Salário ÷ 30 × Dias Faltados
     const absencesDiscount = (baseSalary / 30) * absencesDays;
 
-    // Adicional Noturno (opcional, mas let's use standard 20% value)
-    const nightShiftValue = hourlyValue * 0.2 * nightShiftQty;
+    // Adicional Noturno = Valor Hora × (percentual/100) × Quantidade
+    const nightShiftValue = hourlyValue * (nightRate / 100) * nightShiftQty;
 
     let finalSalary = baseSalary + overtime50Value + overtime100Value - absencesDiscount + nightShiftValue;
     if (finalSalary < 0) finalSalary = 0;
@@ -650,6 +654,10 @@ export default function RHView({
     "name" | "cpf" | "role" | "admissionDate" | "salary"
   >("name");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
+  
+  const [fechamentoSortField, setFechamentoSortField] = useState<string>("name");
+  const [fechamentoSortOrder, setFechamentoSortOrder] = useState<"asc" | "desc">("asc");
+
 
   const totalExtraCostsPercentage = useMemo(() => {
     const list = rhParams.extraCosts || [];
@@ -856,10 +864,8 @@ export default function RHView({
       ]
     ];
 
-    const activeEmployees = employees.filter(e => e.status === "active");
-
-    const tableRows = activeEmployees.map((emp) => {
-      const val = closingRecordsMap[emp.id] || {
+    const tableRows = sortedFechamentoEmployees.map((emp) => {
+      const monthRecord = closingRecordsMap[emp.id] || {
         workedDays: 22,
         absences: 0,
         medicalCertificates: 0,
@@ -869,30 +875,19 @@ export default function RHView({
         overtime100: 0,
       };
 
-      const baseSalary = emp.salary || 0;
-      const hourlyValue = baseSalary / 220;
-      const ot50Qty = parseFloat(val.overtime50) || 0;
-      const ot100Qty = parseFloat(val.overtime100) || 0;
-      const absDays = parseInt(val.absences, 10) || 0;
-
-      const overtime50Val = hourlyValue * 1.5 * ot50Qty;
-      const overtime100Val = hourlyValue * 2.0 * ot100Qty;
-      const absencesVal = (baseSalary / 30) * absDays;
-
-      let netPay = baseSalary + overtime50Val + overtime100Val - absencesVal;
-      if (netPay < 0) netPay = 0;
+      const remun = calculateEmployeeRemuneration(emp, monthRecord);
 
       return [
         emp.name || "-",
         emp.role || "-",
-        String(val.workedDays),
-        String(val.absences),
-        String(val.medicalCertificates),
-        String(val.vacationDays),
-        `${ot50Qty}h (${overtime50Val.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })})`,
-        `${ot100Qty}h (${overtime100Val.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })})`,
-        baseSalary.toLocaleString("pt-BR", { style: "currency", currency: "BRL" }),
-        netPay.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })
+        String(monthRecord.workedDays),
+        String(monthRecord.absences),
+        String(monthRecord.medicalCertificates),
+        String(monthRecord.vacationDays),
+        `${remun.overtime50Qty}h (${remun.overtime50Value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })})`,
+        `${remun.overtime100Qty}h (${remun.overtime100Value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })})`,
+        remun.baseSalary.toLocaleString("pt-BR", { style: "currency", currency: "BRL" }),
+        remun.finalSalary.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })
       ];
     });
 
@@ -912,6 +907,96 @@ export default function RHView({
     doc.save(
       `Fechamento_Jornada_${selectedMonth}_Gerado_${new Date().toISOString().split("T")[0]}.pdf`
     );
+  };
+
+  const exportFechamentoToExcel = async () => {
+    const ExcelJS = (await import("exceljs")).default;
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet("Fechamento de Jornada");
+
+    // Title
+    const titleRow = worksheet.addRow(["SYNERA - GESTÃO DE RECURSOS HUMANOS"]);
+    titleRow.font = { name: "Helvetica", bold: true, size: 14, color: { argb: "FFEA580C" } };
+    
+    const subtitleRow = worksheet.addRow(["RELATÓRIO DE FECHAMENTO DE JORNADA"]);
+    subtitleRow.font = { name: "Helvetica", bold: true, size: 11, color: { argb: "FF1E293B" } };
+    
+    const infoRow = worksheet.addRow([`Mês de Referência: ${selectedMonth} - Gerado em ${new Date().toLocaleDateString("pt-BR")}`]);
+    infoRow.font = { name: "Helvetica", size: 10, color: { argb: "FF64748B" } };
+    
+    worksheet.addRow([]); // empty row
+
+    const headers = [
+        "Colaborador",
+        "Função",
+        "Dias Trab.",
+        "Faltas",
+        "Atestado",
+        "Férias",
+        "HE 50%",
+        "HE 100%",
+        "Salário Base",
+        "Líquido"
+    ];
+
+    const headerRow = worksheet.addRow(headers);
+    headerRow.eachCell((cell) => {
+        cell.font = { bold: true, color: { argb: "FFFFFFFF" } };
+        cell.fill = {
+            type: "pattern",
+            pattern: "solid",
+            fgColor: { argb: "FFEA580C" }
+        };
+        cell.alignment = { vertical: "middle", horizontal: "center" };
+    });
+
+    const activeEmployees = sortedFechamentoEmployees;
+
+    activeEmployees.forEach((emp, index) => {
+      const monthRecord = closingRecordsMap[emp.id] || {
+        workedDays: 22,
+        absences: 0,
+        medicalCertificates: 0,
+        vacationDays: 0,
+        leaveDays: 0,
+        overtime50: 0,
+        overtime100: 0,
+      };
+
+      const remun = calculateEmployeeRemuneration(emp, monthRecord);
+
+      const row = worksheet.addRow([
+        emp.name || "-",
+        emp.role || "-",
+        monthRecord.workedDays,
+        monthRecord.absences,
+        monthRecord.medicalCertificates,
+        monthRecord.vacationDays,
+        `${remun.overtime50Qty}h (${remun.overtime50Value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })})`,
+        `${remun.overtime100Qty}h (${remun.overtime100Value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })})`,
+        remun.baseSalary.toLocaleString("pt-BR", { style: "currency", currency: "BRL" }),
+        remun.finalSalary.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })
+      ]);
+      
+      const isEven = index % 2 === 0;
+      row.eachCell((cell) => {
+          if (!isEven) {
+              cell.fill = {
+                  type: "pattern",
+                  pattern: "solid",
+                  fgColor: { argb: "FFF3F4F6" }
+              };
+          }
+      });
+    });
+
+    worksheet.columns.forEach(column => {
+        column.width = 20;
+    });
+
+    const buffer = await workbook.xlsx.writeBuffer();
+    const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+    saveAs(blob, `Fechamento_Jornada_${selectedMonth}_Gerado_${new Date().toISOString().split("T")[0]}.xlsx`);
   };
 
   const exportIndividualSlipToPDF = (emp: Employee, month: string) => {
@@ -2471,6 +2556,75 @@ export default function RHView({
     onUpdateEmployees(updatedEmployees);
   };
 
+  const handleSortFechamento = (field: string) => {
+    if (fechamentoSortField === field) {
+      setFechamentoSortOrder(fechamentoSortOrder === "asc" ? "desc" : "asc");
+    } else {
+      setFechamentoSortField(field);
+      setFechamentoSortOrder("asc");
+    }
+  };
+
+  const getSortIconFechamento = (field: string) => {
+    if (fechamentoSortField !== field) return <ChevronDown className="w-3 h-3 opacity-20" />;
+    return fechamentoSortOrder === "asc" ? (
+      <ChevronUp className="w-3 h-3 text-orange-600" />
+    ) : (
+      <ChevronDown className="w-3 h-3 text-orange-600" />
+    );
+  };
+
+  const sortedFechamentoEmployees = useMemo(() => {
+    let sorted = employees.filter((e) => e.status === "active");
+
+    sorted = sorted.sort((a, b) => {
+      let aValue: any = "";
+      let bValue: any = "";
+
+      if (fechamentoSortField === "name") {
+        aValue = a.name || "";
+        bValue = b.name || "";
+      } else if (fechamentoSortField === "role") {
+        aValue = a.role || "";
+        bValue = b.role || "";
+      } else {
+        const valA = closingRecordsMap[a.id] || {};
+        const valB = closingRecordsMap[b.id] || {};
+
+        if (fechamentoSortField === "workedDays") {
+          aValue = parseInt(valA.workedDays || "0", 10);
+          bValue = parseInt(valB.workedDays || "0", 10);
+        } else if (fechamentoSortField === "absences") {
+          aValue = parseInt(valA.absences || "0", 10);
+          bValue = parseInt(valB.absences || "0", 10);
+        } else if (fechamentoSortField === "medicalCertificates") {
+          aValue = parseInt(valA.medicalCertificates || "0", 10);
+          bValue = parseInt(valB.medicalCertificates || "0", 10);
+        } else if (fechamentoSortField === "vacationDays") {
+          aValue = parseInt(valA.vacationDays || "0", 10);
+          bValue = parseInt(valB.vacationDays || "0", 10);
+        } else if (fechamentoSortField === "leaveDays") {
+          aValue = parseInt(valA.leaveDays || "0", 10);
+          bValue = parseInt(valB.leaveDays || "0", 10);
+        } else if (fechamentoSortField === "overtime50") {
+          aValue = parseFloat(valA.overtime50 || "0");
+          bValue = parseFloat(valB.overtime50 || "0");
+        } else if (fechamentoSortField === "overtime100") {
+          aValue = parseFloat(valA.overtime100 || "0");
+          bValue = parseFloat(valB.overtime100 || "0");
+        } else if (fechamentoSortField === "nightShift") {
+          aValue = parseFloat(valA.nightShift || "0");
+          bValue = parseFloat(valB.nightShift || "0");
+        }
+      }
+
+      if (aValue < bValue) return fechamentoSortOrder === "asc" ? -1 : 1;
+      if (aValue > bValue) return fechamentoSortOrder === "asc" ? 1 : -1;
+      return 0;
+    });
+    return sorted;
+  }, [employees, closingRecordsMap, fechamentoSortField, fechamentoSortOrder]);
+
   const existingRoles = Array.from(new Set(employees.map(e => e.role).filter(Boolean))).sort();
 
   return (
@@ -3413,13 +3567,24 @@ export default function RHView({
                     )}
                   </Button>
 
-                  <Button
-                    onClick={exportFechamentoToPDF}
-                    className="bg-slate-800 hover:bg-slate-900 text-white font-bold h-10 px-5 rounded-xl shadow-sm hover:shadow transition-all flex items-center gap-2 cursor-pointer text-sm"
-                    title="Exportar PDF do Fechamento Geral"
-                  >
-                    <FileText className="w-4 h-4 text-orange-400" /> Gerar PDF do Fechamento
-                  </Button>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        className="bg-slate-800 hover:bg-slate-900 text-white font-bold h-10 px-5 rounded-xl shadow-sm hover:shadow transition-all flex items-center gap-2 cursor-pointer text-sm"
+                        title="Exportar Fechamento"
+                      >
+                        <Download className="w-4 h-4 text-emerald-400" /> Exportar
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem onClick={exportFechamentoToPDF} className="cursor-pointer gap-2">
+                        <FileText className="w-4 h-4 text-orange-600" /> Exportar em PDF
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={exportFechamentoToExcel} className="cursor-pointer gap-2">
+                        <FileSpreadsheet className="w-4 h-4 text-green-600" /> Exportar em Excel
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </div>
               </CardHeader>
               <CardContent className="p-0">
@@ -3433,28 +3598,48 @@ export default function RHView({
                     <Table>
                       <TableHeader className="bg-slate-50/75 border-b border-gray-100">
                         <TableRow>
-                          <TableHead className="font-bold text-slate-700 text-xs py-3 max-w-[200px]">Colaborador</TableHead>
-                          <TableHead className="font-bold text-slate-700 text-xs py-3">Função</TableHead>
-                          <TableHead className="font-bold text-slate-700 text-xs py-3 text-center w-20">Dias Trab.</TableHead>
-                          <TableHead className="font-bold text-slate-700 text-xs py-3 text-center w-20">Faltas</TableHead>
-                          <TableHead className="font-bold text-slate-700 text-xs py-3 text-center w-20">Atestado</TableHead>
-                          <TableHead className="font-bold text-slate-700 text-xs py-3 text-center w-20">Férias</TableHead>
-                          <TableHead className="font-bold text-slate-700 text-xs py-3 text-center w-20">Afastamento</TableHead>
-                          <TableHead className="font-bold text-slate-700 text-xs py-3 text-center w-24">HE 50%</TableHead>
-                          <TableHead className="font-bold text-slate-700 text-xs py-3 text-center w-24">HE 100%</TableHead>
-                          <TableHead className="font-bold text-slate-700 text-xs py-3 text-center w-24">Adic. Noturno</TableHead>
+                          <TableHead className="font-bold text-slate-700 text-xs py-3 max-w-[200px] cursor-pointer hover:bg-slate-100 transition-colors" onClick={() => handleSortFechamento("name")}>
+                            <div className="flex items-center gap-1">Colaborador {getSortIconFechamento("name")}</div>
+                          </TableHead>
+                          <TableHead className="font-bold text-slate-700 text-xs py-3 cursor-pointer hover:bg-slate-100 transition-colors" onClick={() => handleSortFechamento("role")}>
+                            <div className="flex items-center gap-1">Função {getSortIconFechamento("role")}</div>
+                          </TableHead>
+                          <TableHead className="font-bold text-slate-700 text-xs py-3 text-center w-20 cursor-pointer hover:bg-slate-100 transition-colors" onClick={() => handleSortFechamento("workedDays")}>
+                            <div className="flex items-center justify-center gap-1">Dias Trab. {getSortIconFechamento("workedDays")}</div>
+                          </TableHead>
+                          <TableHead className="font-bold text-slate-700 text-xs py-3 text-center w-20 cursor-pointer hover:bg-slate-100 transition-colors" onClick={() => handleSortFechamento("absences")}>
+                            <div className="flex items-center justify-center gap-1">Faltas {getSortIconFechamento("absences")}</div>
+                          </TableHead>
+                          <TableHead className="font-bold text-slate-700 text-xs py-3 text-center w-20 cursor-pointer hover:bg-slate-100 transition-colors" onClick={() => handleSortFechamento("medicalCertificates")}>
+                            <div className="flex items-center justify-center gap-1">Atestado {getSortIconFechamento("medicalCertificates")}</div>
+                          </TableHead>
+                          <TableHead className="font-bold text-slate-700 text-xs py-3 text-center w-20 cursor-pointer hover:bg-slate-100 transition-colors" onClick={() => handleSortFechamento("vacationDays")}>
+                            <div className="flex items-center justify-center gap-1">Férias {getSortIconFechamento("vacationDays")}</div>
+                          </TableHead>
+                          <TableHead className="font-bold text-slate-700 text-xs py-3 text-center w-20 cursor-pointer hover:bg-slate-100 transition-colors" onClick={() => handleSortFechamento("leaveDays")}>
+                            <div className="flex items-center justify-center gap-1">Afastamento {getSortIconFechamento("leaveDays")}</div>
+                          </TableHead>
+                          <TableHead className="font-bold text-slate-700 text-xs py-3 text-center w-24 cursor-pointer hover:bg-slate-100 transition-colors" onClick={() => handleSortFechamento("overtime50")}>
+                            <div className="flex items-center justify-center gap-1">HE 50% {getSortIconFechamento("overtime50")}</div>
+                          </TableHead>
+                          <TableHead className="font-bold text-slate-700 text-xs py-3 text-center w-24 cursor-pointer hover:bg-slate-100 transition-colors" onClick={() => handleSortFechamento("overtime100")}>
+                            <div className="flex items-center justify-center gap-1">HE 100% {getSortIconFechamento("overtime100")}</div>
+                          </TableHead>
+                          <TableHead className="font-bold text-slate-700 text-xs py-3 text-center w-24 cursor-pointer hover:bg-slate-100 transition-colors" onClick={() => handleSortFechamento("nightShift")}>
+                            <div className="flex items-center justify-center gap-1">Adic. Noturno {getSortIconFechamento("nightShift")}</div>
+                          </TableHead>
                           <TableHead className="font-bold text-slate-700 text-xs py-3 min-w-[150px]">Obs.</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {employees.filter(e => e.status === "active").length === 0 ? (
+                        {sortedFechamentoEmployees.length === 0 ? (
                           <TableRow>
                             <TableCell colSpan={11} className="py-10 text-center text-gray-400 font-medium">
                               Nenhum colaborador ativo cadastrado ou encontrado.
                             </TableCell>
                           </TableRow>
                         ) : (
-                          employees.filter(e => e.status === "active").map((emp) => {
+                          sortedFechamentoEmployees.map((emp) => {
                             const val = closingRecordsMap[emp.id] || {
                               workedDays: 22,
                               absences: 0,
@@ -3631,7 +3816,7 @@ export default function RHView({
                 <CardContent>
                   <div className="flex items-center justify-between">
                     <span className="text-3xl font-black text-gray-900 font-mono">
-                      {employees.filter(e => e.alojamentoId && e.status === "active").length}
+                      {employees.filter(e => e.alojamentoId && e.status === "active" && alojamentos.some(al => al.id === e.alojamentoId)).length}
                     </span>
                     <Users className="w-8 h-8 text-orange-500 opacity-80" />
                   </div>
@@ -3645,7 +3830,7 @@ export default function RHView({
                 <CardContent>
                   <div className="flex items-center justify-between">
                     <span className="text-3xl font-black text-gray-900 font-mono">
-                      {Math.max(0, alojamentos.reduce((acc, al) => acc + (al.maxCapacity || 0), 0) - employees.filter(e => e.alojamentoId && e.status === "active").length)}
+                      {Math.max(0, alojamentos.reduce((acc, al) => acc + (al.maxCapacity || 0), 0) - employees.filter(e => e.alojamentoId && e.status === "active" && alojamentos.some(al => al.id === e.alojamentoId)).length)}
                     </span>
                     <Clock className="w-8 h-8 text-orange-500 opacity-80" />
                   </div>
@@ -4695,7 +4880,7 @@ export default function RHView({
                   </TableHeader>
                   <TableBody>
                     {employees
-                      .filter(e => e.status === "active" && !e.alojamentoId)
+                      .filter(e => e.status === "active" && (!e.alojamentoId || !alojamentos.some(al => al.id === e.alojamentoId)))
                       .filter(e => {
                         const term = searchAlTerm.toLowerCase().trim();
                         if (!term) return true;
@@ -4708,7 +4893,7 @@ export default function RHView({
                       </TableRow>
                     ) : (
                       employees
-                        .filter(e => e.status === "active" && !e.alojamentoId)
+                        .filter(e => e.status === "active" && (!e.alojamentoId || !alojamentos.some(al => al.id === e.alojamentoId)))
                         .filter(e => {
                           const term = searchAlTerm.toLowerCase().trim();
                           if (!term) return true;

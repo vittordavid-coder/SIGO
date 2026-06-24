@@ -38,6 +38,7 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger, DialogDescription } from '@/components/ui/dialog';
 import { Modal } from "@/components/ui/Modal";
+import { getSupabaseConfig, createSupabaseClient } from '../lib/supabaseClient';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -89,6 +90,8 @@ interface PurchasesViewProps {
   quotations?: any[];
   warehouseItems?: any[];
   warehouses?: any[];
+  aportes?: import('../types').Aporte[];
+  onUpdateAportes?: (val: import('../types').Aporte[]) => void;
 }
 
 export default function PurchasesView({ 
@@ -118,7 +121,9 @@ export default function PurchasesView({
   services = [],
   quotations = [],
   warehouseItems = [],
-  warehouses = []
+  warehouses = [],
+  aportes = [],
+  onUpdateAportes
 }: PurchasesViewProps) {
   const [activeTab, setActiveTab] = useState<'requests' | 'suppliers' | 'quotations' | 'orders' | 'tracking' | 'estoque' | 'evaluation'>(initialTab || 'requests');
   const [localSelectedContractId, setLocalSelectedContractId] = useState<string>(contracts[0]?.id || 'all');
@@ -257,6 +262,8 @@ export default function PurchasesView({
                   onUpdateMaintenance={onUpdateMaintenance}
                   requests={requests}
                   setRequests={setRequests}
+                  aportes={aportes}
+                  onUpdateAportes={onUpdateAportes}
                 />
               </TabsContent>
               <TabsContent value="estoque" className="mt-0 outline-none">
@@ -3849,18 +3856,59 @@ function QuotationsTab({
   );
 }
 
-function TrackingTab({ orders, setOrders, equipmentMaintenance, onUpdateMaintenance, requests, setRequests }: { 
+function TrackingTab({ orders, setOrders, equipmentMaintenance, onUpdateMaintenance, requests, setRequests, aportes = [], onUpdateAportes }: { 
   orders: PurchaseOrder[], 
   setOrders: React.Dispatch<React.SetStateAction<PurchaseOrder[]>>,
   equipmentMaintenance: EquipmentMaintenance[],
   onUpdateMaintenance?: (val: EquipmentMaintenance[]) => void,
   requests: PurchaseRequest[],
-  setRequests: React.Dispatch<React.SetStateAction<PurchaseRequest[]>>
+  setRequests: React.Dispatch<React.SetStateAction<PurchaseRequest[]>>,
+  aportes?: import('../types').Aporte[],
+  onUpdateAportes?: (val: import('../types').Aporte[]) => void
 }) {
   const trackingOrders = orders.filter(o => o.status !== 'draft' && o.status !== 'cancelled' && o.status !== 'delivered' && o.status !== 'finalizada');
   const [evaluationOrder, setEvaluationOrder] = useState<PurchaseOrder | null>(null);
   const [scores, setScores] = useState({ punctuality: 5, quality: 5, service: 5, price: 5, deadline: 5 });
   const [comments, setComments] = useState('');
+
+  const [nfNumber, setNfNumber] = useState('');
+  const [nfUrl, setNfUrl] = useState('');
+  const [nfName, setNfName] = useState('');
+  const [uploadingNF, setUploadingNF] = useState(false);
+
+  const handleUploadNF = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploadingNF(true);
+    try {
+      const config = getSupabaseConfig();
+      if (!config) throw new Error("Supabase config not found");
+      const supabase = createSupabaseClient(config.url, config.key);
+      if (!supabase) throw new Error("Could not initialize Supabase client");
+
+      const fileExt = file.name.split('.').pop();
+      const fileName = `recebimento_${Date.now()}_${uuidv4()}.${fileExt}`;
+      
+      const { data, error } = await supabase.storage
+        .from('synera_financeiro')
+        .upload(fileName, file);
+
+      if (error) throw error;
+
+      const { data: urlData } = supabase.storage
+        .from('synera_financeiro')
+        .getPublicUrl(fileName);
+
+      setNfUrl(urlData.publicUrl);
+      setNfName(file.name);
+    } catch (err: any) {
+      console.error("Error uploading NF:", err);
+      alert("Erro ao enviar a Nota Fiscal. Detalhes: " + err.message);
+    } finally {
+      setUploadingNF(false);
+    }
+  };
 
   const calculateDaysLeft = (deliveryDate: string) => {
     if (!deliveryDate) return null;
@@ -3877,10 +3925,18 @@ function TrackingTab({ orders, setOrders, equipmentMaintenance, onUpdateMaintena
     setEvaluationOrder(order);
     setScores({ punctuality: 5, quality: 5, service: 5, price: 5, deadline: 5 });
     setComments('');
+    setNfNumber('');
+    setNfUrl('');
+    setNfName('');
   };
 
   const saveEvaluation = () => {
     if (!evaluationOrder) return;
+    
+    if (!nfNumber && nfUrl) {
+      alert("Por favor, preencha o número da Nota Fiscal se estiver anexando o arquivo.");
+      return;
+    }
 
     const evaluation: SupplierEvaluation = {
       ...scores,
@@ -3890,7 +3946,7 @@ function TrackingTab({ orders, setOrders, equipmentMaintenance, onUpdateMaintena
 
     const updatedOrders = orders.map(o => 
       o.id === evaluationOrder.id 
-        ? { ...o, status: 'finalizada' as const, evaluation } 
+        ? { ...o, status: 'finalizada' as const, evaluation, nfNumber, nfUrl, nfName } 
         : o
     );
 
@@ -3962,6 +4018,30 @@ function TrackingTab({ orders, setOrders, equipmentMaintenance, onUpdateMaintena
         });
         setRequests(updatedRequests);
       }
+    }
+
+    // Sync with Financeiro Aportes if an NF was uploaded
+    if (onUpdateAportes && aportes.length > 0 && nfUrl) {
+      const updatedAportes = aportes.map(aporte => {
+        let hasChanges = false;
+        const newItems = (aporte.items || []).map(item => {
+          if (item.purchaseOrderId === evaluationOrder.id) {
+            hasChanges = true;
+            return {
+              ...item,
+              notaFiscalUrl: nfUrl,
+              notaFiscalName: nfName || nfNumber
+            };
+          }
+          return item;
+        });
+        
+        if (hasChanges) {
+          return { ...aporte, items: newItems };
+        }
+        return aporte;
+      });
+      onUpdateAportes(updatedAportes);
     }
 
     setEvaluationOrder(null);
@@ -4105,6 +4185,44 @@ function TrackingTab({ orders, setOrders, equipmentMaintenance, onUpdateMaintena
                 <RatingStars label="Atendimento" value={scores.service} onChange={(v) => setScores({...scores, service: v})} />
                 <RatingStars label="Preço" value={scores.price} onChange={(v) => setScores({...scores, price: v})} />
                 <RatingStars label="Prazo" value={scores.deadline} onChange={(v) => setScores({...scores, deadline: v})} />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label className="text-base font-bold text-gray-600 uppercase">Número da Nota Fiscal *</Label>
+                  <Input 
+                    type="text" 
+                    placeholder="Ex: 12345" 
+                    value={nfNumber} 
+                    onChange={e => setNfNumber(e.target.value)} 
+                    className="h-12 bg-white rounded-xl shadow-inner border-gray-200"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-base font-bold text-gray-600 uppercase">Anexar Nota Fiscal *</Label>
+                  <div className="flex flex-col gap-2">
+                    <Input 
+                      type="file" 
+                      onChange={handleUploadNF}
+                      disabled={uploadingNF}
+                      className="file:mr-4 file:py-1 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-emerald-50 file:text-emerald-700 hover:file:bg-emerald-100 cursor-pointer h-12 bg-white rounded-xl shadow-inner border-gray-200"
+                      accept="application/pdf,image/*"
+                    />
+                    {uploadingNF && <span className="text-sm text-gray-500 animate-pulse">Enviando...</span>}
+                    {nfUrl && (
+                      <div className="text-sm">
+                        <a 
+                          href={nfUrl} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="text-emerald-600 hover:underline font-medium"
+                        >
+                          {nfName || "Ver arquivo atual"}
+                        </a>
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
 
               <div className="space-y-2">
