@@ -527,7 +527,16 @@ export default function RHView({
     };
 
     fetchClosings();
-  }, [selectedMonth, currentUser?.companyId]);
+  }, [selectedMonth, currentUser?.companyId, employees]);
+
+  // Auto-save closingRecordsMap to localStorage on change to prevent losing typed data
+  useEffect(() => {
+    if (Object.keys(closingRecordsMap).length > 0) {
+      const compId = currentUser?.companyId || "default";
+      const key = `rh_fechamento_jornada_${compId}_${selectedMonth}`;
+      localStorage.setItem(key, JSON.stringify(closingRecordsMap));
+    }
+  }, [closingRecordsMap, selectedMonth, currentUser?.companyId]);
 
   const handleSaveClosings = async () => {
     setIsSavingClosings(true);
@@ -651,7 +660,7 @@ export default function RHView({
     null,
   );
   const [sortField, setSortField] = useState<
-    "name" | "cpf" | "role" | "admissionDate" | "salary"
+    "name" | "cpf" | "role" | "admissionDate" | "salary" | "registrationNumber"
   >("name");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
   
@@ -707,6 +716,7 @@ export default function RHView({
 
         const colNome = findColIndex(["#nome", "nome", "colaborador"]);
         const colCpf = findColIndex(["#cpf", "cpf"]);
+        const colMatricula = findColIndex(["#matricula", "#matrícula", "matricula", "matrícula", "registro"]);
         const colWorkedDays = findColIndex(["#dias_trabalhados", "dias trabalhados"]);
         const colAbsences = findColIndex(["#faltas", "faltas"]);
         const colMedCert = findColIndex(["#atestados", "atestados", "atestado"]);
@@ -717,8 +727,8 @@ export default function RHView({
         const colNightShift = findColIndex(["#adicional_noturno", "noturno"]);
         const colNotes = findColIndex(["#observacoes", "#observações", "obs"]);
 
-        if (colNome === -1 && colCpf === -1) {
-          alert("❌ Não foi encontrada uma coluna de identificação (#nome ou #cpf).");
+        if (colNome === -1 && colCpf === -1 && colMatricula === -1) {
+          alert("❌ Não foi encontrada uma coluna de identificação (#nome, #cpf ou #matricula).");
           setIsFechamentoImporting(false);
           return;
         }
@@ -732,9 +742,11 @@ export default function RHView({
 
           const nomeVal = colNome !== -1 ? String(row[colNome] || "").trim() : "";
           const cpfVal = colCpf !== -1 ? String(row[colCpf] || "").replace(/[^0-9]/g, "") : "";
+          const matriculaVal = colMatricula !== -1 ? String(row[colMatricula] || "").trim() : "";
 
           // Find employee
           const emp = employees.find(e => 
+            (matriculaVal && e.registrationNumber && e.registrationNumber.trim().toLowerCase() === matriculaVal.toLowerCase()) ||
             (cpfVal && e.cpf && e.cpf.replace(/[^0-9]/g, "") === cpfVal) || 
             (nomeVal && e.name && e.name.toLowerCase() === nomeVal.toLowerCase())
           );
@@ -800,6 +812,7 @@ export default function RHView({
   const [printColumns, setPrintColumns] = useState({
     name: true,
     cpf: true,
+    registrationNumber: true,
     role: true,
     status: true,
     admissionDate: true,
@@ -983,6 +996,7 @@ export default function RHView({
     const tableHeaders = [
       [
         "Colaborador",
+        "Matrícula",
         "Função",
         "Dias Trab.",
         "Faltas",
@@ -1010,6 +1024,7 @@ export default function RHView({
 
       return [
         emp.name || "-",
+        emp.registrationNumber || "-",
         emp.role || "-",
         String(monthRecord.workedDays),
         String(monthRecord.absences),
@@ -1059,6 +1074,7 @@ export default function RHView({
 
     const headers = [
         "Colaborador",
+        "Matrícula",
         "Função",
         "Dias Trab.",
         "Faltas",
@@ -1098,6 +1114,7 @@ export default function RHView({
 
       const row = worksheet.addRow([
         emp.name || "-",
+        emp.registrationNumber || "-",
         emp.role || "-",
         monthRecord.workedDays,
         monthRecord.absences,
@@ -1394,6 +1411,7 @@ export default function RHView({
           "Contrato",
           "Nome Completo",
           "CPF",
+          "Matrícula",
           "Função",
           "Tipo de Pagamento",
           "Salário Bruto",
@@ -1437,6 +1455,7 @@ export default function RHView({
           "CTR-123",
           "João da Silva",
           "123.456.789-00",
+          "M123",
           "Pedreiro",
           "Mensalista",
           2500,
@@ -1586,6 +1605,16 @@ export default function RHView({
             const name = String(rawName);
             const cpfRaw = getVal(["cpf", "documento"]);
             const cpf = cpfRaw ? String(cpfRaw).replace(/[^0-9]/g, "") : "";
+            const registrationNumberRaw = getVal([
+              "matricula",
+              "matrícula",
+              "numero de matricula",
+              "registro",
+              "chapa",
+              "cod_matricula",
+              "registration_number"
+            ]);
+            const registrationNumber = registrationNumberRaw ? String(registrationNumberRaw).trim() : "";
             const role = String(
               getVal(["função", "funcao", "cargo", "atividade"]) || "Ajudante",
             );
@@ -1724,6 +1753,7 @@ export default function RHView({
               ),
               companyId: currentUser.companyId,
               contractId: matchedContractId,
+              registrationNumber: registrationNumber || undefined,
               name,
               role,
               admissionDate: admissionDate,
@@ -1993,6 +2023,7 @@ export default function RHView({
     wsData.push([
       "Nome",
       "CPF",
+      "Matrícula",
       "Cargo",
       "Data Admissão",
       showLoadedSalary ? "Remuneração (com Encargos)" : "Remuneração",
@@ -2007,6 +2038,7 @@ export default function RHView({
       wsData.push([
         e.name,
         e.cpf,
+        e.registrationNumber || "-",
         e.role,
         e.admissionDate
           ? new Date(e.admissionDate).toLocaleDateString("pt-BR")
@@ -2060,7 +2092,7 @@ export default function RHView({
     }
 
     const tableHeaders = [
-      ["Nome", "CPF", "Cargo", "Data Admissão", showLoadedSalary ? "Remuneração (c/ Encargos)" : "Remuneração", "Status"],
+      ["Nome", "CPF", "Matrícula", "Cargo", "Data Admissão", showLoadedSalary ? "Remuneração (c/ Encargos)" : "Remuneração", "Status"],
     ];
 
     const tableRows = filteredEmployees.map((e) => {
@@ -2071,6 +2103,7 @@ export default function RHView({
       return [
         e.name || "-",
         e.cpf || "-",
+        e.registrationNumber || "-",
         e.role || "-",
         e.admissionDate
           ? new Date(e.admissionDate).toLocaleDateString("pt-BR")
@@ -2115,6 +2148,8 @@ export default function RHView({
           return "Nome";
         case "cpf":
           return "CPF";
+        case "registrationNumber":
+          return "Matrícula";
         case "role":
           return "Cargo";
         case "status":
@@ -2258,7 +2293,8 @@ export default function RHView({
         (currentUser.role === "master" ||
           e.companyId === currentUser.companyId) &&
         (e.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          e.cpf.includes(searchTerm)) &&
+          e.cpf.includes(searchTerm) ||
+          (e.registrationNumber && e.registrationNumber.toLowerCase().includes(searchTerm.toLowerCase()))) &&
         (!selectedContractId || e.contractId === selectedContractId),
     );
 
@@ -2273,6 +2309,8 @@ export default function RHView({
       if (sortField === "name") comparison = a.name.localeCompare(b.name);
       else if (sortField === "cpf")
         comparison = (a.cpf || "").localeCompare(b.cpf || "");
+      else if (sortField === "registrationNumber")
+        comparison = (a.registrationNumber || "").localeCompare(b.registrationNumber || "");
       else if (sortField === "role")
         comparison = (a.role || "").localeCompare(b.role || "");
       else if (sortField === "admissionDate")
@@ -2305,7 +2343,7 @@ export default function RHView({
     }
   }, [selectedContractId, filteredEmployees, selectedEmployeeId]);
 
-  const handleSort = (field: "name" | "cpf" | "role" | "admissionDate" | "salary") => {
+  const handleSort = (field: "name" | "cpf" | "role" | "admissionDate" | "salary" | "registrationNumber") => {
     if (sortField === field) {
       setSortOrder(sortOrder === "asc" ? "desc" : "asc");
     } else {
@@ -2422,6 +2460,17 @@ export default function RHView({
       return;
     }
 
+    const regNumTrimmed = newEmployee.registrationNumber?.trim();
+    if (regNumTrimmed) {
+      const duplicate = employees.find(
+        (e) => e.id !== editingEmployeeId && e.registrationNumber?.trim().toLowerCase() === regNumTrimmed.toLowerCase()
+      );
+      if (duplicate) {
+        alert(`O número de matrícula "${regNumTrimmed}" já está em uso pelo colaborador "${duplicate.name}".`);
+        return;
+      }
+    }
+
     setIsSavingEmployee(true);
     setSaveEmployeeProgress({ step: "Iniciando cadastro...", progress: 20 });
 
@@ -2448,6 +2497,7 @@ export default function RHView({
           id: employeeId,
           status: "active",
           companyId: currentUser.companyId,
+          registrationNumber: newEmployee.registrationNumber || "",
           name: newEmployee.name!,
           cpf: newEmployee.cpf!,
           role: newEmployee.role || "Colaborador",
@@ -2715,6 +2765,9 @@ export default function RHView({
       if (fechamentoSortField === "name") {
         aValue = a.name || "";
         bValue = b.name || "";
+      } else if (fechamentoSortField === "registrationNumber") {
+        aValue = a.registrationNumber || "";
+        bValue = b.registrationNumber || "";
       } else if (fechamentoSortField === "role") {
         aValue = a.role || "";
         bValue = b.role || "";
@@ -3297,6 +3350,20 @@ export default function RHView({
                       </TableHead>
                       <TableHead
                         className="font-bold text-center cursor-pointer hover:bg-gray-100 transition-colors"
+                        onClick={() => handleSort("registrationNumber")}
+                      >
+                        <div className="flex items-center justify-center gap-1">
+                          Matrícula
+                          {sortField === "registrationNumber" &&
+                            (sortOrder === "asc" ? (
+                              <ChevronUp className="w-3 h-3" />
+                            ) : (
+                              <ChevronDown className="w-3 h-3" />
+                            ))}
+                        </div>
+                      </TableHead>
+                      <TableHead
+                        className="font-bold text-center cursor-pointer hover:bg-gray-100 transition-colors"
                         onClick={() => handleSort("role")}
                       >
                         <div className="flex items-center justify-center gap-1">
@@ -3350,7 +3417,7 @@ export default function RHView({
                     {filteredEmployees.length === 0 ? (
                       <TableRow>
                         <TableCell
-                          colSpan={5}
+                          colSpan={9}
                           className="text-center py-20 text-gray-400"
                         >
                           Nenhum colaborador encontrado.
@@ -3402,8 +3469,8 @@ export default function RHView({
                                 </div>
                                 <p className="text-sm text-gray-500 uppercase tracking-wider">
                                   {e.companyId === currentUser.companyId
-                                    ? "Sua Empresa"
-                                    : "Outra Empresa"}
+                                    ? e.registrationNumber ? `Matrícula: ${e.registrationNumber}` : "Sem Matrícula"
+                                    : e.registrationNumber ? `Matrícula: ${e.registrationNumber}` : "Sem Matrícula"}
                                 </p>
                               </div>
                             </div>
@@ -3427,6 +3494,9 @@ export default function RHView({
                                 )}
                               </Button>
                             </div>
+                          </TableCell>
+                          <TableCell className="text-center font-mono text-xs text-gray-600 bg-slate-50/20">
+                            {e.registrationNumber || "-"}
                           </TableCell>
                           <TableCell className="text-center">
                             <Badge
@@ -3747,6 +3817,9 @@ export default function RHView({
                           <TableHead className="font-bold text-slate-700 text-xs py-3 max-w-[200px] cursor-pointer hover:bg-slate-100 transition-colors" onClick={() => handleSortFechamento("name")}>
                             <div className="flex items-center gap-1">Colaborador {getSortIconFechamento("name")}</div>
                           </TableHead>
+                          <TableHead className="font-bold text-slate-700 text-xs py-3 cursor-pointer hover:bg-slate-100 transition-colors" onClick={() => handleSortFechamento("registrationNumber")}>
+                            <div className="flex items-center gap-1">Matrícula {getSortIconFechamento("registrationNumber")}</div>
+                          </TableHead>
                           <TableHead className="font-bold text-slate-700 text-xs py-3 cursor-pointer hover:bg-slate-100 transition-colors" onClick={() => handleSortFechamento("role")}>
                             <div className="flex items-center gap-1">Função {getSortIconFechamento("role")}</div>
                           </TableHead>
@@ -3780,7 +3853,7 @@ export default function RHView({
                       <TableBody>
                         {sortedFechamentoEmployees.length === 0 ? (
                           <TableRow>
-                            <TableCell colSpan={11} className="py-10 text-center text-gray-400 font-medium">
+                            <TableCell colSpan={12} className="py-10 text-center text-gray-400 font-medium">
                               Nenhum colaborador ativo cadastrado ou encontrado.
                             </TableCell>
                           </TableRow>
@@ -3812,6 +3885,9 @@ export default function RHView({
                               <TableRow key={emp.id} className="hover:bg-slate-50/40 divide-x divide-transparent">
                                 <TableCell className="py-2.5 font-bold text-slate-900 max-w-[200px] truncate">
                                   {emp.name}
+                                </TableCell>
+                                <TableCell className="py-2.5 text-xs font-mono text-slate-600 bg-slate-50/10">
+                                  {emp.registrationNumber || "-"}
                                 </TableCell>
                                 <TableCell className="py-2.5 text-xs text-slate-500 font-medium">
                                   {emp.role || "Não definida"}
@@ -3971,7 +4047,7 @@ export default function RHView({
                         const worksheet = workbook.addWorksheet("Modelo Fechamento");
                         
                         worksheet.addRow([
-                          "#Nome", "#CPF", "#Dias_Trabalhados", "#Faltas", 
+                          "#Nome", "#CPF", "#Matricula", "#Dias_Trabalhados", "#Faltas", 
                           "#Atestados", "#Ferias", "#Afastamentos", 
                           "#Hora_Extra_50", "#Hora_Extra_100", "#Adicional_Noturno", "#Observacoes"
                         ]);
@@ -5356,7 +5432,7 @@ export default function RHView({
 
                               <div className="bg-gray-50/50 p-6 rounded-2xl border border-gray-100 space-y-6">
                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                                  <div className="space-y-2 lg:col-span-2">
+                                  <div className="space-y-2">
                                     <Label className="text-sm font-bold text-gray-500 uppercase">
                                       Nome Completo <span className="text-red-500">*</span>
                                     </Label>
@@ -5386,6 +5462,22 @@ export default function RHView({
                                       }
                                       placeholder="000.000.000-00"
                                       className="h-11 font-mono shadow-sm"
+                                    />
+                                  </div>
+                                  <div className="space-y-2">
+                                    <Label className="text-sm font-bold text-gray-500 uppercase">
+                                      Matrícula <span className="text-xs text-slate-400 font-normal lowercase">(campo único)</span>
+                                    </Label>
+                                    <Input
+                                      value={newEmployee.registrationNumber || ""}
+                                      onChange={(e) =>
+                                        setNewEmployee({
+                                          ...newEmployee,
+                                          registrationNumber: e.target.value,
+                                        })
+                                      }
+                                      placeholder="Código ou Nº Matrícula"
+                                      className="h-11 shadow-sm font-mono"
                                     />
                                   </div>
                                 </div>

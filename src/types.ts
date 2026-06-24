@@ -75,6 +75,7 @@ export interface Dependent {
 export interface Employee {
   id: string;
   companyId: string;
+  registrationNumber?: string;
   name: string;
   role: string;
   admissionDate: string;
@@ -703,21 +704,21 @@ export interface SupplierEvaluation {
 export interface Supplier {
   id: string;
   companyId?: string;
-  registrationNumber: string;
-  supplierCode: string;
-  activity: string;
+  registrationNumber?: string;
+  supplierCode?: string;
+  activity?: string;
   category?: string;
   name: string;
-  contact: string;
-  nextel: string;
-  phone: string;
-  mobile: string;
-  address: string;
-  neighborhoodCity: string;
-  zipCode: string;
-  state: string;
-  emailWebsite: string;
-  observations: string;
+  contact?: string;
+  nextel?: string;
+  phone?: string;
+  mobile?: string;
+  address?: string;
+  neighborhoodCity?: string;
+  zipCode?: string;
+  state?: string;
+  emailWebsite?: string;
+  observations?: string;
   assignedContractIds?: string[];
 }
 
@@ -869,6 +870,7 @@ export interface FuelLog {
   unitPrice?: number;
   invoiceNumber?: string;
   hourMeter?: number;
+  fuelType?: string;
 }
 
 export interface ControllerManpower {
@@ -882,6 +884,7 @@ export interface ControllerManpower {
   exitDate?: string;
   chargesPercentage?: number;
   overtimePercentage?: number;
+  team?: string;
 }
 
 export interface ManpowerMonthlyData {
