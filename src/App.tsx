@@ -2060,7 +2060,7 @@ export default function App() {
 
         // 4. Generate new Session ID and update users
         const newSessionId = uuidv4();
-        const updatedUser = { ...user, sessionId: newSessionId };
+        const updatedUser = { ...user, sessionId: newSessionId, lastAccessAt: new Date().toISOString() };
         
         // Update users list and sync to Supabase
         const newUsers = latestUsers.map(u => u.id === user.id ? updatedUser : u);

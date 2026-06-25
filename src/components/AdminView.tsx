@@ -143,6 +143,75 @@ function DeleteUserDialog({ user, onDelete }: { user: User, onDelete: () => void
   );
 }
 
+function RenewKeysDialog({ user, onUpdate }: { user: User, onUpdate: (keys: number, keysExpiresAt: string) => void }) {
+  const [keys, setKeys] = useState(user.keys || 0);
+  const [keysExpiresAt, setKeysExpiresAt] = useState(user.keysExpiresAt || '');
+  const [open, setOpen] = useState(false);
+
+  React.useEffect(() => {
+    setKeys(user.keys || 0);
+    setKeysExpiresAt(user.keysExpiresAt || '');
+  }, [user]);
+
+  return (
+    <>
+      <Button 
+        variant="ghost" 
+        size="icon" 
+        onClick={() => setOpen(true)} 
+        className="h-7 w-7 text-amber-500 hover:text-amber-700 hover:bg-amber-50 rounded-lg transition-colors"
+        title="Renovar Período / Chaves"
+      >
+        <Clock className="w-4 h-4" />
+      </Button>
+
+      <Modal 
+        hideCancel={true}
+        isOpen={open}
+        onClose={() => setOpen(false)}
+        maxWidth="sm"
+        title={
+          <div className="flex items-center gap-2 text-amber-600">
+            <Key className="w-5 h-5" />
+            <span>Renovar Período ou Chaves</span>
+          </div>
+        }
+        description={`Gerencie o período de expiração e chaves de acesso para ${user.name}.`}
+        footer={
+          <>
+            <Button variant="outline" onClick={() => setOpen(false)} className="rounded-xl font-bold uppercase text-sm">Cancelar</Button>
+            <Button onClick={() => {
+              onUpdate(keys, keysExpiresAt);
+              setOpen(false);
+            }} className="rounded-xl bg-amber-600 text-white hover:bg-amber-700 font-bold uppercase text-sm">Salvar Alterações</Button>
+          </>
+        }
+      >
+        <div className="space-y-4 pt-2">
+          <div className="space-y-2">
+            <Label className="text-sm uppercase font-bold text-gray-400">Quantidade de Chaves (Usuários)</Label>
+            <Input 
+              type="number" 
+              value={keys} 
+              onChange={e => setKeys(parseInt(e.target.value) || 0)} 
+              className="h-12 rounded-xl" 
+            />
+          </div>
+          <div className="space-y-2">
+            <Label className="text-sm uppercase font-bold text-gray-400">Data de Expiração</Label>
+            <Input 
+              type="date" 
+              value={keysExpiresAt} 
+              onChange={e => setKeysExpiresAt(e.target.value)} 
+              className="h-12 rounded-xl" 
+            />
+          </div>
+        </div>
+      </Modal>
+    </>
+  );
+}
+
 interface AdminViewProps {
   users: User[];
   onUpdateUsers: (users: User[]) => void;
@@ -1314,6 +1383,15 @@ export function AdminView({
                                               )}
                                             </div>
                                             <span className="text-sm text-gray-500">@{u.username}</span>
+                                            {u.lastAccessAt ? (
+                                              <span className="text-[11px] text-gray-400 font-medium block mt-0.5">
+                                                Último acesso: {format(new Date(u.lastAccessAt), 'dd/MM/yyyy HH:mm')}
+                                              </span>
+                                            ) : (
+                                              <span className="text-[11px] text-gray-400 font-medium block mt-0.5">
+                                                Último acesso: Nunca
+                                              </span>
+                                            )}
                                             {u.desiredPlan && (
                                                <Badge variant="outline" className="text-[10px] h-3.5 bg-blue-50 text-blue-600 border-blue-200 mt-1 w-fit">
                                                  Plano: {u.desiredPlan}
@@ -1446,6 +1524,14 @@ export function AdminView({
                                                 }}
                                               />
                                             </div>
+                                            {u.role !== 'master' && (
+                                              <RenewKeysDialog 
+                                                user={u} 
+                                                onUpdate={(keys, keysExpiresAt) => {
+                                                  onUpdateUsers(users.map(user => user.id === u.id ? { ...user, keys, keysExpiresAt } : user));
+                                                }} 
+                                              />
+                                            )}
                                             <EditCredentialsDialog 
                                               user={u} 
                                               onUpdate={async (username, password) => {

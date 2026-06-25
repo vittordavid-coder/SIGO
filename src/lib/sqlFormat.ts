@@ -421,6 +421,7 @@ CREATE TABLE IF NOT EXISTS users (
   desired_modules JSONB DEFAULT '[]',
   has_company BOOLEAN DEFAULT false,
   keys_expires_at TIMESTAMPTZ,
+  last_access_at TIMESTAMPTZ,
   profile_photo TEXT,
   phone TEXT,
   address TEXT,
@@ -1342,6 +1343,7 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS desired_plan TEXT;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS desired_modules JSONB DEFAULT '[]';
 ALTER TABLE users ADD COLUMN IF NOT EXISTS has_company BOOLEAN DEFAULT false;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS keys_expires_at TIMESTAMPTZ;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS last_access_at TIMESTAMPTZ;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS allowed_quotation_ids JSONB DEFAULT '[]';
 ALTER TABLE users ADD COLUMN IF NOT EXISTS allowed_contract_ids JSONB DEFAULT '[]';
 ALTER TABLE users ADD COLUMN IF NOT EXISTS allowed_modules JSONB DEFAULT '[]';

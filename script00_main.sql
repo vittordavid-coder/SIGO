@@ -31,6 +31,7 @@ CREATE TABLE IF NOT EXISTS users (
   desired_modules JSONB DEFAULT '[]',
   has_company BOOLEAN DEFAULT false,
   keys_expires_at TIMESTAMPTZ,
+  last_access_at TIMESTAMPTZ,
   profile_photo TEXT,
   phone TEXT,
   address TEXT,

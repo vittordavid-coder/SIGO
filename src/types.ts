@@ -239,6 +239,7 @@ export interface User {
   phone?: string;
   address?: string;
   emailConfig?: EmailConfig;
+  lastAccessAt?: string;
 }
 
 export interface PasswordResetRequest {
