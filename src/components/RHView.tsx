@@ -46,6 +46,7 @@ import {
   Upload,
   Printer,
   X,
+  RefreshCw,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -1404,7 +1405,7 @@ export default function RHView({
     );
   };
 
-  const handleDownloadTemplate = () => {
+  const handleDownloadTemplate = (withData = false) => {
     try {
       const data = [
         [
@@ -1451,14 +1452,66 @@ export default function RHView({
           "Encargos Percentual",
           "Horas Extras Percentual",
         ],
-        [
+      ];
+
+      if (withData) {
+        const activeEmployees = filteredEmployees.filter(e => e.status !== "dismissed");
+        activeEmployees.forEach(e => {
+          const contract = contracts.find(c => c.id === e.contractId);
+          data.push([
+            contract?.contractNumber || "",
+            e.name || "",
+            e.cpf || "",
+            e.registrationNumber || "",
+            e.role || "",
+            e.paymentType === "hour" ? "Horista" : e.paymentType === "day" ? "Diarista" : "Mensalista",
+            e.salary ? e.salary.toString() : "0",
+            e.admissionDate || "",
+            e.rgNumber || "",
+            e.rgAgency || "",
+            e.rgState || "",
+            e.birthDate || "",
+            e.birthPlace || "",
+            e.birthState || "",
+            e.workBookletNumber || "",
+            e.workBookletSeries || "",
+            e.pis || "",
+            e.phone || "",
+            e.mobile || "",
+            e.email || "",
+            e.status === "dismissed" ? "Demitido" : "Ativo",
+            e.dismissalDate || "",
+            e.voterTitleNumber || "",
+            e.voterTitleZone || "",
+            e.voterTitleSection || "",
+            e.fatherName || "",
+            e.motherName || "",
+            e.spouseName || "",
+            e.address || "",
+            e.addressNumber || "",
+            e.addressComplement || "",
+            e.neighborhood || "",
+            e.city || "",
+            e.zipCode || "",
+            e.state || "",
+            e.needsCommuter ? "Sim" : "Não",
+            e.commuterValue1 ? e.commuterValue1.toString() : "",
+            e.commuterCity1 || "",
+            e.commuterValue2 ? e.commuterValue2.toString() : "",
+            e.commuterCity2 || "",
+            e.chargesPercentage ? e.chargesPercentage.toString() : "",
+            e.overtimePercentage ? e.overtimePercentage.toString() : "",
+          ] as any);
+        });
+      } else {
+        data.push([
           "CTR-123",
           "João da Silva",
           "123.456.789-00",
           "M123",
           "Pedreiro",
           "Mensalista",
-          2500,
+          "2500",
           "2023-01-15",
           "12345678",
           "SSP",
@@ -1494,8 +1547,8 @@ export default function RHView({
           "",
           "84.15",
           "50",
-        ],
-      ];
+        ] as any);
+      }
 
       const ws = XLSX.utils.aoa_to_sheet(data);
       const wb = XLSX.utils.book_new();
@@ -1505,10 +1558,10 @@ export default function RHView({
       const blobData = new Blob([excelBuffer], {
         type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
       });
-      saveAs(blobData, `Modelo_Importacao_Colaboradores.xlsx`);
+      saveAs(blobData, withData ? `Atualizacao_Colaboradores.xlsx` : `Modelo_Importacao_Colaboradores.xlsx`);
     } catch (error) {
       console.error("Failed to generate template:", error);
-      alert("Erro ao gerar modelo de importação.");
+      alert("Erro ao gerar modelo de importação/atualização.");
     }
   };
 
@@ -3234,7 +3287,7 @@ export default function RHView({
                     </DialogDescription>
                   </DialogHeader>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 py-4 shrink-0">
+                  <div className="grid grid-cols-1 sm:grid-cols-5 gap-4 py-4 shrink-0">
                     {/* Opção 1: Relatório PDF */}
                     <button
                       onClick={() => {
@@ -3268,7 +3321,7 @@ export default function RHView({
                     {/* Opção 3: Baixar Modelo de Importação */}
                     <button
                       onClick={() => {
-                        handleDownloadTemplate();
+                        handleDownloadTemplate(false);
                       }}
                       className="flex flex-col items-center justify-center border-2 border-slate-100 hover:border-blue-600 hover:bg-blue-50/20 p-5 rounded-2xl transition group text-center cursor-pointer"
                     >
@@ -3279,7 +3332,22 @@ export default function RHView({
                       <span className="text-slate-400 text-[10px] mt-1 leading-tight">Baixa a planilha base para preencher os dados</span>
                     </button>
 
-                    {/* Opção 4: Importar Dados */}
+                    {/* Opção 4: Atualização em Lote */}
+                    <button
+                      onClick={() => {
+                        handleDownloadTemplate(true);
+                        setIsExportSelectorOpen(false);
+                      }}
+                      className="flex flex-col items-center justify-center border-2 border-slate-100 hover:border-purple-600 hover:bg-purple-50/20 p-5 rounded-2xl transition group text-center cursor-pointer"
+                    >
+                      <div className="w-12 h-12 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center border border-purple-100 group-hover:scale-110 transition-transform mb-3">
+                        <RefreshCw className="w-6 h-6" />
+                      </div>
+                      <span className="font-extrabold text-slate-800 text-sm">Atualizar em Lote</span>
+                      <span className="text-slate-400 text-[10px] mt-1 leading-tight">Baixa a planilha com os funcionários atuais para atualizar</span>
+                    </button>
+
+                    {/* Opção 5: Importar Dados */}
                     <div className="relative flex flex-col items-center justify-center border-2 border-slate-100 hover:border-orange-500 hover:bg-orange-50/20 p-5 rounded-2xl transition group text-center cursor-pointer overflow-hidden">
                       <input
                         type="file"
@@ -4038,7 +4106,7 @@ export default function RHView({
                   </DialogDescription>
                 </DialogHeader>
 
-                <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 py-4 shrink-0">
+                <div className="grid grid-cols-1 sm:grid-cols-5 gap-4 py-4 shrink-0">
                   {/* Opção 1: Relatório PDF */}
                   <button
                     onClick={() => {
@@ -4100,7 +4168,61 @@ export default function RHView({
                     <span className="text-slate-400 text-[10px] mt-1 leading-tight">Planilha padrão para importações de lote</span>
                   </button>
 
-                  {/* Opção 4: Importar Dados */}
+                  {/* Opção 4: Atualização em Lote */}
+                  <button
+                    onClick={async () => {
+                      try {
+                        const ExcelJS = (await import("exceljs")).default;
+                        const workbook = new ExcelJS.Workbook();
+                        const worksheet = workbook.addWorksheet("Atualizacao Fechamento");
+                        
+                        worksheet.addRow([
+                          "#Nome", "#CPF", "#Matricula", "#Dias_Trabalhados", "#Faltas", 
+                          "#Atestados", "#Ferias", "#Afastamentos", 
+                          "#Hora_Extra_50", "#Hora_Extra_100", "#Adicional_Noturno", "#Observacoes"
+                        ]);
+                        
+                        sortedFechamentoEmployees.forEach(emp => {
+                          const val = closingRecordsMap[emp.id] || {
+                            workedDays: 22, absences: 0, medicalCertificates: 0, 
+                            vacationDays: 0, leaveDays: 0, overtime50: 0, overtime100: 0, 
+                            nightShift: 0, notes: ""
+                          };
+                          worksheet.addRow([
+                            emp.name || "", 
+                            emp.cpf || "", 
+                            emp.registrationNumber || "", 
+                            val.workedDays, 
+                            val.absences, 
+                            val.medicalCertificates, 
+                            val.vacationDays, 
+                            val.leaveDays, 
+                            val.overtime50, 
+                            val.overtime100, 
+                            val.nightShift, 
+                            val.notes || ""
+                          ]);
+                        });
+
+                        const buffer = await workbook.xlsx.writeBuffer();
+                        const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+                        saveAs(blob, `Atualizacao_Fechamento_${selectedMonth}.xlsx`);
+                        setIsFechamentoExportSelectorOpen(false);
+                      } catch (e) {
+                        console.error("Erro ao gerar atualizacao: ", e);
+                        alert("Erro ao gerar a planilha de atualização.");
+                      }
+                    }}
+                    className="flex flex-col items-center justify-center border-2 border-slate-100 hover:border-purple-600 hover:bg-purple-50/20 p-5 rounded-2xl transition group text-center cursor-pointer"
+                  >
+                    <div className="w-12 h-12 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center border border-purple-100 group-hover:scale-110 transition-transform mb-3">
+                      <RefreshCw className="w-6 h-6" />
+                    </div>
+                    <span className="font-extrabold text-slate-800 text-sm">Atualizar em Lote</span>
+                    <span className="text-slate-400 text-[10px] mt-1 leading-tight">Baixa a planilha preenchida para atualizar e reimportar</span>
+                  </button>
+
+                  {/* Opção 5: Importar Dados */}
                   <div className="relative flex flex-col items-center justify-center border-2 border-slate-100 hover:border-orange-500 hover:bg-orange-50/20 p-5 rounded-2xl transition group text-center cursor-pointer overflow-hidden">
                     <input
                       type="file"
