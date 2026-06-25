@@ -771,14 +771,10 @@ export default function App() {
             if (tableName === 'fuel_reservoirs' || tableName === 'fuel_logs') {
               finalVal = camelData;
             } else {
-              // Union both sources: keep all from DB, and add those from Blob that are missing in DB
-              const dbIds = new Set(camelData.map(item => item.id));
-              const extraBlobItems = parsedBlobData.filter((b: any) => b?.id && !dbIds.has(b.id));
-              
-              const combined = [...camelData, ...extraBlobItems];
-              
-              // Merge matching items to preserve fields from both, avoiding overwriting with null/empty from DB
-              finalVal = combined.map(item => {
+              // The database table is the absolute source of truth for which items exist.
+              // We do NOT add extraBlobItems here because they have been deleted from the database table.
+              // We only keep/merge items that currently exist in the database table (camelData).
+              finalVal = camelData.map(item => {
                 const blobItem = parsedBlobData.find((b: any) => b?.id === item.id);
                 if (!blobItem) return item;
                 
@@ -796,11 +792,8 @@ export default function App() {
             
             finalVal = deduplicateById(finalVal);
           } else if (!hasError && allData.length === 0) {
-            if (tableName === 'fuel_reservoirs' || tableName === 'fuel_logs') {
-              finalVal = [];
-            } else {
-              finalVal = deduplicateById(parsedBlobData);
-            }
+            // If we queried the individual table successfully and it is empty, the final state must be empty.
+            finalVal = [];
           } else {
             // Table error (e.g. doesn't exist), fallback to blob
             finalVal = deduplicateById(parsedBlobData);
