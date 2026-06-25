@@ -1414,6 +1414,7 @@ export default function RHView({
           "#CPF",
           "#Matrícula",
           "#Função",
+          "#Equipe",
           "#Tipo de Pagamento",
           "#Salário Bruto",
           "#Data de Admissão",
@@ -1464,6 +1465,7 @@ export default function RHView({
             e.cpf || "",
             e.registrationNumber || "",
             e.role || "",
+            getEmployeeTeamName(e) || "",
             e.paymentType === "hour" ? "Horista" : e.paymentType === "day" ? "Diarista" : "Mensalista",
             e.salary || 0,
             e.admissionDate || "",
@@ -1510,6 +1512,7 @@ export default function RHView({
           "123.456.789-00",
           "M123",
           "Pedreiro",
+          "Equipe A",
           "Mensalista",
           2500,
           "2023-01-15",
@@ -1967,6 +1970,8 @@ export default function RHView({
           )
         ) {
           const newEmployeesList = [...employees];
+          let newCount = 0;
+          let updatedCount = 0;
           
           importedEmployees.forEach((impEmp) => {
             const hasRegNum = !!impEmp.registrationNumber;
@@ -1985,13 +1990,17 @@ export default function RHView({
             }
             
             if (existingIdx >= 0) {
+              const existingId = newEmployeesList[existingIdx].id;
               newEmployeesList[existingIdx] = { 
                 ...newEmployeesList[existingIdx], 
                 ...impEmp, 
-                id: newEmployeesList[existingIdx].id // preserve original ID
+                id: existingId // preserve original ID
               };
+              impEmp.id = existingId; // preserve the ID inside importedEmployees so Supabase upsert matches!
+              updatedCount++;
             } else {
               newEmployeesList.push(impEmp);
+              newCount++;
             }
           });
 
@@ -2066,15 +2075,21 @@ export default function RHView({
 
           if (supabaseSuccess) {
             alert(
-              `🚀 ${importedEmployees.length} colaboradores importados e sincronizados com sucesso!`,
+              `🚀 Atualização no Supabase concluída com sucesso!\n\n` +
+              `• Novos colaboradores adicionados: ${newCount}\n` +
+              `• Colaboradores atualizados: ${updatedCount}`
             );
           } else if (config.enabled) {
             alert(
-              `⚠️ ${importedEmployees.length} colaboradores importados LOCALMENTE, mas houve erro na sincronização com a nuvem.`,
+              `⚠️ Importação local concluída, mas houve erro na sincronização com o Supabase.\n\n` +
+              `• Novos colaboradores: ${newCount}\n` +
+              `• Colaboradores atualizados: ${updatedCount}`
             );
           } else {
             alert(
-              `✅ ${importedEmployees.length} colaboradores importados no modo offline com sucesso!`,
+              `✅ Importação concluída localmente (Supabase desativado).\n\n` +
+              `• Novos colaboradores: ${newCount}\n` +
+              `• Colaboradores atualizados: ${updatedCount}`
             );
           }
         }
@@ -3325,33 +3340,19 @@ export default function RHView({
                       <span className="text-slate-400 text-[10px] mt-1 leading-tight">Exporta a base completa para conferência</span>
                     </button>
 
-                    {/* Opção 3: Baixar Modelo de Importação */}
+                    {/* Opção 3: Modelo / Atualização em Lote */}
                     <button
                       onClick={() => {
-                        handleDownloadTemplate(false);
+                        handleDownloadTemplate(true);
+                        setIsExportSelectorOpen(false);
                       }}
                       className="flex flex-col items-center justify-center border-2 border-slate-100 hover:border-blue-600 hover:bg-blue-50/20 p-5 rounded-2xl transition group text-center cursor-pointer"
                     >
                       <div className="w-12 h-12 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center border border-blue-100 group-hover:scale-110 transition-transform mb-3">
                         <Download className="w-6 h-6" />
                       </div>
-                      <span className="font-extrabold text-slate-800 text-sm">Baixar Modelo</span>
-                      <span className="text-slate-400 text-[10px] mt-1 leading-tight">Baixa a planilha base para preencher os dados</span>
-                    </button>
-
-                    {/* Opção 4: Atualização em Lote */}
-                    <button
-                      onClick={() => {
-                        handleDownloadTemplate(true);
-                        setIsExportSelectorOpen(false);
-                      }}
-                      className="flex flex-col items-center justify-center border-2 border-slate-100 hover:border-purple-600 hover:bg-purple-50/20 p-5 rounded-2xl transition group text-center cursor-pointer"
-                    >
-                      <div className="w-12 h-12 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center border border-purple-100 group-hover:scale-110 transition-transform mb-3">
-                        <RefreshCw className="w-6 h-6" />
-                      </div>
-                      <span className="font-extrabold text-slate-800 text-sm">Atualizar em Lote</span>
-                      <span className="text-slate-400 text-[10px] mt-1 leading-tight">Baixa a planilha com os funcionários atuais para atualizar</span>
+                      <span className="font-extrabold text-slate-800 text-sm">Modelo / Atualização em Lote</span>
+                      <span className="text-slate-400 text-[10px] mt-1 leading-tight">Baixa a planilha com os colaboradores para edição ou novas inserções</span>
                     </button>
 
                     {/* Opção 5: Importar Dados */}
