@@ -891,7 +891,7 @@ export function MeasurementsView({
         return {
           id: team.id,
           name: team.name,
-          supervisor: supervisor?.name || "N/A",
+          supervisor: supervisor?.name || "Sem Encarregado",
           manCount: activeManAssignments.length,
           manValue: manCost,
           manDailyValue: manDailyCost,
@@ -1736,8 +1736,7 @@ export function MeasurementsView({
                                 <HardHat className="w-3 h-3 text-gray-400" />
                                 <p className="text-sm text-gray-500 uppercase tracking-widest font-black">
                                   {supervisor?.name ||
-                                    team.supervisorId ||
-                                    "Não definido"}
+                                    "Sem Encarregado"}
                                 </p>
                               </div>
                             </div>

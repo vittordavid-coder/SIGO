@@ -199,6 +199,7 @@ interface RHViewProps {
   controllerTeams?: ControllerTeam[];
   teamAssignments?: TeamAssignment[];
   onUpdateAssignments?: (assignments: TeamAssignment[]) => void;
+  onUpdateTeams?: (teams: ControllerTeam[]) => void;
 }
 
 export default function RHView({
@@ -216,6 +217,7 @@ export default function RHView({
   controllerTeams = [],
   teamAssignments = [],
   onUpdateAssignments,
+  onUpdateTeams,
 }: RHViewProps) {
   const [activeTab, setActiveTab] = useState(initialTab || "employees");
   const [rhParams, setRhParams] = useState(() => {
@@ -2734,6 +2736,22 @@ export default function RHView({
           : emp,
       );
       onUpdateEmployees(updated);
+
+      // Remove the employee from active team assignments
+      if (teamAssignments && onUpdateAssignments) {
+        onUpdateAssignments(
+          teamAssignments.filter((a) => a.memberId !== e.id)
+        );
+      }
+
+      // Unset the supervisor status if they were the supervisor of any team
+      if (controllerTeams && onUpdateTeams) {
+        onUpdateTeams(
+          controllerTeams.map((t) =>
+            t.supervisorId === e.id ? { ...t, supervisorId: "" } : t
+          )
+        );
+      }
     }
   };
 
@@ -3839,6 +3857,16 @@ export default function RHView({
                                         teamAssignments.filter(
                                           (a) => a.memberId !== e.id,
                                         ),
+                                      );
+                                    }
+                                    if (
+                                      controllerTeams &&
+                                      onUpdateTeams
+                                    ) {
+                                      onUpdateTeams(
+                                        controllerTeams.map((t) =>
+                                          t.supervisorId === e.id ? { ...t, supervisorId: "" } : t
+                                        )
                                       );
                                     }
                                   }

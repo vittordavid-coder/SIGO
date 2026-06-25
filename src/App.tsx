@@ -4453,6 +4453,7 @@ export default function App() {
                   controllerTeams={finalControllerTeams}
                   teamAssignments={teamAssignments}
                   onUpdateAssignments={updateTeamAssignments}
+                  onUpdateTeams={setControllerTeams}
                 />
               )}
 

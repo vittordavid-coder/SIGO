@@ -1317,7 +1317,7 @@ export function exportTeamsReportPDF(options: {
 
     return {
       team: t,
-      supervisorName: supervisor?.name || 'N/A',
+      supervisorName: supervisor?.name || 'Sem Encarregado',
       manCount: activeManAssignments.length,
       manCost: teamManCost,
       equipCount: activeEquipAssignments.length,
