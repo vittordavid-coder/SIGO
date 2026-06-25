@@ -2991,6 +2991,7 @@ export default function App() {
               m.contract_id = null;
             }
             if (m.alojamento_id === "") m.alojamento_id = null;
+            if (m.registration_number === "") m.registration_number = null;
 
             if (m.admission_date === "") m.admission_date = null;
             if (m.dismissal_date === "") m.dismissal_date = null;

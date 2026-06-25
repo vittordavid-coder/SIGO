@@ -1901,10 +1901,41 @@ export default function RHView({
 
         if (
           window.confirm(
-            `✅ ${importedEmployees.length} colaboradores encontrados. Deseja importá-los para o contrato atual?`,
+            `✅ ${importedEmployees.length} colaboradores encontrados. Deseja importá-los para o contrato atual? (Colaboradores com a mesma matrícula ou CPF serão atualizados)`,
           )
         ) {
-          onUpdateEmployees([...employees, ...importedEmployees]);
+          const newEmployeesList = [...employees];
+          
+          importedEmployees.forEach((impEmp) => {
+            const hasRegNum = !!impEmp.registrationNumber;
+            const hasCpf = !!impEmp.cpf;
+            
+            let existingIdx = -1;
+            
+            if (hasRegNum) {
+              existingIdx = newEmployeesList.findIndex(
+                (e) => e.registrationNumber?.trim().toLowerCase() === impEmp.registrationNumber!.trim().toLowerCase()
+              );
+            }
+            
+            if (existingIdx === -1 && hasCpf) {
+              existingIdx = newEmployeesList.findIndex(
+                (e) => e.cpf?.replace(/[^0-9]/g, "") === impEmp.cpf!.replace(/[^0-9]/g, "")
+              );
+            }
+            
+            if (existingIdx >= 0) {
+              newEmployeesList[existingIdx] = { 
+                ...newEmployeesList[existingIdx], 
+                ...impEmp, 
+                id: newEmployeesList[existingIdx].id // preserve original ID
+              };
+            } else {
+              newEmployeesList.push(impEmp);
+            }
+          });
+
+          onUpdateEmployees(newEmployeesList);
 
           if (teamAssignments && onUpdateAssignments) {
             let updatedAssignments = [...teamAssignments];
