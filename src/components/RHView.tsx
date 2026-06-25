@@ -1465,7 +1465,7 @@ export default function RHView({
             e.registrationNumber || "",
             e.role || "",
             e.paymentType === "hour" ? "Horista" : e.paymentType === "day" ? "Diarista" : "Mensalista",
-            e.salary ? e.salary.toString() : "0",
+            e.salary || 0,
             e.admissionDate || "",
             e.rgNumber || "",
             e.rgAgency || "",
@@ -1481,26 +1481,26 @@ export default function RHView({
             e.email || "",
             e.status === "dismissed" ? "Demitido" : "Ativo",
             e.dismissalDate || "",
-            e.voterTitleNumber || "",
-            e.voterTitleZone || "",
-            e.voterTitleSection || "",
+            e.voterIdNumber || "",
+            e.voterZone || "",
+            e.voterSection || "",
             e.fatherName || "",
             e.motherName || "",
             e.spouseName || "",
-            e.address || "",
+            e.addressLogradouro || "",
             e.addressNumber || "",
             e.addressComplement || "",
-            e.neighborhood || "",
-            e.city || "",
-            e.zipCode || "",
-            e.state || "",
-            e.needsCommuter ? "Sim" : "Não",
-            e.commuterValue1 ? e.commuterValue1.toString() : "",
+            e.addressNeighborhood || "",
+            e.addressCity || "",
+            e.addressZipCode || "",
+            e.addressState || "",
+            e.commuterBenefits ? "Sim" : "Não",
+            e.commuterValue1 || 0,
             e.commuterCity1 || "",
-            e.commuterValue2 ? e.commuterValue2.toString() : "",
+            e.commuterValue2 || 0,
             e.commuterCity2 || "",
-            e.chargesPercentage ? e.chargesPercentage.toString() : "",
-            e.overtimePercentage ? e.overtimePercentage.toString() : "",
+            e.chargesPercentage || 0,
+            e.overtimePercentage || 0,
           ] as any);
         });
       } else {
@@ -1511,7 +1511,7 @@ export default function RHView({
           "M123",
           "Pedreiro",
           "Mensalista",
-          "2500",
+          2500,
           "2023-01-15",
           "12345678",
           "SSP",
@@ -1545,8 +1545,8 @@ export default function RHView({
           "",
           0,
           "",
-          "84.15",
-          "50",
+          84.15,
+          50,
         ] as any);
       }
 
@@ -1641,6 +1641,46 @@ export default function RHView({
                 : val;
             };
 
+            const parseNumericValue = (val: any): number => {
+              if (val === null || val === undefined || val === "") return 0;
+              if (typeof val === "number") return val;
+              const s = String(val).trim();
+              if (s === "") return 0;
+              
+              const lastDot = s.lastIndexOf(".");
+              const lastComma = s.lastIndexOf(",");
+              let cleanStr = s;
+              
+              if (lastComma !== -1 && lastDot !== -1) {
+                // Both exist
+                if (lastComma > lastDot) {
+                  // e.g. 1.234,56
+                  cleanStr = s.replace(/\./g, "").replace(",", ".");
+                } else {
+                  // e.g. 1,234.56
+                  cleanStr = s.replace(/,/g, "");
+                }
+              } else if (lastComma !== -1) {
+                // Only commas
+                if (s.split(",").length > 2) {
+                  cleanStr = s.replace(/,/g, "");
+                } else {
+                  cleanStr = s.replace(",", ".");
+                }
+              } else if (lastDot !== -1) {
+                // Only dots
+                if (s.split(".").length > 2) {
+                  cleanStr = s.replace(/\./g, "");
+                } else {
+                  cleanStr = s;
+                }
+              }
+              
+              cleanStr = cleanStr.replace(/[^0-9.-]+/g, "");
+              const num = parseFloat(cleanStr);
+              return isNaN(num) ? 0 : num;
+            };
+
             const rawName = getVal([
               "nome",
               "nome completo",
@@ -1701,18 +1741,7 @@ export default function RHView({
               "remuneracao",
               "remuneração",
             ]);
-            let salary = 0;
-            if (salaryVal !== null) {
-              salary =
-                typeof salaryVal === "number"
-                  ? salaryVal
-                  : parseFloat(
-                      String(salaryVal)
-                        .replace(/[^0-9,-]+/g, "")
-                        .replace(",", "."),
-                    );
-            }
-            if (isNaN(salary)) salary = 0;
+            let salary = parseNumericValue(salaryVal);
 
             const admissionDateRaw = getVal([
               "data de admissão",
@@ -1880,46 +1909,26 @@ export default function RHView({
               )
                 .toLowerCase()
                 .includes("sim"),
-              commuterValue1:
-                parseFloat(
-                  String(getVal(["vt - valor 1"]) || "0")
-                    .replace(/[^0-9,-]+/g, "")
-                    .replace(",", "."),
-                ) || 0,
+              commuterValue1: parseNumericValue(getVal(["vt - valor 1"])),
               commuterCity1: String(getVal(["vt - cidade 1"]) || ""),
-              commuterValue2:
-                parseFloat(
-                  String(getVal(["vt - valor 2"]) || "0")
-                    .replace(/[^0-9,-]+/g, "")
-                    .replace(",", "."),
-                ) || 0,
+              commuterValue2: parseNumericValue(getVal(["vt - valor 2"])),
               commuterCity2: String(getVal(["vt - cidade 2"]) || ""),
-              chargesPercentage:
-                parseFloat(
-                  String(
-                    getVal([
-                      "encargos percentual",
-                      "encargos_percentual",
-                      "charges_percentage",
-                      "encargos",
-                    ]) || "0",
-                  )
-                    .replace(/[^0-9,-]+/g, "")
-                    .replace(",", "."),
-                ) || 0,
-              overtimePercentage:
-                parseFloat(
-                  String(
-                    getVal([
-                      "horas extras percentual",
-                      "he_percentual",
-                      "overtime_percentage",
-                      "he",
-                    ]) || "0",
-                  )
-                    .replace(/[^0-9,-]+/g, "")
-                    .replace(",", "."),
-                ) || 0,
+              chargesPercentage: parseNumericValue(
+                getVal([
+                  "encargos percentual",
+                  "encargos_percentual",
+                  "charges_percentage",
+                  "encargos",
+                ])
+              ),
+              overtimePercentage: parseNumericValue(
+                getVal([
+                  "horas extras percentual",
+                  "he_percentual",
+                  "overtime_percentage",
+                  "he",
+                ])
+              ),
               team:
                 String(
                   getVal([
@@ -1969,9 +1978,7 @@ export default function RHView({
               existingIdx = newEmployeesList.findIndex(
                 (e) => e.registrationNumber?.trim().toLowerCase() === impEmp.registrationNumber!.trim().toLowerCase()
               );
-            }
-            
-            if (existingIdx === -1 && hasCpf) {
+            } else if (hasCpf) {
               existingIdx = newEmployeesList.findIndex(
                 (e) => e.cpf?.replace(/[^0-9]/g, "") === impEmp.cpf!.replace(/[^0-9]/g, "")
               );

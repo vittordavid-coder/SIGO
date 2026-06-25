@@ -2982,7 +2982,7 @@ export default function App() {
           const validContractIds = new Set(validContracts?.map(c => c.id) || []);
 
           const snakeData = nextEmployees.map(emp => {
-            const { team, chargesPercentage, overtimePercentage, ...restEmp } = emp;
+            const { team, chargesPercentage, overtimePercentage, charges_percentage, overtime_percentage, ...restEmp } = emp as any;
             const m = { ...mapToSnake(restEmp), company_id: emp.companyId || compId };
             
             // Fix foreign key issues
