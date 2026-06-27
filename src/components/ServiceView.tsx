@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { motion } from 'motion/react';
-import { Plus, Edit, Trash2, FileSpreadsheet, Briefcase, Download } from 'lucide-react';
+import { Plus, Edit, Trash2, FileSpreadsheet, Briefcase, Download, Upload, HelpCircle, ChevronDown, Tag, RefreshCw, AlertCircle, FileText } from 'lucide-react';
+import { saveAs } from 'file-saver';
 import { ServiceComposition, Resource, CompositionItem } from '../types';
 import { formatCurrency, formatNumber } from '../lib/utils';
 import { calculateServiceUnitCost } from '../lib/calculations';
@@ -14,6 +15,8 @@ import { NumericInput } from '@/components/ui/numeric-input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuLabel } from "@/components/ui/dropdown-menu";
+import jsPDF from 'jspdf';
 
 interface ServiceViewProps {
   key?: string;
@@ -36,6 +39,8 @@ export function ServiceView({ services, resources, onAdd, onDelete, onUpdate, co
   const [searchTerm, setSearchTerm] = useState('');
   const [isDropdownOpenAdd, setIsDropdownOpenAdd] = useState(false);
   const [isDropdownOpenEdit, setIsDropdownOpenEdit] = useState(false);
+  const [isExportImportModalOpen, setIsExportImportModalOpen] = useState(false);
+  const [isImporting, setIsImporting] = useState(false);
   const [newService, setNewService] = useState<Omit<ServiceComposition, 'id'>>({
     code: '',
     name: '',
@@ -48,7 +53,13 @@ export function ServiceView({ services, resources, onAdd, onDelete, onUpdate, co
   const [currentItem, setCurrentItem] = useState<CompositionItem>({ resourceId: '', consumption: 0 });
 
   const addItem = (isEdit: boolean = false) => {
-    if (currentItem.resourceId && currentItem.consumption > 0) {
+    const isEquip = resources.find(r => r.id === currentItem.resourceId)?.type === 'equipment';
+    const isValid = currentItem.resourceId && (
+      (isEquip && ((currentItem.productiveConsumption || 0) > 0 || (currentItem.unproductiveConsumption || 0) > 0)) ||
+      (!isEquip && currentItem.consumption > 0)
+    );
+
+    if (isValid) {
       if (isEdit && editingService) {
         const newItems = [...editingService.items];
         if (editingItemIndex !== null) {
@@ -66,7 +77,8 @@ export function ServiceView({ services, resources, onAdd, onDelete, onUpdate, co
         }
         setNewService({ ...newService, items: newItems });
       }
-      setCurrentItem({ resourceId: '', consumption: 0 });
+      setCurrentItem({ resourceId: '', consumption: 0, productiveConsumption: 0, unproductiveConsumption: 0 });
+      setResourceSearch('');
       setEditingItemIndex(null);
     }
   };
@@ -116,6 +128,335 @@ export function ServiceView({ services, resources, onAdd, onDelete, onUpdate, co
     setIsEditOpen(true);
   };
 
+  const handleDownloadTemplate = async () => {
+    try {
+      const ExcelJS = (await import("exceljs")).default;
+      const workbook = new ExcelJS.Workbook();
+      const worksheet = workbook.addWorksheet("Modelo Composições");
+      
+      // Cabeçalho
+      worksheet.addRow([
+        "#Código_Serviço",
+        "#Nome_Serviço",
+        "#Unidade_Serviço",
+        "#Produção_Serviço",
+        "#Fator_Ajuste",
+        "#Código_Insumo",
+        "#Consumo",
+        "#Consumo_Produtivo",
+        "#Consumo_Improdutivo"
+      ]);
+      
+      // Exemplos para guiar o usuário
+      worksheet.addRow([
+        "SER-001",
+        "Concreto Usinado fck=30MPa lançado",
+        "m³",
+        1,
+        0,
+        "MAT-001",
+        1.05,
+        0,
+        0
+      ]);
+      worksheet.addRow([
+        "SER-001",
+        "Concreto Usinado fck=30MPa lançado",
+        "m³",
+        1,
+        0,
+        "EQP-001",
+        0,
+        0.5,
+        0.5
+      ]);
+      
+      const buffer = await workbook.xlsx.writeBuffer();
+      const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+      saveAs(blob, "Modelo_Importacao_Composicoes.xlsx");
+    } catch (e) {
+      console.error("Erro ao gerar modelo: ", e);
+      alert("Erro ao gerar o modelo de importação de composições.");
+    }
+  };
+
+  const handleExportBatch = async () => {
+    try {
+      const ExcelJS = (await import("exceljs")).default;
+      const workbook = new ExcelJS.Workbook();
+      const worksheet = workbook.addWorksheet("Atualização de Composições");
+      
+      // Cabeçalho
+      worksheet.addRow([
+        "#Código_Serviço",
+        "#Nome_Serviço",
+        "#Unidade_Serviço",
+        "#Produção_Serviço",
+        "#Fator_Ajuste",
+        "#Código_Insumo",
+        "#Consumo",
+        "#Consumo_Produtivo",
+        "#Consumo_Improdutivo"
+      ]);
+      
+      services.forEach(s => {
+        if (s.items && s.items.length > 0) {
+          s.items.forEach(item => {
+            const res = resources.find(r => r.id === item.resourceId) || services.find(serv => serv.id === item.resourceId);
+            const isEquip = res && 'type' in res && res.type === 'equipment';
+            worksheet.addRow([
+              s.code || "",
+              s.name || "",
+              s.unit || "",
+              s.production ?? 1,
+              s.fit ?? 0,
+              res?.code || "",
+              isEquip ? 0 : (item.consumption ?? 0),
+              item.productiveConsumption ?? 0,
+              item.unproductiveConsumption ?? 0
+            ]);
+          });
+        } else {
+          worksheet.addRow([
+            s.code || "",
+            s.name || "",
+            s.unit || "",
+            s.production ?? 1,
+            s.fit ?? 0,
+            "",
+            0,
+            0,
+            0
+          ]);
+        }
+      });
+      
+      const buffer = await workbook.xlsx.writeBuffer();
+      const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+      saveAs(blob, "Atualizacao_Lote_Composicoes.xlsx");
+    } catch (e) {
+      console.error("Erro ao exportar atualização em lote: ", e);
+      alert("Erro ao exportar a planilha de atualização.");
+    }
+  };
+
+  const handleImportExcel = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setIsImporting(true);
+    const reader = new FileReader();
+
+    reader.onerror = () => {
+      setIsImporting(false);
+      alert("❌ Erro ao ler o arquivo físico.");
+    };
+
+    reader.onload = async (evt) => {
+      try {
+        const buildData = evt.target?.result;
+        if (!buildData) throw new Error("Falha ao ler o arquivo.");
+
+        const XLSX = await import("xlsx");
+        const wb = XLSX.read(buildData, { type: "array" });
+        const wsname = wb.SheetNames[0];
+        const ws = wb.Sheets[wsname];
+
+        const jsonData: any[][] = XLSX.utils.sheet_to_json(ws, { header: 1, defval: null });
+        if (!jsonData || jsonData.length < 2) {
+          alert("❌ Arquivo vazio ou formato incompatível. É necessário ao menos 1 linha de cabeçalho e 1 de dados.");
+          setIsImporting(false);
+          return;
+        }
+
+        const headers = jsonData[0].map(h => (h ? String(h).toLowerCase().trim() : ""));
+        const findColIndex = (possibleTags: string[]) => {
+          return headers.findIndex(h => possibleTags.some(tag => h.includes(tag)));
+        };
+
+        const colServiceCode = findColIndex(["#código_serviço", "#codigo_servico", "codigo do servico", "codigo servico", "código serviço", "servico_codigo", "código_serviço", "codigo_serviço"]);
+        const colServiceName = findColIndex(["#nome_serviço", "#nome_servico", "nome do servico", "nome servico", "nome serviço", "servico_nome", "nome_serviço", "nome_serviço"]);
+        const colServiceUnit = findColIndex(["#unidade_serviço", "#unidade_servico", "unidade", "unidade servico", "unidade serviço", "servico_unidade", "unid", "unidade_serviço", "unidade_serviço"]);
+        const colServiceProd = findColIndex(["#produção_serviço", "#producao_servico", "producao", "produção", "produção_serviço", "producao_servico"]);
+        const colServiceFit = findColIndex(["#fator_ajuste", "#fator_ajuste", "fit", "fator ajuste", "fator_ajuste", "fator_ajuste"]);
+        const colResourceCode = findColIndex(["#código_insumo", "#codigo_insumo", "codigo insumo", "código insumo", "insumo_codigo", "codigo_insumo", "código_insumo"]);
+        const colConsumption = findColIndex(["#consumo", "consumo"]);
+        const colProdConsumption = findColIndex(["#consumo_produtivo", "produtivo", "consumo produtivo", "consumo_produtivo"]);
+        const colUnprodConsumption = findColIndex(["#consumo_improdutivo", "improdutivo", "consumo improdutivo", "consumo_improdutivo"]);
+
+        if (colServiceCode === -1 || colServiceName === -1) {
+          alert("❌ Cabeçalho inválido. A planilha deve conter no mínimo as colunas '#Código_Serviço' e '#Nome_Serviço'.");
+          setIsImporting(false);
+          return;
+        }
+
+        const importedCompositions: { [code: string]: Omit<ServiceComposition, 'id'> & { items: CompositionItem[] } } = {};
+
+        for (let i = 1; i < jsonData.length; i++) {
+          const row = jsonData[i];
+          if (!row || row.length === 0) continue;
+
+          const sCode = String(row[colServiceCode] || "").trim();
+          if (!sCode) continue;
+
+          const sName = colServiceName !== -1 ? String(row[colServiceName] || "").trim() : "";
+          const sUnit = colServiceUnit !== -1 ? String(row[colServiceUnit] || "").trim() : "m³";
+          
+          const parseFloatSafe = (val: any, fallback: number) => {
+            if (val === null || val === undefined || val === "") return fallback;
+            const parsed = parseFloat(String(val).replace(",", "."));
+            return isNaN(parsed) ? fallback : parsed;
+          };
+
+          const sProd = colServiceProd !== -1 ? parseFloatSafe(row[colServiceProd], 1) : 1;
+          const sFit = colServiceFit !== -1 ? parseFloatSafe(row[colServiceFit], 0) : 0;
+
+          if (!importedCompositions[sCode]) {
+            importedCompositions[sCode] = {
+              code: sCode,
+              name: sName || sCode,
+              unit: sUnit || "m³",
+              production: sProd,
+              fit: sFit,
+              items: []
+            };
+          }
+
+          const rCode = colResourceCode !== -1 ? String(row[colResourceCode] || "").trim() : "";
+          if (rCode) {
+            const res = resources.find(r => r.code.trim().toLowerCase() === rCode.toLowerCase()) || 
+                        services.find(serv => serv.code.trim().toLowerCase() === rCode.toLowerCase());
+            
+            if (res) {
+              const consumption = colConsumption !== -1 ? parseFloatSafe(row[colConsumption], 0) : 0;
+              const productive = colProdConsumption !== -1 ? parseFloatSafe(row[colProdConsumption], 0) : 0;
+              const unproductive = colUnprodConsumption !== -1 ? parseFloatSafe(row[colUnprodConsumption], 0) : 0;
+              
+              const isEquip = 'type' in res && res.type === 'equipment';
+
+              importedCompositions[sCode].items.push({
+                resourceId: res.id,
+                consumption: isEquip ? 0 : consumption,
+                usageType: isEquip ? 'productive' : undefined,
+                productiveConsumption: isEquip ? productive : undefined,
+                unproductiveConsumption: isEquip ? unproductive : undefined
+              });
+            }
+          }
+        }
+
+        const codes = Object.keys(importedCompositions);
+        if (codes.length === 0) {
+          alert("❌ Nenhum serviço válido encontrado para importação.");
+          setIsImporting(false);
+          return;
+        }
+
+        let addedCount = 0;
+        let updatedCount = 0;
+
+        codes.forEach(code => {
+          const imported = importedCompositions[code];
+          const existing = services.find(s => s.code.trim().toLowerCase() === code.toLowerCase());
+
+          if (existing) {
+            onUpdate({
+              ...existing,
+              name: imported.name || existing.name,
+              unit: imported.unit || existing.unit,
+              production: imported.production,
+              fit: imported.fit,
+              items: imported.items
+            });
+            updatedCount++;
+          } else {
+            onAdd(imported);
+            addedCount++;
+          }
+        });
+
+        alert(`✅ Importação concluída!\n\nNovas composições criadas: ${addedCount}\nComposições atualizadas: ${updatedCount}`);
+        setIsExportImportModalOpen(false);
+      } catch (err) {
+        console.error("[Service Import Error]", err);
+        alert("❌ Ocorreu um erro ao processar o arquivo Excel. Verifique as colunas.");
+      } finally {
+        setIsImporting(false);
+        if (event.target) event.target.value = '';
+      }
+    };
+  };
+
+  const handleImport = () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.json';
+    input.onchange = (e: any) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        try {
+          const content = event.target?.result as string;
+          const data = JSON.parse(content);
+          if (Array.isArray(data)) {
+            data.forEach((s: any) => {
+              if (s.name && s.code) {
+                const serviceToImport = {
+                  ...s,
+                  id: crypto.randomUUID()
+                };
+                onAdd(serviceToImport);
+              }
+            });
+            alert('Importação concluída com sucesso!');
+          }
+        } catch (error) {
+          alert('Erro ao importar arquivo. Certifique-se de que é um JSON válido.');
+        }
+      };
+      reader.readAsText(file);
+    };
+    input.click();
+  };
+
+  const generateHelpPDF = () => {
+    const doc = new jsPDF();
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(20);
+    doc.text("Guia de Ajuda - Composições de Serviços", 20, 30);
+    
+    doc.setFontSize(12);
+    doc.setFont("helvetica", "normal");
+    const helpText = [
+      "1. Nova Composição:",
+      "   Para adicionar um novo serviço, clique no botão 'Nova Composição'.",
+      "   Insira o código, nome e unidade do serviço. A seguir, adicione",
+      "   os insumos necessários (materiais, mão de obra, equipamentos)",
+      "   e defina o consumo e o tipo de uso.",
+      "",
+      "2. Exportação:",
+      "   Utilize o botão 'Opções' para exportar as composições:",
+      "   - Exportar Tudo (Detalhado): Gera uma planilha com cada insumo.",
+      "   - Excel (Resumo): Exporta a lista de serviços e seus custos.",
+      "   - PDF: Gera um relatório para impressão dos serviços.",
+      "",
+      "3. Importação:",
+      "   A importação de serviços pode ser feita através de um arquivo .json",
+      "   contendo um array de objetos de composição. Utilize a opção",
+      "   'Importar Serviços (JSON)' nas opções e selecione seu arquivo.",
+      "",
+      "4. Edição e Exclusão:",
+      "   Passe o mouse sobre os itens na lista para ver as opções",
+      "   de edição (lápis) ou exclusão (lixeira).",
+      "",
+      "Para dúvidas técnicas, contate o suporte do sistema."
+    ];
+    
+    doc.text(helpText, 20, 50);
+    doc.save("ajuda_composicoes.pdf");
+  };
+
   return (
     <motion.div 
       initial={{ opacity: 0, x: 10 }}
@@ -137,15 +478,146 @@ export function ServiceView({ services, resources, onAdd, onDelete, onUpdate, co
             />
           </div>
           <div className="flex gap-2">
-            <Button variant="outline" onClick={() => exportAllCompositionsToExcel(services, resources)}>
-              <FileSpreadsheet className="w-4 h-4 mr-2" /> Exportar Tudo (Detalhado)
+            <Button
+              onClick={() => setIsExportImportModalOpen(true)}
+              className="bg-slate-800 hover:bg-slate-900 text-white font-bold h-10 px-5 rounded-xl shadow-sm hover:shadow transition-all flex items-center gap-2 cursor-pointer text-sm"
+              title="Exportar / Importar Composições"
+            >
+              <Download className="w-4 h-4 text-emerald-400" /> Exportar / Importar
             </Button>
-            <Button variant="outline" onClick={() => exportServicesToExcel(services, resources)}>
-              <FileSpreadsheet className="w-4 h-4 mr-2" /> Excel
-            </Button>
-            <Button variant="outline" onClick={() => exportServicesToPDF(services, resources, companyLogo, bdi)}>
-              <Download className="w-4 h-4 mr-2" /> PDF
-            </Button>
+
+            <Dialog
+              open={isExportImportModalOpen}
+              onOpenChange={setIsExportImportModalOpen}
+            >
+              <DialogContent className="sm:max-w-[750px] w-full bg-white border border-slate-200 shadow-2xl rounded-2xl p-6 text-left flex flex-col max-h-[90vh] overflow-y-auto">
+                <DialogHeader className="text-left space-y-2 shrink-0">
+                  <DialogTitle className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                    <Download className="w-5 h-5 text-blue-600" />
+                    Exportar / Importar Composições de Serviços
+                  </DialogTitle>
+                  <DialogDescription className="text-xs text-slate-500">
+                    Selecione o formato para exportação, importe seus dados de arquivo Excel (.xlsx, .xls) ou baixe o modelo padrão para preenchimento.
+                  </DialogDescription>
+                </DialogHeader>
+
+                <div className="grid grid-cols-1 sm:grid-cols-5 gap-4 py-4 shrink-0">
+                  {/* Opção 1: Relatório PDF */}
+                  <button
+                    onClick={() => {
+                      exportServicesToPDF(services, resources, companyLogo, bdi);
+                      setIsExportImportModalOpen(false);
+                    }}
+                    className="flex flex-col items-center justify-center border-2 border-slate-100 hover:border-red-500 hover:bg-red-50/20 p-5 rounded-2xl transition group text-center cursor-pointer bg-white"
+                  >
+                    <div className="w-12 h-12 rounded-xl bg-red-50 text-red-600 flex items-center justify-center border border-red-100 group-hover:scale-110 transition-transform mb-3">
+                      <FileText className="w-6 h-6" />
+                    </div>
+                    <span className="font-extrabold text-slate-800 text-xs">Relatório PDF</span>
+                    <span className="text-slate-400 text-[10px] mt-1 leading-tight">Gera PDF de resumo dos serviços</span>
+                  </button>
+
+                  {/* Opção 2: Planilha Excel */}
+                  <button
+                    onClick={() => {
+                      exportServicesToExcel(services, resources);
+                      setIsExportImportModalOpen(false);
+                    }}
+                    className="flex flex-col items-center justify-center border-2 border-slate-100 hover:border-emerald-600 hover:bg-emerald-50/20 p-5 rounded-2xl transition group text-center cursor-pointer bg-white"
+                  >
+                    <div className="w-12 h-12 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center border border-emerald-100 group-hover:scale-110 transition-transform mb-3">
+                      <FileSpreadsheet className="w-6 h-6" />
+                    </div>
+                    <span className="font-extrabold text-slate-800 text-xs">Resumo Excel</span>
+                    <span className="text-slate-400 text-[10px] mt-1 leading-tight">Exporta a lista de serviços com custos</span>
+                  </button>
+
+                  {/* Opção 3: Baixar Modelo de Importação */}
+                  <button
+                    onClick={handleDownloadTemplate}
+                    className="flex flex-col items-center justify-center border-2 border-slate-100 hover:border-blue-600 hover:bg-blue-50/20 p-5 rounded-2xl transition group text-center cursor-pointer bg-white"
+                  >
+                    <div className="w-12 h-12 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center border border-blue-100 group-hover:scale-110 transition-transform mb-3">
+                      <Download className="w-6 h-6" />
+                    </div>
+                    <span className="font-extrabold text-slate-800 text-xs">Baixar Modelo</span>
+                    <span className="text-slate-400 text-[10px] mt-1 leading-tight">Planilha padrão Excel para importação</span>
+                  </button>
+
+                  {/* Opção 4: Atualização em Lote */}
+                  <button
+                    onClick={handleExportBatch}
+                    className="flex flex-col items-center justify-center border-2 border-slate-100 hover:border-purple-600 hover:bg-purple-50/20 p-5 rounded-2xl transition group text-center cursor-pointer bg-white"
+                  >
+                    <div className="w-12 h-12 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center border border-purple-100 group-hover:scale-110 transition-transform mb-3">
+                      <RefreshCw className="w-6 h-6" />
+                    </div>
+                    <span className="font-extrabold text-slate-800 text-xs">Atualizar em Lote</span>
+                    <span className="text-slate-400 text-[10px] mt-1 leading-tight">Gera planilha preenchida para reimportar</span>
+                  </button>
+
+                  {/* Opção 5: Importar Excel */}
+                  <div className="relative flex flex-col items-center justify-center border-2 border-slate-100 hover:border-orange-500 hover:bg-orange-50/20 p-5 rounded-2xl transition group text-center cursor-pointer overflow-hidden bg-white">
+                    <input
+                      type="file"
+                      accept=".xlsx, .xls"
+                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                      onChange={handleImportExcel}
+                      disabled={isImporting}
+                    />
+                    <div className="w-12 h-12 rounded-xl bg-orange-50 text-orange-600 flex items-center justify-center border border-orange-100 group-hover:scale-110 transition-transform mb-3">
+                      {isImporting ? (
+                         <div className="w-6 h-6 border-2 border-orange-600 border-t-transparent rounded-full animate-spin"></div>
+                      ) : (
+                         <Upload className="w-6 h-6" />
+                      )}
+                    </div>
+                    <span className="font-extrabold text-slate-800 text-xs">
+                      {isImporting ? "Importando..." : "Importar Excel"}
+                    </span>
+                    <span className="text-slate-400 text-[10px] mt-1 leading-tight">Envie sua planilha Excel (.xlsx)</span>
+                  </div>
+                </div>
+
+                <div className="bg-slate-50 p-4 rounded-xl text-xs space-y-2 text-slate-600 border border-slate-100">
+                  <p className="font-bold text-slate-800">Dicas para a Importação de Composições via Excel:</p>
+                  <p>A importação mapeia automaticamente os campos da planilha utilizando cabeçalhos sinalizados com o caractere (#) ou identificados por aproximação:</p>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2">
+                    <div className="space-y-1">
+                      <p className="font-bold text-slate-700 text-[11px]">Campos do Serviço:</p>
+                      <div className="grid grid-cols-1 gap-1 font-mono text-[10px] text-blue-700 bg-white p-2 rounded-lg border border-slate-200">
+                        <div><span className="font-bold text-slate-600">#Código_Serviço</span> - Código único do serviço (Ex: SER-001)</div>
+                        <div><span className="font-bold text-slate-600">#Nome_Serviço</span> - Descrição legível do serviço</div>
+                        <div><span className="font-bold text-slate-600">#Unidade_Serviço</span> - Unidade de medida (Ex: m³, h, kg)</div>
+                        <div><span className="font-bold text-slate-600">#Produção_Serviço</span> - Fator de produção (padrão: 1)</div>
+                        <div><span className="font-bold text-slate-600">#Fator_Ajuste</span> - Fator de Ajuste / FIT (padrão: 0)</div>
+                      </div>
+                    </div>
+
+                    <div className="space-y-1">
+                      <p className="font-bold text-slate-700 text-[11px]">Campos do Insumo (Opcionais):</p>
+                      <div className="grid grid-cols-1 gap-1 font-mono text-[10px] text-emerald-700 bg-white p-2 rounded-lg border border-slate-200">
+                        <div><span className="font-bold text-slate-600">#Código_Insumo</span> - Código do insumo cadastrado no banco</div>
+                        <div><span className="font-bold text-slate-600">#Consumo</span> - Consumo para insumos convencionais</div>
+                        <div><span className="font-bold text-slate-600">#Consumo_Produtivo</span> - Consumo produtivo (para Equipamentos)</div>
+                        <div><span className="font-bold text-slate-600">#Consumo_Improdutivo</span> - Consumo improdutivo (Equipamentos)</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <DialogFooter className="flex justify-end gap-2 border-t pt-4">
+                  <Button
+                    variant="outline"
+                    onClick={() => setIsExportImportModalOpen(false)}
+                  >
+                    Fechar
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+            
             {!readonly && (
               <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
                 <DialogTrigger asChild>
@@ -327,14 +799,35 @@ export function ServiceView({ services, resources, onAdd, onDelete, onUpdate, co
                               </>
                             )}
                           </div>
-                        <div className="w-32">
-                          <NumericInput 
-                            placeholder="Consumo" 
-                            value={currentItem.consumption} 
-                            onChange={val => setCurrentItem({...currentItem, consumption: val})} 
-                            decimals={3}
-                          />
-                        </div>
+                        {resources.find(r => r.id === currentItem.resourceId)?.type === 'equipment' ? (
+                          <>
+                            <div className="w-24">
+                              <NumericInput 
+                                placeholder="Produtiva" 
+                                value={currentItem.productiveConsumption || 0} 
+                                onChange={val => setCurrentItem({...currentItem, productiveConsumption: val})} 
+                                decimals={6}
+                              />
+                            </div>
+                            <div className="w-24">
+                              <NumericInput 
+                                placeholder="Improdutiva" 
+                                value={currentItem.unproductiveConsumption || 0} 
+                                onChange={val => setCurrentItem({...currentItem, unproductiveConsumption: val})} 
+                                decimals={6}
+                              />
+                            </div>
+                          </>
+                        ) : (
+                          <div className="w-32">
+                            <NumericInput 
+                              placeholder="Consumo" 
+                              value={currentItem.consumption} 
+                              onChange={val => setCurrentItem({...currentItem, consumption: val})} 
+                              decimals={6}
+                            />
+                          </div>
+                        )}
                         <Button type="button" variant={editingItemIndex !== null ? "default" : "outline"} onClick={() => addItem(false)} className={editingItemIndex !== null ? "bg-orange-500 hover:bg-orange-600" : ""}>
                           {editingItemIndex !== null ? <Edit className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
                         </Button>
@@ -360,9 +853,20 @@ export function ServiceView({ services, resources, onAdd, onDelete, onUpdate, co
                                 const res = resources.find(r => r.id === item.resourceId) || services.find(serv => serv.id === item.resourceId);
                                 return (
                                   <TableRow key={`${item.resourceId}-${index}`} className={editingItemIndex === index ? "bg-orange-50" : ""}>
-                                    <TableCell className="text-sm">{res?.name}</TableCell>
+                                    <TableCell className="text-sm">
+                                      {res?.name}
+                                    </TableCell>
                                     <TableCell className="text-sm">{res?.unit}</TableCell>
-                                    <TableCell className="text-right text-sm font-mono">{formatNumber(item.consumption, 6)}</TableCell>
+                                    <TableCell className="text-right text-sm font-mono">
+                                      {res?.type === 'equipment' ? (
+                                        <div className="flex flex-col text-xs">
+                                          <span className="text-blue-600">Prod: {formatNumber(item.productiveConsumption || 0, 6)}</span>
+                                          <span className="text-gray-500">Impr: {formatNumber(item.unproductiveConsumption || 0, 6)}</span>
+                                        </div>
+                                      ) : (
+                                        formatNumber(item.consumption, 6)
+                                      )}
+                                    </TableCell>
                                     <TableCell>
                                       <div className="flex items-center gap-1">
                                         <Button variant="ghost" size="icon" className="h-6 w-6 text-blue-400" onClick={() => editItem(index, false)}>
@@ -583,14 +1087,35 @@ export function ServiceView({ services, resources, onAdd, onDelete, onUpdate, co
                             </>
                           )}
                         </div>
-                        <div className="w-32">
-                          <NumericInput 
-                            placeholder="Consumo" 
-                            value={currentItem.consumption} 
-                            onChange={val => setCurrentItem({...currentItem, consumption: val})} 
-                            decimals={3}
-                          />
-                        </div>
+                        {resources.find(r => r.id === currentItem.resourceId)?.type === 'equipment' ? (
+                          <>
+                            <div className="w-24">
+                              <NumericInput 
+                                placeholder="Produtiva" 
+                                value={currentItem.productiveConsumption || 0} 
+                                onChange={val => setCurrentItem({...currentItem, productiveConsumption: val})} 
+                                decimals={6}
+                              />
+                            </div>
+                            <div className="w-24">
+                              <NumericInput 
+                                placeholder="Improdutiva" 
+                                value={currentItem.unproductiveConsumption || 0} 
+                                onChange={val => setCurrentItem({...currentItem, unproductiveConsumption: val})} 
+                                decimals={6}
+                              />
+                            </div>
+                          </>
+                        ) : (
+                          <div className="w-32">
+                            <NumericInput 
+                              placeholder="Consumo" 
+                              value={currentItem.consumption} 
+                              onChange={val => setCurrentItem({...currentItem, consumption: val})} 
+                              decimals={6}
+                            />
+                          </div>
+                        )}
                         <Button type="button" variant={editingItemIndex !== null ? "default" : "outline"} onClick={() => addItem(true)} className={editingItemIndex !== null ? "bg-orange-500 hover:bg-orange-600" : ""}>
                           {editingItemIndex !== null ? <Edit className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
                         </Button>
@@ -616,9 +1141,20 @@ export function ServiceView({ services, resources, onAdd, onDelete, onUpdate, co
                                 const res = resources.find(r => r.id === item.resourceId) || services.find(serv => serv.id === item.resourceId);
                                 return (
                                   <TableRow key={`${item.resourceId}-${index}`} className={editingItemIndex === index ? "bg-orange-50" : ""}>
-                                    <TableCell className="text-sm">{res?.name}</TableCell>
+                                    <TableCell className="text-sm">
+                                      {res?.name}
+                                    </TableCell>
                                     <TableCell className="text-sm">{res?.unit}</TableCell>
-                                    <TableCell className="text-right text-sm font-mono">{formatNumber(item.consumption, 6)}</TableCell>
+                                    <TableCell className="text-right text-sm font-mono">
+                                      {res?.type === 'equipment' ? (
+                                        <div className="flex flex-col text-xs">
+                                          <span className="text-blue-600">Prod: {formatNumber(item.productiveConsumption || 0, 6)}</span>
+                                          <span className="text-gray-500">Impr: {formatNumber(item.unproductiveConsumption || 0, 6)}</span>
+                                        </div>
+                                      ) : (
+                                        formatNumber(item.consumption, 6)
+                                      )}
+                                    </TableCell>
                                     <TableCell>
                                       <div className="flex items-center gap-1">
                                         <Button variant="ghost" size="icon" className="h-6 w-6 text-blue-400" onClick={() => editItem(index, true)}>

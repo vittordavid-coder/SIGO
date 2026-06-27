@@ -9,11 +9,16 @@ export interface Resource {
   type: ResourceType;
   basePrice: number;
   encargos?: number;
+  productivePrice?: number;
+  unproductivePrice?: number;
 }
 
 export interface CompositionItem {
   resourceId: string;
   consumption: number;
+  usageType?: 'productive' | 'unproductive';
+  productiveConsumption?: number;
+  unproductiveConsumption?: number;
 }
 
 export interface ServiceComposition {
@@ -799,6 +804,8 @@ export interface ControllerEquipment {
   currentReading?: number; // Última leitura de horímetro/odômetro
   contractedPrice?: number; // Preço Contratado
   monthlyPrice?: number; // Preço Mensal
+  productivePrice?: number; // Preço Produtivo
+  unproductivePrice?: number; // Preço Improdutivo
   observations?: string;
   customFields?: Record<string, EquipmentAttribute>; // JSONB Data
   photos?: string[]; // URLs das fotos (Supabase Storage)

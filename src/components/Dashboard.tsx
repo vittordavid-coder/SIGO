@@ -146,7 +146,7 @@ export function Dashboard({
 
   const MetricCard = ({ title, icon: Icon, color, metrics, onClick }: any) => (
     <Card 
-      className="border-none shadow-xl rounded-3xl overflow-hidden bg-white hover:shadow-2xl transition-all duration-300 cursor-pointer group"
+      className="border-none shadow-xl rounded-3xl overflow-hidden bg-white hover:shadow-2xl transition-all duration-300 cursor-pointer group w-full"
       onClick={onClick}
     >
       <CardHeader className={cn("pb-4 flex flex-row items-center gap-4 text-white", color)}>
@@ -212,7 +212,7 @@ export function Dashboard({
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-6 gap-6 w-full">
         <MetricCard 
           title="Sala Técnica"
           icon={ClipboardList}

@@ -318,6 +318,11 @@ export default function RHView({
     };
     fetchParamsFromDB();
   }, [currentUser?.companyId]);
+
+  // Auto-save RH parameters to localStorage whenever they change
+  useEffect(() => {
+    localStorage.setItem("rh_parameters_config", JSON.stringify(rhParams));
+  }, [rhParams]);
   const [selectedMonth, setSelectedMonth] = useState(
     new Date().toISOString().slice(0, 7),
   ); // YYYY-MM

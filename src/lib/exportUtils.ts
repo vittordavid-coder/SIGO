@@ -491,13 +491,20 @@ export function exportAllCompositionsToExcel(services: ServiceComposition[], res
   services.forEach(s => {
     const items = s.items.map(item => {
       const res = resources.find(r => r.id === item.resourceId) || services.find(serv => serv.id === item.resourceId);
+      const isEquip = res && 'type' in res && res.type === 'equipment';
+      
       return {
         Código: res?.code,
         Descrição: res?.name,
         Unidade: res?.unit,
-        Consumo: item.consumption,
-        Preço: (res as any)?.basePrice || calculateServiceUnitCost(res as any, resources, services),
-        Total: item.consumption * ((res as any)?.basePrice || calculateServiceUnitCost(res as any, resources, services))
+        Consumo: isEquip ? `Prod: ${item.productiveConsumption || 0} / Impr: ${item.unproductiveConsumption || 0}` : item.consumption,
+        Preço: isEquip 
+                ? `Prod: ${(res as Resource).productivePrice || (res as Resource).basePrice} / Impr: ${(res as Resource).unproductivePrice || (res as Resource).basePrice}`
+                : ((res as any)?.basePrice || calculateServiceUnitCost(res as any, resources, services)),
+        Total: isEquip
+                ? ((item.productiveConsumption || 0) * ((res as Resource).productivePrice || (res as Resource).basePrice) + 
+                   (item.unproductiveConsumption || 0) * ((res as Resource).unproductivePrice || (res as Resource).basePrice))
+                : item.consumption * ((res as any)?.basePrice || calculateServiceUnitCost(res as any, resources, services))
       };
     });
 
@@ -608,6 +615,23 @@ export function exportCompositionToPDF(service: ServiceComposition, resources: R
   
   const tableData = service.items.map(item => {
     const res = resources.find(r => r.id === item.resourceId) || allServices.find(s => s.id === item.resourceId);
+    const isEquip = res && 'type' in res && res.type === 'equipment';
+    
+    if (isEquip) {
+      const prodPrice = (res as Resource).productivePrice || (res as Resource).basePrice;
+      const unprodPrice = (res as Resource).unproductivePrice || (res as Resource).basePrice;
+      const prodTotal = (item.productiveConsumption || 0) * prodPrice;
+      const unprodTotal = (item.unproductiveConsumption || 0) * unprodPrice;
+      return [
+        res?.code || '',
+        res?.name || '',
+        res?.unit || '',
+        `Prod: ${formatNumber(item.productiveConsumption || 0, 6)}\nImpr: ${formatNumber(item.unproductiveConsumption || 0, 6)}`,
+        `Prod: ${formatCurrency(prodPrice)}\nImpr: ${formatCurrency(unprodPrice)}`,
+        formatCurrency(prodTotal + unprodTotal)
+      ];
+    }
+    
     const price = (res as any)?.basePrice || calculateServiceUnitCost(res as any, resources, allServices);
     return [
       res?.code || '',

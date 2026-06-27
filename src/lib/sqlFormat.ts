@@ -111,7 +111,7 @@ export const DB_TABLES = [
     app_state: `id TEXT PRIMARY KEY, content JSONB DEFAULT '{}', created_at TIMESTAMPTZ DEFAULT now(), updated_at TIMESTAMPTZ DEFAULT now()`,
     users: `id TEXT PRIMARY KEY, company_id TEXT, company_name TEXT, name TEXT NOT NULL, username TEXT UNIQUE NOT NULL, password TEXT, role TEXT DEFAULT 'editor', allowed_quotation_ids JSONB DEFAULT '[]', allowed_modules JSONB DEFAULT '[]', keys INTEGER DEFAULT 0, is_active BOOLEAN DEFAULT true, email TEXT, is_approved BOOLEAN DEFAULT false, job_function TEXT, must_change_password BOOLEAN DEFAULT false, session_id TEXT, desired_plan TEXT, desired_modules JSONB DEFAULT '[]', has_company BOOLEAN DEFAULT false, keys_expires_at TIMESTAMPTZ, profile_photo TEXT, phone TEXT, address TEXT, email_config JSONB DEFAULT '{}', created_at TIMESTAMPTZ DEFAULT now(), updated_at TIMESTAMPTZ DEFAULT now()`,
     audit_logs: `id TEXT PRIMARY KEY, company_id TEXT, timestamp TIMESTAMPTZ DEFAULT now(), user_id TEXT, user_name TEXT, action TEXT, details TEXT, module TEXT, created_at TIMESTAMPTZ DEFAULT now()`,
-    resources: `id TEXT PRIMARY KEY, company_id TEXT, code TEXT NOT NULL, name TEXT NOT NULL, unit TEXT, type TEXT, base_price NUMERIC DEFAULT 0, encargos NUMERIC DEFAULT 0, created_at TIMESTAMPTZ DEFAULT now(), updated_at TIMESTAMPTZ DEFAULT now()`,
+    resources: `id TEXT PRIMARY KEY, company_id TEXT, code TEXT NOT NULL, name TEXT NOT NULL, unit TEXT, type TEXT, base_price NUMERIC DEFAULT 0, encargos NUMERIC DEFAULT 0, productive_price NUMERIC DEFAULT 0, unproductive_price NUMERIC DEFAULT 0, created_at TIMESTAMPTZ DEFAULT now(), updated_at TIMESTAMPTZ DEFAULT now()`,
     service_compositions: `id TEXT PRIMARY KEY, company_id TEXT, code TEXT NOT NULL, name TEXT NOT NULL, unit TEXT, production NUMERIC DEFAULT 1, fit NUMERIC DEFAULT 1, items JSONB DEFAULT '[]', created_at TIMESTAMPTZ DEFAULT now(), updated_at TIMESTAMPTZ DEFAULT now()`,
     quotations: `id TEXT PRIMARY KEY, company_id TEXT, budget_name TEXT, organization TEXT, date DATE, sector_responsible TEXT, requester_sector TEXT, year INTEGER, trecho TEXT, municipios TEXT, rodovias TEXT, version TEXT, extension TEXT, base_date TEXT, services JSONB DEFAULT '[]', groups JSONB DEFAULT '[]', created_at TIMESTAMPTZ DEFAULT now(), updated_at TIMESTAMPTZ DEFAULT now()`,
     contracts: `id TEXT PRIMARY KEY, company_id TEXT, quotation_id TEXT, contract_number TEXT NOT NULL, work_name TEXT, total_value NUMERIC DEFAULT 0, object TEXT, client TEXT, contractor TEXT, start_date DATE, end_date DATE, supervisor TEXT, notes TEXT, measurement_unit TEXT, measurement_unit_value TEXT, initial_station TEXT, final_station TEXT, services JSONB DEFAULT '[]', groups JSONB DEFAULT '[]', group_adjustments JSONB DEFAULT '{}', created_at TIMESTAMPTZ DEFAULT now(), updated_at TIMESTAMPTZ DEFAULT now()`,
@@ -548,6 +548,8 @@ CREATE TABLE IF NOT EXISTS resources (
   type TEXT,
   base_price NUMERIC DEFAULT 0,
   encargos NUMERIC DEFAULT 0,
+  productive_price NUMERIC DEFAULT 0,
+  unproductive_price NUMERIC DEFAULT 0,
   created_at TIMESTAMPTZ DEFAULT now(),
   updated_at TIMESTAMPTZ DEFAULT now()
 );

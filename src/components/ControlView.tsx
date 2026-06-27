@@ -3954,7 +3954,7 @@ export default function ControlView({
                   <Plus className="w-4 h-4 mr-2" /> Novo
                 </Button>
                 {isAddOpen && (
-                  <div className="fixed inset-0 z-[100] bg-white overflow-hidden flex flex-col">
+                  <div className="fixed inset-0 z-[45] bg-white overflow-hidden flex flex-col">
                     <div className="bg-gradient-to-r from-blue-600 to-indigo-700 p-8 flex justify-between items-center shrink-0 relative overflow-hidden">
                       <Truck className="absolute -right-8 -bottom-8 w-40 h-40 opacity-10 rotate-12" />
                       <div className="flex items-center gap-6 relative z-10">
@@ -4349,6 +4349,33 @@ export default function ControlView({
                               value={newEquip.monthlyPrice}
                               onChange={(val) =>
                                 setNewEquip({ ...newEquip, monthlyPrice: val })
+                              }
+                              prefix="R$"
+                            />
+                          </div>
+
+                          <div className="space-y-2">
+                            <Label className="text-base uppercase font-black text-slate-500 tracking-tight">
+                              Valor Hora Produtiva
+                            </Label>
+                            <NumericInput
+                              className="rounded-xl border-slate-200 bg-slate-50/50 h-12 text-base font-bold"
+                              value={newEquip.productivePrice || 0}
+                              onChange={(val) =>
+                                setNewEquip({ ...newEquip, productivePrice: val })
+                              }
+                              prefix="R$"
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label className="text-base uppercase font-black text-slate-500 tracking-tight">
+                              Valor Hora Improdutiva
+                            </Label>
+                            <NumericInput
+                              className="rounded-xl border-slate-200 bg-slate-50/50 h-12 text-base font-bold"
+                              value={newEquip.unproductivePrice || 0}
+                              onChange={(val) =>
+                                setNewEquip({ ...newEquip, unproductivePrice: val })
                               }
                               prefix="R$"
                             />
@@ -7168,6 +7195,37 @@ export default function ControlView({
                     onChange={(val) =>
                       setEquipmentToEdit((prev) =>
                         prev ? { ...prev, monthlyPrice: val } : null,
+                      )
+                    }
+                    prefix="R$"
+                  />
+                </div>
+
+                <div className="space-y-3">
+                  <Label className="text-base uppercase font-black text-slate-500 tracking-tight">
+                    Valor Hora Produtiva
+                  </Label>
+                  <NumericInput
+                    className="rounded-xl border-slate-200 bg-slate-50/50 h-16 text-base font-bold"
+                    value={equipmentToEdit?.productivePrice || 0}
+                    onChange={(val) =>
+                      setEquipmentToEdit((prev) =>
+                        prev ? { ...prev, productivePrice: val } : null,
+                      )
+                    }
+                    prefix="R$"
+                  />
+                </div>
+                <div className="space-y-3">
+                  <Label className="text-base uppercase font-black text-slate-500 tracking-tight">
+                    Valor Hora Improdutiva
+                  </Label>
+                  <NumericInput
+                    className="rounded-xl border-slate-200 bg-slate-50/50 h-16 text-base font-bold"
+                    value={equipmentToEdit?.unproductivePrice || 0}
+                    onChange={(val) =>
+                      setEquipmentToEdit((prev) =>
+                        prev ? { ...prev, unproductivePrice: val } : null,
                       )
                     }
                     prefix="R$"

@@ -1214,6 +1214,7 @@ export const ManagementView = ({
   warehouses = [],
   warehouseItems = [],
   purchaseRequests = [],
+  chargesPerc,
 }: any) => {
   const [localSelectedContractId, setLocalSelectedContractId] =
     useState<string>("all");
@@ -2504,11 +2505,30 @@ export const ManagementView = ({
       (e: any) => (!e.status || e.status === "active" || e.status === "Ativo") && !e.dismissalDate && !e.exitDate
     );
 
+    const getRhParamsTotalPercentage = () => {
+      try {
+        const saved = localStorage.getItem("rh_parameters_config");
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          const extraCosts = parsed.extraCosts || [];
+          return extraCosts.reduce((sum: number, item: any) => sum + (item.percentage || 0), 0);
+        }
+      } catch (e) {
+        console.error("Error loading RH parameters in ManagementView:", e);
+      }
+      return 47.44; // Default to FGTS 8% + INSS 20% + Férias 11.11% + 13o 8.33% = 47.44
+    };
+    const rhParamsPerc = getRhParamsTotalPercentage();
+
     const equipmentCost = equipments.reduce(
       (acc: number, e: any) => acc + (e.monthlyPrice || e.contractedPrice || 0),
       0,
     );
-    const rhCost = rh.reduce((acc: number, e: any) => acc + (e.salary || 0), 0);
+    const rhCost = rh.reduce((acc: number, e: any) => {
+      const empCharges = typeof e.chargesPercentage === 'number' && e.chargesPercentage > 0 ? e.chargesPercentage : rhParamsPerc;
+      const withTaxes = (e.salary || 0) * (1 + (empCharges / 100));
+      return acc + withTaxes;
+    }, 0);
 
     let revenue = 0;
     const revenueDetails: any[] = [];
@@ -2596,7 +2616,11 @@ export const ManagementView = ({
           value: e.monthlyPrice || e.contractedPrice || 0,
           meta: e,
         })),
-        RH: rh.map((e: any) => ({ name: e.name, value: e.salary, meta: e })),
+        RH: rh.map((e: any) => {
+          const empCharges = typeof e.chargesPercentage === 'number' && e.chargesPercentage > 0 ? e.chargesPercentage : rhParamsPerc;
+          const withTaxes = (e.salary || 0) * (1 + (empCharges / 100));
+          return { name: e.name, value: withTaxes, meta: e };
+        }),
         Receita: revenueDetails,
         "Aporte Financeiro": aporteDetails,
       },
@@ -2610,6 +2634,7 @@ export const ManagementView = ({
     selectedContractId,
     aportes,
     currentUser,
+    chargesPerc,
   ]);
 
   const data = [
@@ -3244,7 +3269,7 @@ export const ManagementView = ({
                       className="text-right cursor-pointer select-none hover:bg-slate-50 font-bold"
                       onClick={() => handleSortRH("salary")}
                     >
-                      Salário {renderSortIconRH("salary")}
+                      Salário + Encargos {renderSortIconRH("salary")}
                     </TableHead>
                   </TableRow>
                 </TableHeader>

@@ -1036,6 +1036,8 @@ export default function App() {
             const snaked = { ...mapToSnake(r), company_id: compId };
             snaked.base_price = Number(snaked.base_price) || 0;
             snaked.encargos = Number(snaked.encargos) || 0;
+            if (snaked.productive_price) snaked.productive_price = Number(snaked.productive_price) || 0;
+            if (snaked.unproductive_price) snaked.unproductive_price = Number(snaked.unproductive_price) || 0;
             return snaked;
           });
 
@@ -1063,7 +1065,16 @@ export default function App() {
           if (mapped.length > 0) {
             const { error: upsertError } = await supabase.from('resources').upsert(mapped);
             if (upsertError) {
-              console.error('[Sync] Resources upsert failed:', upsertError);
+              console.warn('[Sync] Resources standard upsert failed, retrying without new columns...', upsertError);
+              const saferMapped = mapped.map(({ productive_price, unproductive_price, ...rest }) => rest);
+              const { error: retryError } = await supabase.from('resources').upsert(saferMapped);
+              if (retryError) {
+                console.error('[Sync] All fallbacks for resources upsert failed:', retryError);
+              } else {
+                console.log('[Sync] Resources saved successfully without new columns.');
+              }
+            } else {
+              console.log('[Sync] Resources saved successfully on primary path.');
             }
           }
         } catch (err) {
@@ -1529,6 +1540,7 @@ export default function App() {
           
           if (targetTable && Array.isArray(item.content)) {
             // Identify and delete orphans 
+            let activeTable = targetTable;
             let dbItems: any[] = [];
             let from = 0;
             const pageSize = 1000;
@@ -1537,12 +1549,19 @@ export default function App() {
 
             while (keepFetching) {
               const { data, error } = await supabase
-                .from(targetTable)
+                .from(activeTable)
                 .select('id')
                 .eq('company_id', compId)
                 .range(from, from + pageSize - 1);
               
               if (error) {
+                if (error.code === '42P01' && activeTable === 'equipments') {
+                  console.info('[Sync] Table "equipments" not found during orphan check, retrying with "controller_equipments"...');
+                  activeTable = 'controller_equipments';
+                  from = 0;
+                  dbItems = [];
+                  continue;
+                }
                 fetchError = error;
                 keepFetching = false;
               } else if (data) {
@@ -1555,15 +1574,15 @@ export default function App() {
             }
 
             if (fetchError) {
-              console.error(`Erro ao buscar órfãos em ${targetTable}:`, fetchError);
+              console.error(`Erro ao buscar órfãos em ${activeTable}:`, fetchError);
             } else {
               const dbIds = dbItems?.map(d => d.id) || [];
               const currentIds = (item.content as any[]).map(c => c.id);
               const toDelete = dbIds.filter(id => !currentIds.includes(id));
 
               if (toDelete.length > 0) {
-                const { error: delError } = await supabase.from(targetTable).delete().in('id', toDelete);
-                if (delError) console.error(`Erro ao deletar órfãos em ${targetTable}:`, delError);
+                const { error: delError } = await supabase.from(activeTable).delete().in('id', toDelete);
+                if (delError) console.error(`Erro ao deletar órfãos em ${activeTable}:`, delError);
               }
             }
 
@@ -1590,16 +1609,32 @@ export default function App() {
                 const chunk = itemsToUpsert.slice(i, i + chunkSize);
                 
                 let chunkToUpsert = chunk;
-                if (targetTable === 'aportes') {
+                if (activeTable === 'aportes' || targetTable === 'aportes') {
                    chunkToUpsert = chunk.map(({ items: nestedItems, ...rest }: any) => {
                      if (rest.data === '') rest.data = null;
                      return rest;
                    });
                 }
-                const { error: tError } = await supabase.from(targetTable).upsert(chunkToUpsert);
+                let { error: tError } = await supabase.from(activeTable).upsert(chunkToUpsert);
                 
                 if (tError) {
-                  console.error(`Erro ao sincronizar pedaço da tabela ${targetTable}:`, tError);
+                  if (tError.code === '42P01' && activeTable === 'equipments') {
+                    console.info('[Sync] Table "equipments" not found during chunk upsert, retrying with "controller_equipments"...');
+                    activeTable = 'controller_equipments';
+                    const retryResult = await supabase.from(activeTable).upsert(chunkToUpsert);
+                    tError = retryResult.error;
+                  }
+                  
+                  if (tError) {
+                    console.warn(`[Sync] Upsert failed for chunk of ${activeTable}, retrying without new columns...`, tError);
+                    const saferChunk = chunkToUpsert.map(({ productive_price, unproductive_price, ...rest }: any) => rest);
+                    const retryResult2 = await supabase.from(activeTable).upsert(saferChunk);
+                    tError = retryResult2.error;
+                  }
+                }
+                
+                if (tError) {
+                  console.error(`Erro ao sincronizar pedaço da tabela ${activeTable}:`, tError);
                 }
 
                 if (targetTable === 'technical_schedules' && !tError) {
@@ -3124,6 +3159,60 @@ export default function App() {
       equips = [...itemsOutOfScope, ...itemsInScope];
     }
     setControllerEquipments(equips);
+
+    // Sync to resources (Insumos) of type 'equipment'
+    try {
+      const syncEquipmentsToResources = (currentResources: Resource[], newEquips: ControllerEquipment[]): Resource[] => {
+        let updatedResources = [...currentResources];
+        const activeEquipIds = new Set(newEquips.map(e => e.id));
+        const activeEquipCodes = new Set(newEquips.map(e => e.code?.toLowerCase()).filter(Boolean));
+
+        newEquips.forEach(eq => {
+          const index = updatedResources.findIndex(r => r.type === 'equipment' && (r.id === eq.id || (eq.code && r.code?.toLowerCase() === eq.code.toLowerCase())));
+          
+          const unitMapped = eq.measurementUnit === 'Horímetro' ? 'h' : 
+                             eq.measurementUnit === 'Quilometragem' ? 'km' : 
+                             eq.measurementUnit === 'Mensal' ? 'mes' : 
+                             eq.measurementUnit === 'Diária' ? 'dia' : 'h';
+                             
+          const basePriceMapped = eq.productivePrice || eq.contractedPrice || eq.monthlyPrice || 0;
+          
+          if (index !== -1) {
+            updatedResources[index] = {
+              ...updatedResources[index],
+              code: eq.code || updatedResources[index].code,
+              name: eq.name,
+              unit: unitMapped,
+              basePrice: basePriceMapped,
+              productivePrice: eq.productivePrice || 0,
+              unproductivePrice: eq.unproductivePrice || 0,
+            };
+          } else {
+            updatedResources.push({
+              id: eq.id,
+              code: eq.code || `EP-${eq.id.substring(0, 4).toUpperCase()}`,
+              name: eq.name,
+              unit: unitMapped,
+              type: 'equipment',
+              basePrice: basePriceMapped,
+              productivePrice: eq.productivePrice || 0,
+              unproductivePrice: eq.unproductivePrice || 0,
+            });
+          }
+        });
+
+        return updatedResources.filter(r => {
+          if (r.type !== 'equipment') return true;
+          return activeEquipIds.has(r.id) || (r.code && activeEquipCodes.has(r.code.toLowerCase()));
+        });
+      };
+
+      const syncedResources = syncEquipmentsToResources(resources, equips);
+      updateResources(syncedResources);
+    } catch (err) {
+      console.error('[Sync] Error syncing equipments to resources:', err);
+    }
+
     const config = getSupabaseConfig();
     if (config.enabled && compId) {
       const supabase = createSupabaseClient(config.url, config.key);
@@ -3149,6 +3238,8 @@ export default function App() {
 
             m.contracted_price = toNum(m.contracted_price);
             m.monthly_price = toNum(m.monthly_price);
+            m.productive_price = toNum(m.productive_price);
+            m.unproductive_price = toNum(m.unproductive_price);
             m.current_reading = toNum(m.current_reading);
             m.charges_percentage = toNum(m.charges_percentage);
             m.overtime_percentage = toNum(m.overtime_percentage);
@@ -3181,8 +3272,17 @@ export default function App() {
                   console.info('[Sync] Table "equipments" not found during update, retrying with "controller_equipments"...');
                   return await persistToTable('controller_equipments');
                 }
-                console.error(`[Sync] ${tableName} upsert failed:`, upsertError);
-                return false;
+                
+                console.warn(`[Sync] ${tableName} upsert failed, retrying without new columns...`, upsertError);
+                const saferMapped = mapped.map(({ productive_price, unproductive_price, ...rest }) => rest);
+                const { error: retryError } = await supabase.from(tableName).upsert(saferMapped);
+                
+                if (retryError) {
+                  console.error(`[Sync] All fallbacks for ${tableName} upsert failed:`, retryError);
+                  return false;
+                } else {
+                  console.log(`[Sync] ${tableName} saved successfully without new columns.`);
+                }
               }
             }
             return true;
@@ -4630,6 +4730,7 @@ export default function App() {
                   purchaseRequests={finalPurchaseRequests}
                   warehouses={warehouses}
                   warehouseItems={warehouseItems}
+                  chargesPerc={chargesPerc}
                 />
               )}
 

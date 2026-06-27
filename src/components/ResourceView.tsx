@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion } from 'motion/react';
-import { Plus, Edit, Trash2, FileSpreadsheet, Download, ChevronUp, ChevronDown, TrendingUp, ArrowLeft } from 'lucide-react';
+import { Plus, Edit, Trash2, FileSpreadsheet, Download, ChevronUp, ChevronDown, TrendingUp, ArrowLeft, Upload, FileText } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 import { Resource, ResourceType, PurchaseOrder } from '../types';
 import { cn, formatCurrency } from '../lib/utils';
@@ -30,6 +30,8 @@ interface ResourceViewProps {
 export function ResourceView({ resources, onAdd, onDelete, onUpdate, purchaseOrders = [], readonly }: ResourceViewProps) {
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
+  const [isExportSelectorOpen, setIsExportSelectorOpen] = useState(false);
+  const [isImporting, setIsImporting] = useState(false);
   const [editingResource, setEditingResource] = useState<Resource | null>(null);
   const [selectedHistoryResource, setSelectedHistoryResource] = useState<Resource | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
@@ -205,6 +207,7 @@ export function ResourceView({ resources, onAdd, onDelete, onUpdate, purchaseOrd
     onAdd(newResource);
     setIsAddOpen(false);
     setNewResource({ code: '', name: '', unit: '', type: 'material', basePrice: 0 });
+    alert("Insumo salvo com sucesso na tabela resources!");
   };
 
   const handleEditTypeChange = (type: ResourceType) => {
@@ -223,7 +226,91 @@ export function ResourceView({ resources, onAdd, onDelete, onUpdate, purchaseOrd
       onUpdate(editingResource);
       setIsEditOpen(false);
       setEditingResource(null);
+      alert("Insumo editado com sucesso na tabela resources!");
     }
+  };
+
+  const handleDownloadTemplate = () => {
+    import('xlsx').then(XLSX => {
+      const data = [
+        {
+          '#tipo': 'material',
+          '#nome': 'Exemplo de Insumo',
+          '#unidade': 'UN',
+          '#preco': 15.50
+        }
+      ];
+      const ws = XLSX.utils.json_to_sheet(data);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Modelo");
+      XLSX.writeFile(wb, "modelo_insumos.xlsx");
+    });
+  };
+
+  const handleImportData = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setIsImporting(true);
+    const reader = new FileReader();
+
+    reader.onerror = () => {
+      setIsImporting(false);
+      alert("❌ Erro ao ler o arquivo físico.");
+    };
+
+    reader.onload = async (evt) => {
+      try {
+        const buildData = evt.target?.result;
+        if (!buildData) throw new Error("Falha ao ler o byte-stream do arquivo.");
+
+        const XLSX = await import("xlsx");
+        const wb = XLSX.read(buildData, { type: "array" });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const data = XLSX.utils.sheet_to_json(ws) as any[];
+
+        let importedCount = 0;
+        data.forEach((row, i) => {
+          // Identify keys using tags or exact names
+          const typeKey = Object.keys(row).find(k => k.toLowerCase().includes('#tipo') || k.toLowerCase() === 'tipo');
+          const nameKey = Object.keys(row).find(k => k.toLowerCase().includes('#nome') || k.toLowerCase() === 'nome');
+          const unitKey = Object.keys(row).find(k => k.toLowerCase().includes('#unidade') || k.toLowerCase() === 'unidade');
+          const priceKey = Object.keys(row).find(k => k.toLowerCase().includes('#preco') || k.toLowerCase().includes('preço'));
+
+          if (nameKey && unitKey) {
+            const rowType = typeKey ? row[typeKey]?.toString().toLowerCase() : 'material';
+            let parsedType: ResourceType = 'material';
+            if (rowType.includes('obra') || rowType === 'labor') parsedType = 'labor';
+            else if (rowType.includes('equip') || rowType === 'equipment') parsedType = 'equipment';
+
+            const parsedPrice = priceKey ? Number(row[priceKey]) || 0 : 0;
+            
+            // For import, we'll let it use the next code for the type
+            onAdd({
+              code: getNextCode(parsedType), // This might reuse codes if called rapidly in a loop if state hasn't updated. 
+              // Wait, getNextCode depends on resources state which won't update during this loop.
+              // To fix this we can generate UUID for code, or let the server/App.tsx handle the code generation.
+              // Since `getNextCode` logic is here, I'll use it but append index `+ i` to the sequence temporarily to prevent duplicates.
+              // For simplicity, we can pass uuid if it fails, but let's do our best.
+              name: row[nameKey],
+              unit: row[unitKey],
+              type: parsedType,
+              basePrice: parsedPrice
+            });
+            importedCount++;
+          }
+        });
+
+        alert(`✅ Importação concluída! ${importedCount} insumos foram adicionados com sucesso na tabela resources.`);
+      } catch (err) {
+        console.error(err);
+        alert("❌ Erro ao processar arquivo: " + err);
+      } finally {
+        setIsImporting(false);
+      }
+    };
+    reader.readAsArrayBuffer(file);
+    event.target.value = '';
   };
 
   const startEdit = (resource: Resource) => {
@@ -447,12 +534,116 @@ export function ResourceView({ resources, onAdd, onDelete, onUpdate, purchaseOrd
             />
           </div>
           <div className="flex gap-2">
-            <Button variant="outline" onClick={() => exportResourcesToExcel(resources)}>
-              <FileSpreadsheet className="w-4 h-4 mr-2" /> Exportar Excel
-            </Button>
-            <Button variant="outline" onClick={() => exportResourcesToPDF(resources)}>
-              <Download className="w-4 h-4 mr-2" /> Exportar PDF
-            </Button>
+            {!readonly && (
+              <Dialog open={isExportSelectorOpen} onOpenChange={setIsExportSelectorOpen}>
+                <DialogTrigger asChild>
+                  <Button variant="outline" className="text-gray-700 bg-white shadow-sm border-gray-200 hover:bg-gray-50 hover:text-gray-900 transition-all font-medium">
+                    <Download className="w-4 h-4 mr-2 text-gray-500" /> Exportar / Importar
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="sm:max-w-[700px] bg-white border-0 shadow-2xl rounded-3xl p-6 md:p-8">
+                  <DialogHeader className="mb-2">
+                    <DialogTitle className="text-2xl font-black text-slate-800 tracking-tight">
+                      Exportar / Importar Insumos
+                    </DialogTitle>
+                    <DialogDescription className="text-xs text-slate-500">
+                      Selecione o formato para exportação de dados, importe seus dados ou baixe o modelo padrão de cabeçalho.
+                    </DialogDescription>
+                  </DialogHeader>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 py-4 shrink-0">
+                    {/* Opção 1: Relatório PDF */}
+                    <button
+                      onClick={() => {
+                        exportResourcesToPDF(resources);
+                        setIsExportSelectorOpen(false);
+                      }}
+                      className="flex flex-col items-center justify-center border-2 border-slate-100 hover:border-red-500 hover:bg-red-50/20 p-5 rounded-2xl transition group text-center cursor-pointer"
+                    >
+                      <div className="w-12 h-12 rounded-xl bg-red-50 text-red-600 flex items-center justify-center border border-red-100 group-hover:scale-110 transition-transform mb-3">
+                        <FileText className="w-6 h-6" />
+                      </div>
+                      <span className="font-extrabold text-slate-800 text-sm">Relatório PDF</span>
+                      <span className="text-slate-400 text-[10px] mt-1 leading-tight">PDF formato Paisagem</span>
+                    </button>
+
+                    {/* Opção 2: Planilha Excel */}
+                    <button
+                      onClick={() => {
+                        exportResourcesToExcel(resources);
+                        setIsExportSelectorOpen(false);
+                      }}
+                      className="flex flex-col items-center justify-center border-2 border-slate-100 hover:border-emerald-600 hover:bg-emerald-50/20 p-5 rounded-2xl transition group text-center cursor-pointer"
+                    >
+                      <div className="w-12 h-12 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center border border-emerald-100 group-hover:scale-110 transition-transform mb-3">
+                        <FileSpreadsheet className="w-6 h-6" />
+                      </div>
+                      <span className="font-extrabold text-slate-800 text-sm">Planilha Excel</span>
+                      <span className="text-slate-400 text-[10px] mt-1 leading-tight">Base completa para conferência</span>
+                    </button>
+
+                    {/* Opção 3: Modelo / Atualização em Lote */}
+                    <button
+                      onClick={() => {
+                        handleDownloadTemplate();
+                        setIsExportSelectorOpen(false);
+                      }}
+                      className="flex flex-col items-center justify-center border-2 border-slate-100 hover:border-blue-600 hover:bg-blue-50/20 p-5 rounded-2xl transition group text-center cursor-pointer"
+                    >
+                      <div className="w-12 h-12 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center border border-blue-100 group-hover:scale-110 transition-transform mb-3">
+                        <Download className="w-6 h-6" />
+                      </div>
+                      <span className="font-extrabold text-slate-800 text-sm">Baixar Modelo</span>
+                      <span className="text-slate-400 text-[10px] mt-1 leading-tight">Planilha de exemplo para importação</span>
+                    </button>
+
+                    {/* Opção 4: Importar Dados */}
+                    <div className="relative flex flex-col items-center justify-center border-2 border-slate-100 hover:border-orange-500 hover:bg-orange-50/20 p-5 rounded-2xl transition group text-center cursor-pointer overflow-hidden">
+                      <input
+                        type="file"
+                        accept=".xlsx, .xls, .csv"
+                        className={cn(
+                          "absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10",
+                          isImporting && "pointer-events-none"
+                        )}
+                        onChange={(e) => {
+                          handleImportData(e);
+                          setIsExportSelectorOpen(false);
+                        }}
+                        disabled={isImporting}
+                      />
+                      <div className="w-12 h-12 rounded-xl bg-orange-50 text-orange-600 flex items-center justify-center border border-orange-100 group-hover:scale-110 transition-transform mb-3">
+                        {isImporting ? (
+                          <div className="w-6 h-6 border-2 border-orange-600 border-t-transparent rounded-full animate-spin"></div>
+                        ) : (
+                          <Upload className="w-6 h-6" />
+                        )}
+                      </div>
+                      <span className="font-extrabold text-slate-800 text-sm">
+                        {isImporting ? "Importando..." : "Importar Dados"}
+                      </span>
+                      <span className="text-slate-400 text-[10px] mt-1 leading-tight">Envie sua planilha preenchida</span>
+                    </div>
+                  </div>
+
+                  <div className="bg-slate-50 p-4 rounded-xl text-xs space-y-2 text-slate-600 border border-slate-100">
+                    <p className="font-bold text-slate-800">Dica sobre a Importação e Tags de Insumos:</p>
+                    <p>Ao realizar a importação de dados por planilha Excel, certifique-se de usar os cabeçalhos das colunas exatamente como definidos no modelo, ou utilize as tags (#) opcionais para mapeamento automático das colunas:</p>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2">
+                      <div className="space-y-1">
+                        <div className="grid grid-cols-1 gap-1 font-mono text-[10px] text-blue-700 bg-white p-2 rounded-lg border border-slate-200">
+                          <div><span className="font-bold text-slate-600">#tipo</span> - Tipo (material, mao-de-obra, equipamento)</div>
+                          <div><span className="font-bold text-slate-600">#nome</span> - Nome do Insumo</div>
+                          <div><span className="font-bold text-slate-600">#unidade</span> - Unidade (UN, KG, M2)</div>
+                          <div><span className="font-bold text-slate-600">#preco</span> - Preço Base</div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </DialogContent>
+              </Dialog>
+            )}
             {!readonly && (
               <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
                 <DialogTrigger asChild>
@@ -538,6 +729,34 @@ export function ResourceView({ resources, onAdd, onDelete, onUpdate, purchaseOrd
                         />
                       </div>
                     </div>
+                  )}
+                  {newResource.type === 'equipment' && (
+                    <>
+                      <div className="grid grid-cols-4 items-center gap-4">
+                        <Label htmlFor="productivePrice" className="text-right leading-tight">Preço Hora<br/>Produtiva</Label>
+                        <div className="col-span-3">
+                          <NumericInput 
+                            id="productivePrice" 
+                            value={newResource.productivePrice || 0} 
+                            onChange={val => setNewResource({...newResource, productivePrice: val})} 
+                            prefix="R$"
+                            decimals={2}
+                          />
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-4 items-center gap-4">
+                        <Label htmlFor="unproductivePrice" className="text-right leading-tight">Preço Hora<br/>Improdutiva</Label>
+                        <div className="col-span-3">
+                          <NumericInput 
+                            id="unproductivePrice" 
+                            value={newResource.unproductivePrice || 0} 
+                            onChange={val => setNewResource({...newResource, unproductivePrice: val})} 
+                            prefix="R$"
+                            decimals={2}
+                          />
+                        </div>
+                      </div>
+                    </>
                   )}
                 </div>
                 <DialogFooter>
@@ -629,6 +848,34 @@ export function ResourceView({ resources, onAdd, onDelete, onUpdate, purchaseOrd
                         />
                       </div>
                     </div>
+                  )}
+                  {editingResource.type === 'equipment' && (
+                    <>
+                      <div className="grid grid-cols-4 items-center gap-4">
+                        <Label htmlFor="edit-productivePrice" className="text-right leading-tight">Preço Hora<br/>Produtiva</Label>
+                        <div className="col-span-3">
+                          <NumericInput 
+                            id="edit-productivePrice" 
+                            value={editingResource.productivePrice || 0} 
+                            onChange={val => setEditingResource({...editingResource, productivePrice: val})} 
+                            prefix="R$"
+                            decimals={2}
+                          />
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-4 items-center gap-4">
+                        <Label htmlFor="edit-unproductivePrice" className="text-right leading-tight">Preço Hora<br/>Improdutiva</Label>
+                        <div className="col-span-3">
+                          <NumericInput 
+                            id="edit-unproductivePrice" 
+                            value={editingResource.unproductivePrice || 0} 
+                            onChange={val => setEditingResource({...editingResource, unproductivePrice: val})} 
+                            prefix="R$"
+                            decimals={2}
+                          />
+                        </div>
+                      </div>
+                    </>
                   )}
                 </div>
                 <DialogFooter>

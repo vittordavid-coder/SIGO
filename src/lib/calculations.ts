@@ -1,5 +1,19 @@
 import { Resource, ServiceComposition, Quotation, BDIConfig } from '../types';
 
+function getGlobalEncargos(): number {
+  try {
+    const saved = localStorage.getItem("rh_parameters_config");
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      const extraCosts = parsed.extraCosts || [];
+      return extraCosts.reduce((sum: number, item: any) => sum + (item.percentage || 0), 0);
+    }
+  } catch (e) {
+    console.error("Error reading global encargos", e);
+  }
+  return 0; // Default to 0 if not found
+}
+
 export function calculateBDI(config: BDIConfig): number {
   const { ac, s, r, g, df, l, i } = config;
   
@@ -28,13 +42,26 @@ export function calculateServiceUnitCost(
   service.items.forEach(item => {
     const resource = resources.find(r => r.id === item.resourceId);
     if (resource) {
-      const cost = item.consumption * resource.basePrice;
-      if (resource.type === 'labor') {
-        laborHorario += cost;
-      } else if (resource.type === 'material') {
-        materials += cost;
-      } else if (resource.type === 'equipment') {
-        equipment += cost;
+      if (resource.type === 'equipment') {
+        const prodPrice = resource.productivePrice || resource.basePrice;
+        const unprodPrice = resource.unproductivePrice || resource.basePrice;
+        
+        const prodCost = (item.productiveConsumption || 0) * prodPrice;
+        const unprodCost = (item.unproductiveConsumption || 0) * unprodPrice;
+        equipment += (prodCost + unprodCost);
+      } else {
+        let unitCost = resource.basePrice;
+        if (resource.type === 'labor') {
+          const encargos = resource.encargos ?? getGlobalEncargos();
+          unitCost = unitCost * (1 + encargos / 100);
+        }
+        
+        const cost = item.consumption * unitCost;
+        if (resource.type === 'labor') {
+          laborHorario += cost;
+        } else if (resource.type === 'material') {
+          materials += cost;
+        }
       }
     } else {
       const subService = allServices.find(s => s.id === item.resourceId);
