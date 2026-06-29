@@ -10,7 +10,7 @@ import {
 import { motion, AnimatePresence, Reorder } from 'motion/react';
 import { v4 as uuidv4 } from 'uuid';
 import { useLocalStorage } from './lib/useLocalStorage';
-import { Resource, ServiceComposition, Quotation, User, ABCConfig, BudgetGroup, BDIConfig, AuditLog, UserRole, Contract, Measurement, MeasurementTemplate, CalculationMemory, HighwayLocation, StationGroup, CubationData, TransportData, ServiceProduction, Employee, TimeRecord, DailyReport, DailyReportActivity, PluviometryRecord, TechnicalSchedule, DashboardConfig, ControllerTeam, ControllerEquipment, EquipmentMonthlyData, ControllerManpower, ManpowerMonthlyData, TeamAssignment, MarketingConfig, AppModule, PasswordResetRequest, EquipmentTransfer, Supplier, PurchaseOrder, EmailConfig, PurchaseRequest, PurchaseQuotation, EquipmentMaintenance, FuelTank, FuelLog, EquipmentMeasurement, DailyEquipmentMeasurement, Aporte, Warehouse, WarehouseItem, WarehouseEntry, Asset, WarehouseTransfer, WarehouseApplication, Alojamento } from './types';
+import { Resource, ServiceComposition, Quotation, User, ABCConfig, BudgetGroup, BDIConfig, AuditLog, UserRole, Contract, Measurement, MeasurementTemplate, CalculationMemory, HighwayLocation, StationGroup, CubationData, TransportData, ServiceProduction, Employee, TimeRecord, DailyReport, DailyReportActivity, PluviometryRecord, TechnicalSchedule, DashboardConfig, ControllerTeam, ControllerEquipment, EquipmentMonthlyData, ControllerManpower, ManpowerMonthlyData, TeamAssignment, MarketingConfig, AppModule, PasswordResetRequest, EquipmentTransfer, Supplier, PurchaseOrder, EmailConfig, PurchaseRequest, PurchaseQuotation, EquipmentMaintenance, FuelTank, FuelLog, EquipmentMeasurement, DailyEquipmentMeasurement, Aporte, Warehouse, WarehouseItem, WarehouseEntry, Asset, WarehouseTransfer, WarehouseApplication, Alojamento, MeasurementParameter } from './types';
 import { cn, hashPassword } from './lib/utils';
 import { calculateBDI } from './lib/calculations';
 import { compressImage } from './lib/imageUtils';
@@ -248,6 +248,7 @@ export default function App() {
   const [controllerTeams, setControllerTeams] = useLocalStorage<ControllerTeam[]>('sigo_controller_teams', [], compId);
   const [controllerEquipments, setControllerEquipments] = useLocalStorage<ControllerEquipment[]>('sigo_controller_equipments', [], compId);
   const [equipmentMaintenance, setEquipmentMaintenance] = useLocalStorage<EquipmentMaintenance[]>('sigo_equipment_maintenance', [], compId);
+  const [measurementParameters, setMeasurementParameters] = useLocalStorage<MeasurementParameter[]>('sigo_measurement_parameters', [], compId);
   const [equipmentMonthlyData, setEquipmentMonthlyData] = useLocalStorage<EquipmentMonthlyData[]>('sigo_equipments_monthly', [], compId);
   const [equipmentTransfers, setEquipmentTransfers] = useLocalStorage<EquipmentTransfer[]>('sigo_equipment_transfers', [], compId);
   const [manpowerRecords, setManpowerRecords] = useLocalStorage<ControllerManpower[]>('sigo_controller_manpower', [], compId);
@@ -582,7 +583,7 @@ export default function App() {
             `${activeId}_sigo_default_org`, `${activeId}_sigo_employees`, `${activeId}_sigo_time_records`, `${activeId}_sigo_dashboard_config`,
             `${activeId}_sigo_daily_reports`, `${activeId}_sigo_pluviometry_records`, `${activeId}_sigo_technical_schedules`,
             `${activeId}_sigo_controller_teams`, `${activeId}_sigo_controller_equipments`, `${activeId}_sigo_equipment_maintenance`,
-            `${activeId}_sigo_equipment_monthly`, `${activeId}_sigo_controller_manpower`, `${activeId}_sigo_manpower_monthly`,
+            `${activeId}_sigo_equipment_monthly`, `${activeId}_sigo_measurement_parameters`, `${activeId}_sigo_controller_manpower`, `${activeId}_sigo_manpower_monthly`,
             `${activeId}_sigo_team_assignments`, `${activeId}_sigo_suppliers`, `${activeId}_sigo_purchase_orders`,
             `${activeId}_sigo_purchase_requests`, `${activeId}_sigo_purchase_quotations`, `${activeId}_sigo_equipment_transfers`,
             `${activeId}_sigo_aportes`, `${activeId}_sigo_ctrl_charges`, `${activeId}_sigo_ctrl_ot`, `${activeId}_sigo_warehouses`,
@@ -652,6 +653,7 @@ export default function App() {
           'controller_teams': { key: 'sigo_controller_teams', setter: setControllerTeams },
           'equipments': { key: 'sigo_controller_equipments', setter: setControllerEquipments },
           'equipment_maintenance': { key: 'sigo_equipment_maintenance', setter: setEquipmentMaintenance },
+          'equipment_measurement_parameters': { key: 'sigo_measurement_parameters', setter: setMeasurementParameters },
           'equipment_monthly_data': { key: 'sigo_equipment_monthly', setter: setEquipmentMonthlyData },
           'controller_manpower': { key: 'sigo_controller_manpower', setter: setManpowerRecords },
           'manpower_monthly_data': { key: 'sigo_manpower_monthly', setter: setManpowerMonthlyData },
@@ -1435,6 +1437,7 @@ export default function App() {
       { id: `${compId}_sigo_controller_teams`, content: controllerTeams },
       { id: `${compId}_sigo_controller_equipments`, content: controllerEquipments },
       { id: `${compId}_sigo_equipment_maintenance`, content: equipmentMaintenance },
+      { id: `${compId}_sigo_measurement_parameters`, content: measurementParameters },
       { id: `${compId}_sigo_equipment_monthly`, content: equipmentMonthlyData },
       { id: `${compId}_sigo_controller_manpower`, content: manpowerRecords },
       { id: `${compId}_sigo_manpower_monthly`, content: manpowerMonthlyData },
@@ -1474,6 +1477,7 @@ export default function App() {
       'sigo_controller_teams': 'controller_teams',
       'sigo_controller_equipments': 'equipments',
       'sigo_equipment_maintenance': 'equipment_maintenance',
+      'sigo_measurement_parameters': 'equipment_measurement_parameters',
       'sigo_equipment_monthly': 'equipment_monthly_data',
       'sigo_controller_manpower': 'controller_manpower',
       'sigo_manpower_monthly': 'manpower_monthly_data',
@@ -3368,6 +3372,44 @@ export default function App() {
     }
   };
 
+  const updateMeasurementParameters = async (data: MeasurementParameter[] | ((prev: MeasurementParameter[]) => MeasurementParameter[])) => {
+    let resolvedData: MeasurementParameter[];
+    if (typeof data === 'function') {
+      resolvedData = data(measurementParameters);
+    } else {
+      resolvedData = data;
+    }
+    setMeasurementParameters(resolvedData);
+    const config = getSupabaseConfig();
+    if (config.enabled && compId) {
+      const supabase = createSupabaseClient(config.url, config.key);
+      if (supabase) {
+        try {
+          const mapped = resolvedData.map(d => ({ ...mapToSnake(d), company_id: compId }));
+
+          // Fallback blob
+          await supabase.from('app_state').upsert({
+            id: `${compId}_sigo_measurement_parameters`,
+            content: resolvedData
+          });
+
+          // Sync Deletions
+          const { data: dbItems } = await supabase.from('equipment_measurement_parameters').select('id').eq('company_id', compId);
+          const dbIds = dbItems?.map(d => d.id) || [];
+          const currentIds = resolvedData.map(d => d.id);
+          const toDelete = dbIds.filter(id => !currentIds.includes(id));
+          if (toDelete.length > 0) {
+            await supabase.from('equipment_measurement_parameters').delete().in('id', toDelete);
+          }
+
+          if (mapped.length > 0) {
+            await supabase.from('equipment_measurement_parameters').upsert(mapped);
+          }
+        } catch (err) { console.warn('[Sync] Measurement parameters persist failed', err); }
+      }
+    }
+  };
+
   const updateTechnicalManpower = async (man: ControllerManpower[]) => {
     setManpowerRecords(man);
     const config = getSupabaseConfig();
@@ -4684,6 +4726,8 @@ export default function App() {
                   onUpdateEquipmentMonthly={(val) => { lastLocalUpdate.current = Date.now(); updateEquipmentMonthly(val); }}
                   equipmentMaintenance={equipmentMaintenance}
                   onUpdateMaintenance={(val) => { lastLocalUpdate.current = Date.now(); updateEquipmentMaintenance(val); }}
+                  measurementParameters={measurementParameters}
+                  onUpdateMeasurementParameters={updateMeasurementParameters}
                   transfers={equipmentTransfers}
                   onUpdateTransfers={(val) => { lastLocalUpdate.current = Date.now(); updateEquipmentTransfers(val); }}
                   purchaseRequests={purchaseRequests}

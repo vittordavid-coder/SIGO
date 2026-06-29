@@ -3070,11 +3070,11 @@ export default function RHView({
                   />
                 </div>
                 <Button
-                  variant="outline"
-                  className="gap-2 text-slate-700 border-slate-200 h-10"
                   onClick={() => setIsExportSelectorOpen(true)}
+                  className="bg-slate-800 hover:bg-slate-900 text-white font-bold h-10 px-5 rounded-xl shadow-sm hover:shadow transition-all flex items-center gap-2 cursor-pointer text-sm"
+                  title="Exportar / Importar Banco de RH / Colaboradores"
                 >
-                  <Download className="w-4 h-4 text-emerald-600" /> Exportar / Importar
+                  <Download className="w-4 h-4 text-emerald-400" /> Exportar / Importar
                 </Button>
 
                 <Button

@@ -65,6 +65,7 @@ import {
   EquipmentMeasurement,
   DailyEquipmentMeasurement,
   Supplier,
+  MeasurementParameter,
 } from "../types";
 import {
   EQUIPMENT_TYPES,
@@ -165,6 +166,8 @@ interface ControlViewProps {
   setSystemConfig?: React.Dispatch<React.SetStateAction<any[]>>;
   suppliers?: Supplier[];
   setSuppliers?: (val: Supplier[] | ((prev: Supplier[]) => Supplier[])) => void;
+  measurementParameters?: MeasurementParameter[];
+  onUpdateMeasurementParameters?: (val: MeasurementParameter[] | ((prev: MeasurementParameter[]) => MeasurementParameter[])) => void;
 }
 
 export default function ControlView({
@@ -203,6 +206,8 @@ export default function ControlView({
   setSystemConfig,
   suppliers = [],
   setSuppliers,
+  measurementParameters = [],
+  onUpdateMeasurementParameters = () => {},
 }: ControlViewProps) {
   const [activeTab, setActiveTab] = React.useState(initialTab || "list");
 
@@ -319,6 +324,164 @@ export default function ControlView({
   const [newRequestCategory, setNewRequestCategory] = useState("");
   const [showCategorySuggestions, setShowCategorySuggestions] = useState(false);
 
+  const savedParameters = measurementParameters;
+  const setSavedParameters = onUpdateMeasurementParameters;
+  const [isDiscountParamsModalOpen, setIsDiscountParamsModalOpen] = useState(false);
+  const [paramEnabled, setParamEnabled] = useState(false);
+  const [paramWorking, setParamWorking] = useState(0);
+  const [paramMaintenance, setParamMaintenance] = useState(100);
+  const [paramRain, setParamRain] = useState(50);
+  const [paramWaiting, setParamWaiting] = useState(50);
+  const [paramAvailable, setParamAvailable] = useState(100);
+
+  const getMeasurementTotals = (
+    eq: ControllerEquipment,
+    days: DailyEquipmentMeasurement[],
+    month: string
+  ) => {
+    const contractId = selectedContractId || "default";
+    
+    // Find parameters
+    const param = savedParameters.find(
+      (p) => p.contractId === contractId && p.equipmentId === eq.id && p.month === month
+    );
+    
+    const enabled = param?.enabled ?? false;
+    const workingDiscount = enabled ? (param?.workingDiscount ?? 0) : 0;
+    const maintenanceDiscount = enabled ? (param?.maintenanceDiscount ?? 100) : 100;
+    const rainDiscount = enabled ? (param?.rainDiscount ?? 50) : 50;
+    const waitingDiscount = enabled ? (param?.waitingDiscount ?? 50) : 50;
+    const availableDiscount = enabled ? (param?.availableDiscount ?? 100) : 100;
+
+    const monthlyPrice = eq.monthlyPrice || (eq.measurementUnit === "Mensal" ? eq.contractedPrice : 0) || 0;
+    const dailyValueBase = monthlyPrice / 30;
+
+    let totalValue = 0;
+    let totalUnits = 0;
+
+    // Let's count days by status and whether they are discounted
+    const counts = {
+      Trabalhando: { total: 0, discounted: 0, pct: workingDiscount },
+      Manutenção: { total: 0, discounted: 0, pct: maintenanceDiscount },
+      Chuva: { total: 0, discounted: 0, pct: rainDiscount },
+      "Aguardando Frente": { total: 0, discounted: 0, pct: waitingDiscount },
+      "à Disposição": { total: 0, discounted: 0, pct: availableDiscount }
+    };
+
+    days.forEach((day) => {
+      let status = day.status || "Trabalhando";
+      let normStatus: keyof typeof counts = "Trabalhando";
+      const ls = status.toLowerCase();
+      if (ls.includes("trabalhando")) normStatus = "Trabalhando";
+      else if (ls.includes("manuten")) normStatus = "Manutenção";
+      else if (ls.includes("chuva")) normStatus = "Chuva";
+      else if (ls.includes("aguardando")) normStatus = "Aguardando Frente";
+      else if (ls.includes("disposi")) normStatus = "à Disposição";
+
+      counts[normStatus].total += 1;
+      if (day.discount) {
+        counts[normStatus].discounted += 1;
+      }
+    });
+
+    const isMonthlyOrHasMonthlyPrice = eq.measurementUnit === "Mensal" || monthlyPrice > 0;
+
+    if (isMonthlyOrHasMonthlyPrice) {
+      let sumValue = 0;
+      days.forEach((day) => {
+        let status = day.status || "Trabalhando";
+        let normStatus: keyof typeof counts = "Trabalhando";
+        const ls = status.toLowerCase();
+        if (ls.includes("trabalhando")) normStatus = "Trabalhando";
+        else if (ls.includes("manuten")) normStatus = "Manutenção";
+        else if (ls.includes("chuva")) normStatus = "Chuva";
+        else if (ls.includes("aguardando")) normStatus = "Aguardando Frente";
+        else if (ls.includes("disposi")) normStatus = "à Disposição";
+
+        const pct = counts[normStatus].pct;
+        const discountApplied = day.discount ? (dailyValueBase * (pct / 100)) : 0;
+        sumValue += (dailyValueBase - discountApplied);
+      });
+      totalValue = sumValue;
+      
+      const hasReadings = days.some(d => d.finalReading > d.initialReading);
+      if (hasReadings) {
+        totalUnits = days.reduce((acc, curr) => acc + (curr.discount ? 0 : curr.finalReading - curr.initialReading), 0);
+      } else {
+        totalUnits = counts["Trabalhando"].total;
+      }
+    } else {
+      totalUnits = days.reduce((acc, curr) => acc + (curr.discount ? 0 : curr.finalReading - curr.initialReading), 0);
+      totalValue = totalUnits * (eq.contractedPrice || 0);
+    }
+
+    return {
+      totalUnits,
+      totalValue,
+      counts,
+      monthlyPrice,
+      dailyValueBase,
+      enabled
+    };
+  };
+
+  const handleOpenDiscountParams = () => {
+    if (!selectedEquipment) return;
+    const contractId = selectedContractId || "default";
+    const equipmentId = selectedEquipment.id;
+    const month = measurementMonth;
+
+    const existing = savedParameters.find(
+      (p) => p.contractId === contractId && p.equipmentId === equipmentId && p.month === month
+    );
+
+    if (existing) {
+      setParamEnabled(existing.enabled);
+      setParamWorking(existing.workingDiscount);
+      setParamMaintenance(existing.maintenanceDiscount);
+      setParamRain(existing.rainDiscount);
+      setParamWaiting(existing.waitingDiscount);
+      setParamAvailable(existing.availableDiscount);
+    } else {
+      setParamEnabled(false);
+      setParamWorking(0);
+      setParamMaintenance(100);
+      setParamRain(50);
+      setParamWaiting(50);
+      setParamAvailable(100);
+    }
+    setIsDiscountParamsModalOpen(true);
+  };
+
+  const handleSaveDiscountParams = () => {
+    if (!selectedEquipment) return;
+    const contractId = selectedContractId || "default";
+    const equipmentId = selectedEquipment.id;
+    const month = measurementMonth;
+
+    setSavedParameters((prev) => {
+      const filtered = prev.filter(
+        (p) => !(p.contractId === contractId && p.equipmentId === equipmentId && p.month === month)
+      );
+
+      const newRecord: MeasurementParameter = {
+        id: crypto.randomUUID(),
+        contractId,
+        equipmentId,
+        month,
+        enabled: paramEnabled,
+        workingDiscount: Number(paramWorking) || 0,
+        maintenanceDiscount: Number(paramMaintenance) || 0,
+        rainDiscount: Number(paramRain) || 0,
+        waitingDiscount: Number(paramWaiting) || 0,
+        availableDiscount: Number(paramAvailable) || 0,
+      };
+
+      return [...filtered, newRecord];
+    });
+    setIsDiscountParamsModalOpen(false);
+  };
+
   // Removed internal equipmentMeasurements state as it's now a prop
   const [isNewMeasurementModalOpen, setIsNewMeasurementModalOpen] =
     useState(false);
@@ -384,6 +547,7 @@ export default function ControlView({
   const measurementInputRef = useRef<HTMLInputElement>(null);
   const exportModelInputRef = useRef<HTMLInputElement>(null);
   const [isExportSelectorOpen, setIsExportSelectorOpen] = useState(false);
+  const [isMeasurementImportExportModalOpen, setIsMeasurementImportExportModalOpen] = useState(false);
 
   const handleImportMeasurement = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -1768,16 +1932,112 @@ export default function ControlView({
     });
     currentY = (doc as any).lastAutoTable.finalY + 5;
 
+    // Calculation of days for footer table
+    const calc = getMeasurementTotals(equipment, measurement.details || [], measurement.month);
+    
+    // Check page space for the Days table (takes approx 25-30 units)
+    if (currentY > pageHeight - 45) {
+      doc.addPage();
+      currentY = 15;
+    }
+
+    // Header for the Days Counted table
+    doc.setFontSize(7.5);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(50, 50, 50);
+    doc.text("QUADRO DE DIAS CONTABILIZADOS NA MEDIÇÃO", margin, currentY);
+    currentY += 2;
+
+    const daysRows = [
+      [
+        "Trabalhando",
+        `${calc.counts.Trabalhando.total} dias`,
+        `${calc.counts.Trabalhando.discounted} dias`,
+        `${calc.counts.Trabalhando.pct}%`,
+        new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(
+          (calc.dailyValueBase * calc.counts.Trabalhando.discounted * calc.counts.Trabalhando.pct) / 100
+        ),
+        new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(
+          calc.dailyValueBase * calc.counts.Trabalhando.total - (calc.dailyValueBase * calc.counts.Trabalhando.discounted * calc.counts.Trabalhando.pct) / 100
+        )
+      ],
+      [
+        "Manutenção",
+        `${calc.counts.Manutenção.total} dias`,
+        `${calc.counts.Manutenção.discounted} dias`,
+        `${calc.counts.Manutenção.pct}%`,
+        new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(
+          (calc.dailyValueBase * calc.counts.Manutenção.discounted * calc.counts.Manutenção.pct) / 100
+        ),
+        new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(
+          calc.dailyValueBase * calc.counts.Manutenção.total - (calc.dailyValueBase * calc.counts.Manutenção.discounted * calc.counts.Manutenção.pct) / 100
+        )
+      ],
+      [
+        "Chuva",
+        `${calc.counts.Chuva.total} dias`,
+        `${calc.counts.Chuva.discounted} dias`,
+        `${calc.counts.Chuva.pct}%`,
+        new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(
+          (calc.dailyValueBase * calc.counts.Chuva.discounted * calc.counts.Chuva.pct) / 100
+        ),
+        new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(
+          calc.dailyValueBase * calc.counts.Chuva.total - (calc.dailyValueBase * calc.counts.Chuva.discounted * calc.counts.Chuva.pct) / 100
+        )
+      ],
+      [
+        "Aguardando Frente",
+        `${calc.counts["Aguardando Frente"].total} dias`,
+        `${calc.counts["Aguardando Frente"].discounted} dias`,
+        `${calc.counts["Aguardando Frente"].pct}%`,
+        new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(
+          (calc.dailyValueBase * calc.counts["Aguardando Frente"].discounted * calc.counts["Aguardando Frente"].pct) / 100
+        ),
+        new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(
+          calc.dailyValueBase * calc.counts["Aguardando Frente"].total - (calc.dailyValueBase * calc.counts["Aguardando Frente"].discounted * calc.counts["Aguardando Frente"].pct) / 100
+        )
+      ],
+      [
+        "À Disposição",
+        `${calc.counts["à Disposição"].total} dias`,
+        `${calc.counts["à Disposição"].discounted} dias`,
+        `${calc.counts["à Disposição"].pct}%`,
+        new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(
+          (calc.dailyValueBase * calc.counts["à Disposição"].discounted * calc.counts["à Disposição"].pct) / 100
+        ),
+        new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(
+          calc.dailyValueBase * calc.counts["à Disposição"].total - (calc.dailyValueBase * calc.counts["à Disposição"].discounted * calc.counts["à Disposição"].pct) / 100
+        )
+      ]
+    ];
+
+    autoTable(doc, {
+      startY: currentY,
+      head: [["Situação", "Qtd Dias", "Dias Descontados", "% Desconto", "Valor Descontado", "Valor Líquido"]],
+      body: daysRows,
+      theme: "grid",
+      headStyles: { fillColor: [100, 116, 139], fontSize: 6.5 },
+      styles: { fontSize: 6.5, cellPadding: 1 },
+      columnStyles: {
+        0: { fontStyle: "bold" },
+        4: { halign: "right" },
+        5: { halign: "right" }
+      }
+    });
+    currentY = (doc as any).lastAutoTable.finalY + 5;
+
     // Totals Summary at the bottom
     const totalY = pageHeight - 25;
     doc.setDrawColor(0);
     doc.setLineWidth(0.2);
     doc.line(margin, totalY, pageWidth - margin, totalY);
 
+    const productionUnitLabel = equipment.measurementUnit === "Horímetro" ? "h" : (equipment.measurementUnit === "Mensal" ? "dias" : (equipment.measurementUnit === "Diária" ? "dias" : "km"));
+
     doc.setFontSize(8);
     doc.setFont("helvetica", "bold");
     doc.text(
-      `TOTAL PRODUÇÃO: ${measurement.totalUnits.toLocaleString("pt-BR")} ${equipment.measurementUnit === "Horímetro" ? "h" : "km"}`,
+      `TOTAL PRODUÇÃO: ${measurement.totalUnits.toLocaleString("pt-BR")} ${productionUnitLabel}`,
       margin,
       totalY + 6,
     );
@@ -1805,14 +2065,28 @@ export default function ControlView({
         
         printIframe.onload = () => {
           try {
-            printIframe.contentWindow?.focus();
-            printIframe.contentWindow?.print();
+            const iframeWindow = printIframe.contentWindow;
+            if (iframeWindow) {
+              iframeWindow.focus();
+              iframeWindow.print();
+            } else {
+              throw new Error("No contentWindow available");
+            }
             setTimeout(() => {
-              document.body.removeChild(printIframe);
+              try {
+                if (document.body.contains(printIframe)) {
+                  document.body.removeChild(printIframe);
+                }
+              } catch (e3) {}
               URL.revokeObjectURL(pdfUrl);
             }, 60000);
           } catch (e2) {
-            console.error("Iframe print triggered error:", e2);
+            console.warn("Iframe print blocked or failed, opening in new window:", e2);
+            try {
+              if (document.body.contains(printIframe)) {
+                document.body.removeChild(printIframe);
+              }
+            } catch (e3) {}
             const printWindow = window.open(pdfUrl, '_blank');
             printWindow?.focus();
           }
@@ -2097,6 +2371,21 @@ export default function ControlView({
   };
 
   const getActiveMeasurementObject = (): EquipmentMeasurement => {
+    if (selectedEquipment) {
+      const calc = getMeasurementTotals(selectedEquipment, tempDailyData, measurementMonth);
+      return {
+        id: "temp",
+        equipmentId: selectedEquipment.id,
+        companyId: currentUser?.companyId || "",
+        number: 0,
+        month: measurementMonth,
+        period: `${measurementPeriod.start} a ${measurementPeriod.end}`,
+        totalUnits: calc.totalUnits,
+        totalValue: calc.totalValue,
+        details: tempDailyData,
+      };
+    }
+
     const totalUnits = tempDailyData
       .filter((d) => d.initialReading > 0 && d.finalReading > 0 && d.finalReading > d.initialReading)
       .reduce((acc, curr) => acc + (curr.discount ? 0 : curr.finalReading - curr.initialReading), 0);
@@ -2491,22 +2780,9 @@ export default function ControlView({
     if (!selectedEquipment) return;
     const tempMeasurements = selectedEquipment.measurements || [];
 
-    // FILTRAR DIAS COM HORIMETRO FINAL > 0 E TODOS OS CAMPOS PREENCHIDOS E FINAL > INICIAL
-    const filledDays = tempDailyData.filter(
-      (d) =>
-        d.initialReading > 0 &&
-        d.finalReading > 0 &&
-        d.finalReading > d.initialReading &&
-        !!d.status,
-    );
-
-    const totalUnits = filledDays.reduce(
-      (acc, curr) =>
-        acc + (curr.discount ? 0 : curr.finalReading - curr.initialReading),
-      0,
-    );
-    const unitPrice = selectedEquipment.contractedPrice || 0;
-    const totalValue = totalUnits * unitPrice;
+    const calc = getMeasurementTotals(selectedEquipment, tempDailyData, measurementMonth);
+    const totalUnits = calc.totalUnits;
+    const totalValue = calc.totalValue;
 
     let updatedMeasurements: EquipmentMeasurement[] = [];
 
@@ -3354,53 +3630,87 @@ export default function ControlView({
         onChange={handleFileChange}
       />
 
-      <Modal
-        hideCancel={true}
-        isOpen={isImportModalOpen}
-        onClose={() => setIsImportModalOpen(false)}
-        className="sm:max-w-[800px] h-[600px] flex flex-col overflow-hidden"
-        title="Importar Equipamentos"
-        footer={
-          <Button
-            onClick={() => fileInputRef.current?.click()}
-            className="gap-2 w-full sm:w-auto"
-          >
-            <Upload className="w-4 h-4" /> Selecionar Arquivo
-          </Button>
-        }
+      <Dialog
+        open={isImportModalOpen}
+        onOpenChange={setIsImportModalOpen}
       >
-        <div className="space-y-4 flex-1 overflow-y-auto p-4 scrollbar-thin-visible">
-          <div className="space-y-2">
-            <Label className="text-base uppercase font-bold text-gray-400">
-              Obra de Destino
-            </Label>
-            <Select
-              value={importContractId || "_none_"}
-              onValueChange={(val) =>
-                setImportContractId(val === "_none_" ? "" : val)
-              }
-            >
-              <SelectTrigger className="h-12 rounded-xl focus:ring-blue-500 transition-all">
-                <SelectValue placeholder="Usar obra da planilha" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="_none_" className="font-bold">
-                  Usar obra da planilha
-                </SelectItem>
-                {availableContracts.map((c) => (
-                  <SelectItem key={c.id} value={c.id} className="font-bold">
-                    {c.workName || c.contractNumber || "Sem nome"}
+        <DialogContent className="sm:max-w-[750px] w-full bg-white border border-slate-200 shadow-2xl rounded-2xl p-6 text-left flex flex-col max-h-[90vh] overflow-y-auto">
+          <DialogHeader className="text-left space-y-2 shrink-0">
+            <DialogTitle className="text-lg font-bold text-slate-900 flex items-center gap-2">
+              <Download className="w-5 h-5 text-blue-600" />
+              Exportar / Importar Equipamentos
+            </DialogTitle>
+            <DialogDescription className="text-xs text-slate-500">
+              Selecione a obra de destino, baixe o modelo padrão ou envie sua planilha Excel preenchida para importação.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4 shrink-0">
+            <div className="space-y-2">
+              <Label className="text-xs uppercase font-extrabold text-slate-400">
+                Obra de Destino
+              </Label>
+              <Select
+                value={importContractId || "_none_"}
+                onValueChange={(val) =>
+                  setImportContractId(val === "_none_" ? "" : val)
+                }
+              >
+                <SelectTrigger className="h-10 rounded-xl focus:ring-blue-500 transition-all">
+                  <SelectValue placeholder="Usar obra da planilha" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="_none_" className="font-bold">
+                    Usar obra da planilha
                   </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+                  {availableContracts.map((c) => (
+                    <SelectItem key={c.id} value={c.id} className="font-bold">
+                      {c.workName || c.contractNumber || "Sem nome"}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+              {/* Opção 1: Baixar Modelo */}
+              <button
+                onClick={() => {
+                  downloadTemplate();
+                  setIsImportModalOpen(false);
+                }}
+                className="flex flex-col items-center justify-center border-2 border-slate-100 hover:border-blue-600 hover:bg-blue-50/20 p-5 rounded-2xl transition group text-center cursor-pointer bg-white"
+              >
+                <div className="w-12 h-12 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center border border-blue-100 group-hover:scale-110 transition-transform mb-3">
+                  <Download className="w-6 h-6" />
+                </div>
+                <span className="font-extrabold text-slate-800 text-xs">Baixar Modelo</span>
+                <span className="text-slate-400 text-[10px] mt-1 leading-tight">Planilha padrão Excel para importação</span>
+              </button>
+
+              {/* Opção 2: Importar Excel */}
+              <button
+                onClick={() => {
+                  fileInputRef.current?.click();
+                  setIsImportModalOpen(false);
+                }}
+                className="flex flex-col items-center justify-center border-2 border-slate-100 hover:border-orange-500 hover:bg-orange-50/20 p-5 rounded-2xl transition group text-center cursor-pointer bg-white"
+              >
+                <div className="w-12 h-12 rounded-xl bg-orange-50 text-orange-600 flex items-center justify-center border border-orange-100 group-hover:scale-110 transition-transform mb-3">
+                  <Upload className="w-6 h-6" />
+                </div>
+                <span className="font-extrabold text-slate-800 text-xs">Selecionar Arquivo</span>
+                <span className="text-slate-400 text-[10px] mt-1 leading-tight">Envie sua planilha Excel (.xlsx)</span>
+              </button>
+            </div>
           </div>
-          <p className="text-base text-gray-500 italic">
-            * Certifique-se de que o arquivo segue o modelo padrão de importação
-            do SYNERA.
-          </p>
-        </div>
-      </Modal>
+
+          <div className="bg-slate-50 p-4 rounded-xl text-xs space-y-2 text-slate-600 border border-slate-100">
+            <p className="font-bold text-slate-800">Dicas para a Importação de Equipamentos:</p>
+            <p>Mantenha os cabeçalhos originais da planilha para que as colunas sejam corretamente sincronizadas. Você pode definir a obra na própria planilha ou selecionar uma obra de destino padrão acima.</p>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <Modal
         hideCancel={true}
@@ -3905,20 +4215,11 @@ export default function ControlView({
                   </button>
                 </div>
                 <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={downloadTemplate}
-                  className="rounded-xl gap-2 font-bold text-base"
-                >
-                  <FileDown className="w-4 h-4" /> Modelo
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
                   onClick={() => setIsImportModalOpen(true)}
-                  className="rounded-xl gap-2 font-bold text-base"
+                  className="bg-slate-800 hover:bg-slate-900 text-white font-bold h-10 px-5 rounded-xl shadow-sm hover:shadow transition-all flex items-center gap-2 cursor-pointer text-sm"
+                  title="Exportar / Importar Equipamentos"
                 >
-                  <Upload className="w-4 h-4" /> Importar
+                  <Download className="w-4 h-4 text-emerald-400" /> Exportar / Importar
                 </Button>
                 <Button
                   onClick={() => {
@@ -8012,6 +8313,16 @@ export default function ControlView({
                   <Button
                     variant="outline"
                     size="sm"
+                    onClick={handleOpenDiscountParams}
+                    className="h-10 px-3 rounded-xl shadow-sm flex items-center gap-1.5 text-white border-white/30 bg-white/10 hover:bg-white/20 cursor-pointer font-bold"
+                    title="Configurar Parâmetros de Desconto"
+                  >
+                    <Settings className="w-4 h-4 text-amber-300" /> Parâmetros
+                  </Button>
+
+                  <Button
+                    variant="outline"
+                    size="sm"
                     onClick={() => generateMeasurementPDF(getActiveMeasurementObject(), selectedEquipment, true)}
                     className="h-10 px-3 rounded-xl shadow-sm flex items-center gap-1.5 text-white border-white/30 bg-white/10 hover:bg-white/20 cursor-pointer font-bold"
                     title="Imprimir Medição"
@@ -8022,20 +8333,11 @@ export default function ControlView({
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => setIsExportSelectorOpen(true)}
+                    onClick={() => setIsMeasurementImportExportModalOpen(true)}
                     className="h-10 px-4 rounded-xl shadow-sm flex items-center gap-1.5 text-white border-white/30 bg-white/10 hover:bg-white/20 cursor-pointer font-bold"
-                    title="Exportar medição nos formatos PDF, Excel ou Modelo Personalizado"
+                    title="Exportar ou importar medição"
                   >
-                    <Download className="w-4 h-4 text-blue-300" /> Exportar Medição
-                  </Button>
-
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => measurementInputRef.current?.click()}
-                    className="h-10 px-4 rounded-xl shadow-sm flex items-center gap-2 text-white border-white/30 bg-white/10 hover:bg-white/20 cursor-pointer"
-                  >
-                    <Upload className="w-4 h-4 text-emerald-300" /> Importar Planilha
+                    <Download className="w-4 h-4 text-emerald-300" /> Exportar / Importar
                   </Button>
                   <input
                     type="file"
@@ -8372,12 +8674,12 @@ export default function ControlView({
                     Total Acumulado
                   </span>
                   <span className="text-2xl font-black text-slate-800 leading-none">
-                    {tempDailyData
-                      .filter((d) => d.initialReading > 0 && d.finalReading > 0 && d.finalReading > d.initialReading)
-                      .reduce((acc, curr) => acc + (curr.discount ? 0 : curr.finalReading - curr.initialReading), 0)
-                      .toLocaleString("pt-BR")}{" "}
+                    {(() => {
+                      const calc = getMeasurementTotals(selectedEquipment, tempDailyData, measurementMonth);
+                      return calc.totalUnits.toLocaleString("pt-BR");
+                    })()}{" "}
                     <span className="text-sm font-bold uppercase tracking-widest text-slate-400 ml-1">
-                      {selectedEquipment?.measurementUnit === "Horímetro" ? "h" : "km"}
+                      {selectedEquipment?.measurementUnit === "Horímetro" ? "h" : (selectedEquipment?.measurementUnit === "Mensal" ? "dias" : "km")}
                     </span>
                   </span>
                 </div>
@@ -8386,11 +8688,10 @@ export default function ControlView({
                     Valor Total
                   </span>
                   <span className="text-2xl font-black text-emerald-600 leading-none">
-                    {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(
-                      tempDailyData
-                        .filter((d) => d.initialReading > 0 && d.finalReading > 0 && d.finalReading > d.initialReading)
-                        .reduce((acc, curr) => acc + (curr.discount ? 0 : curr.finalReading - curr.initialReading), 0) * (selectedEquipment?.contractedPrice || 0)
-                    )}
+                    {(() => {
+                      const calc = getMeasurementTotals(selectedEquipment, tempDailyData, measurementMonth);
+                      return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(calc.totalValue);
+                    })()}
                   </span>
                 </div>
               </div>
@@ -9714,6 +10015,109 @@ export default function ControlView({
 
       <Modal
         hideCancel={true}
+        isOpen={isDiscountParamsModalOpen}
+        onClose={() => setIsDiscountParamsModalOpen(false)}
+        className="sm:max-w-[480px] h-auto flex flex-col overflow-hidden"
+        title="Configurar Parâmetros de Desconto"
+        description="Os parâmetros definem os percentuais de desconto para as situações de trabalho do equipamento atual."
+      >
+        <div className="space-y-4 py-3">
+          <div className="flex items-center gap-3 p-3 bg-slate-50 border border-slate-100 rounded-2xl">
+            <Checkbox
+              id="enable-params"
+              checked={paramEnabled}
+              onCheckedChange={(checked) => setParamEnabled(!!checked)}
+            />
+            <label
+              htmlFor="enable-params"
+              className="text-xs font-extrabold uppercase tracking-wider text-slate-700 cursor-pointer select-none"
+            >
+              Ativar Parâmetros Personalizados
+            </label>
+          </div>
+
+          {!paramEnabled ? (
+            <div className="p-3 bg-blue-50/50 border border-blue-100/70 rounded-2xl text-[11px] text-blue-700 space-y-1.5">
+              <p className="font-extrabold uppercase tracking-wide">Padrões de Desconto Ativos:</p>
+              <ul className="list-disc list-inside space-y-0.5">
+                <li><strong>Trabalhando:</strong> 0%</li>
+                <li><strong>Em Manutenção:</strong> 100%</li>
+                <li><strong>Chuva:</strong> 50%</li>
+                <li><strong>Aguardando Frente:</strong> 50%</li>
+                <li><strong>À Disposição:</strong> 100%</li>
+              </ul>
+              <p className="italic text-blue-600/90 mt-1">Marque a caixa acima para poder editar e salvar percentuais customizados.</p>
+            </div>
+          ) : (
+            <div className="space-y-3 p-1">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label className="text-[10px] font-black uppercase tracking-wider text-slate-500">Trabalhando (%)</Label>
+                  <NumericInput
+                    value={paramWorking}
+                    onChange={(val) => setParamWorking(Math.min(100, Math.max(0, val || 0)))}
+                    className="h-10 text-xs font-bold"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-[10px] font-black uppercase tracking-wider text-slate-500">Em Manutenção (%)</Label>
+                  <NumericInput
+                    value={paramMaintenance}
+                    onChange={(val) => setParamMaintenance(Math.min(100, Math.max(0, val || 0)))}
+                    className="h-10 text-xs font-bold"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-2">
+                <div className="space-y-1">
+                  <Label className="text-[10px] font-black uppercase tracking-wider text-slate-500">Chuva (%)</Label>
+                  <NumericInput
+                    value={paramRain}
+                    onChange={(val) => setParamRain(Math.min(100, Math.max(0, val || 0)))}
+                    className="h-10 text-xs font-bold"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-[10px] font-black uppercase tracking-wider text-slate-500">Aguardando Frente (%)</Label>
+                  <NumericInput
+                    value={paramWaiting}
+                    onChange={(val) => setParamWaiting(Math.min(100, Math.max(0, val || 0)))}
+                    className="h-10 text-xs font-bold"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-[10px] font-black uppercase tracking-wider text-slate-500">À Disposição (%)</Label>
+                  <NumericInput
+                    value={paramAvailable}
+                    onChange={(val) => setParamAvailable(Math.min(100, Math.max(0, val || 0)))}
+                    className="h-10 text-xs font-bold"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
+            <Button
+              variant="ghost"
+              onClick={() => setIsDiscountParamsModalOpen(false)}
+              className="text-xs uppercase font-extrabold tracking-wider"
+            >
+              Cancelar
+            </Button>
+            <Button
+              onClick={handleSaveDiscountParams}
+              className="text-xs uppercase font-extrabold tracking-wider bg-blue-600 hover:bg-blue-700 text-white"
+            >
+              Salvar Parâmetros
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal
+        hideCancel={true}
         isOpen={isMaintenanceDiscountModalOpen}
         onClose={() => {
           setIsMaintenanceDiscountModalOpen(false);
@@ -9797,6 +10201,114 @@ export default function ControlView({
             );
           })()}
       </Modal>
+
+      <Dialog
+        open={isMeasurementImportExportModalOpen}
+        onOpenChange={setIsMeasurementImportExportModalOpen}
+      >
+        <DialogContent className="sm:max-w-[700px] w-full bg-white border border-slate-200 shadow-2xl rounded-2xl p-6 text-left flex flex-col max-h-[90vh] overflow-y-auto">
+          <DialogHeader className="text-left space-y-2 shrink-0">
+            <DialogTitle className="text-lg font-bold text-slate-900 flex items-center gap-2">
+              <Download className="w-5 h-5 text-blue-600" />
+              Exportar / Importar Medição
+            </DialogTitle>
+            <DialogDescription className="text-xs text-slate-500">
+              Escolha se deseja exportar a medição atual (PDF, Excel, Modelo customizado) ou importar uma planilha de dados.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-6 py-4">
+            <div>
+              <Label className="text-xs uppercase font-extrabold text-slate-400 block mb-3">
+                Exportar Medição
+              </Label>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                {/* PDF */}
+                <button
+                  onClick={() => {
+                    const measurement = getActiveMeasurementObject();
+                    if (measurement && selectedEquipment) {
+                      generateMeasurementPDF(measurement, selectedEquipment);
+                    }
+                    setIsMeasurementImportExportModalOpen(false);
+                  }}
+                  className="flex flex-col items-center justify-center border-2 border-slate-100 hover:border-red-500 hover:bg-red-50/20 p-4 rounded-xl transition group text-center cursor-pointer bg-white"
+                >
+                  <div className="w-10 h-10 rounded-lg bg-red-50 text-red-600 flex items-center justify-center border border-red-100 group-hover:scale-110 transition-transform mb-2">
+                    <FileText className="w-5 h-5" />
+                  </div>
+                  <span className="font-extrabold text-slate-800 text-xs">Relatório PDF</span>
+                  <span className="text-slate-400 text-[9px] mt-0.5 leading-tight">Gera PDF oficial assinado</span>
+                </button>
+
+                {/* Excel */}
+                <button
+                  onClick={() => {
+                    const measurement = getActiveMeasurementObject();
+                    if (measurement && selectedEquipment) {
+                      generateMeasurementExcel(measurement, selectedEquipment);
+                    }
+                    setIsMeasurementImportExportModalOpen(false);
+                  }}
+                  className="flex flex-col items-center justify-center border-2 border-slate-100 hover:border-emerald-600 hover:bg-emerald-50/20 p-4 rounded-xl transition group text-center cursor-pointer bg-white"
+                >
+                  <div className="w-10 h-10 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center border border-emerald-100 group-hover:scale-110 transition-transform mb-2">
+                    <Download className="w-5 h-5" />
+                  </div>
+                  <span className="font-extrabold text-slate-800 text-xs">Planilha Excel</span>
+                  <span className="text-slate-400 text-[9px] mt-0.5 leading-tight">Agrupa todos os dados do mês</span>
+                </button>
+
+                {/* Modelo Customizado */}
+                <button
+                  onClick={() => {
+                    setIsMeasurementImportExportModalOpen(false);
+                    setTimeout(() => {
+                      exportModelInputRef.current?.click();
+                    }, 100);
+                  }}
+                  className="flex flex-col items-center justify-center border-2 border-slate-100 hover:border-blue-600 hover:bg-blue-50/20 p-4 rounded-xl transition group text-center cursor-pointer bg-white"
+                >
+                  <div className="w-10 h-10 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center border border-blue-100 group-hover:scale-110 transition-transform mb-2">
+                    <Tag className="w-5 h-5" />
+                  </div>
+                  <span className="font-extrabold text-slate-800 text-xs">Carregar Modelo</span>
+                  <span className="text-slate-400 text-[9px] mt-0.5 leading-tight">Preenche suas tags customizadas</span>
+                </button>
+              </div>
+            </div>
+
+            <div className="border-t border-slate-100 pt-4">
+              <Label className="text-xs uppercase font-extrabold text-slate-400 block mb-3">
+                Importar Planilha
+              </Label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {/* Importar Planilha */}
+                <button
+                  onClick={() => {
+                    setIsMeasurementImportExportModalOpen(false);
+                    setTimeout(() => {
+                      measurementInputRef.current?.click();
+                    }, 100);
+                  }}
+                  className="flex flex-col items-center justify-center border-2 border-slate-100 hover:border-purple-600 hover:bg-purple-50/20 p-4 rounded-xl transition group text-center cursor-pointer bg-white"
+                >
+                  <div className="w-10 h-10 rounded-lg bg-purple-50 text-purple-600 flex items-center justify-center border border-purple-100 group-hover:scale-110 transition-transform mb-2">
+                    <Upload className="w-5 h-5" />
+                  </div>
+                  <span className="font-extrabold text-slate-800 text-xs">Enviar Planilha</span>
+                  <span className="text-slate-400 text-[9px] mt-0.5 leading-tight">Importar dados diários (.xlsx, .csv)</span>
+                </button>
+
+                <div className="bg-slate-50 p-4 rounded-xl text-[11px] space-y-1 text-slate-600 border border-slate-100 flex flex-col justify-center">
+                  <p className="font-bold text-slate-800">Dica de Importação:</p>
+                  <p className="leading-relaxed">A planilha de importação deve conter colunas com data, leitura inicial e leitura final para preenchimento automático.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <Modal
         isOpen={isExportSelectorOpen}

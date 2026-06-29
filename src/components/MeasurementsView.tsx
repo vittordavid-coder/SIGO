@@ -45,6 +45,7 @@ import {
   X,
   DollarSign,
   TrendingUp,
+  Upload,
 } from "lucide-react";
 import { v4 as uuidv4 } from "uuid";
 import {
@@ -155,6 +156,23 @@ export function calculateAssignmentCosts(
   otPerc: number = 0,
   daysInMonth: number = 30,
 ): { daily: number; monthly: number } {
+  let finalChargesPerc = chargesPerc;
+  let finalOtPerc = otPerc;
+  try {
+    const saved = localStorage.getItem("rh_parameters_config");
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (parsed && Array.isArray(parsed.extraCosts)) {
+        finalChargesPerc = parsed.extraCosts.reduce((sum: number, item: any) => sum + (item.percentage || 0), 0);
+      }
+      if (parsed && typeof parsed.overtimeRate50 === "number") {
+        finalOtPerc = parsed.overtimeRate50;
+      }
+    }
+  } catch (e) {
+    console.error("Error loading rh_parameters_config in calculateAssignmentCosts:", e);
+  }
+
   if (assignment.type === "manpower") {
     // 1. Check if there is monthly data first
     const data = manpowerMonthly.find(
@@ -166,8 +184,8 @@ export function calculateAssignmentCosts(
       const daily = data.dailyRate || 0;
 
       const hourly = salary / 220;
-      const otValue = hourly * (1 + otPerc / 100) * otHours;
-      const charges = (salary + otValue) * (chargesPerc / 100);
+      const otValue = hourly * (1 + finalOtPerc / 100) * otHours;
+      const charges = (salary + otValue) * (finalChargesPerc / 100);
 
       const monthlyCost = salary + otValue + daily * daysInMonth + charges;
       const dailyCost = (salary + otValue + charges) / daysInMonth + daily;
@@ -178,7 +196,7 @@ export function calculateAssignmentCosts(
     const emp = employees.find((e) => e.id === assignment.memberId);
     if (emp) {
       const salary = emp.salary || 0;
-      const charges = salary * (chargesPerc / 100);
+      const charges = salary * (finalChargesPerc / 100);
       if (emp.paymentType === "day") {
         const dailyCost = salary;
         const monthlyCost = salary * daysInMonth;
@@ -201,7 +219,7 @@ export function calculateAssignmentCosts(
       );
       if (empByName) {
         const salary = empByName.salary || 0;
-        const charges = salary * (chargesPerc / 100);
+        const charges = salary * (finalChargesPerc / 100);
         if (empByName.paymentType === "day") {
           return { daily: salary, monthly: salary * daysInMonth };
         } else {
@@ -462,6 +480,26 @@ export function MeasurementsView({
   const [memoryModalServiceId, setMemoryModalServiceId] = useState<
     string | null
   >(null);
+
+  const { resolvedChargesPerc, resolvedOtPerc } = useMemo(() => {
+    let rc = chargesPerc;
+    let ro = otPerc;
+    try {
+      const saved = localStorage.getItem("rh_parameters_config");
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed && Array.isArray(parsed.extraCosts)) {
+          rc = parsed.extraCosts.reduce((sum: number, item: any) => sum + (item.percentage || 0), 0);
+        }
+        if (parsed && typeof parsed.overtimeRate50 === "number") {
+          ro = parsed.overtimeRate50;
+        }
+      }
+    } catch (e) {
+      console.error("Error reading rh_parameters_config in MeasurementsView:", e);
+    }
+    return { resolvedChargesPerc: rc, resolvedOtPerc: ro };
+  }, [chargesPerc, otPerc]);
 
   const selectedContract = useMemo(
     () => contracts.find((c) => c.id === selectedContractId),
@@ -857,8 +895,8 @@ export function MeasurementsView({
             employees,
             controllerManpower,
             controllerEquipments,
-            chargesPerc,
-            otPerc,
+            resolvedChargesPerc,
+            resolvedOtPerc,
             30,
           );
           manCost += costs.monthly;
@@ -876,8 +914,8 @@ export function MeasurementsView({
             employees,
             controllerManpower,
             controllerEquipments,
-            chargesPerc,
-            otPerc,
+            resolvedChargesPerc,
+            resolvedOtPerc,
             30,
           );
           equipCost += costs.monthly;
@@ -2269,8 +2307,8 @@ export function MeasurementsView({
                   employees={employees}
                   manpowerMonthly={manpowerMonthly}
                   equipmentMonthly={equipmentMonthly}
-                  chargesPerc={chargesPerc}
-                  otPerc={otPerc}
+                  chargesPerc={resolvedChargesPerc}
+                  otPerc={resolvedOtPerc}
                 />
               </motion.div>
             )}
@@ -3052,6 +3090,7 @@ function ContractTab({
 }) {
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [editingContract, setEditingContract] = useState<Contract | null>(null);
+  const [isExportImportModalOpen, setIsExportImportModalOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [importFeedbackMsg, setImportFeedbackMsg] = useState<string | null>(
     null,
@@ -3461,6 +3500,35 @@ function ContractTab({
       animate={{ opacity: 1, x: 0 }}
       className="space-y-6"
     >
+      <input
+        ref={fileInputRef}
+        type="file"
+        className="hidden"
+        accept=".xlsx,.xls"
+        onChange={handleImportSpreadsheet}
+      />
+
+      {importFeedbackMsg && (
+        <div
+          className={`p-3 text-sm font-medium rounded-xl flex items-center justify-between shadow-sm border ${
+            importFeedbackMsg.startsWith("✅")
+              ? "bg-emerald-50 text-emerald-700 border-emerald-100"
+              : "bg-red-50 text-red-700 border-red-100"
+          }`}
+        >
+          <span>{importFeedbackMsg}</span>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-8 text-xs font-bold"
+            onClick={() => setImportFeedbackMsg(null)}
+          >
+            Fechar
+          </Button>
+        </div>
+      )}
+
       <div className="flex flex-wrap gap-4 justify-between items-center mb-6">
         <div>
           <h3 className="text-2xl font-bold">Gestão de Contratos</h3>
@@ -3469,6 +3537,99 @@ function ContractTab({
           </p>
         </div>
         <div className="flex gap-2">
+          {!readonly && (
+            <>
+              <Button
+                onClick={() => setIsExportImportModalOpen(true)}
+                className="bg-slate-800 hover:bg-slate-900 text-white font-bold h-10 px-5 rounded-xl shadow-sm hover:shadow transition-all flex items-center gap-2 cursor-pointer text-sm"
+                title="Exportar / Importar Contratos"
+              >
+                <Download className="w-4 h-4 text-emerald-400" /> Exportar / Importar
+              </Button>
+
+              <Dialog open={isExportImportModalOpen} onOpenChange={setIsExportImportModalOpen}>
+                <DialogContent className="sm:max-w-[750px] w-full bg-white border border-slate-200 shadow-2xl rounded-2xl p-6 text-left flex flex-col max-h-[90vh] overflow-y-auto">
+                  <DialogHeader className="text-left space-y-2 shrink-0">
+                    <DialogTitle className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                      <Download className="w-5 h-5 text-blue-600" />
+                      Exportar / Importar Contratos
+                    </DialogTitle>
+                    <DialogDescription className="text-xs text-slate-500">
+                      Baixe o modelo padrão, importe novos contratos ou exporte a planilha de serviços do contrato selecionado.
+                    </DialogDescription>
+                  </DialogHeader>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 py-4 shrink-0">
+                    {/* Opção 1: Baixar Modelo */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        handleDownloadTemplate();
+                        setIsExportImportModalOpen(false);
+                      }}
+                      className="flex flex-col items-center justify-center border-2 border-slate-100 hover:border-blue-600 hover:bg-blue-50/20 p-5 rounded-2xl transition group text-center cursor-pointer bg-white"
+                    >
+                      <div className="w-12 h-12 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center border border-blue-100 group-hover:scale-110 transition-transform mb-3">
+                        <Download className="w-6 h-6" />
+                      </div>
+                      <span className="font-extrabold text-slate-800 text-xs">Baixar Modelo</span>
+                      <span className="text-slate-400 text-[10px] mt-1 leading-tight">Planilha padrão Excel para preenchimento</span>
+                    </button>
+
+                    {/* Opção 2: Exportar Planilha */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const activeContract = contracts.find((c) => c.id === selectedId);
+                        if (activeContract) {
+                          exportContractSpreadsheetToExcel(activeContract, services);
+                        } else {
+                          alert('Por favor, selecione um contrato na lista abaixo para exportar.');
+                        }
+                        setIsExportImportModalOpen(false);
+                      }}
+                      className="flex flex-col items-center justify-center border-2 border-slate-100 hover:border-emerald-600 hover:bg-emerald-50/20 p-5 rounded-2xl transition group text-center cursor-pointer bg-white"
+                    >
+                      <div className="w-12 h-12 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center border border-emerald-100 group-hover:scale-110 transition-transform mb-3">
+                        <FileSpreadsheet className="w-6 h-6" />
+                      </div>
+                      <span className="font-extrabold text-slate-800 text-xs">Exportar Planilha</span>
+                      <span className="text-slate-400 text-[10px] mt-1 leading-tight">Gera arquivo Excel do contrato selecionado</span>
+                    </button>
+
+                    {/* Opção 3: Importar Dados */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        fileInputRef.current?.click();
+                        setIsExportImportModalOpen(false);
+                      }}
+                      className="flex flex-col items-center justify-center border-2 border-slate-100 hover:border-orange-500 hover:bg-orange-50/20 p-5 rounded-2xl transition group text-center cursor-pointer bg-white"
+                    >
+                      <div className="w-12 h-12 rounded-xl bg-orange-50 text-orange-600 flex items-center justify-center border border-orange-100 group-hover:scale-110 transition-transform mb-3">
+                        <Upload className="w-6 h-6" />
+                      </div>
+                      <span className="font-extrabold text-slate-800 text-xs">Importar Contrato</span>
+                      <span className="text-slate-400 text-[10px] mt-1 leading-tight">Envie sua planilha preenchida</span>
+                    </button>
+                  </div>
+
+                  <div className="bg-slate-50 p-4 rounded-xl text-xs space-y-2 text-slate-600 border border-slate-100">
+                    <p className="font-bold text-slate-800">Dicas para a Importação de Contratos via Excel:</p>
+                    <p>Utilize as seguintes colunas obrigatórias na sua planilha Excel para realizar a importação correta dos serviços:</p>
+                    <div className="grid grid-cols-2 gap-2 font-mono text-[10px] text-blue-700 bg-white p-3 rounded-lg border border-slate-200">
+                      <div><span className="font-bold text-slate-600">Grupo</span> - Grupo/Etapa do serviço</div>
+                      <div><span className="font-bold text-slate-600">Código do Serviço</span> - ID do serviço</div>
+                      <div><span className="font-bold text-slate-600">Descrição do Serviço</span> - Nome do serviço</div>
+                      <div><span className="font-bold text-slate-600">Unidade</span> - Unidade (ex: M3, M2, KG)</div>
+                      <div><span className="font-bold text-slate-600">Quantidade</span> - Quantidade total</div>
+                      <div><span className="font-bold text-slate-600">Preço Unitário</span> - Preço unitário</div>
+                    </div>
+                  </div>
+                </DialogContent>
+              </Dialog>
+            </>
+          )}
           {!readonly && (
             <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
               <DialogTrigger asChild>
@@ -3546,57 +3707,7 @@ function ContractTab({
                       </Select>
                     </div>
 
-                    <div className="grid gap-3 bg-blue-50/50 p-4 rounded-xl border border-blue-100">
-                      <Label className="font-bold text-blue-900">
-                        Apoio (Importação de Planilha via Excel)
-                      </Label>
-                      <div className="flex flex-col sm:flex-row items-center gap-3">
-                        <Button
-                          type="button"
-                          variant="outline"
-                          className="w-full sm:flex-1 gap-2 border-dashed border-blue-300 text-blue-700 bg-white hover:bg-blue-50 h-11"
-                          onClick={handleDownloadTemplate}
-                        >
-                          <Download className="w-4 h-4" /> Baixar Modelo
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          className="w-full sm:flex-1 gap-2 border-dashed border-emerald-300 text-emerald-700 bg-white hover:bg-emerald-50 h-11"
-                          onClick={() => {
-                            console.log("[UI] Import request triggered");
-                            if (fileInputRef.current) {
-                              fileInputRef.current.click();
-                            } else {
-                              console.error(
-                                "Erro: O seletor de arquivos não está disponível.",
-                              );
-                            }
-                          }}
-                        >
-                          <FileSpreadsheet className="w-4 h-4" /> Importar
-                          Planilha (.xls/.xlsx)
-                        </Button>
-                      </div>
-                      <input
-                        ref={fileInputRef}
-                        type="file"
-                        className="hidden"
-                        accept=".xlsx,.xls"
-                        onChange={handleImportSpreadsheet}
-                      />
-                      {importFeedbackMsg && (
-                        <div
-                          className={`mt-2 p-3 text-base font-medium rounded-lg ${importFeedbackMsg.startsWith("✅") ? "bg-emerald-50 text-emerald-700 border border-emerald-100" : "bg-red-50 text-red-700 border border-red-100"}`}
-                        >
-                          {importFeedbackMsg}
-                        </div>
-                      )}
-                      <p className="text-sm text-blue-600/70 italic text-center sm:text-left">
-                        Dica: Baixe nosso modelo em Excel, preencha os serviços
-                        e import-o aqui.
-                      </p>
-                    </div>
+
 
                     <div className="flex items-center gap-4 py-2">
                       <div className="h-px bg-gray-200 flex-1"></div>

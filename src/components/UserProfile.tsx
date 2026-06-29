@@ -30,6 +30,7 @@ export function UserProfile({ user, onUpdate }: UserProfileProps) {
   
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const [passwordFeedback, setPasswordFeedback] = useState<{ type: 'success' | 'error', message: string } | null>(null);
 
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -62,22 +63,36 @@ export function UserProfile({ user, onUpdate }: UserProfileProps) {
   const handleSave = async () => {
     setIsSaving(true);
     setSaveSuccess(false);
+    setPasswordFeedback(null);
 
     if (newPassword && newPassword !== confirmPassword) {
-      alert('A nova senha e a confirmação não coincidem.');
+      const msg = 'A nova senha e a confirmação não coincidem.';
+      setPasswordFeedback({ type: 'error', message: msg });
+      alert(msg);
       setIsSaving(false);
       return;
     }
 
     if (newPassword && !currentPassword) {
-      alert('Por favor, informe a senha atual para alterar a senha.');
+      const msg = 'Por favor, informe a senha atual para alterar a senha.';
+      setPasswordFeedback({ type: 'error', message: msg });
+      alert(msg);
       setIsSaving(false);
       return;
     }
 
     let updatedPassword = user.password;
+    let passwordChanged = false;
 
     if (newPassword) {
+      if (newPassword.length < 6) {
+        const msg = 'A senha deve ter pelo menos 6 caracteres.';
+        setPasswordFeedback({ type: 'error', message: msg });
+        alert(msg);
+        setIsSaving(false);
+        return;
+      }
+
       const trimmedCurrent = currentPassword.trim();
       const hashedCurrent = await hashPassword(trimmedCurrent);
       const storedPassword = (user.password || '').trim();
@@ -91,12 +106,15 @@ export function UserProfile({ user, onUpdate }: UserProfileProps) {
         : trimmedCurrent === storedPassword;
 
       if (!isAuthenticated) {
-        alert('A senha atual está incorreta. Verifique se há espaços extras.');
+        const msg = 'A senha atual está incorreta. Verifique se há espaços extras.';
+        setPasswordFeedback({ type: 'error', message: msg });
+        alert(msg);
         setIsSaving(false);
         return;
       }
       const trimmedNew = newPassword.trim();
       updatedPassword = await hashPassword(trimmedNew);
+      passwordChanged = true;
     }
 
     const updatedUser: User = {
@@ -113,13 +131,22 @@ export function UserProfile({ user, onUpdate }: UserProfileProps) {
     try {
       await onUpdate(updatedUser);
       setSaveSuccess(true);
+      if (passwordChanged) {
+        setPasswordFeedback({ type: 'success', message: 'Sua senha foi alterada com sucesso!' });
+        alert('Senha alterada com sucesso!');
+      }
       setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
-      setTimeout(() => setSaveSuccess(false), 3000);
+      setTimeout(() => {
+        setSaveSuccess(false);
+        setPasswordFeedback(null);
+      }, 5000);
     } catch (error) {
       console.error('Error saving profile:', error);
-      alert('Erro ao salvar o perfil.');
+      const msg = 'Erro ao salvar o perfil.';
+      setPasswordFeedback({ type: 'error', message: msg });
+      alert(msg);
     } finally {
       setIsSaving(false);
     }
@@ -319,6 +346,21 @@ export function UserProfile({ user, onUpdate }: UserProfileProps) {
             </div>
             {newPassword && newPassword.length < 6 && (
               <p className="text-sm text-rose-500 font-medium">A senha deve ter pelo menos 6 caracteres.</p>
+            )}
+            {passwordFeedback && (
+              <div className={cn(
+                "p-3 rounded-xl text-sm font-semibold flex items-center gap-2 transition-all duration-300",
+                passwordFeedback.type === 'success' 
+                  ? "bg-emerald-50 text-emerald-700 border border-emerald-100" 
+                  : "bg-rose-50 text-rose-700 border border-rose-100"
+              )}>
+                {passwordFeedback.type === 'success' ? (
+                  <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" />
+                ) : (
+                  <Shield className="w-4 h-4 shrink-0 text-rose-600" />
+                )}
+                <span>{passwordFeedback.message}</span>
+              </div>
             )}
           </CardContent>
         </Card>

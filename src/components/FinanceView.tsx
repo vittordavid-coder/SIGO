@@ -1,10 +1,10 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
@@ -45,6 +45,9 @@ export const FinanceView = ({
   const [isItemDialogOpen, setIsItemDialogOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<AporteItem | null>(null);
   const [itemFormData, setItemFormData] = useState<Partial<AporteItem>>({});
+
+  const [isExportImportModalOpen, setIsExportImportModalOpen] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Confirm delete state
   const [itemToDelete, setItemToDelete] = useState<string | null>(null);
@@ -901,15 +904,133 @@ export const FinanceView = ({
             <CardHeader className="flex flex-row items-center justify-between">
                 <CardTitle>Gestão de Aportes</CardTitle>
                 <div className="flex gap-2">
-                  <Button onClick={downloadTemplate} variant="outline" className="flex items-center gap-2">
-                      <Download className="w-4 h-4" /> Instruções (PDF)
+                  <Button
+                    onClick={() => setIsExportImportModalOpen(true)}
+                    className="bg-slate-800 hover:bg-slate-900 text-white font-bold h-10 px-5 rounded-xl shadow-sm hover:shadow transition-all flex items-center gap-2 cursor-pointer text-sm"
+                    title="Exportar / Importar Aportes"
+                  >
+                    <Download className="w-4 h-4 text-emerald-400" /> Exportar / Importar
                   </Button>
-                  <div className="relative">
-                    <Input type="file" accept=".xlsx,.xls" className="absolute inset-0 opacity-0 cursor-pointer" onChange={handleImportExcel} title="Importar Planilha" disabled={isImporting} />
-                    <Button variant="outline" className="flex items-center gap-2 pointer-events-none" disabled={isImporting}>
-                        <Upload className="w-4 h-4" /> {isImporting ? 'Importando...' : 'Importar Planilha'}
-                    </Button>
-                  </div>
+
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".xlsx,.xls"
+                    className="hidden"
+                    onChange={(e) => {
+                      handleImportExcel(e);
+                    }}
+                    disabled={isImporting}
+                  />
+
+                  <Dialog open={isExportImportModalOpen} onOpenChange={setIsExportImportModalOpen}>
+                    <DialogContent className="sm:max-w-[750px] w-full bg-white border border-slate-200 shadow-2xl rounded-2xl p-6 text-left flex flex-col max-h-[90vh] overflow-y-auto">
+                      <DialogHeader className="text-left space-y-2 shrink-0">
+                        <DialogTitle className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                          <Download className="w-5 h-5 text-blue-600" />
+                          Exportar / Importar Aportes
+                        </DialogTitle>
+                        <DialogDescription className="text-xs text-slate-500">
+                          Selecione o formato para exportação de dados, importe seus dados ou baixe as instruções de preenchimento.
+                        </DialogDescription>
+                      </DialogHeader>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 py-4 shrink-0">
+                        {/* Opção 1: Instruções PDF */}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            downloadTemplate();
+                            setIsExportImportModalOpen(false);
+                          }}
+                          className="flex flex-col items-center justify-center border-2 border-slate-100 hover:border-blue-600 hover:bg-blue-50/20 p-5 rounded-2xl transition group text-center cursor-pointer bg-white"
+                        >
+                          <div className="w-12 h-12 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center border border-blue-100 group-hover:scale-110 transition-transform mb-3">
+                            <FileText className="w-6 h-6" />
+                          </div>
+                          <span className="font-extrabold text-slate-800 text-xs">Instruções PDF</span>
+                          <span className="text-slate-400 text-[10px] mt-1 leading-tight">Instruções e tags para preenchimento</span>
+                        </button>
+
+                        {/* Opção 2: Exportar PDF */}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (selectedAporte) {
+                              handleExportPDF(selectedAporte);
+                            } else {
+                              alert('Por favor, selecione um aporte abaixo antes de exportar.');
+                            }
+                            setIsExportImportModalOpen(false);
+                          }}
+                          disabled={!selectedAporte}
+                          className="flex flex-col items-center justify-center border-2 border-slate-100 hover:border-red-500 hover:bg-red-50/20 p-5 rounded-2xl transition group text-center cursor-pointer bg-white disabled:opacity-50 disabled:pointer-events-none"
+                        >
+                          <div className="w-12 h-12 rounded-xl bg-red-50 text-red-600 flex items-center justify-center border border-red-100 group-hover:scale-110 transition-transform mb-3">
+                            <FileText className="w-6 h-6" />
+                          </div>
+                          <span className="font-extrabold text-slate-800 text-xs">Exportar PDF</span>
+                          <span className="text-slate-400 text-[10px] mt-1 leading-tight">Gera PDF do aporte selecionado</span>
+                        </button>
+
+                        {/* Opção 3: Exportar Excel */}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (selectedAporte) {
+                              handleExportExcel(selectedAporte);
+                            } else {
+                              alert('Por favor, selecione um aporte abaixo antes de exportar.');
+                            }
+                            setIsExportImportModalOpen(false);
+                          }}
+                          disabled={!selectedAporte}
+                          className="flex flex-col items-center justify-center border-2 border-slate-100 hover:border-emerald-600 hover:bg-emerald-50/20 p-5 rounded-2xl transition group text-center cursor-pointer bg-white disabled:opacity-50 disabled:pointer-events-none"
+                        >
+                          <div className="w-12 h-12 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center border border-emerald-100 group-hover:scale-110 transition-transform mb-3">
+                            <FileSpreadsheet className="w-6 h-6" />
+                          </div>
+                          <span className="font-extrabold text-slate-800 text-xs">Exportar Excel</span>
+                          <span className="text-slate-400 text-[10px] mt-1 leading-tight">Gera planilha Excel do aporte atual</span>
+                        </button>
+
+                        {/* Opção 4: Importar Dados */}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            fileInputRef.current?.click();
+                            setIsExportImportModalOpen(false);
+                          }}
+                          className="flex flex-col items-center justify-center border-2 border-slate-100 hover:border-orange-500 hover:bg-orange-50/20 p-5 rounded-2xl transition group text-center cursor-pointer bg-white"
+                        >
+                          <div className="w-12 h-12 rounded-xl bg-orange-50 text-orange-600 flex items-center justify-center border border-orange-100 group-hover:scale-110 transition-transform mb-3">
+                            {isImporting ? (
+                              <div className="w-6 h-6 border-2 border-orange-600 border-t-transparent rounded-full animate-spin"></div>
+                            ) : (
+                              <Upload className="w-6 h-6" />
+                            )}
+                          </div>
+                          <span className="font-extrabold text-slate-800 text-xs">
+                            {isImporting ? "Importando..." : "Importar Dados"}
+                          </span>
+                          <span className="text-slate-400 text-[10px] mt-1 leading-tight">Envie sua planilha preenchida</span>
+                        </button>
+                      </div>
+
+                      <div className="bg-slate-50 p-4 rounded-xl text-xs space-y-2 text-slate-600 border border-slate-100">
+                        <p className="font-bold text-slate-800">Dicas para a Importação de Aportes via Excel:</p>
+                        <p>Adicione as seguintes TAGs exatas na primeira linha (linha 1) da sua planilha Excel para realizar a importação:</p>
+                        <div className="grid grid-cols-2 gap-2 font-mono text-[10px] text-blue-700 bg-white p-3 rounded-lg border border-slate-200">
+                          <div><span className="font-bold text-slate-600">[NUMERO_APORTE]</span> - N° do aporte (obrigatório)</div>
+                          <div><span className="font-bold text-slate-600">[CATEGORIA]</span> - Categoria (obrigatório)</div>
+                          <div><span className="font-bold text-slate-600">[FORNECEDOR]</span> - Fornecedor (obrigatório)</div>
+                          <div><span className="font-bold text-slate-600">[DESCRICAO]</span> - Descrição (obrigatório)</div>
+                          <div><span className="font-bold text-slate-600">[VENCIMENTO]</span> - Vencimento (obrigatório)</div>
+                          <div><span className="font-bold text-slate-600">[VALOR]</span> - Valor em R$ (obrigatório)</div>
+                        </div>
+                      </div>
+                    </DialogContent>
+                  </Dialog>
                   {selectedAporte && (
                     <Button onClick={openNewItemDialog} className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700">
                       <Plus className="w-4 h-4" /> Adicionar Item

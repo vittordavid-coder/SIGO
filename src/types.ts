@@ -926,6 +926,19 @@ export interface EquipmentMeasurement {
   details: DailyEquipmentMeasurement[];
 }
 
+export interface MeasurementParameter {
+  id: string;
+  contractId: string;
+  equipmentId: string;
+  month: string; // MM/YYYY format
+  enabled: boolean;
+  workingDiscount: number;
+  maintenanceDiscount: number;
+  rainDiscount: number;
+  waitingDiscount: number;
+  availableDiscount: number;
+}
+
 export interface TeamAssignment {
   id: string;
   companyId?: string;

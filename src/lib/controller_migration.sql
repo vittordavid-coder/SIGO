@@ -156,6 +156,24 @@ CREATE TABLE IF NOT EXISTS equipment_transfers (
     created_at TIMESTAMPTZ DEFAULT now()
 );
 
+-- 9. equipment_measurement_parameters
+CREATE TABLE IF NOT EXISTS equipment_measurement_parameters (
+    id TEXT PRIMARY KEY,
+    company_id TEXT,
+    contract_id TEXT,
+    equipment_id TEXT REFERENCES equipments(id) ON DELETE CASCADE,
+    month TEXT NOT NULL, -- MM/YYYY format
+    enabled BOOLEAN DEFAULT false,
+    working_discount NUMERIC DEFAULT 0,
+    maintenance_discount NUMERIC DEFAULT 100,
+    rain_discount NUMERIC DEFAULT 50,
+    waiting_discount NUMERIC DEFAULT 50,
+    available_discount NUMERIC DEFAULT 100,
+    created_at TIMESTAMPTZ DEFAULT now(),
+    updated_at TIMESTAMPTZ DEFAULT now(),
+    UNIQUE(equipment_id, month)
+);
+
 -- --- SECURITY SETUP (RLS) ---
 
 -- Enable RLS on all relevant tables
@@ -167,6 +185,7 @@ ALTER TABLE manpower_monthly_data ENABLE ROW LEVEL SECURITY;
 ALTER TABLE controller_teams ENABLE ROW LEVEL SECURITY;
 ALTER TABLE team_assignments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE equipment_transfers ENABLE ROW LEVEL SECURITY;
+ALTER TABLE equipment_measurement_parameters ENABLE ROW LEVEL SECURITY;
 
 -- Apply "Allow public access" policy to each table
 -- This mimics the application's current open-access setup for simplicity
@@ -177,7 +196,7 @@ BEGIN
     FOR t IN SELECT table_name FROM information_schema.tables WHERE table_name IN (
         'equipments', 'equipment_maintenance', 'equipment_monthly_data', 
         'controller_manpower', 'manpower_monthly_data', 'controller_teams', 
-        'team_assignments', 'equipment_transfers'
+        'team_assignments', 'equipment_transfers', 'equipment_measurement_parameters'
     ) LOOP
         EXECUTE format('DROP POLICY IF EXISTS "Allow public access" ON %I', t);
         EXECUTE format('CREATE POLICY "Allow public access" ON %I FOR ALL USING (true) WITH CHECK (true)', t);

@@ -535,114 +535,120 @@ export function ResourceView({ resources, onAdd, onDelete, onUpdate, purchaseOrd
           </div>
           <div className="flex gap-2">
             {!readonly && (
-              <Dialog open={isExportSelectorOpen} onOpenChange={setIsExportSelectorOpen}>
-                <DialogTrigger asChild>
-                  <Button variant="outline" className="text-gray-700 bg-white shadow-sm border-gray-200 hover:bg-gray-50 hover:text-gray-900 transition-all font-medium">
-                    <Download className="w-4 h-4 mr-2 text-gray-500" /> Exportar / Importar
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="sm:max-w-[700px] bg-white border-0 shadow-2xl rounded-3xl p-6 md:p-8">
-                  <DialogHeader className="mb-2">
-                    <DialogTitle className="text-2xl font-black text-slate-800 tracking-tight">
-                      Exportar / Importar Insumos
-                    </DialogTitle>
-                    <DialogDescription className="text-xs text-slate-500">
-                      Selecione o formato para exportação de dados, importe seus dados ou baixe o modelo padrão de cabeçalho.
-                    </DialogDescription>
-                  </DialogHeader>
+              <>
+                <Button
+                  onClick={() => setIsExportSelectorOpen(true)}
+                  className="bg-slate-800 hover:bg-slate-900 text-white font-bold h-10 px-5 rounded-xl shadow-sm hover:shadow transition-all flex items-center gap-2 cursor-pointer text-sm"
+                  title="Exportar / Importar Insumos"
+                >
+                  <Download className="w-4 h-4 text-emerald-400" /> Exportar / Importar
+                </Button>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 py-4 shrink-0">
-                    {/* Opção 1: Relatório PDF */}
-                    <button
-                      onClick={() => {
-                        exportResourcesToPDF(resources);
-                        setIsExportSelectorOpen(false);
-                      }}
-                      className="flex flex-col items-center justify-center border-2 border-slate-100 hover:border-red-500 hover:bg-red-50/20 p-5 rounded-2xl transition group text-center cursor-pointer"
-                    >
-                      <div className="w-12 h-12 rounded-xl bg-red-50 text-red-600 flex items-center justify-center border border-red-100 group-hover:scale-110 transition-transform mb-3">
-                        <FileText className="w-6 h-6" />
-                      </div>
-                      <span className="font-extrabold text-slate-800 text-sm">Relatório PDF</span>
-                      <span className="text-slate-400 text-[10px] mt-1 leading-tight">PDF formato Paisagem</span>
-                    </button>
+                <Dialog open={isExportSelectorOpen} onOpenChange={setIsExportSelectorOpen}>
+                  <DialogContent className="sm:max-w-[750px] w-full bg-white border border-slate-200 shadow-2xl rounded-2xl p-6 text-left flex flex-col max-h-[90vh] overflow-y-auto">
+                    <DialogHeader className="text-left space-y-2 shrink-0">
+                      <DialogTitle className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                        <Download className="w-5 h-5 text-blue-600" />
+                        Exportar / Importar Insumos
+                      </DialogTitle>
+                      <DialogDescription className="text-xs text-slate-500">
+                        Selecione o formato para exportação de dados, importe seus dados ou baixe o modelo padrão de cabeçalho.
+                      </DialogDescription>
+                    </DialogHeader>
 
-                    {/* Opção 2: Planilha Excel */}
-                    <button
-                      onClick={() => {
-                        exportResourcesToExcel(resources);
-                        setIsExportSelectorOpen(false);
-                      }}
-                      className="flex flex-col items-center justify-center border-2 border-slate-100 hover:border-emerald-600 hover:bg-emerald-50/20 p-5 rounded-2xl transition group text-center cursor-pointer"
-                    >
-                      <div className="w-12 h-12 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center border border-emerald-100 group-hover:scale-110 transition-transform mb-3">
-                        <FileSpreadsheet className="w-6 h-6" />
-                      </div>
-                      <span className="font-extrabold text-slate-800 text-sm">Planilha Excel</span>
-                      <span className="text-slate-400 text-[10px] mt-1 leading-tight">Base completa para conferência</span>
-                    </button>
-
-                    {/* Opção 3: Modelo / Atualização em Lote */}
-                    <button
-                      onClick={() => {
-                        handleDownloadTemplate();
-                        setIsExportSelectorOpen(false);
-                      }}
-                      className="flex flex-col items-center justify-center border-2 border-slate-100 hover:border-blue-600 hover:bg-blue-50/20 p-5 rounded-2xl transition group text-center cursor-pointer"
-                    >
-                      <div className="w-12 h-12 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center border border-blue-100 group-hover:scale-110 transition-transform mb-3">
-                        <Download className="w-6 h-6" />
-                      </div>
-                      <span className="font-extrabold text-slate-800 text-sm">Baixar Modelo</span>
-                      <span className="text-slate-400 text-[10px] mt-1 leading-tight">Planilha de exemplo para importação</span>
-                    </button>
-
-                    {/* Opção 4: Importar Dados */}
-                    <div className="relative flex flex-col items-center justify-center border-2 border-slate-100 hover:border-orange-500 hover:bg-orange-50/20 p-5 rounded-2xl transition group text-center cursor-pointer overflow-hidden">
-                      <input
-                        type="file"
-                        accept=".xlsx, .xls, .csv"
-                        className={cn(
-                          "absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10",
-                          isImporting && "pointer-events-none"
-                        )}
-                        onChange={(e) => {
-                          handleImportData(e);
+                    <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 py-4 shrink-0">
+                      {/* Opção 1: Relatório PDF */}
+                      <button
+                        onClick={() => {
+                          exportResourcesToPDF(resources);
                           setIsExportSelectorOpen(false);
                         }}
-                        disabled={isImporting}
-                      />
-                      <div className="w-12 h-12 rounded-xl bg-orange-50 text-orange-600 flex items-center justify-center border border-orange-100 group-hover:scale-110 transition-transform mb-3">
-                        {isImporting ? (
-                          <div className="w-6 h-6 border-2 border-orange-600 border-t-transparent rounded-full animate-spin"></div>
-                        ) : (
-                          <Upload className="w-6 h-6" />
-                        )}
-                      </div>
-                      <span className="font-extrabold text-slate-800 text-sm">
-                        {isImporting ? "Importando..." : "Importar Dados"}
-                      </span>
-                      <span className="text-slate-400 text-[10px] mt-1 leading-tight">Envie sua planilha preenchida</span>
-                    </div>
-                  </div>
+                        className="flex flex-col items-center justify-center border-2 border-slate-100 hover:border-red-500 hover:bg-red-50/20 p-5 rounded-2xl transition group text-center cursor-pointer bg-white"
+                      >
+                        <div className="w-12 h-12 rounded-xl bg-red-50 text-red-600 flex items-center justify-center border border-red-100 group-hover:scale-110 transition-transform mb-3">
+                          <FileText className="w-6 h-6" />
+                        </div>
+                        <span className="font-extrabold text-slate-800 text-xs">Relatório PDF</span>
+                        <span className="text-slate-400 text-[10px] mt-1 leading-tight">PDF formato Paisagem</span>
+                      </button>
 
-                  <div className="bg-slate-50 p-4 rounded-xl text-xs space-y-2 text-slate-600 border border-slate-100">
-                    <p className="font-bold text-slate-800">Dica sobre a Importação e Tags de Insumos:</p>
-                    <p>Ao realizar a importação de dados por planilha Excel, certifique-se de usar os cabeçalhos das colunas exatamente como definidos no modelo, ou utilize as tags (#) opcionais para mapeamento automático das colunas:</p>
-                    
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2">
-                      <div className="space-y-1">
-                        <div className="grid grid-cols-1 gap-1 font-mono text-[10px] text-blue-700 bg-white p-2 rounded-lg border border-slate-200">
-                          <div><span className="font-bold text-slate-600">#tipo</span> - Tipo (material, mao-de-obra, equipamento)</div>
-                          <div><span className="font-bold text-slate-600">#nome</span> - Nome do Insumo</div>
-                          <div><span className="font-bold text-slate-600">#unidade</span> - Unidade (UN, KG, M2)</div>
-                          <div><span className="font-bold text-slate-600">#preco</span> - Preço Base</div>
+                      {/* Opção 2: Planilha Excel */}
+                      <button
+                        onClick={() => {
+                          exportResourcesToExcel(resources);
+                          setIsExportSelectorOpen(false);
+                        }}
+                        className="flex flex-col items-center justify-center border-2 border-slate-100 hover:border-emerald-600 hover:bg-emerald-50/20 p-5 rounded-2xl transition group text-center cursor-pointer bg-white"
+                      >
+                        <div className="w-12 h-12 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center border border-emerald-100 group-hover:scale-110 transition-transform mb-3">
+                          <FileSpreadsheet className="w-6 h-6" />
+                        </div>
+                        <span className="font-extrabold text-slate-800 text-xs">Planilha Excel</span>
+                        <span className="text-slate-400 text-[10px] mt-1 leading-tight">Base completa para conferência</span>
+                      </button>
+
+                      {/* Opção 3: Modelo / Atualização em Lote */}
+                      <button
+                        onClick={() => {
+                          handleDownloadTemplate();
+                          setIsExportSelectorOpen(false);
+                        }}
+                        className="flex flex-col items-center justify-center border-2 border-slate-100 hover:border-blue-600 hover:bg-blue-50/20 p-5 rounded-2xl transition group text-center cursor-pointer bg-white"
+                      >
+                        <div className="w-12 h-12 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center border border-blue-100 group-hover:scale-110 transition-transform mb-3">
+                          <Download className="w-6 h-6" />
+                        </div>
+                        <span className="font-extrabold text-slate-800 text-xs">Baixar Modelo</span>
+                        <span className="text-slate-400 text-[10px] mt-1 leading-tight">Planilha de exemplo para importação</span>
+                      </button>
+
+                      {/* Opção 4: Importar Dados */}
+                      <div className="relative flex flex-col items-center justify-center border-2 border-slate-100 hover:border-orange-500 hover:bg-orange-50/20 p-5 rounded-2xl transition group text-center cursor-pointer overflow-hidden bg-white">
+                        <input
+                          type="file"
+                          accept=".xlsx, .xls, .csv"
+                          className={cn(
+                            "absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10",
+                            isImporting && "pointer-events-none"
+                          )}
+                          onChange={(e) => {
+                            handleImportData(e);
+                            setIsExportSelectorOpen(false);
+                          }}
+                          disabled={isImporting}
+                        />
+                        <div className="w-12 h-12 rounded-xl bg-orange-50 text-orange-600 flex items-center justify-center border border-orange-100 group-hover:scale-110 transition-transform mb-3">
+                          {isImporting ? (
+                            <div className="w-6 h-6 border-2 border-orange-600 border-t-transparent rounded-full animate-spin"></div>
+                          ) : (
+                            <Upload className="w-6 h-6" />
+                          )}
+                        </div>
+                        <span className="font-extrabold text-slate-800 text-xs">
+                          {isImporting ? "Importando..." : "Importar Dados"}
+                        </span>
+                        <span className="text-slate-400 text-[10px] mt-1 leading-tight">Envie sua planilha preenchida</span>
+                      </div>
+                    </div>
+
+                    <div className="bg-slate-50 p-4 rounded-xl text-xs space-y-2 text-slate-600 border border-slate-100">
+                      <p className="font-bold text-slate-800">Dica sobre a Importação e Tags de Insumos:</p>
+                      <p>Ao realizar a importação de dados por planilha Excel, certifique-se de usar os cabeçalhos das colunas exatamente como definidos no modelo, ou utilize as tags (#) opcionais para mapeamento automático das colunas:</p>
+                      
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2">
+                        <div className="space-y-1">
+                          <div className="grid grid-cols-1 gap-1 font-mono text-[10px] text-blue-700 bg-white p-2 rounded-lg border border-slate-200">
+                            <div><span className="font-bold text-slate-600">#tipo</span> - Tipo (material, mao-de-obra, equipamento)</div>
+                            <div><span className="font-bold text-slate-600">#nome</span> - Nome do Insumo</div>
+                            <div><span className="font-bold text-slate-600">#unidade</span> - Unidade (UN, KG, M2)</div>
+                            <div><span className="font-bold text-slate-600">#preco</span> - Preço Base</div>
+                          </div>
                         </div>
                       </div>
                     </div>
-                  </div>
-                </DialogContent>
-              </Dialog>
+                  </DialogContent>
+                </Dialog>
+              </>
             )}
             {!readonly && (
               <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
