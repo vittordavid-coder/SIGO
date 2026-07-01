@@ -36,7 +36,7 @@ import { ABCCurveView } from './components/ABCCurveView';
 import { ScheduleView } from './components/ScheduleView';
 import { SettingsView } from './components/SettingsView';
 import { ReportsView } from './components/ReportsView';
-import { AdminView } from './components/AdminView';
+const AdminView = React.lazy(() => import('./components/AdminView').then(m => ({ default: m.AdminView })));
 import { MeasurementsView } from './components/MeasurementsView';
 import RHView from './components/RHView';
 import ControlView from './components/ControlView';
@@ -4663,52 +4663,59 @@ export default function App() {
               )}
 
               {mainTab === 'admin' && currentUser?.role === 'master' && (
-                <AdminView 
-                  users={users}
-                  onUpdateUsers={setUsers}
-                  resetRequests={passwordResetRequests}
-                  onUpdateResetRequests={setPasswordResetRequests}
-                  onUpdateMeasurement={updateMeasurement}
-                  onDeleteMeasurement={deleteMeasurement}
-                  quotations={finalQuotations}
-                  currentUser={currentUser!}
-                  auditLogs={filteredAuditLogs}
-                  resources={filteredResources}
-                  services={filteredServices}
-                  contracts={filteredContracts}
-                  measurements={filteredMeasurements}
-                  highwayLocations={highwayLocations}
-                  stationGroups={stationGroups}
-                  cubationData={cubationData}
-                  transportData={transportData}
-                  memories={calculationMemories}
-                  serviceProductions={serviceProductions}
-                  templates={measurementTemplates}
-                  dailyReports={dailyReports}
-                  pluviometryRecords={pluviometryRecords}
-                  technicalSchedules={technicalSchedules}
-                  employees={employees}
-                  timeRecords={timeRecords}
-                  schedules={schedules}
-                  controllerTeams={controllerTeams}
-                  controllerEquipments={controllerEquipments}
-                  equipmentMonthly={equipmentMonthlyData}
-                  controllerManpower={manpowerRecords}
-                  manpowerMonthly={manpowerMonthlyData}
-                  teamAssignments={teamAssignments}
-                  marketingConfig={marketingConfig}
-                  chargesPerc={chargesPerc}
-                  otPerc={otPerc}
-                  abcConfig={abcConfig}
-                  bdiConfig={bdiConfig}
-                  companyLogo={companyLogo}
-                  companyLogoRight={companyLogoRight}
-                  logoMode={logoMode}
-                  defaultOrg={defaultOrganization}
-                  onUpdateMarketing={setMarketingConfig}
-                  onSyncAll={handleSyncAllToSupabase}
-                  onSyncFromCloud={syncFromSupabase}
-                />
+                <React.Suspense fallback={
+                  <div className="flex flex-col items-center justify-center h-[60vh] gap-3 bg-white/50 backdrop-blur-sm rounded-3xl border border-slate-100 p-8 shadow-sm">
+                    <div className="w-10 h-10 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
+                    <p className="text-slate-500 text-sm font-medium animate-pulse">Carregando painel de administração...</p>
+                  </div>
+                }>
+                  <AdminView 
+                    users={users}
+                    onUpdateUsers={setUsers}
+                    resetRequests={passwordResetRequests}
+                    onUpdateResetRequests={setPasswordResetRequests}
+                    onUpdateMeasurement={updateMeasurement}
+                    onDeleteMeasurement={deleteMeasurement}
+                    quotations={finalQuotations}
+                    currentUser={currentUser!}
+                    auditLogs={filteredAuditLogs}
+                    resources={filteredResources}
+                    services={filteredServices}
+                    contracts={filteredContracts}
+                    measurements={filteredMeasurements}
+                    highwayLocations={highwayLocations}
+                    stationGroups={stationGroups}
+                    cubationData={cubationData}
+                    transportData={transportData}
+                    memories={calculationMemories}
+                    serviceProductions={serviceProductions}
+                    templates={measurementTemplates}
+                    dailyReports={dailyReports}
+                    pluviometryRecords={pluviometryRecords}
+                    technicalSchedules={technicalSchedules}
+                    employees={employees}
+                    timeRecords={timeRecords}
+                    schedules={schedules}
+                    controllerTeams={controllerTeams}
+                    controllerEquipments={controllerEquipments}
+                    equipmentMonthly={equipmentMonthlyData}
+                    controllerManpower={manpowerRecords}
+                    manpowerMonthly={manpowerMonthlyData}
+                    teamAssignments={teamAssignments}
+                    marketingConfig={marketingConfig}
+                    chargesPerc={chargesPerc}
+                    otPerc={otPerc}
+                    abcConfig={abcConfig}
+                    bdiConfig={bdiConfig}
+                    companyLogo={companyLogo}
+                    companyLogoRight={companyLogoRight}
+                    logoMode={logoMode}
+                    defaultOrg={defaultOrganization}
+                    onUpdateMarketing={setMarketingConfig}
+                    onSyncAll={handleSyncAllToSupabase}
+                    onSyncFromCloud={syncFromSupabase}
+                  />
+                </React.Suspense>
               )}
 
               {mainTab === 'control' && currentUser && (

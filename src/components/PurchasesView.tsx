@@ -3866,7 +3866,178 @@ function TrackingTab({ orders, setOrders, equipmentMaintenance, onUpdateMaintena
   aportes?: import('../types').Aporte[],
   onUpdateAportes?: (val: import('../types').Aporte[]) => void
 }) {
-  const trackingOrders = orders.filter(o => o.status !== 'draft' && o.status !== 'cancelled' && o.status !== 'delivered' && o.status !== 'finalizada');
+  const [showReceived, setShowReceived] = useState(false);
+  const [isReportModalOpen, setIsReportModalOpen] = useState(false);
+
+  // Filtros de Relatório
+  const [repStartDate, setRepStartDate] = useState('');
+  const [repEndDate, setRepEndDate] = useState('');
+  const [repApplication, setRepApplication] = useState('');
+  const [repCategory, setRepCategory] = useState('all');
+  const [repCostCenter, setRepCostCenter] = useState('all');
+  const [repSupplier, setRepSupplier] = useState('all');
+
+  const trackingOrders = orders.filter(o => 
+    o.status !== 'draft' && 
+    o.status !== 'cancelled' && 
+    (showReceived ? true : (o.status !== 'delivered' && o.status !== 'finalizada'))
+  );
+
+  const getFilteredOrdersForReport = () => {
+    return orders.filter(o => {
+      if (o.status === 'draft' || o.status === 'cancelled') return false;
+
+      // Período
+      if (repStartDate) {
+        const orderDate = o.orderDate ? new Date(o.orderDate) : null;
+        if (orderDate && orderDate < new Date(repStartDate)) return false;
+      }
+      if (repEndDate) {
+        const orderDate = o.orderDate ? new Date(o.orderDate) : null;
+        if (orderDate && orderDate > new Date(repEndDate + 'T23:59:59')) return false;
+      }
+
+      // Aplicação
+      if (repApplication) {
+        const query = repApplication.toLowerCase();
+        const inObs = (o.observations || '').toLowerCase().includes(query);
+        const inItems = (o.items || []).some(item => 
+          (item.description || '').toLowerCase().includes(query) ||
+          (item.code || '').toLowerCase().includes(query)
+        );
+        const inAddr = o.deliveryAddress ? (
+          (o.deliveryAddress.street || '') + ' ' + 
+          (o.deliveryAddress.city || '') + ' ' + 
+          (o.deliveryAddress.neighborhood || '')
+        ).toLowerCase().includes(query) : false;
+        
+        if (!inObs && !inItems && !inAddr) return false;
+      }
+
+      // Categoria
+      if (repCategory && repCategory !== 'all') {
+        if ((o.category || '').toLowerCase() !== repCategory.toLowerCase()) return false;
+      }
+
+      // Centro de Custo
+      if (repCostCenter && repCostCenter !== 'all') {
+        if ((o.costCenter || '').toLowerCase() !== repCostCenter.toLowerCase()) return false;
+      }
+
+      // Fornecedor
+      if (repSupplier && repSupplier !== 'all') {
+        if (o.supplierId !== repSupplier && o.supplierName !== repSupplier) return false;
+      }
+
+      return true;
+    });
+  };
+
+  const handleExportReportPDF = (filtered: PurchaseOrder[]) => {
+    const doc = new jsPDF();
+    
+    // Header
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(16);
+    doc.setTextColor(15, 23, 42); // slate-900
+    doc.text("SYNERA - GESTÃO E SUPRIMENTOS", 14, 20);
+    
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(71, 85, 105); // slate-600
+    doc.text("Relatório de Acompanhamento de Entregas", 14, 26);
+    
+    // Filter summary
+    doc.setFontSize(8);
+    doc.setTextColor(148, 163, 184); // slate-400
+    let filterDesc = "Filtros aplicados: ";
+    if (repStartDate || repEndDate) filterDesc += `Período: ${repStartDate || 'Início'} até ${repEndDate || 'Fim'} | `;
+    if (repApplication) filterDesc += `Aplicação: ${repApplication} | `;
+    if (repCategory && repCategory !== 'all') filterDesc += `Categoria: ${repCategory} | `;
+    if (repCostCenter && repCostCenter !== 'all') filterDesc += `C. Custo: ${repCostCenter} | `;
+    if (repSupplier && repSupplier !== 'all') filterDesc += `Fornecedor: ${repSupplier} | `;
+    if (filterDesc === "Filtros aplicados: ") filterDesc += "Nenhum (Todos os registros)";
+    
+    // Chunk filterDesc to fit within printable margins
+    const splitFilterDesc = doc.splitTextToSize(filterDesc, 180);
+    doc.text(splitFilterDesc, 14, 32);
+
+    // Separator line
+    doc.setDrawColor(226, 232, 240); // slate-200
+    doc.line(14, 38, 196, 38);
+    
+    // Build table data
+    const tableHeaders = [["Pedido", "Fornecedor", "Data Pedido", "Previsão", "Categoria", "C. Custo", "Status", "Total (R$)"]];
+    const tableRows = filtered.map(o => [
+      `#${o.orderNumber}`,
+      o.supplierName || '-',
+      o.orderDate ? new Date(o.orderDate).toLocaleDateString('pt-BR') : '-',
+      o.deliveryDate ? new Date(o.deliveryDate).toLocaleDateString('pt-BR') : '-',
+      o.category || '-',
+      o.costCenter || '-',
+      o.status === 'approved' ? 'Aprovado' :
+      o.status === 'sent' ? 'Em Trânsito' :
+      o.status === 'waiting_delivery' ? 'Aguardando Entrega' :
+      o.status === 'delivered' ? 'Entregue' :
+      o.status === 'finalizada' ? 'Finalizado' : o.status,
+      new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(o.total || 0)
+    ]);
+
+    const totalSum = filtered.reduce((acc, o) => acc + (o.total || 0), 0);
+    tableRows.push([
+      "TOTAL",
+      `${filtered.length} pedidos`,
+      "", "", "", "", "",
+      new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(totalSum)
+    ]);
+
+    autoTable(doc, {
+      startY: 42,
+      head: tableHeaders,
+      body: tableRows,
+      theme: 'striped',
+      headStyles: { fillColor: [37, 99, 235], fontSize: 8, fontStyle: 'bold' },
+      bodyStyles: { fontSize: 8 },
+      footStyles: { fillColor: [241, 245, 249], textColor: [15, 23, 42], fontWeight: 'bold' },
+      margin: { left: 14, right: 14 },
+      didDrawPage: (data) => {
+        const pageCount = doc.internal.getNumberOfPages();
+        doc.setFontSize(8);
+        doc.setTextColor(148, 163, 184);
+        doc.text(`Página ${data.pageNumber} de ${pageCount}`, 196, 285, { align: "right" });
+        doc.text(`Gerado em ${new Date().toLocaleString('pt-BR')}`, 14, 285);
+      }
+    });
+
+    doc.save(`Relatorio_Entregas_${new Date().toISOString().split('T')[0]}.pdf`);
+  };
+
+  const handleExportReportExcel = (filtered: PurchaseOrder[]) => {
+    const data = filtered.map(o => ({
+      "Pedido": `#${o.orderNumber}`,
+      "Fornecedor": o.supplierName || '-',
+      "Data Pedido": o.orderDate ? new Date(o.orderDate).toLocaleDateString('pt-BR') : '-',
+      "Previsão Entrega": o.deliveryDate ? new Date(o.deliveryDate).toLocaleDateString('pt-BR') : '-',
+      "Categoria": o.category || '-',
+      "Centro de Custo": o.costCenter || '-',
+      "Status": o.status === 'approved' ? 'Aprovado' :
+                o.status === 'sent' ? 'Em Trânsito' :
+                o.status === 'waiting_delivery' ? 'Aguardando Entrega' :
+                o.status === 'delivered' ? 'Entregue' :
+                o.status === 'finalizada' ? 'Finalizado' : o.status,
+      "Valor Total (R$)": o.total || 0
+    }));
+
+    const ws = XLSX.utils.json_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Relatório de Entregas");
+    XLSX.writeFile(wb, `Relatorio_Entregas_${new Date().toISOString().split('T')[0]}.xlsx`);
+  };
+
+  const uniqueCategories = Array.from(new Set(orders.map(o => o.category).filter(Boolean)));
+  const uniqueCostCenters = Array.from(new Set(orders.map(o => o.costCenter).filter(Boolean)));
+  const uniqueSuppliers = Array.from(new Set(orders.map(o => o.supplierName).filter(Boolean)));
+
   const [evaluationOrder, setEvaluationOrder] = useState<PurchaseOrder | null>(null);
   const [scores, setScores] = useState({ punctuality: 5, quality: 5, service: 5, price: 5, deadline: 5 });
   const [comments, setComments] = useState('');
@@ -4071,7 +4242,7 @@ function TrackingTab({ orders, setOrders, equipmentMaintenance, onUpdateMaintena
   return (
     <Card className="border-[10px] border-white shadow-xl rounded-3xl">
       <CardHeader className="border-b border-gray-50 pb-6">
-        <div className="flex justify-between items-center">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div>
             <CardTitle className="text-2xl font-bold flex items-center gap-2">
               <Truck className="w-6 h-6 text-blue-600" />
@@ -4080,6 +4251,28 @@ function TrackingTab({ orders, setOrders, equipmentMaintenance, onUpdateMaintena
             <CardDescription className="text-gray-500 mt-1">
               Status das entregas e itens a receber
             </CardDescription>
+          </div>
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex items-center gap-2 bg-slate-50 border border-slate-100 rounded-xl px-3 py-2">
+              <Checkbox
+                id="show_received_orders"
+                checked={showReceived}
+                onCheckedChange={(checked) => setShowReceived(!!checked)}
+              />
+              <label htmlFor="show_received_orders" className="text-sm font-bold text-slate-600 cursor-pointer select-none">
+                Mostrar Compras Recebidas
+              </label>
+            </div>
+            
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsReportModalOpen(true)}
+              className="h-10 px-4 rounded-xl shadow-sm flex items-center gap-2 text-slate-700 border-slate-200 bg-white hover:bg-slate-50 cursor-pointer font-bold"
+              title="Abrir filtros de relatório de compras"
+            >
+              <FileText className="w-4 h-4 text-blue-500" /> Relatório / Exportar
+            </Button>
           </div>
         </div>
       </CardHeader>
@@ -4246,6 +4439,206 @@ function TrackingTab({ orders, setOrders, equipmentMaintenance, onUpdateMaintena
             </div>
           </DialogContent>
         </Dialog>
+
+        <Modal
+          isOpen={isReportModalOpen}
+          onClose={() => setIsReportModalOpen(false)}
+          title="Relatório e Exportação de Entregas"
+          hideCancel={true}
+          maxWidth="custom"
+          className="p-0 border-none sm:max-w-[800px] flex flex-col overflow-hidden max-h-[90vh] bg-white rounded-2xl"
+        >
+          <div className="bg-blue-600 p-8 text-white relative overflow-hidden shrink-0">
+            <Truck className="absolute -right-8 -bottom-8 w-40 h-40 opacity-10 rotate-12" />
+            <div className="relative z-10 text-left">
+              <h2 className="text-3xl font-black tracking-tight flex items-center gap-2">
+                <FileText className="w-8 h-8" /> Relatórios de Compras
+              </h2>
+              <p className="text-blue-100 font-bold uppercase text-base tracking-widest mt-1">Filtre por período, fornecedor, categoria, centro de custo ou aplicação</p>
+            </div>
+          </div>
+
+          <div className="flex-1 overflow-y-auto p-6 space-y-6 scrollbar-thin-visible bg-slate-50/50">
+            {/* Filters Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-white p-5 rounded-2xl border border-slate-100 shadow-sm">
+              <div className="space-y-2">
+                <Label className="text-xs font-bold text-slate-500 uppercase">Período - De</Label>
+                <Input
+                  type="date"
+                  value={repStartDate}
+                  onChange={(e) => setRepStartDate(e.target.value)}
+                  className="rounded-xl border-slate-200"
+                />
+              </div>
+              
+              <div className="space-y-2">
+                <Label className="text-xs font-bold text-slate-500 uppercase">Período - Até</Label>
+                <Input
+                  type="date"
+                  value={repEndDate}
+                  onChange={(e) => setRepEndDate(e.target.value)}
+                  className="rounded-xl border-slate-200"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-xs font-bold text-slate-500 uppercase">Fornecedor</Label>
+                <select
+                  value={repSupplier}
+                  onChange={(e) => setRepSupplier(e.target.value)}
+                  className="w-full h-10 px-3 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-sm shadow-sm"
+                >
+                  <option value="all">Todos os Fornecedores</option>
+                  {uniqueSuppliers.map((sup) => (
+                    <option key={sup} value={sup}>{sup}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-xs font-bold text-slate-500 uppercase">Categoria</Label>
+                <select
+                  value={repCategory}
+                  onChange={(e) => setRepCategory(e.target.value)}
+                  className="w-full h-10 px-3 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-sm shadow-sm"
+                >
+                  <option value="all">Todas as Categorias</option>
+                  {uniqueCategories.map((cat) => (
+                    <option key={cat} value={cat}>{cat}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-xs font-bold text-slate-500 uppercase">Centro de Custo</Label>
+                <select
+                  value={repCostCenter}
+                  onChange={(e) => setRepCostCenter(e.target.value)}
+                  className="w-full h-10 px-3 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-sm shadow-sm"
+                >
+                  <option value="all">Todos os Centros de Custo</option>
+                  {uniqueCostCenters.map((cc) => (
+                    <option key={cc} value={cc}>{cc}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-xs font-bold text-slate-500 uppercase">Aplicação (Busca por item / obs)</Label>
+                <Input
+                  type="text"
+                  placeholder="Ex: retroescavadeira, material, obra..."
+                  value={repApplication}
+                  onChange={(e) => setRepApplication(e.target.value)}
+                  className="rounded-xl border-slate-200"
+                />
+              </div>
+            </div>
+
+            {/* Report Preview */}
+            {(() => {
+              const filtered = getFilteredOrdersForReport();
+              const totalVal = filtered.reduce((acc, curr) => acc + (curr.total || 0), 0);
+              return (
+                <div className="space-y-4">
+                  <div className="flex justify-between items-center px-2">
+                    <span className="text-sm font-bold text-slate-500 uppercase">
+                      Resultados Encontrados ({filtered.length})
+                    </span>
+                    <span className="text-sm font-black text-blue-600">
+                      Total: {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(totalVal)}
+                    </span>
+                  </div>
+
+                  <div className="max-h-[200px] overflow-y-auto border border-slate-100 bg-white rounded-2xl shadow-inner scrollbar-thin-visible">
+                    {filtered.length === 0 ? (
+                      <div className="p-8 text-center text-slate-400 text-sm font-semibold">
+                        Nenhum pedido encontrado para os filtros selecionados.
+                      </div>
+                    ) : (
+                      <Table>
+                        <TableHeader className="bg-slate-50/80 sticky top-0 z-10">
+                          <TableRow>
+                            <TableHead className="py-2">Pedido</TableHead>
+                            <TableHead className="py-2">Fornecedor</TableHead>
+                            <TableHead className="py-2">Data</TableHead>
+                            <TableHead className="py-2">Total</TableHead>
+                            <TableHead className="py-2">Status</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {filtered.map((o) => (
+                            <TableRow key={o.id} className="hover:bg-slate-50/50">
+                              <TableCell className="font-bold text-xs">#{o.orderNumber}</TableCell>
+                              <TableCell className="font-medium text-xs text-slate-700 max-w-[150px] truncate">{o.supplierName}</TableCell>
+                              <TableCell className="text-xs">{o.orderDate ? new Date(o.orderDate).toLocaleDateString('pt-BR') : '-'}</TableCell>
+                              <TableCell className="font-bold text-xs text-blue-600">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(o.total || 0)}</TableCell>
+                              <TableCell className="text-xs">
+                                <span className={cn(
+                                  "px-2 py-0.5 rounded text-[10px] font-bold uppercase",
+                                  o.status === 'delivered' || o.status === 'finalizada' ? "bg-green-50 text-green-700" :
+                                  o.status === 'sent' ? "bg-blue-50 text-blue-700" : "bg-amber-50 text-amber-700"
+                                )}>
+                                  {o.status === 'approved' ? 'Aprovado' :
+                                   o.status === 'sent' ? 'Trânsito' :
+                                   o.status === 'waiting_delivery' ? 'Aguardando' :
+                                   o.status === 'delivered' ? 'Entregue' :
+                                   o.status === 'finalizada' ? 'Finalizado' : o.status}
+                                </span>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    )}
+                  </div>
+
+                  {/* Print/Export Actions */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
+                    <Button
+                      onClick={() => {
+                        setRepStartDate('');
+                        setRepEndDate('');
+                        setRepApplication('');
+                        setRepCategory('all');
+                        setRepCostCenter('all');
+                        setRepSupplier('all');
+                      }}
+                      variant="outline"
+                      className="rounded-xl h-11 border-slate-200 text-slate-500 font-bold"
+                    >
+                      Limpar Filtros
+                    </Button>
+                    <Button
+                      disabled={filtered.length === 0}
+                      onClick={() => handleExportReportExcel(filtered)}
+                      variant="outline"
+                      className="rounded-xl h-11 border-emerald-200 text-emerald-600 bg-emerald-50/30 hover:bg-emerald-50 flex items-center justify-center gap-2 font-black"
+                    >
+                      <FileSpreadsheet className="w-4 h-4" /> Exportar Excel
+                    </Button>
+                    <Button
+                      disabled={filtered.length === 0}
+                      onClick={() => handleExportReportPDF(filtered)}
+                      className="bg-blue-600 hover:bg-blue-700 text-white font-black rounded-xl h-11 flex items-center justify-center gap-2 shadow-md shadow-blue-100"
+                    >
+                      <Printer className="w-4 h-4" /> Imprimir / PDF
+                    </Button>
+                  </div>
+                </div>
+              );
+            })()}
+          </div>
+
+          <div className="p-4 bg-slate-100/50 border-t border-slate-100 flex justify-end shrink-0">
+            <Button
+              onClick={() => setIsReportModalOpen(false)}
+              className="px-6 rounded-xl bg-slate-700 hover:bg-slate-800 text-white font-bold h-10"
+            >
+              Fechar
+            </Button>
+          </div>
+        </Modal>
       </CardContent>
     </Card>
   );

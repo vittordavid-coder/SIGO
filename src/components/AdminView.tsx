@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { motion } from 'motion/react';
 import { isPast, format } from 'date-fns';
 import { Users, History, Plus, Trash2, Eye, ShieldCheck, UserPlus, Search, Database, Download, FileCode, Printer, Link, Server, Settings, Globe, AlertCircle, Building2, ChevronDown, ChevronRight, Key, Activity, CheckCircle2, XCircle, Loader2, Landmark, Percent, Clock } from 'lucide-react';
@@ -260,43 +260,49 @@ interface AdminViewProps {
 }
 
 const TABLE_DESCRIPTIONS: Record<string, string> = {
-  'app_state': 'Estado geral do aplicativo e informações sobre versão.',
-  'users': 'Usuários do sistema, permissões e dados de acesso.',
-  'audit_logs': 'Registros de auditoria de ações críticas feitas pelos usuários.',
-  'resources': 'Insumos globais do sistema de orçamento (Materiais, Mão de Obra, Equipamentos).',
-  'service_compositions': 'Composições de serviço, agrupando insumos para formação de preço.',
-  'quotations': 'Orçamentos (planilhas de custo) criados no sistema.',
-  'contracts': 'Contratos firmados vinculados aos orçamentos.',
-  'measurements': 'Medições de contratos (boletins de medição) com seu avanço físico e financeiro.',
-  'daily_reports': 'RDOs - Relatórios Diários de Obras relatando o dia a dia no canteiro.',
-  'pluviometry_records': 'Registros pluviométricos e clima diários dos contratos.',
-  'technical_schedules': 'Cronogramas técnicos de planejamento (Gantt, prazos).',
-  'calculation_memories': 'Memórias de cálculo detalhando origens de quantitativos das medições.',
-  'service_productions': 'Controle de produção e apropriação dos serviços executados.',
-  'highway_locations': 'Locais de rodovias para medições e apropriações (cadastros PNV).',
-  'station_groups': 'Grupos de estacas para controle linear das rodovias.',
-  'cubation_data': 'Dados de cubação (cálculo de volumes de terraplenagem/pavimentação).',
-  'transport_data': 'Dados de transporte, DMTs e controle de fretes.',
-  'employees': 'Cadastro de funcionários de RH alocados em obras.',
-  'time_records': 'Registros de horas trabalhadas da equipe de RH.',
-  'controller_teams': 'Equipes cadastradas no módulo do controlador (Apropriação).',
-  'equipments': 'Cadastro de equipamentos e frota alocada.',
-  'controller_manpower': 'Saldos de Mão de obra da equipe (Controlador).',
-  'team_assignments': 'Alocações de equipes e controle de vínculo nas frentes de serviço.',
-  'equipment_monthly_data': 'Lançamentos e custos mensais de equipamentos.',
-  'manpower_monthly_data': 'Lançamentos e custos mensais da mão de obra.',
-  'equipment_transfers': 'Registro de transferência de equipamentos entre contratos.',
-  'budget_schedules': 'Cronogramas físico-financeiros originais dos orçamentos (Sconet).',
-  'measurement_templates': 'Templates com colunas personalizáveis para relatórios de medição.',
-  'password_reset_requests': 'Controle de solicitações de redefinição de senha.',
-  'chat_messages': 'Mensagens do sistema de chat interno entre usuários.',
-  'chat_notifications': 'Notificações de mensagens não lidas no chat.',
-  'suppliers': 'Cadastro de fornecedores (Compras e Suprimentos).',
-  'purchase_requests': 'Solicitações de materiais feitas pela obra (Requisições de Compra).',
-  'purchase_quotations': 'Pedidos e mapas de cotações enviados a fornecedores.',
-  'purchase_orders': 'Ordens de compra formalizadas/emitidas.',
-  'purchase_order_items': 'Itens individuais listados dentro de uma ordem de compra.',
-  'purchase_order_payments': 'Condições de pagamento e faturamento das ordens de compra.',
+  'app_state': 'app_state - Estado geral do aplicativo, blobs de cache e informações sobre versão.',
+  'users': 'users - Usuários do sistema, níveis de permissão (master, admin, etc.) e dados de acesso.',
+  'audit_logs': 'audit_logs - Registros de auditoria de ações críticas feitas pelos usuários para segurança.',
+  'resources': 'resources - Insumos globais do sistema de orçamento (Materiais, Mão de Obra, Equipamentos).',
+  'service_compositions': 'service_compositions - Composições de serviço, agrupando insumos para formação de preço unitário.',
+  'quotations': 'quotations - Orçamentos (planilhas de custo) criados no sistema.',
+  'contracts': 'contracts - Contratos firmados vinculados aos orçamentos cadastrados.',
+  'measurements': 'measurements - Medições de contratos (boletins de medição) com seu avanço físico e financeiro.',
+  'daily_reports': 'daily_reports - RDOs - Relatórios Diários de Obras relatando o dia a dia no canteiro.',
+  'pluviometry_records': 'pluviometry_records - Registros pluviométricos e clima diários dos contratos.',
+  'technical_schedules': 'technical_schedules - Cronogramas técnicos de planejamento (Gantt, prazos, frentes).',
+  'calculation_memories': 'calculation_memories - Memórias de cálculo detalhando origens de quantitativos das medições.',
+  'service_productions': 'service_productions - Controle de produção e apropriação dos serviços executados.',
+  'highway_locations': 'highway_locations - Locais de rodovias para medições e apropriações (cadastros PNV).',
+  'station_groups': 'station_groups - Grupos de estacas para controle linear das rodovias.',
+  'cubation_data': 'cubation_data - Dados de cubação (cálculo de volumes de terraplenagem/pavimentação).',
+  'transport_data': 'transport_data - Dados de transporte, DMTs e controle de fretes de materiais.',
+  'employees': 'employees - Tabela destinada a dados dos colaboradores do setor RH.',
+  'time_records': 'time_records - Registros de ponto e horas trabalhadas da equipe de RH.',
+  'controller_teams': 'controller_teams - Equipes cadastradas no módulo do controlador para apropriação.',
+  'equipments': 'equipments - Cadastro de equipamentos e frota alocada na obra.',
+  'controller_manpower': 'controller_manpower - Saldos de Mão de obra da equipe sob o módulo do Controlador.',
+  'team_assignments': 'team_assignments - Alocações de equipes e controle de vínculo nas frentes de serviço.',
+  'equipment_monthly_data': 'equipment_monthly_data - Lançamentos e custos mensais de equipamentos e frota.',
+  'manpower_monthly_data': 'manpower_monthly_data - Lançamentos e custos mensais da mão de obra.',
+  'equipment_transfers': 'equipment_transfers - Registro de transferência de equipamentos entre contratos de obras.',
+  'budget_schedules': 'budget_schedules - Cronogramas físico-financeiros originais dos orçamentos (Sconet).',
+  'measurement_templates': 'measurement_templates - Templates com colunas personalizáveis para relatórios de medição.',
+  'password_reset_requests': 'password_reset_requests - Controle e solicitações de redefinição de senha pendentes.',
+  'chat_messages': 'chat_messages - Mensagens do sistema de chat interno entre usuários das empresas.',
+  'chat_notifications': 'chat_notifications - Notificações de novas mensagens não lidas no chat.',
+  'suppliers': 'suppliers - Cadastro de fornecedores ativos homologados para o módulo de compras.',
+  'purchase_requests': 'purchase_requests - Solicitações de materiais feitas pela obra (Requisições de Compra).',
+  'purchase_quotations': 'purchase_quotations - Pedidos e mapas de cotações enviados aos fornecedores.',
+  'purchase_orders': 'purchase_orders - Ordens de compra formalizadas/emitidas.',
+  'purchase_order_items': 'purchase_order_items - Itens individuais de materiais listados dentro de uma ordem de compra.',
+  'purchase_order_payments': 'purchase_order_payments - Condições de pagamento e faturamento das ordens de compra.',
+  'equipment_measurement_parameters': 'equipment_measurement_parameters - Parâmetros de medição de telemetria e calibração de sensores de equipamentos de obra.',
+  'fuel_reservoirs': 'fuel_reservoirs - Reservatórios e postos de abastecimento de combustível de apoio da frota.',
+  'fuel_logs': 'fuel_logs - Lançamentos e abastecimento individual de equipamentos e frota de apoio.',
+  'rh_templates': 'rh_templates - Modelos e padrões de documentos para o módulo de recursos humanos (RH).',
+  'aportes': 'aportes - Aportes financeiros, lançamentos e previsões de investimento para o setor de compras.',
+  'aporte_items': 'aporte_items - Itens individuais de aportes financeiros alocados para compras específicas.'
 };
 
 export function AdminView({ 
@@ -697,6 +703,18 @@ export function AdminView({
       setLoadingLogos(prev => ({ ...prev, [companyId]: false }));
     }
   };
+  const [selectedVerifyCompanyId, setSelectedVerifyCompanyId] = useState<string>('all');
+  
+  const uniqueCompanies = useMemo(() => {
+    const list: { id: string; name: string }[] = [];
+    users.forEach(u => {
+      if (u.companyId && !list.some(item => item.id === u.companyId)) {
+        list.push({ id: u.companyId, name: u.companyName || u.name || 'Empresa Sem Nome' });
+      }
+    });
+    return list;
+  }, [users]);
+
   const [testResults, setTestResults] = useState<Record<string, 'success' | 'error' | 'pending' | 'idle'>>({});
   const [isTesting, setIsTesting] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
@@ -713,17 +731,40 @@ export function AdminView({
     if (!supabase) return;
 
     setIsFetchingCounts(true);
-    const newCounts: Record<string, number | 'error'> = {};
+    const newCounts: Record<string, number | 'error' | 'not_created'> = {};
     
     // Set pending visual state
-    DB_TABLES.forEach(t => newCounts[t] = 'error'); // just as initial map maybe? No, let's leave it empty to show loading globally or per row.
+    DB_TABLES.forEach(t => newCounts[t] = 'error');
     
     await Promise.all(DB_TABLES.map(async (table) => {
       try {
-        const { count, error } = await supabase.from(table).select('*', { count: 'exact', head: true });
-        newCounts[table] = error ? 'error' : (count ?? 0);
-      } catch (e) {
-        newCounts[table] = 'error';
+        let query = supabase.from(table).select('*', { count: 'exact', head: true });
+        
+        // Aplica o filtro de empresa para as tabelas que contêm o campo company_id
+        if (selectedVerifyCompanyId !== 'all') {
+          const nonCompanyTables = ['app_state', 'chat_messages', 'chat_notifications', 'password_reset_requests'];
+          if (!nonCompanyTables.includes(table)) {
+            query = query.eq('company_id', selectedVerifyCompanyId);
+          }
+        }
+
+        const { count, error } = await query;
+        if (error) {
+          if (error.code === '42P01' || error.message?.toLowerCase().includes('does not exist') || error.message?.toLowerCase().includes('não existe')) {
+            newCounts[table] = 'not_created';
+          } else {
+            newCounts[table] = 'error';
+          }
+        } else {
+          newCounts[table] = count ?? 0;
+        }
+      } catch (e: any) {
+        const msg = String(e?.message || '').toLowerCase();
+        if (msg.includes('does not exist') || msg.includes('não existe')) {
+          newCounts[table] = 'not_created';
+        } else {
+          newCounts[table] = 'error';
+        }
       }
     }));
     
@@ -1652,18 +1693,36 @@ export function AdminView({
                   <Database className="w-5 h-5 text-blue-600" />
                   Visão Geral do Banco de Dados
                 </CardTitle>
-                <div className="flex items-center justify-between mt-2">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mt-2">
                   <CardDescription>Status das tabelas e volume de registros local e na nuvem.</CardDescription>
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    onClick={fetchCloudCounts}
-                    disabled={isFetchingCounts || !supabaseConfig.enabled}
-                    className="h-8 text-sm font-bold text-blue-600 border-blue-200 hover:bg-blue-50"
-                  >
-                    {isFetchingCounts ? <Loader2 className="w-3.5 h-3.5 mr-2 animate-spin" /> : <Activity className="w-3.5 h-3.5 mr-2" />}
-                    Verificar Supabase
-                  </Button>
+                  <div className="flex flex-wrap items-center gap-2">
+                    {/* Filtro de Empresa */}
+                    <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-xl shadow-inner">
+                      <span className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Empresa:</span>
+                      <select
+                        value={selectedVerifyCompanyId}
+                        onChange={(e) => setSelectedVerifyCompanyId(e.target.value)}
+                        className="bg-transparent text-xs font-bold text-slate-700 outline-none cursor-pointer focus:ring-0 max-w-[150px] truncate"
+                        disabled={isFetchingCounts || !supabaseConfig.enabled}
+                      >
+                        <option value="all">Todas as Empresas</option>
+                        {uniqueCompanies.map(c => (
+                          <option key={c.id} value={c.id}>{c.name}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={fetchCloudCounts}
+                      disabled={isFetchingCounts || !supabaseConfig.enabled}
+                      className="h-8 text-sm font-bold text-blue-600 border-blue-200 hover:bg-blue-50 rounded-xl"
+                    >
+                      {isFetchingCounts ? <Loader2 className="w-3.5 h-3.5 mr-2 animate-spin" /> : <Activity className="w-3.5 h-3.5 mr-2" />}
+                      Verificar Supabase
+                    </Button>
+                  </div>
                 </div>
               </CardHeader>
               <CardContent className="p-0">
@@ -2407,8 +2466,9 @@ export function AdminView({
   );
 }
 
-function DBTableRow({ name, description, localCount, cloudCount }: { key?: string, name: string, description: string, localCount?: number, cloudCount?: number | 'error' | null }) {
+function DBTableRow({ name, description, localCount, cloudCount }: { key?: string, name: string, description: string, localCount?: number, cloudCount?: number | 'error' | 'not_created' | null }) {
   const isCloudError = cloudCount === 'error';
+  const isNotCreated = cloudCount === 'not_created';
   
   return (
     <TableRow>
@@ -2422,6 +2482,8 @@ function DBTableRow({ name, description, localCount, cloudCount }: { key?: strin
       <TableCell>
         {isCloudError ? (
           <Badge variant="destructive" className="font-mono bg-red-50 text-red-600 border-red-200 hover:bg-red-50">Erro</Badge>
+        ) : isNotCreated ? (
+          <Badge className="font-mono bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-50" variant="outline">Não Criada</Badge>
         ) : (cloudCount !== undefined && cloudCount !== null) ? (
           <Badge className="font-mono bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-50" variant="outline">{cloudCount}</Badge>
         ) : (
