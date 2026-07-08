@@ -44,6 +44,7 @@ import PurchasesView from './components/PurchasesView';
 import { ProjectAdminView } from './components/ProjectAdminView';
 import AlmoxarifeView from './components/AlmoxarifeView';
 import { UserProfile } from './components/UserProfile';
+import { HelpView } from './components/HelpView';
 import { Chat } from './components/Chat';
 import { ManagementView } from './components/ManagementView';
 import { FinanceView } from './components/FinanceView';
@@ -122,7 +123,7 @@ export default function App() {
 
   const compId = currentUser?.companyId;
 
-  const [mainTab, setMainTab] = useState<'home' | 'quotations' | 'measurements' | 'rh' | 'control' | 'purchases' | 'project_admin' | 'settings' | 'admin' | 'profile' | 'gerencia' | 'financeiro' | 'almoxarife'>('home');
+  const [mainTab, setMainTab] = useState<'home' | 'quotations' | 'measurements' | 'rh' | 'control' | 'purchases' | 'project_admin' | 'settings' | 'admin' | 'profile' | 'gerencia' | 'financeiro' | 'almoxarife' | 'help'>('home');
   const [activeTab, setActiveTab] = useState<'resources' | 'services' | 'quotations' | 'budget' | 'bdi' | 'abc' | 'schedule' | 'reports'>('resources');
   const [activeMeasureTab, setActiveMeasureTab] = useState<'contracts' | 'measurements' | 'measure' | 'controls' | 'physical_progress' | 'rdo' | 'pluviometria' | 'schedule' | 'teams' | 'reports' | 'summary'>('contracts');
   const [activeRHTab, setActiveRHTab] = useState('employees');
@@ -4132,9 +4133,9 @@ export default function App() {
                 <UserIcon className="w-4 h-4" />
                 <span className="text-base font-medium">Perfil</span>
               </DropdownMenuItem>
-              <DropdownMenuItem className="flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer hover:bg-gray-50 text-gray-600">
-                <HelpCircle className="w-4 h-4" />
-                <span className="text-base font-medium">Ajuda</span>
+              <DropdownMenuItem onClick={() => setMainTab('help')} className="flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer hover:bg-gray-50 text-gray-700 font-medium">
+                <HelpCircle className="w-4 h-4 text-blue-500" />
+                <span className="text-base">Ajuda</span>
               </DropdownMenuItem>
               <DropdownMenuSeparator className="bg-gray-50 my-1" />
               <DropdownMenuItem onClick={handleLogout} className="flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer hover:bg-red-50 text-red-600">
@@ -4872,6 +4873,10 @@ export default function App() {
                     addAuditLog('Edição', 'Perfil', `Perfil do usuário ${updated.username} atualizado`);
                   }} 
                 />
+              )}
+
+              {mainTab === 'help' && currentUser && (
+                <HelpView currentUser={currentUser} />
               )}
             </AnimatePresence>
           </div>
