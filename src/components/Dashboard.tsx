@@ -149,22 +149,22 @@ export function Dashboard({
       className="border-none shadow-xl rounded-3xl overflow-hidden bg-white hover:shadow-2xl transition-all duration-300 cursor-pointer group w-full"
       onClick={onClick}
     >
-      <CardHeader className={cn("pb-4 flex flex-row items-center gap-4 text-white", color)}>
-        <div className="bg-white/20 p-3 rounded-2xl backdrop-blur-sm group-hover:scale-110 transition-transform duration-500">
-          <Icon className="w-8 h-8" />
+      <CardHeader className={cn("p-4 sm:p-5 pb-3 flex flex-row items-center gap-3 text-white", color)}>
+        <div className="bg-white/20 p-2.5 rounded-2xl backdrop-blur-sm group-hover:scale-110 transition-transform duration-500 shrink-0">
+          <Icon className="w-7 h-7" />
         </div>
-        <div>
-          <CardTitle className="text-xl font-black tracking-tight">{title}</CardTitle>
-          <CardDescription className="text-white/70 text-sm uppercase font-bold tracking-widest">Resumo do Setor</CardDescription>
+        <div className="min-w-0">
+          <CardTitle className="text-lg font-black tracking-tight truncate">{title}</CardTitle>
+          <CardDescription className="text-white/70 text-[10px] uppercase font-bold tracking-widest truncate">Resumo do Setor</CardDescription>
         </div>
       </CardHeader>
-      <CardContent className="p-6">
-        <div className="space-y-4">
+      <CardContent className="p-4 sm:p-5">
+        <div className="space-y-3">
           {metrics.map((m: any, i: number) => (
             <div 
               key={i} 
               className={cn(
-                "flex items-center justify-between group/item p-2 -mx-2 rounded-xl transition-all",
+                "flex items-center justify-between gap-2 group/item p-1.5 sm:p-2 -mx-2 rounded-xl transition-all min-w-0",
                 m.onClick && "hover:bg-gray-50 cursor-pointer"
               )}
               onClick={(e) => {
@@ -174,11 +174,11 @@ export function Dashboard({
                 }
               }}
             >
-              <span className="text-base font-bold text-gray-400 group-hover/item:text-gray-600 transition-colors uppercase tracking-tight">
+              <span className="text-[10px] sm:text-xs font-bold text-gray-400 group-hover/item:text-gray-600 transition-colors uppercase tracking-tight truncate min-w-0 flex-1" title={m.label}>
                 {m.label}
               </span>
               <span className={cn(
-                "text-xl font-black text-gray-900 bg-gray-50 px-4 py-2 rounded-2xl border border-gray-100 transition-all duration-300",
+                "text-xs sm:text-sm font-black text-gray-900 bg-gray-50 px-3 py-1.5 rounded-2xl border border-gray-100 transition-all duration-300 whitespace-nowrap shrink-0",
                 m.onClick ? "group-hover/item:border-blue-200 group-hover/item:bg-blue-50/50 group-hover/item:text-blue-600" : "group-hover/item:border-blue-100"
               )}>
                 {m.value}
@@ -186,8 +186,8 @@ export function Dashboard({
             </div>
           ))}
         </div>
-        <div className="mt-8 pt-4 border-t border-gray-50 flex items-center justify-between text-sm font-bold text-gray-400 uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-all duration-500 transform translate-y-2 group-hover:translate-y-0 text-blue-600">
-          Ver detalhes <ChevronRight className="w-4 h-4" />
+        <div className="mt-6 pt-3 border-t border-gray-50 flex items-center justify-between text-xs font-bold text-gray-400 uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-all duration-500 transform translate-y-2 group-hover:translate-y-0 text-blue-600">
+          Ver detalhes <ChevronRight className="w-3.5 h-3.5" />
         </div>
       </CardContent>
     </Card>
@@ -212,7 +212,7 @@ export function Dashboard({
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-6 gap-6 w-full">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6 w-full">
         <MetricCard 
           title="Sala Técnica"
           icon={ClipboardList}
