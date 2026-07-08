@@ -795,7 +795,7 @@ export default function App() {
             
             finalVal = deduplicateById(finalVal);
           } else if (!hasError && allData.length === 0) {
-            // If we queried the individual table successfully and it is empty, the final state must be empty.
+            // If the table is empty in the database, check if we have local cached data.
             finalVal = [];
           } else {
             // Table error (e.g. doesn't exist), fallback to blob
@@ -803,11 +803,29 @@ export default function App() {
           }
           
           setter((prev: any) => {
+            if (hasError) {
+              if (prev && prev.length > 0) {
+                console.warn(`[Sync] Keeping previous state for ${tableName} due to fetch error to prevent data loss`);
+                finalVal = prev;
+                return prev;
+              }
+            }
+            if (!hasError && allData.length === 0) {
+              if (prev && prev.length > 0) {
+                console.log(`[Sync] Preserving local cached data for ${tableName} since database is empty`);
+                if (!(window as any).sigoForceSyncUp) (window as any).sigoForceSyncUp = {};
+                (window as any).sigoForceSyncUp[tableName] = true;
+                finalVal = prev;
+                return prev;
+              }
+            }
             if (JSON.stringify(prev) === JSON.stringify(finalVal)) return prev;
             return finalVal;
           });
           finalData[key] = finalVal;
           lastSyncedHashRef.current[namespacedKey] = JSON.stringify(finalVal);
+          if (!(window as any).sigoLastSyncedHashes) (window as any).sigoLastSyncedHashes = {};
+          (window as any).sigoLastSyncedHashes[namespacedKey] = JSON.stringify(finalVal);
           
           if (Array.isArray(finalVal)) {
              finalVal.forEach((item: any) => {

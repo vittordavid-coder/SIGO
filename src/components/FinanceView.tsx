@@ -720,6 +720,55 @@ export const FinanceView = ({
     }
   };
 
+  const downloadExcelTemplate = () => {
+    try {
+      const templateData = [
+        {
+          '[NUMERO_APORTE]': '001/2026',
+          '[CATEGORIA]': 'Mão de Obra',
+          '[SUBCATEGORIA]': 'Salários',
+          '[FORNECEDOR]': 'Folha de Pagamento',
+          '[DESCRICAO]': 'Salário base funcionários técnicos',
+          '[MES_COMPETENCIA]': '01/2026',
+          '[VENCIMENTO]': '2026-07-05',
+          '[VALOR]': 12500.50
+        },
+        {
+          '[NUMERO_APORTE]': '001/2026',
+          '[CATEGORIA]': 'Equipamentos',
+          '[SUBCATEGORIA]': 'Locação',
+          '[FORNECEDOR]': 'Rent-A-Car S/A',
+          '[DESCRICAO]': 'Locação de pickup operacional',
+          '[MES_COMPETENCIA]': '01/2026',
+          '[VENCIMENTO]': '2026-07-10',
+          '[VALOR]': 4500.00
+        }
+      ];
+
+      const worksheet = XLSX.utils.json_to_sheet(templateData);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, "Modelo_Importacao");
+      
+      // Add column widths
+      const wscols = [
+        { wch: 18 }, // [NUMERO_APORTE]
+        { wch: 15 }, // [CATEGORIA]
+        { wch: 15 }, // [SUBCATEGORIA]
+        { wch: 25 }, // [FORNECEDOR]
+        { wch: 30 }, // [DESCRICAO]
+        { wch: 18 }, // [MES_COMPETENCIA]
+        { wch: 15 }, // [VENCIMENTO]
+        { wch: 12 }  // [VALOR]
+      ];
+      worksheet['!cols'] = wscols;
+
+      XLSX.writeFile(workbook, "Modelo_Importacao_Aportes.xlsx");
+    } catch (err) {
+      console.error(err);
+      alert('Erro ao baixar modelo Excel.');
+    }
+  };
+
   const [isImporting, setIsImporting] = useState(false);
 
   const handleImportExcel = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -935,8 +984,24 @@ export const FinanceView = ({
                         </DialogDescription>
                       </DialogHeader>
 
-                      <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 py-4 shrink-0">
-                        {/* Opção 1: Instruções PDF */}
+                      <div className="grid grid-cols-1 sm:grid-cols-5 gap-4 py-4 shrink-0">
+                        {/* Opção 1: Planilha Modelo */}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            downloadExcelTemplate();
+                            setIsExportImportModalOpen(false);
+                          }}
+                          className="flex flex-col items-center justify-center border-2 border-emerald-200 hover:border-emerald-600 hover:bg-emerald-50/20 p-5 rounded-2xl transition group text-center cursor-pointer bg-white"
+                        >
+                          <div className="w-12 h-12 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center border border-emerald-100 group-hover:scale-110 transition-transform mb-3">
+                            <FileSpreadsheet className="w-6 h-6" />
+                          </div>
+                          <span className="font-extrabold text-slate-800 text-xs">Planilha Modelo</span>
+                          <span className="text-slate-400 text-[10px] mt-1 leading-tight">Baixar modelo Excel pronto</span>
+                        </button>
+
+                        {/* Opção 2: Instruções PDF */}
                         <button
                           type="button"
                           onClick={() => {
@@ -952,7 +1017,7 @@ export const FinanceView = ({
                           <span className="text-slate-400 text-[10px] mt-1 leading-tight">Instruções e tags para preenchimento</span>
                         </button>
 
-                        {/* Opção 2: Exportar PDF */}
+                        {/* Opção 3: Exportar PDF */}
                         <button
                           type="button"
                           onClick={() => {
@@ -973,7 +1038,7 @@ export const FinanceView = ({
                           <span className="text-slate-400 text-[10px] mt-1 leading-tight">Gera PDF do aporte selecionado</span>
                         </button>
 
-                        {/* Opção 3: Exportar Excel */}
+                        {/* Opção 4: Exportar Excel */}
                         <button
                           type="button"
                           onClick={() => {
@@ -994,7 +1059,7 @@ export const FinanceView = ({
                           <span className="text-slate-400 text-[10px] mt-1 leading-tight">Gera planilha Excel do aporte atual</span>
                         </button>
 
-                        {/* Opção 4: Importar Dados */}
+                        {/* Opção 5: Importar Dados */}
                         <button
                           type="button"
                           onClick={() => {
