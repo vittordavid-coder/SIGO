@@ -14,6 +14,9 @@ import {
   ChevronRight,
   ChevronDown,
   Settings,
+  Settings2,
+  Layers,
+  ClipboardList,
   ChevronUp,
   FileDown,
   AlertCircle,
@@ -674,6 +677,32 @@ export default function RHView({
   
   const [fechamentoSortField, setFechamentoSortField] = useState<string>("name");
   const [fechamentoSortOrder, setFechamentoSortOrder] = useState<"asc" | "desc">("asc");
+
+  interface CollaboratorColumnMappingModalState {
+    isOpen: boolean;
+    rawRows: any[][];
+    headerRowIndex: number;
+    fileName: string;
+    selectedCols: {
+      name: number;
+      registrationNumber: number;
+      cpf: number;
+      role: number;
+      salary: number;
+      admissionDate: number;
+      dismissalDate: number;
+      paymentType: number;
+      rgNumber: number;
+      pis: number;
+      phone: number;
+      email: number;
+      birthDate: number;
+      team: number;
+      contract: number;
+    };
+  }
+
+  const [collaboratorColumnMappingModal, setCollaboratorColumnMappingModal] = useState<CollaboratorColumnMappingModalState | null>(null);
 
 
   const totalExtraCostsPercentage = useMemo(() => {
@@ -1606,505 +1635,94 @@ export default function RHView({
 
     reader.onload = async (evt) => {
       try {
-        console.log("[RH Import] File loaded, starting processing...");
+        console.log("[RH Import] File loaded, parsing workbook for mapping...");
         const buildData = evt.target?.result;
         if (!buildData)
           throw new Error("Falha ao ler o byte-stream do arquivo.");
 
         const wb = XLSX.read(buildData, { type: "array" });
-        console.log(
-          "[RH Import] Workbook read successful, Sheets:",
-          wb.SheetNames,
-        );
-
         const wsname = wb.SheetNames[0];
         const ws = wb.Sheets[wsname];
 
-        const jsonData = XLSX.utils.sheet_to_json(ws, { defval: null });
-        console.log("[RH Import] jsonData found:", jsonData.length, "rows");
+        const rawRows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "" }) as any[][];
 
-        if (!jsonData || jsonData.length === 0) {
-          alert(
-            "❌ Arquivo vazio ou formato incompatível. Certifique-se de que a primeira linha contém os cabeçalhos.",
-          );
+        if (!rawRows || rawRows.length === 0) {
+          alert("❌ Arquivo vazio ou formato incompatível.");
           setIsImporting(false);
           return;
         }
 
-        const importedEmployees: Employee[] = [];
-        for (let i = 0; i < jsonData.length; i++) {
-          try {
-            const row: any = jsonData[i];
-            const keys = Object.keys(row);
-
-            // Helper to get value with loose key matching
-            const getVal = (possibleKeys: string[]) => {
-              const foundKey = keys.find((k) =>
-                possibleKeys.includes(String(k).replace(/^#/, "").toLowerCase().trim()),
-              );
-              if (!foundKey) return null;
-              const val = row[foundKey];
-              return val === undefined ||
-                val === null ||
-                String(val).trim() === ""
-                ? null
-                : val;
-            };
-
-            const parseNumericValue = (val: any): number => {
-              if (val === null || val === undefined || val === "") return 0;
-              if (typeof val === "number") return val;
-              const s = String(val).trim();
-              if (s === "") return 0;
-              
-              const lastDot = s.lastIndexOf(".");
-              const lastComma = s.lastIndexOf(",");
-              let cleanStr = s;
-              
-              if (lastComma !== -1 && lastDot !== -1) {
-                // Both exist
-                if (lastComma > lastDot) {
-                  // e.g. 1.234,56
-                  cleanStr = s.replace(/\./g, "").replace(",", ".");
-                } else {
-                  // e.g. 1,234.56
-                  cleanStr = s.replace(/,/g, "");
-                }
-              } else if (lastComma !== -1) {
-                // Only commas
-                if (s.split(",").length > 2) {
-                  cleanStr = s.replace(/,/g, "");
-                } else {
-                  cleanStr = s.replace(",", ".");
-                }
-              } else if (lastDot !== -1) {
-                // Only dots
-                if (s.split(".").length > 2) {
-                  cleanStr = s.replace(/\./g, "");
-                } else {
-                  cleanStr = s;
-                }
-              }
-              
-              cleanStr = cleanStr.replace(/[^0-9.-]+/g, "");
-              const num = parseFloat(cleanStr);
-              return isNaN(num) ? 0 : num;
-            };
-
-            const rawName = getVal([
-              "nome",
-              "nome completo",
-              "colaborador",
-              "funcionario",
-              "funcionário",
-            ]);
-            if (!rawName) {
-              console.warn(
-                `[RH Import] Skipping row ${i + 1} because Name is empty.`,
-              );
-              continue;
-            }
-
-            const name = String(rawName);
-            const cpfRaw = getVal(["cpf", "documento"]);
-            const cpf = cpfRaw ? String(cpfRaw).replace(/[^0-9]/g, "") : "";
-            const registrationNumberRaw = getVal([
-              "matricula",
-              "matrícula",
-              "numero de matricula",
-              "registro",
-              "chapa",
-              "cod_matricula",
-              "registration_number"
-            ]);
-            const registrationNumber = registrationNumberRaw ? String(registrationNumberRaw).trim() : "";
-            const role = String(
-              getVal(["função", "funcao", "cargo", "atividade"]) || "Ajudante",
-            );
-
-            let paymentTypeStr = String(
-              getVal([
-                "tipo de pagamento",
-                "tipo pagamento",
-                "tipo",
-                "forma_pagamento",
-              ]) || "Mensalista",
-            ).toLowerCase();
-            let paymentType: "hour" | "day" | "month" = "month";
-            if (
-              paymentTypeStr.includes("hora") ||
-              paymentTypeStr.includes("horista")
-            )
-              paymentType = "hour";
-            if (
-              paymentTypeStr.includes("dia") ||
-              paymentTypeStr.includes("diarista")
-            )
-              paymentType = "day";
-
-            const salaryVal = getVal([
-              "salário",
-              "salario",
-              "salário bruto",
-              "salario bruto",
-              "valor",
-              "remuneracao",
-              "remuneração",
-            ]);
-            let salary = parseNumericValue(salaryVal);
-
-            const admissionDateRaw = getVal([
-              "data de admissão",
-              "data admissão",
-              "data de admissao",
-              "admissao",
-              "admissão",
-              "entrada",
-            ]);
-            const admissionDate =
-              parseDateFromExcel(admissionDateRaw) ||
-              new Date().toISOString().split("T")[0];
-
-            const dismissalDateRaw = getVal([
-              "data de demissão",
-              "data demissão",
-              "demissao",
-              "demissão",
-              "saida",
-              "saída",
-            ]);
-            const dismissalDate = parseDateFromExcel(dismissalDateRaw) || null;
-
-            const statusRaw = getVal([
-              "status",
-              "situação",
-              "situacao",
-              "estado",
-            ]);
-            let status: "active" | "dismissed" = "active";
-            if (statusRaw) {
-              const s = String(statusRaw).toLowerCase();
-              if (
-                s.includes("demitido") ||
-                s.includes("inativo") ||
-                s.includes("desligado")
-              )
-                status = "dismissed";
-            }
-            if (dismissalDate) status = "dismissed";
-
-            const rgNumberRaw = getVal([
-              "nº de cadastro/vínculo/rg",
-              "rg",
-              "vínculo",
-              "cadastro",
-              "numero_rg",
-              "rg_numero",
-            ]);
-            const rgAgencyRaw = getVal([
-              "órgão emissor do rg",
-              "orgao emissor",
-              "orgao_emissor",
-              "emissor",
-              "rg_emissor",
-            ]);
-            const pisRaw = getVal(["pis", "nis", "pasep"]);
-            const phoneRaw = getVal(["telefone", "contato", "tel"]);
-            const mobileRaw = getVal(["celular", "mobile", "cel"]) || phoneRaw;
-            const emailRaw = getVal(["email", "e-mail"]);
-
-            // Find matching contract inside the sheet
-            const contractVal = getVal([
-              "contrato",
-              "obra",
-              "contrato_numero",
-              "numero_contrato",
-              "codigo_contrato",
-              "contrato_id",
-            ]);
-            let matchedContractId = selectedContractId || "";
-            if (contractVal) {
-              const cleanedVal = String(contractVal).toLowerCase().trim();
-              const foundC = contracts.find(
-                (c) =>
-                  (c.contractNumber &&
-                    c.contractNumber.toLowerCase().trim() === cleanedVal) ||
-                  (c.workName &&
-                    c.workName.toLowerCase().trim() === cleanedVal) ||
-                  (c.id && c.id.toLowerCase().trim() === cleanedVal),
-              );
-              if (foundC) {
-                matchedContractId = foundC.id;
-              }
-            }
-
-            const employee: Employee = {
-              id: String(
-                getVal(["id", "id_colaborador", "codigo", "código"]) ||
-                  generateUUID(),
-              ),
-              companyId: currentUser.companyId,
-              contractId: matchedContractId,
-              registrationNumber: registrationNumber || undefined,
-              name,
-              role,
-              admissionDate: admissionDate,
-              salary,
-              paymentType,
-              status,
-              dismissalDate,
-              cpf,
-              rgNumber: rgNumberRaw ? String(rgNumberRaw) : "",
-              rgAgency: rgAgencyRaw ? String(rgAgencyRaw) : "",
-              rgIssuer: rgAgencyRaw ? String(rgAgencyRaw) : "",
-              rgState: String(
-                getVal(["uf do rg", "rg uf", "estado do rg", "uf_rg"]) || "",
-              ),
-              birthDate:
-                parseDateFromExcel(
-                  getVal([
-                    "data de nascimento",
-                    "nascimento",
-                    "data_nascimento",
-                  ]),
-                ) || (null as any),
-              birthPlace: String(
-                getVal([
-                  "local de nascimento",
-                  "naturalidade",
-                  "cidade_nascimento",
-                ]) ||
-                  String(getVal(["local de nascimento", "naturalidade"]) || ""),
-              ),
-              birthState: String(
-                getVal(["uf de nascimento", "nascimento uf"]) || "",
-              ),
-              workBookletNumber: String(getVal(["nº da ctps", "ctps"]) || ""),
-              workBookletSeries: String(
-                getVal(["série da ctps", "serie ctps"]) || "",
-              ),
-              pis: pisRaw ? String(pisRaw) : "",
-              phone: phoneRaw ? String(phoneRaw) : "",
-              mobile: mobileRaw ? String(mobileRaw) : "",
-              email: emailRaw ? String(emailRaw) : "",
-              voterIdNumber: String(
-                getVal([
-                  "nº título de eleitor",
-                  "título de eleitor",
-                  "titulo eleitor",
-                ]) || "",
-              ),
-              voterZone: String(getVal(["zona eleitoral", "zona"]) || ""),
-              voterSection: String(getVal(["seção eleitoral", "secao"]) || ""),
-              fatherName: String(getVal(["nome do pai", "pai"]) || ""),
-              motherName: String(
-                getVal(["nome da mãe", "nome da mae", "mãe"]) || "",
-              ),
-              spouseName: String(
-                getVal(["nome do cônjuge", "conjuge", "esposa", "esposo"]) ||
-                  "",
-              ),
-              dependents: [],
-              addressLogradouro: String(
-                getVal(["logradouro", "rua", "endereço", "endereco"]) || "",
-              ),
-              addressNumber: String(getVal(["número", "numero", "nº"]) || ""),
-              addressComplement: String(getVal(["complemento"]) || ""),
-              addressNeighborhood: String(getVal(["bairro"]) || ""),
-              addressCity: String(getVal(["cidade", "município"]) || ""),
-              addressZipCode: String(getVal(["cep", "código postal"]) || ""),
-              addressState: String(getVal(["uf", "estado"]) || ""),
-              commuterBenefits: String(
-                getVal(["vt - necessita", "vt", "vale transporte"]) || "",
-              )
-                .toLowerCase()
-                .includes("sim"),
-              commuterValue1: parseNumericValue(getVal(["vt - valor 1"])),
-              commuterCity1: String(getVal(["vt - cidade 1"]) || ""),
-              commuterValue2: parseNumericValue(getVal(["vt - valor 2"])),
-              commuterCity2: String(getVal(["vt - cidade 2"]) || ""),
-              chargesPercentage: parseNumericValue(
-                getVal([
-                  "encargos percentual",
-                  "encargos_percentual",
-                  "charges_percentage",
-                  "encargos",
-                ])
-              ),
-              overtimePercentage: parseNumericValue(
-                getVal([
-                  "horas extras percentual",
-                  "he_percentual",
-                  "overtime_percentage",
-                  "he",
-                ])
-              ),
-              team:
-                String(
-                  getVal([
-                    "equipe",
-                    "equipe vinculada",
-                    "team",
-                    "frente",
-                    "grupo",
-                  ]) || "",
-                ) || undefined,
-            };
-            importedEmployees.push(employee);
-          } catch (rowErr) {
-            console.error(
-              `[RH Import] Critical error mapping row ${i + 1}:`,
-              rowErr,
-            );
+        // Auto-detect header row index
+        let headerRowIndex = 0;
+        for (let i = 0; i < Math.min(15, rawRows.length); i++) {
+          const rowStr = (rawRows[i] || []).map((c: any) => String(c).toLowerCase()).join(" ");
+          if (
+            rowStr.includes("nome") ||
+            rowStr.includes("cpf") ||
+            rowStr.includes("matricula") ||
+            rowStr.includes("matrícula") ||
+            rowStr.includes("funcao") ||
+            rowStr.includes("cargo")
+          ) {
+            headerRowIndex = i;
+            break;
           }
         }
 
-        console.log(
-          `[RH Import] Successfully mapped ${importedEmployees.length} of ${jsonData.length} employees.`,
-        );
+        const headerRow = rawRows[headerRowIndex] || [];
 
-        if (importedEmployees.length === 0) {
-          alert(
-            '⚠️ Nenhum colaborador válido encontrado no arquivo. Verifique se as colunas "Nome" ou "Nome Completo" estão preenchidas.',
-          );
-          setIsImporting(false);
-          return;
-        }
-
-        if (
-          window.confirm(
-            `✅ ${importedEmployees.length} colaboradores encontrados. Deseja importá-los para o contrato atual? (Colaboradores com a mesma matrícula ou CPF serão atualizados)`,
-          )
-        ) {
-          const newEmployeesList = [...employees];
-          let newCount = 0;
-          let updatedCount = 0;
-          
-          importedEmployees.forEach((impEmp) => {
-            const hasRegNum = !!impEmp.registrationNumber;
-            const hasCpf = !!impEmp.cpf;
-            
-            let existingIdx = -1;
-            
-            if (hasRegNum) {
-              existingIdx = newEmployeesList.findIndex(
-                (e) => e.registrationNumber?.trim().toLowerCase() === impEmp.registrationNumber!.trim().toLowerCase()
-              );
-            } else if (hasCpf) {
-              existingIdx = newEmployeesList.findIndex(
-                (e) => e.cpf?.replace(/[^0-9]/g, "") === impEmp.cpf!.replace(/[^0-9]/g, "")
-              );
-            }
-            
-            if (existingIdx >= 0) {
-              const existingId = newEmployeesList[existingIdx].id;
-              newEmployeesList[existingIdx] = { 
-                ...newEmployeesList[existingIdx], 
-                ...impEmp, 
-                id: existingId // preserve original ID
-              };
-              impEmp.id = existingId; // preserve the ID inside importedEmployees so Supabase upsert matches!
-              updatedCount++;
-            } else {
-              newEmployeesList.push(impEmp);
-              newCount++;
-            }
-          });
-
-          onUpdateEmployees(newEmployeesList);
-
-          if (teamAssignments && onUpdateAssignments) {
-            let updatedAssignments = [...teamAssignments];
-            const currentMonth =
-              selectedMonth || new Date().toISOString().slice(0, 7);
-            importedEmployees.forEach((emp) => {
-              if (emp.team && emp.team !== "") {
-                const team = (controllerTeams || []).find(
-                  (t) => t.name === emp.team,
-                );
-                if (team) {
-                  const exists = updatedAssignments.some(
-                    (a) =>
-                      a.memberId === emp.id &&
-                      a.type === "manpower" &&
-                      a.month === currentMonth,
-                  );
-                  if (!exists) {
-                    updatedAssignments.push({
-                      id: generateUUID(),
-                      teamId: team.id,
-                      memberId: emp.id,
-                      type: "manpower",
-                      month: currentMonth,
-                      companyId: emp.companyId || currentUser.companyId,
-                      contractId: emp.contractId,
-                    });
-                  }
-                }
-              }
-            });
-            onUpdateAssignments(updatedAssignments);
-          }
-
-          let supabaseSuccess = false;
-          const config = getSupabaseConfig();
-          if (config.enabled) {
-            const supabase = createSupabaseClient(config.url, config.key);
-            if (supabase) {
-              const snakeData = importedEmployees.map(mapToSnake);
-              try {
-                const { error } = await supabase
-                  .from("employees")
-                  .upsert(snakeData);
-                if (error) {
-                  console.error(
-                    "[Supabase] Failed to sync imported employees:",
-                    error,
-                  );
-                  alert(
-                    `❌ Erro ao salvar no banco de dados Supabase: ${error.message || JSON.stringify(error)}`,
-                  );
-                } else {
-                  console.log("[Supabase] Imported employees saved securely.");
-                  supabaseSuccess = true;
-                }
-              } catch (e: any) {
-                console.error(
-                  "[Supabase] Exception syncing imported employees:",
-                  e,
-                );
-                alert(
-                  `❌ Exceção ao salvar no banco: ${e.message || String(e)}`,
-                );
-              }
+        const findColIdx = (candidates: string[]): number => {
+          for (let c = 0; c < headerRow.length; c++) {
+            const headerStr = String(headerRow[c] || "").replace(/^#/, "").toLowerCase().trim();
+            if (candidates.some((cand) => headerStr.includes(cand.toLowerCase()))) {
+              return c;
             }
           }
+          return -1;
+        };
 
-          if (supabaseSuccess) {
-            alert(
-              `🚀 Atualização no Supabase concluída com sucesso!\n\n` +
-              `• Novos colaboradores adicionados: ${newCount}\n` +
-              `• Colaboradores atualizados: ${updatedCount}`
-            );
-          } else if (config.enabled) {
-            alert(
-              `⚠️ Importação local concluída, mas houve erro na sincronização com o Supabase.\n\n` +
-              `• Novos colaboradores: ${newCount}\n` +
-              `• Colaboradores atualizados: ${updatedCount}`
-            );
-          } else {
-            alert(
-              `✅ Importação concluída localmente (Supabase desativado).\n\n` +
-              `• Novos colaboradores: ${newCount}\n` +
-              `• Colaboradores atualizados: ${updatedCount}`
-            );
-          }
-        }
+        const colName = findColIdx(["nome completo", "nome", "colaborador", "funcionario", "funcionário"]);
+        const colReg = findColIdx(["matricula", "matrícula", "numero de matricula", "registro", "chapa", "cod_matricula", "registration_number"]);
+        const colCpf = findColIdx(["cpf", "documento"]);
+        const colRole = findColIdx(["função", "funcao", "cargo", "atividade"]);
+        const colSalary = findColIdx(["salário", "salario", "salário bruto", "salario bruto", "valor", "remuneracao", "remuneração"]);
+        const colAdmission = findColIdx(["data de admissão", "data admissão", "data de admissao", "admissao", "admissão", "entrada"]);
+        const colDismissal = findColIdx(["data de demissão", "data demissão", "demissao", "demissão", "saida", "saída"]);
+        const colPayment = findColIdx(["tipo de pagamento", "tipo pagamento", "tipo", "forma_pagamento"]);
+        const colRg = findColIdx(["rg", "nº de cadastro/vínculo/rg", "vínculo", "cadastro", "numero_rg", "rg_numero"]);
+        const colPis = findColIdx(["pis", "nis", "pasep"]);
+        const colPhone = findColIdx(["telefone", "contato", "tel", "celular", "mobile", "cel"]);
+        const colEmail = findColIdx(["email", "e-mail"]);
+        const colBirthDate = findColIdx(["data de nascimento", "nascimento", "data_nascimento"]);
+        const colTeam = findColIdx(["equipe", "equipe vinculada", "team", "frente", "grupo"]);
+        const colContract = findColIdx(["contrato", "obra", "contrato_numero", "numero_contrato", "codigo_contrato"]);
+
+        setCollaboratorColumnMappingModal({
+          isOpen: true,
+          rawRows,
+          headerRowIndex,
+          fileName: file.name,
+          selectedCols: {
+            name: colName !== -1 ? colName : 0,
+            registrationNumber: colReg,
+            cpf: colCpf,
+            role: colRole,
+            salary: colSalary,
+            admissionDate: colAdmission,
+            dismissalDate: colDismissal,
+            paymentType: colPayment,
+            rgNumber: colRg,
+            pis: colPis,
+            phone: colPhone,
+            email: colEmail,
+            birthDate: colBirthDate,
+            team: colTeam,
+            contract: colContract,
+          },
+        });
       } catch (err) {
         console.error("Import error:", err);
-        alert(
-          "❌ Erro inesperado ao processar o arquivo. Verifique se o arquivo não está corrompido.",
-        );
+        alert("❌ Erro inesperado ao ler o arquivo. Verifique se o arquivo não está corrompido.");
       } finally {
         setIsImporting(false);
       }
@@ -2112,6 +1730,281 @@ export default function RHView({
     reader.readAsArrayBuffer(file);
     if (event.target) {
       event.target.value = "";
+    }
+  };
+
+  const executeCollaboratorImportWithMapping = async (data: CollaboratorColumnMappingModalState) => {
+    const { rawRows, headerRowIndex, selectedCols } = data;
+    const {
+      name: colName,
+      registrationNumber: colReg,
+      cpf: colCpf,
+      role: colRole,
+      salary: colSalary,
+      admissionDate: colAdmission,
+      dismissalDate: colDismissal,
+      paymentType: colPayment,
+      rgNumber: colRg,
+      pis: colPis,
+      phone: colPhone,
+      email: colEmail,
+      birthDate: colBirthDate,
+      team: colTeam,
+      contract: colContract,
+    } = selectedCols;
+
+    setIsImporting(true);
+    try {
+      const importedEmployees: Employee[] = [];
+
+      const parseNumericValue = (val: any): number => {
+        if (val === null || val === undefined || val === "") return 0;
+        if (typeof val === "number") return val;
+        const s = String(val).trim();
+        if (s === "") return 0;
+
+        const lastDot = s.lastIndexOf(".");
+        const lastComma = s.lastIndexOf(",");
+        let cleanStr = s;
+
+        if (lastComma !== -1 && lastDot !== -1) {
+          if (lastComma > lastDot) {
+            cleanStr = s.replace(/\./g, "").replace(",", ".");
+          } else {
+            cleanStr = s.replace(/,/g, "");
+          }
+        } else if (lastComma !== -1) {
+          if (s.split(",").length > 2) {
+            cleanStr = s.replace(/,/g, "");
+          } else {
+            cleanStr = s.replace(",", ".");
+          }
+        } else if (lastDot !== -1) {
+          if (s.split(".").length > 2) {
+            cleanStr = s.replace(/\./g, "");
+          } else {
+            cleanStr = s;
+          }
+        }
+
+        cleanStr = cleanStr.replace(/[^0-9.-]+/g, "");
+        const num = parseFloat(cleanStr);
+        return isNaN(num) ? 0 : num;
+      };
+
+      for (let i = headerRowIndex + 1; i < rawRows.length; i++) {
+        const row = rawRows[i];
+        if (!row || !Array.isArray(row)) continue;
+
+        if (row.every((cell) => cell === null || cell === undefined || String(cell).trim() === "")) continue;
+
+        const getCellVal = (colIdx: number) => {
+          if (colIdx === -1 || colIdx >= row.length) return null;
+          const val = row[colIdx];
+          return val === undefined || val === null || String(val).trim() === "" ? null : val;
+        };
+
+        const rawName = getCellVal(colName);
+        if (!rawName) continue;
+
+        const name = String(rawName).trim();
+        const cpfRaw = getCellVal(colCpf);
+        const cpf = cpfRaw ? String(cpfRaw).replace(/[^0-9]/g, "") : "";
+        const regRaw = getCellVal(colReg);
+        const registrationNumber = regRaw ? String(regRaw).trim() : "";
+        const role = String(getCellVal(colRole) || "Ajudante").trim();
+
+        let paymentTypeStr = String(getCellVal(colPayment) || "Mensalista").toLowerCase();
+        let paymentType: "hour" | "day" | "month" = "month";
+        if (paymentTypeStr.includes("hora") || paymentTypeStr.includes("horista")) paymentType = "hour";
+        if (paymentTypeStr.includes("dia") || paymentTypeStr.includes("diarista")) paymentType = "day";
+
+        const salary = parseNumericValue(getCellVal(colSalary));
+        const admissionDateRaw = getCellVal(colAdmission);
+        const admissionDate = parseDateFromExcel(admissionDateRaw) || new Date().toISOString().split("T")[0];
+        const dismissalDateRaw = getCellVal(colDismissal);
+        const dismissalDate = parseDateFromExcel(dismissalDateRaw) || null;
+
+        let status: "active" | "dismissed" = "active";
+        if (dismissalDate) status = "dismissed";
+
+        const rgNumberRaw = getCellVal(colRg);
+        const pisRaw = getCellVal(colPis);
+        const phoneRaw = getCellVal(colPhone);
+        const emailRaw = getCellVal(colEmail);
+        const birthDateRaw = getCellVal(colBirthDate);
+        const birthDate = parseDateFromExcel(birthDateRaw) || (null as any);
+        const teamRaw = getCellVal(colTeam);
+        const teamStr = teamRaw ? String(teamRaw).trim() : "";
+
+        const contractVal = getCellVal(colContract);
+        let matchedContractId = selectedContractId || "";
+        if (contractVal) {
+          const cleanedVal = String(contractVal).toLowerCase().trim();
+          const foundC = contracts.find(
+            (c) =>
+              (c.contractNumber && c.contractNumber.toLowerCase().trim() === cleanedVal) ||
+              (c.workName && c.workName.toLowerCase().trim() === cleanedVal) ||
+              (c.id && c.id.toLowerCase().trim() === cleanedVal),
+          );
+          if (foundC) {
+            matchedContractId = foundC.id;
+          }
+        }
+
+        const employee: Employee = {
+          id: generateUUID(),
+          companyId: currentUser.companyId,
+          contractId: matchedContractId,
+          registrationNumber: registrationNumber || undefined,
+          name,
+          role,
+          admissionDate,
+          salary,
+          paymentType,
+          status,
+          dismissalDate,
+          cpf,
+          rgNumber: rgNumberRaw ? String(rgNumberRaw) : "",
+          rgAgency: "",
+          rgIssuer: "",
+          rgState: "",
+          birthDate,
+          birthPlace: "",
+          birthState: "",
+          workBookletNumber: "",
+          workBookletSeries: "",
+          pis: pisRaw ? String(pisRaw) : "",
+          phone: phoneRaw ? String(phoneRaw) : "",
+          mobile: phoneRaw ? String(phoneRaw) : "",
+          email: emailRaw ? String(emailRaw) : "",
+          voterIdNumber: "",
+          voterZone: "",
+          voterSection: "",
+          fatherName: "",
+          motherName: "",
+          spouseName: "",
+          dependents: [],
+          addressLogradouro: "",
+          addressNumber: "",
+          addressComplement: "",
+          addressNeighborhood: "",
+          addressCity: "",
+          addressZipCode: "",
+          addressState: "",
+          commuterBenefits: false,
+          commuterValue1: 0,
+          commuterCity1: "",
+          commuterValue2: 0,
+          commuterCity2: "",
+          chargesPercentage: 0,
+          overtimePercentage: 0,
+          team: teamStr || undefined,
+        };
+
+        importedEmployees.push(employee);
+      }
+
+      if (importedEmployees.length === 0) {
+        alert("⚠️ Nenhum colaborador válido foi encontrado com o mapeamento selecionado.");
+        return;
+      }
+
+      const newEmployeesList = [...employees];
+      let newCount = 0;
+      let updatedCount = 0;
+
+      importedEmployees.forEach((impEmp) => {
+        const hasRegNum = !!impEmp.registrationNumber;
+        const hasCpf = !!impEmp.cpf;
+
+        let existingIdx = -1;
+
+        if (hasRegNum) {
+          existingIdx = newEmployeesList.findIndex(
+            (e) => e.registrationNumber?.trim().toLowerCase() === impEmp.registrationNumber!.trim().toLowerCase()
+          );
+        } else if (hasCpf) {
+          existingIdx = newEmployeesList.findIndex(
+            (e) => e.cpf?.replace(/[^0-9]/g, "") === impEmp.cpf!.replace(/[^0-9]/g, "")
+          );
+        }
+
+        if (existingIdx >= 0) {
+          const existingId = newEmployeesList[existingIdx].id;
+          newEmployeesList[existingIdx] = {
+            ...newEmployeesList[existingIdx],
+            ...impEmp,
+            id: existingId,
+          };
+          impEmp.id = existingId;
+          updatedCount++;
+        } else {
+          newEmployeesList.push(impEmp);
+          newCount++;
+        }
+      });
+
+      onUpdateEmployees(newEmployeesList);
+
+      if (teamAssignments && onUpdateAssignments) {
+        let updatedAssignments = [...teamAssignments];
+        const currentMonth = selectedMonth || new Date().toISOString().slice(0, 7);
+        importedEmployees.forEach((emp) => {
+          if (emp.team && emp.team !== "") {
+            const team = (controllerTeams || []).find((t) => t.name === emp.team);
+            if (team) {
+              const exists = updatedAssignments.some(
+                (a) => a.memberId === emp.id && a.type === "manpower" && a.month === currentMonth,
+              );
+              if (!exists) {
+                updatedAssignments.push({
+                  id: generateUUID(),
+                  teamId: team.id,
+                  memberId: emp.id,
+                  type: "manpower",
+                  month: currentMonth,
+                  companyId: emp.companyId || currentUser.companyId,
+                  contractId: emp.contractId,
+                });
+              }
+            }
+          }
+        });
+        onUpdateAssignments(updatedAssignments);
+      }
+
+      let supabaseSuccess = false;
+      const config = getSupabaseConfig();
+      if (config.enabled) {
+        const supabase = createSupabaseClient(config.url, config.key);
+        if (supabase) {
+          const snakeData = importedEmployees.map(mapToSnake);
+          try {
+            const { error } = await supabase.from("employees").upsert(snakeData);
+            if (error) {
+              console.error("[Supabase] Failed to sync imported employees:", error);
+            } else {
+              supabaseSuccess = true;
+            }
+          } catch (e) {
+            console.error("[Supabase] Exception syncing imported employees:", e);
+          }
+        }
+      }
+
+      alert(
+        `✅ Importação de colaboradores concluída com sucesso!\n\n` +
+        `• Novos colaboradores adicionados: ${newCount}\n` +
+        `• Colaboradores existentes atualizados: ${updatedCount}`
+      );
+
+      setCollaboratorColumnMappingModal(null);
+    } catch (err) {
+      console.error("Collaborator mapping import error:", err);
+      alert("❌ Erro ao processar a importação dos colaboradores.");
+    } finally {
+      setIsImporting(false);
     }
   };
 
@@ -6748,6 +6641,264 @@ export default function RHView({
                       </div>
                     </div>
         </div>
+      )}
+
+      {/* Modal de Mapeamento de Colunas de Colaboradores */}
+      {collaboratorColumnMappingModal && collaboratorColumnMappingModal.isOpen && (
+        <Dialog
+          open={collaboratorColumnMappingModal.isOpen}
+          onOpenChange={(open) => {
+            if (!open) setCollaboratorColumnMappingModal(null);
+          }}
+        >
+          <DialogContent className="sm:max-w-[950px] w-full bg-white border border-slate-200 shadow-2xl rounded-2xl p-6 text-left flex flex-col max-h-[90vh] overflow-y-auto">
+            <DialogHeader className="text-left space-y-1 shrink-0">
+              <div className="flex items-center gap-2 text-orange-600 font-semibold text-xs tracking-wider uppercase mb-1">
+                <Settings2 className="w-4 h-4" /> Importação de Colaboradores (RH)
+              </div>
+              <DialogTitle className="text-xl font-bold text-slate-900">
+                Mapeamento de Colunas da Planilha
+              </DialogTitle>
+              <DialogDescription className="text-sm text-slate-500">
+                Selecione qual coluna da planilha corresponde a cada dado do colaborador antes de finalizar a importação.
+              </DialogDescription>
+            </DialogHeader>
+
+            {/* Info bar */}
+            <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 flex flex-wrap items-center justify-between gap-3 text-xs my-3 shrink-0">
+              <div>
+                <span className="text-slate-400 font-medium">Arquivo:</span>{" "}
+                <strong className="text-slate-700">{collaboratorColumnMappingModal.fileName}</strong>
+              </div>
+              <div>
+                <span className="text-slate-400 font-medium">Total de Linhas:</span>{" "}
+                <strong className="text-orange-700">{collaboratorColumnMappingModal.rawRows.length}</strong>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-slate-500 font-medium">Linha do Cabeçalho:</span>
+                <select
+                  className="border border-slate-300 rounded-lg px-2 py-1 text-xs bg-white font-medium text-slate-800"
+                  value={collaboratorColumnMappingModal.headerRowIndex}
+                  onChange={(e) => {
+                    const newIdx = parseInt(e.target.value);
+                    setCollaboratorColumnMappingModal((prev) => prev ? { ...prev, headerRowIndex: newIdx } : null);
+                  }}
+                >
+                  {collaboratorColumnMappingModal.rawRows.slice(0, 15).map((row, idx) => (
+                    <option key={`hr-${idx}`} value={idx}>
+                      Linha {idx + 1}: {Array.isArray(row) ? row.slice(0, 4).filter(Boolean).join(" | ").substring(0, 45) || "Vazia" : "Vazia"}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {/* Grid of Column Selection */}
+            <div className="space-y-4 my-2 shrink-0">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+                <Layers className="w-3.5 h-3.5 text-orange-500" /> Correspondência de Colunas
+              </h4>
+
+              {(() => {
+                const currentHeaderRow = collaboratorColumnMappingModal.rawRows[collaboratorColumnMappingModal.headerRowIndex] || [];
+                const maxCols = Math.max(...collaboratorColumnMappingModal.rawRows.slice(0, 20).map((r) => Array.isArray(r) ? r.length : 0));
+                const colOptions = Array.from({ length: Math.max(maxCols, 1) }, (_, idx) => {
+                  const rawLabel = String(currentHeaderRow[idx] || "").trim();
+                  return {
+                    value: idx,
+                    label: rawLabel ? `Col ${idx + 1} (${rawLabel})` : `Coluna ${idx + 1}`,
+                  };
+                });
+
+                const renderSelect = (
+                  label: string,
+                  fieldName: keyof CollaboratorColumnMappingModalState["selectedCols"],
+                  required: boolean = false,
+                  highlight: boolean = false,
+                  noneLabel: string = "-- Ignorar / Não Mapeado --"
+                ) => (
+                  <div>
+                    <Label className={cn("text-xs mb-1.5 block", highlight ? "font-bold text-orange-900" : "font-semibold text-slate-700")}>
+                      {label} {required && <span className="text-red-500">*</span>}
+                    </Label>
+                    <select
+                      className={cn(
+                        "w-full rounded-lg px-3 py-2 text-xs font-medium shadow-sm focus:outline-none focus:ring-1",
+                        highlight
+                          ? "border-2 border-orange-400 bg-orange-50/40 text-orange-950 focus:border-orange-600 focus:ring-orange-600 font-bold"
+                          : "border border-slate-300 bg-white text-slate-800 focus:border-orange-500 focus:ring-orange-500"
+                      )}
+                      value={collaboratorColumnMappingModal.selectedCols[fieldName]}
+                      onChange={(e) => {
+                        const val = parseInt(e.target.value);
+                        setCollaboratorColumnMappingModal((prev) =>
+                          prev
+                            ? {
+                                ...prev,
+                                selectedCols: { ...prev.selectedCols, [fieldName]: val },
+                              }
+                            : null
+                        );
+                      }}
+                    >
+                      {!required && <option value={-1}>{noneLabel}</option>}
+                      {colOptions.map((opt) => (
+                        <option key={`${fieldName}-${opt.value}`} value={opt.value}>
+                          {opt.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                );
+
+                return (
+                  <div className="space-y-4">
+                    {/* Seção 1: Identificação Básica & Função */}
+                    <div className="bg-slate-50/80 p-4 rounded-xl border border-slate-200">
+                      <p className="text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-3 flex items-center gap-1.5">
+                        <UserIcon className="w-3.5 h-3.5 text-orange-600" /> Identificação do Colaborador & Cargo
+                      </p>
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+                        {renderSelect("Nome Completo", "name", true, true)}
+                        {renderSelect("Matrícula / Registro", "registrationNumber")}
+                        {renderSelect("CPF", "cpf")}
+                        {renderSelect("Cargo / Função", "role")}
+                      </div>
+                    </div>
+
+                    {/* Seção 2: Contratual, Salário & Equipe */}
+                    <div className="bg-slate-50/80 p-4 rounded-xl border border-slate-200">
+                      <p className="text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-3 flex items-center gap-1.5">
+                        <Briefcase className="w-3.5 h-3.5 text-blue-600" /> Dados Contratuais & Remuneração
+                      </p>
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                        {renderSelect("Salário / Remuneração", "salary")}
+                        {renderSelect("Tipo de Pagamento", "paymentType")}
+                        {renderSelect("Data de Admissão", "admissionDate")}
+                        {renderSelect("Data de Demissão", "dismissalDate")}
+                        {renderSelect("Equipe / Frente", "team")}
+                        {renderSelect("Contrato / Obra", "contract")}
+                      </div>
+                    </div>
+
+                    {/* Seção 3: Documentos Pessoais & Contato */}
+                    <div className="bg-slate-50/80 p-4 rounded-xl border border-slate-200">
+                      <p className="text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-3 flex items-center gap-1.5">
+                        <Contact className="w-3.5 h-3.5 text-emerald-600" /> Documentos Pessoais & Contato
+                      </p>
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-3">
+                        {renderSelect("RG", "rgNumber")}
+                        {renderSelect("PIS / NIS", "pis")}
+                        {renderSelect("Data de Nascimento", "birthDate")}
+                        {renderSelect("Telefone / Celular", "phone")}
+                        {renderSelect("E-mail", "email")}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
+
+            {/* Live Preview Table */}
+            <div className="space-y-2 my-2 shrink-0">
+              <div className="flex items-center justify-between">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-slate-600 flex items-center gap-1.5">
+                  <ClipboardList className="w-3.5 h-3.5 text-emerald-600" /> Prévia dos Dados Mapeados (Primeiras 5 Linhas)
+                </h4>
+                <span className="text-[11px] text-slate-400">
+                  Amostra de leitura
+                </span>
+              </div>
+
+              <div className="border border-slate-200 rounded-xl overflow-hidden bg-white shadow-inner">
+                <Table>
+                  <TableHeader className="bg-slate-100">
+                    <TableRow>
+                      <TableHead className="text-xs font-bold text-orange-900 bg-orange-50/60 py-2">Nome Completo</TableHead>
+                      <TableHead className="text-xs font-bold text-slate-700 py-2">Matrícula</TableHead>
+                      <TableHead className="text-xs font-bold text-slate-700 py-2">CPF</TableHead>
+                      <TableHead className="text-xs font-bold text-slate-700 py-2">Cargo</TableHead>
+                      <TableHead className="text-xs font-bold text-slate-700 py-2 text-right">Salário</TableHead>
+                      <TableHead className="text-xs font-bold text-slate-700 py-2 text-center">Admissão</TableHead>
+                      <TableHead className="text-xs font-bold text-slate-700 py-2">Equipe</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {(() => {
+                      const previewRows = collaboratorColumnMappingModal.rawRows
+                        .slice(collaboratorColumnMappingModal.headerRowIndex + 1)
+                        .filter((r) => Array.isArray(r) && r.some((c) => c !== null && c !== undefined && String(c).trim() !== ""))
+                        .slice(0, 5);
+
+                      if (previewRows.length === 0) {
+                        return (
+                          <TableRow>
+                            <TableCell colSpan={7} className="text-center py-4 text-xs text-slate-400 italic">
+                              Nenhum dado encontrado após a linha de cabeçalho.
+                            </TableCell>
+                          </TableRow>
+                        );
+                      }
+
+                      const { name, registrationNumber, cpf, role, salary, admissionDate, team } = collaboratorColumnMappingModal.selectedCols;
+
+                      const getVal = (row: any[], idx: number) => (idx !== -1 && idx < row.length && row[idx] !== undefined && row[idx] !== null) ? String(row[idx]).trim() : "-";
+
+                      return previewRows.map((row, pIdx) => {
+                        const nameVal = getVal(row, name);
+                        const regVal = getVal(row, registrationNumber);
+                        const cpfVal = getVal(row, cpf);
+                        const roleVal = getVal(row, role);
+                        const salaryVal = getVal(row, salary);
+                        const admVal = getVal(row, admissionDate);
+                        const teamVal = getVal(row, team);
+
+                        let parsedSal = 0;
+                        if (salaryVal !== "-") {
+                          const clean = salaryVal.replace(/\./g, "").replace(",", ".");
+                          parsedSal = parseFloat(clean) || 0;
+                        }
+
+                        return (
+                          <TableRow key={`prev-emp-${pIdx}`} className="hover:bg-slate-50/80">
+                            <TableCell className="text-xs font-bold text-orange-950 bg-orange-50/20 max-w-[200px] truncate">{nameVal}</TableCell>
+                            <TableCell className="text-xs font-mono font-semibold text-slate-700">{regVal}</TableCell>
+                            <TableCell className="text-xs font-mono text-slate-600">{cpfVal !== "-" ? applyCPFMask(cpfVal) : "-"}</TableCell>
+                            <TableCell className="text-xs font-medium text-slate-700">{roleVal}</TableCell>
+                            <TableCell className="text-xs text-right text-emerald-700 font-mono font-semibold">
+                              {parsedSal > 0 ? `R$ ${parsedSal.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}` : salaryVal}
+                            </TableCell>
+                            <TableCell className="text-xs text-center text-slate-600">{admVal}</TableCell>
+                            <TableCell className="text-xs text-slate-600">{teamVal}</TableCell>
+                          </TableRow>
+                        );
+                      });
+                    })()}
+                  </TableBody>
+                </Table>
+              </div>
+            </div>
+
+            <DialogFooter className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between gap-3 shrink-0">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setCollaboratorColumnMappingModal(null)}
+                className="rounded-xl border-slate-200 text-slate-700 font-semibold cursor-pointer"
+              >
+                Cancelar
+              </Button>
+
+              <Button
+                type="button"
+                onClick={() => executeCollaboratorImportWithMapping(collaboratorColumnMappingModal)}
+                className="rounded-xl bg-orange-600 hover:bg-orange-700 text-white font-bold px-6 shadow-md shadow-orange-500/20 flex items-center gap-2 cursor-pointer"
+              >
+                <Check className="w-4 h-4" /> Confirmar e Importar Colaboradores
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       )}
     </div>
   );
