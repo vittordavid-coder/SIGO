@@ -3097,6 +3097,25 @@ function ContractTab({
     null,
   );
 
+  interface ColumnMappingModalState {
+    isOpen: boolean;
+    rawRows: any[][];
+    headerRowIndex: number;
+    fileName: string;
+    targetContractName: string;
+    activeContract: Contract;
+    selectedCols: {
+      group: number;
+      code: number;
+      name: number;
+      unit: number;
+      qty: number;
+      price: number;
+    };
+  }
+
+  const [columnMappingModal, setColumnMappingModal] = useState<ColumnMappingModalState | null>(null);
+
   const initialContractValue: Omit<Contract, "id"> = {
     quotationId: "",
     contractNumber: "",
@@ -3167,13 +3186,6 @@ function ContractTab({
       ? `Contrato nº ${activeContract.contractNumber}${activeContract.workName ? ` (${activeContract.workName})` : ''}`
       : activeContract.workName || 'Contrato selecionado';
 
-    // Pergunta de confirmação ao usuário
-    const confirmMessage = `Deseja realmente carregar a planilha de serviços para o ${targetContractName}?`;
-    if (!window.confirm(confirmMessage)) {
-      if (fileInputRef.current) fileInputRef.current.value = "";
-      return;
-    }
-
     console.log(
       `[Import] Iniciando leitura do arquivo: ${file.name} para ${targetContractName}`,
       file.size,
@@ -3237,271 +3249,111 @@ function ContractTab({
         }
 
         if (headerRowIndex === -1) {
-          console.error(
-            "❌ Não foi possível encontrar a linha de cabeçalho na planilha.",
-          );
-          setImportFeedbackMsg(
-            '❌ Não foi possível encontrar a linha de cabeçalho. A planilha deve conter colunas como "Código", "Descrição" e "Unidade".',
-          );
-          return;
+          headerRowIndex = 0;
         }
 
         const headerRow = rawRows[headerRowIndex] || [];
+        const headerCleaned = headerRow.map((cell) => cleanStr(cell));
 
-        // Detect column indices robustly
-        const findColIdx = (patterns: string[], defaultIdx: number) => {
-          for (let c = 0; c < headerRow.length; c++) {
-            const cellClean = cleanStr(headerRow[c]);
-            if (!cellClean) continue;
-            if (patterns.some((p) => cellClean === p || cellClean.startsWith(p) || cellClean.includes(p))) {
-              return c;
-            }
-          }
-          return defaultIdx;
-        };
-
-        let colCode = findColIdx(["codigoservico", "codigo", "code", "cod", "num"], 1);
-        let colName = findColIdx(["descricaodoservico", "descricaoservico", "descricao", "desc", "nome", "discriminacao", "especificacao", "servico", "detalhe"], 2);
-        let colUnit = findColIdx(["unidadedoservico", "unidadedemedida", "unidade", "unid", "und", "um", "medida", "un"], 3);
-        let colQty  = findColIdx(["quantidade", "qtd", "quant", "qnt", "vol", "volume"], 4);
-        let colPrice = findColIdx(["precounitarioservico", "precounitario", "valorunitario", "precounit", "preco", "valor", "punit", "pu"], 5);
-        let colGroup = findColIdx(["grupo", "etapa", "subgrupo", "fase", "categoria", "itempai"], 0);
-
-        // Disambiguate overlapping columns
-        if (colGroup === colCode || colGroup === colName) {
-          const groupIdx = headerRow.findIndex((cell) => {
-            const clean = cleanStr(cell);
-            return ["grupo", "etapa", "subgrupo", "fase"].some((p) => clean.includes(p));
-          });
-          colGroup = groupIdx;
-        }
-
-        if (colUnit === colCode || colUnit === colName) {
-          const unitIdx = headerRow.findIndex((cell, idx) => {
-            if (idx === colCode || idx === colName) return false;
-            const clean = cleanStr(cell);
-            return ["unidade", "unid", "und", "um", "medida"].some((p) => clean.includes(p));
-          });
-          colUnit = unitIdx !== -1 ? unitIdx : 3;
-        }
-
-        console.log(
-          `[Import] Mapeamento de Colunas -> Grupo: ${colGroup}, Código: ${colCode}, Nome: ${colName}, Unidade: ${colUnit}, Qtd: ${colQty}, Preço: ${colPrice}`
+        // 1. Detect Group Column
+        let colGroup = headerCleaned.findIndex((c) =>
+          ["grupo", "etapa", "subgrupo", "fase", "categoria", "itempai", "modulo"].some((p) => c === p || c.includes(p))
         );
 
-        const rowsToProcess: {
-          code: string;
-          name: string;
-          unit: string;
-          quantity: number;
-          price: number;
-          groupName: string;
-        }[] = [];
-        let skippedEmptyCount = 0;
-
-        for (let i = headerRowIndex + 1; i < rawRows.length; i++) {
-          const row = rawRows[i];
-          if (!row || !Array.isArray(row)) continue;
-
-          if (
-            row.every(
-              (cell) =>
-                cell === null ||
-                cell === undefined ||
-                String(cell).trim() === "",
-            )
-          )
-            continue;
-
-          const rawCode = colCode !== -1 ? row[colCode] : null;
-          const rawName = colName !== -1 ? row[colName] : null;
-          const rawUnit = colUnit !== -1 ? row[colUnit] : null;
-
-          const serviceCode =
-            rawCode !== null && rawCode !== undefined && String(rawCode).trim() !== ""
-              ? String(rawCode).trim()
-              : "";
-
-          if (!serviceCode) {
-            skippedEmptyCount++;
-            continue;
-          }
-
-          const serviceName =
-            rawName !== null && rawName !== undefined && String(rawName).trim() !== ""
-              ? String(rawName).trim()
-              : serviceCode;
-
-          const serviceUnit =
-            rawUnit !== null && rawUnit !== undefined && String(rawUnit).trim() !== ""
-              ? String(rawUnit).trim()
-              : "un";
-
-          const parseNum = (val: any) => {
-            if (typeof val === "number") return val;
-            if (!val) return 0;
-            const parsed = parseFloat(
-              String(val).replace(/\./g, "").replace(",", "."),
-            );
-            return isNaN(parsed) ? 0 : parsed;
-          };
-
-          const quantity = parseNum(colQty !== -1 ? row[colQty] : 0);
-          const price = parseNum(colPrice !== -1 ? row[colPrice] : 0);
-
-          let groupName = "Geral";
-          if (colGroup !== -1 && row[colGroup] && String(row[colGroup]).trim() !== "") {
-            groupName = String(row[colGroup]).trim();
-          }
-
-          rowsToProcess.push({
-            code: serviceCode,
-            name: serviceName,
-            unit: serviceUnit,
-            quantity,
-            price,
-            groupName,
-          });
+        // 2. Detect Code Column (must not be description/discrimination)
+        let colCode = headerCleaned.findIndex((c) => {
+          if (c.includes("desc") || c.includes("discrimin") || c.includes("especific")) return false;
+          return ["codigoservico", "codigo", "code", "cod", "num"].some((p) => c === p || c.startsWith(p) || c.includes(p));
+        });
+        if (colCode === -1) {
+          colCode = headerCleaned.findIndex((c) => c === "item" || c.startsWith("item"));
         }
+        if (colCode === -1) colCode = 1;
 
-        const importedGroups: BudgetGroup[] = [];
-        const missingServicesData: Omit<ServiceComposition, "id">[] = [];
-
-        // Phase 1: Identify those missing from the system
-        rowsToProcess.forEach((r) => {
-          const exists =
-            services.some(
-              (s) => s.code.toLowerCase() === r.code.toLowerCase(),
-            ) ||
-            missingServicesData.some(
-              (s) => s.code.toLowerCase() === r.code.toLowerCase(),
-            );
-          if (!exists) {
-            missingServicesData.push({
-              code: r.code,
-              name: r.name,
-              unit: r.unit || "un",
-              production: 1,
-              fit: 1,
-              items: [],
-            });
-          }
+        // 3. Detect Name / Description / Specification / Discriminação Column (must not be code)
+        let colName = headerCleaned.findIndex((c, idx) => {
+          if (idx === colCode) return false;
+          if (c.includes("codigo") || c.includes("cod")) return false;
+          return [
+            "discriminacaodoservico",
+            "discriminacaodosservicos",
+            "descricaodoservico",
+            "descricaodosservicos",
+            "discriminacao",
+            "descricaoservico",
+            "descricao",
+            "especificacao",
+            "detalhamento",
+            "detalhe",
+            "nome",
+            "servico",
+          ].some((p) => c === p || c.startsWith(p) || c.includes(p));
         });
 
-        // Phase 2: Create any missing services in bulk
-        let allServices = [...services];
-        if (missingServicesData.length > 0) {
-          const newServices = await onAddServices(missingServicesData);
-          allServices = [...allServices, ...newServices];
-          console.log(
-            `[Import] Created ${newServices.length} missing services on the fly.`,
-          );
-        }
+        // 4. Detect Unit Column
+        let colUnit = headerCleaned.findIndex((c, idx) => {
+          if (idx === colCode || idx === colName) return false;
+          return ["unidadedoservico", "unidadedemedida", "unidade", "unid", "und", "um", "medida"].some((p) => c === p || c.includes(p));
+        });
 
-        console.log(
-          "[Import] rowsToProcess count:",
-          rowsToProcess.length,
-          "allServices count:",
-          allServices.length,
-        );
+        // 5. Detect Quantity Column
+        let colQty = headerCleaned.findIndex((c, idx) => {
+          if (idx === colCode || idx === colName || idx === colUnit) return false;
+          return ["quantidade", "qtd", "quant", "qnt", "vol", "volume"].some((p) => c === p || c.includes(p));
+        });
 
-        // Phase 3: Build groups with the unified service IDs
-        rowsToProcess.forEach((r) => {
-          let service = allServices.find(
-            (s) => s.code.toLowerCase() === r.code.toLowerCase(),
-          );
+        // 6. Detect Price Column
+        let colPrice = headerCleaned.findIndex((c, idx) => {
+          if (idx === colCode || idx === colName || idx === colUnit || idx === colQty) return false;
+          return ["precounitarioservico", "precounitario", "valorunitario", "precounit", "preco", "valor", "punit", "pu"].some((p) => c === p || c.includes(p));
+        });
 
-          if (!service) {
-            console.warn(
-              `[Import] Serviço não encontrado e não foi criado na fase 2: ${r.code}`,
-            );
-            service = {
-              id: uuidv4(),
-              code: r.code,
-              name: r.name,
-              unit: r.unit || "un",
-              production: 1,
-              fit: 1,
-              items: [],
-            };
+        // Disambiguate colName if it equaled colCode or was not found
+        if (colName === -1 || colName === colCode) {
+          const altName = headerCleaned.findIndex((c, idx) => {
+            if (idx === colCode || idx === colUnit || idx === colQty || idx === colPrice) return false;
+            if (c.includes("codigo") || c.includes("cod")) return false;
+            return ["desc", "discrimin", "especific", "nome", "servico", "detalhe"].some((p) => c.includes(p));
+          });
+          if (altName !== -1) {
+            colName = altName;
+          } else if (colCode + 1 < headerRow.length && colCode + 1 !== colUnit && colCode + 1 !== colQty) {
+            colName = colCode + 1;
+          } else if (colCode === 1) {
+            colName = 2;
+          } else if (colCode === 0) {
+            colName = 1;
           } else {
-            if (r.unit && r.unit !== "un" && (service.unit === "un" || !service.unit)) {
-              service.unit = r.unit;
-            }
+            colName = 2;
           }
+        }
 
-          let group = importedGroups.find((g) => g.name === r.groupName);
-          if (!group) {
-            group = { id: uuidv4(), name: r.groupName, services: [] };
-            importedGroups.push(group);
-          }
+        if (colUnit === -1) colUnit = 3;
+        if (colQty === -1) colQty = 4;
+        if (colPrice === -1) colPrice = 5;
+        if (colGroup === colCode || colGroup === colName) colGroup = 0;
 
-          group.services.push({
-            serviceId: service.id,
-            code: r.code || service.code,
-            name: r.name || service.name,
-            unit: r.unit || service.unit || "un",
-            quantity: r.quantity,
-            price: r.price,
-            worksheetType: "direct",
-          });
+        // Abrir modal de mapeamento de colunas
+        setColumnMappingModal({
+          isOpen: true,
+          rawRows,
+          headerRowIndex,
+          fileName: file.name,
+          targetContractName,
+          activeContract,
+          selectedCols: {
+            group: colGroup,
+            code: colCode,
+            name: colName,
+            unit: colUnit,
+            qty: colQty,
+            price: colPrice,
+          },
         });
 
-        if (importedGroups.length > 0) {
-          const totalServicesArr = importedGroups.reduce(
-            (acc, g) => acc + g.services.length,
-            0,
-          );
-          console.log(
-            "[Import] Processing complete. Groups:",
-            importedGroups.length,
-            "Total services:",
-            totalServicesArr,
-          );
-
-          const updatedContractData: Contract = {
-            ...activeContract,
-            groups: importedGroups,
-            services: [],
-            quotationId: activeContract.quotationId || "none",
-          };
-
-          setNewContract((prev) => ({
-            ...prev,
-            groups: importedGroups,
-            services: [],
-            quotationId: prev.quotationId || "none",
-          }));
-
-          // Direct save to update contract in database/state
-          setTimeout(() => {
-            onUpdate(updatedContractData);
-            console.log(
-              `[Import] Auto-saved services spreadsheet to contract: ${activeContract.id}`,
-            );
-          }, 100);
-
-          let feedback = `✅ SUCESSO! A planilha de serviços foi carregada e gravada com sucesso no ${targetContractName}! (${importedGroups.length} Grupos e ${totalServicesArr} Serviços gravados).`;
-
-          if (missingServicesData.length > 0) {
-            feedback += ` Foram criados ${missingServicesData.length} novos serviços no cadastro geral.`;
-          }
-
-          if (skippedEmptyCount > 0) {
-            feedback += ` (${skippedEmptyCount} linhas ignoradas sem código).`;
-          }
-
-          setImportFeedbackMsg(feedback);
-          alert(`✅ SUCESSO! A planilha de serviços foi gravada com sucesso no ${targetContractName}!`);
-        } else {
-          console.error("❌ Nenhum serviço válido foi encontrado na planilha.");
-          setImportFeedbackMsg(
-            "❌ Nenhum serviço válido foi encontrado na planilha.",
-          );
-        }
       } catch (err) {
         console.error("[Import] Critical error:", err);
-        setImportFeedbackMsg("❌ Erro Fatal no Processamento da planilha.");
+        setImportFeedbackMsg("❌ Erro Fatal na leitura do arquivo Excel.");
       } finally {
         if (fileInputRef.current) fileInputRef.current.value = "";
       }
@@ -3511,6 +3363,227 @@ function ContractTab({
       setImportFeedbackMsg("❌ Erro ao carregar o arquivo físico do disco.");
     };
     reader.readAsArrayBuffer(file);
+  };
+
+  const executeImportWithMapping = async (data: ColumnMappingModalState) => {
+    const { rawRows, headerRowIndex, targetContractName, activeContract, selectedCols } = data;
+    const { group: colGroup, code: colCode, name: colName, unit: colUnit, qty: colQty, price: colPrice } = selectedCols;
+
+    console.log(
+      `[Import] Executando importação com mapeamento -> Grupo: ${colGroup}, Código: ${colCode}, Nome/Discriminação: ${colName}, Unidade: ${colUnit}, Qtd: ${colQty}, Preço: ${colPrice}`
+    );
+
+    const rowsToProcess: {
+      code: string;
+      name: string;
+      unit: string;
+      quantity: number;
+      price: number;
+      groupName: string;
+    }[] = [];
+    let skippedEmptyCount = 0;
+
+    for (let i = headerRowIndex + 1; i < rawRows.length; i++) {
+      const row = rawRows[i];
+      if (!row || !Array.isArray(row)) continue;
+
+      if (
+        row.every(
+          (cell) =>
+            cell === null ||
+            cell === undefined ||
+            String(cell).trim() === "",
+        )
+      )
+        continue;
+
+      const rawCode = colCode !== -1 && colCode < row.length ? row[colCode] : null;
+      let rawName = colName !== -1 && colName < row.length ? row[colName] : null;
+      const rawUnit = colUnit !== -1 && colUnit < row.length ? row[colUnit] : null;
+
+      const serviceCode =
+        rawCode !== null && rawCode !== undefined && String(rawCode).trim() !== ""
+          ? String(rawCode).trim()
+          : "";
+
+      if (!serviceCode) {
+        skippedEmptyCount++;
+        continue;
+      }
+
+      let serviceName =
+        rawName !== null && rawName !== undefined && String(rawName).trim() !== ""
+          ? String(rawName).trim()
+          : "";
+
+      // Fallback safeguard: if serviceName is missing or equal to serviceCode, inspect row for a description text cell
+      if (!serviceName || serviceName === serviceCode) {
+        for (let c = 0; c < row.length; c++) {
+          if (c === colCode || c === colUnit || c === colQty || c === colPrice) continue;
+          const cellVal = row[c];
+          if (typeof cellVal === "string" && cellVal.trim().length > 2 && cellVal.trim() !== serviceCode) {
+            serviceName = cellVal.trim();
+            break;
+          }
+        }
+        if (!serviceName) {
+          serviceName = serviceCode;
+        }
+      }
+
+      const serviceUnit =
+        rawUnit !== null && rawUnit !== undefined && String(rawUnit).trim() !== ""
+          ? String(rawUnit).trim()
+          : "un";
+
+      const parseNum = (val: any) => {
+        if (typeof val === "number") return val;
+        if (!val) return 0;
+        const parsed = parseFloat(
+          String(val).replace(/\./g, "").replace(",", "."),
+        );
+        return isNaN(parsed) ? 0 : parsed;
+      };
+
+      const quantity = parseNum(colQty !== -1 && colQty < row.length ? row[colQty] : 0);
+      const price = parseNum(colPrice !== -1 && colPrice < row.length ? row[colPrice] : 0);
+
+      let groupName = "Geral";
+      if (colGroup !== -1 && colGroup < row.length && row[colGroup] && String(row[colGroup]).trim() !== "") {
+        groupName = String(row[colGroup]).trim();
+      }
+
+      rowsToProcess.push({
+        code: serviceCode,
+        name: serviceName,
+        unit: serviceUnit,
+        quantity,
+        price,
+        groupName,
+      });
+    }
+
+    if (rowsToProcess.length === 0) {
+      alert("❌ Nenhum serviço válido foi encontrado na planilha com os mapeamentos selecionados.");
+      return;
+    }
+
+    const importedGroups: BudgetGroup[] = [];
+    const missingServicesData: Omit<ServiceComposition, "id">[] = [];
+
+    // Phase 1: Identify those missing from the system
+    rowsToProcess.forEach((r) => {
+      const exists =
+        services.some(
+          (s) => s.code.toLowerCase() === r.code.toLowerCase(),
+        ) ||
+        missingServicesData.some(
+          (s) => s.code.toLowerCase() === r.code.toLowerCase(),
+        );
+      if (!exists) {
+        missingServicesData.push({
+          code: r.code,
+          name: r.name,
+          unit: r.unit || "un",
+          production: 1,
+          fit: 1,
+          items: [],
+        });
+      }
+    });
+
+    // Phase 2: Create any missing services in bulk
+    let allServices = [...services];
+    if (missingServicesData.length > 0) {
+      const newServices = await onAddServices(missingServicesData);
+      allServices = [...allServices, ...newServices];
+      console.log(
+        `[Import] Created ${newServices.length} missing services on the fly.`,
+      );
+    }
+
+    // Phase 3: Build groups with the unified service IDs
+    rowsToProcess.forEach((r) => {
+      let service = allServices.find(
+        (s) => s.code.toLowerCase() === r.code.toLowerCase(),
+      );
+
+      if (!service) {
+        service = {
+          id: uuidv4(),
+          code: r.code,
+          name: r.name,
+          unit: r.unit || "un",
+          production: 1,
+          fit: 1,
+          items: [],
+        };
+      } else {
+        if (r.name && (service.name === service.code || !service.name || service.name === "Descrição não disponível")) {
+          service.name = r.name;
+        }
+        if (r.unit && r.unit !== "un" && (service.unit === "un" || !service.unit)) {
+          service.unit = r.unit;
+        }
+      }
+
+      let group = importedGroups.find((g) => g.name === r.groupName);
+      if (!group) {
+        group = { id: uuidv4(), name: r.groupName, services: [] };
+        importedGroups.push(group);
+      }
+
+      group.services.push({
+        serviceId: service.id,
+        code: r.code || service.code,
+        name: r.name || service.name,
+        unit: r.unit || service.unit || "un",
+        quantity: r.quantity,
+        price: r.price,
+        worksheetType: "direct",
+      });
+    });
+
+    if (importedGroups.length > 0) {
+      const totalServicesArr = importedGroups.reduce(
+        (acc, g) => acc + g.services.length,
+        0,
+      );
+
+      const updatedContractData: Contract = {
+        ...activeContract,
+        groups: importedGroups,
+        services: [],
+        quotationId: activeContract.quotationId || "none",
+      };
+
+      setNewContract((prev) => ({
+        ...prev,
+        groups: importedGroups,
+        services: [],
+        quotationId: prev.quotationId || "none",
+      }));
+
+      setTimeout(() => {
+        onUpdate(updatedContractData);
+      }, 100);
+
+      let feedback = `✅ SUCESSO! A planilha de serviços foi carregada e gravada com sucesso no ${targetContractName}! (${importedGroups.length} Grupos e ${totalServicesArr} Serviços gravados).`;
+
+      if (missingServicesData.length > 0) {
+        feedback += ` Foram criados ${missingServicesData.length} novos serviços no cadastro geral.`;
+      }
+
+      if (skippedEmptyCount > 0) {
+        feedback += ` (${skippedEmptyCount} linhas ignoradas sem código).`;
+      }
+
+      setImportFeedbackMsg(feedback);
+      alert(`✅ SUCESSO! A planilha de serviços foi gravada com sucesso no ${targetContractName}!`);
+      setColumnMappingModal(null);
+    } else {
+      alert("❌ Nenhum serviço foi importado. Verifique o mapeamento das colunas.");
+    }
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -3672,6 +3745,346 @@ function ContractTab({
                   </div>
                 </DialogContent>
               </Dialog>
+
+              {/* Modal de Mapeamento de Colunas de Contrato */}
+              {columnMappingModal && columnMappingModal.isOpen && (
+                <Dialog
+                  open={columnMappingModal.isOpen}
+                  onOpenChange={(open) => {
+                    if (!open) setColumnMappingModal(null);
+                  }}
+                >
+                  <DialogContent className="sm:max-w-[900px] w-full bg-white border border-slate-200 shadow-2xl rounded-2xl p-6 text-left flex flex-col max-h-[90vh] overflow-y-auto">
+                    <DialogHeader className="text-left space-y-1 shrink-0">
+                      <div className="flex items-center gap-2 text-blue-600 font-semibold text-xs tracking-wider uppercase mb-1">
+                        <Settings2 className="w-4 h-4" /> Importação de Contrato
+                      </div>
+                      <DialogTitle className="text-xl font-bold text-slate-900">
+                        Mapeamento de Colunas da Planilha
+                      </DialogTitle>
+                      <DialogDescription className="text-sm text-slate-500">
+                        Selecione qual coluna da planilha corresponde a cada campo do contrato antes de finalizar a importação.
+                      </DialogDescription>
+                    </DialogHeader>
+
+                    {/* Informações do Arquivo e Contrato */}
+                    <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 flex flex-wrap items-center justify-between gap-3 text-xs my-3 shrink-0">
+                      <div>
+                        <span className="text-slate-400 font-medium">Arquivo:</span>{" "}
+                        <strong className="text-slate-700">{columnMappingModal.fileName}</strong>
+                      </div>
+                      <div>
+                        <span className="text-slate-400 font-medium">Contrato Destino:</span>{" "}
+                        <strong className="text-blue-700">{columnMappingModal.targetContractName}</strong>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-slate-500 font-medium">Linha do Cabeçalho:</span>
+                        <select
+                          className="border border-slate-300 rounded-lg px-2 py-1 text-xs bg-white font-medium text-slate-800"
+                          value={columnMappingModal.headerRowIndex}
+                          onChange={(e) => {
+                            const newIdx = parseInt(e.target.value);
+                            setColumnMappingModal((prev) => prev ? { ...prev, headerRowIndex: newIdx } : null);
+                          }}
+                        >
+                          {columnMappingModal.rawRows.slice(0, 15).map((row, idx) => (
+                            <option key={`hr-${idx}`} value={idx}>
+                              Linha {idx + 1}: {row.slice(0, 4).filter(Boolean).join(" | ").substring(0, 45) || "Vazia"}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+
+                    {/* Grade de Mapeamento */}
+                    <div className="space-y-3 my-2 shrink-0">
+                      <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+                        <Layers className="w-3.5 h-3.5 text-blue-500" /> Correspondência de Colunas
+                      </h4>
+
+                      {(() => {
+                        const currentHeaderRow = columnMappingModal.rawRows[columnMappingModal.headerRowIndex] || [];
+                        const maxCols = Math.max(...columnMappingModal.rawRows.slice(0, 20).map((r) => Array.isArray(r) ? r.length : 0));
+                        const colOptions = Array.from({ length: maxCols }, (_, idx) => {
+                          const rawLabel = String(currentHeaderRow[idx] || "").trim();
+                          return {
+                            value: idx,
+                            label: rawLabel ? `Col ${idx + 1} (${rawLabel})` : `Coluna ${idx + 1}`,
+                          };
+                        });
+
+                        return (
+                          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 bg-slate-50/50 p-4 rounded-xl border border-slate-200">
+                            {/* Campo 1: Grupo */}
+                            <div>
+                              <Label className="text-xs font-semibold text-slate-700 mb-1.5 block">
+                                Grupo / Etapa <span className="text-slate-400 font-normal">(Opcional)</span>
+                              </Label>
+                              <select
+                                className="w-full border border-slate-300 rounded-lg px-3 py-2 text-xs bg-white font-medium text-slate-800 shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                                value={columnMappingModal.selectedCols.group}
+                                onChange={(e) => {
+                                  const val = parseInt(e.target.value);
+                                  setColumnMappingModal((prev) =>
+                                    prev
+                                      ? {
+                                          ...prev,
+                                          selectedCols: { ...prev.selectedCols, group: val },
+                                        }
+                                      : null
+                                  );
+                                }}
+                              >
+                                <option value={-1}>-- Nenhum (Agrupar como "Geral") --</option>
+                                {colOptions.map((opt) => (
+                                  <option key={`grp-${opt.value}`} value={opt.value}>
+                                    {opt.label}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+
+                            {/* Campo 2: Código */}
+                            <div>
+                              <Label className="text-xs font-semibold text-slate-700 mb-1.5 block">
+                                Código do Serviço <span className="text-red-500">*</span>
+                              </Label>
+                              <select
+                                className="w-full border border-slate-300 rounded-lg px-3 py-2 text-xs bg-white font-medium text-slate-800 shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                                value={columnMappingModal.selectedCols.code}
+                                onChange={(e) => {
+                                  const val = parseInt(e.target.value);
+                                  setColumnMappingModal((prev) =>
+                                    prev
+                                      ? {
+                                          ...prev,
+                                          selectedCols: { ...prev.selectedCols, code: val },
+                                        }
+                                      : null
+                                  );
+                                }}
+                              >
+                                {colOptions.map((opt) => (
+                                  <option key={`code-${opt.value}`} value={opt.value}>
+                                    {opt.label}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+
+                            {/* Campo 3: Discriminação / Descrição */}
+                            <div>
+                              <Label className="text-xs font-bold text-blue-900 mb-1.5 block">
+                                Discriminação / Descrição <span className="text-red-500">*</span>
+                              </Label>
+                              <select
+                                className="w-full border-2 border-blue-400 rounded-lg px-3 py-2 text-xs bg-blue-50/40 font-bold text-blue-900 shadow-sm focus:border-blue-600 focus:ring-1 focus:ring-blue-600"
+                                value={columnMappingModal.selectedCols.name}
+                                onChange={(e) => {
+                                  const val = parseInt(e.target.value);
+                                  setColumnMappingModal((prev) =>
+                                    prev
+                                      ? {
+                                          ...prev,
+                                          selectedCols: { ...prev.selectedCols, name: val },
+                                        }
+                                      : null
+                                  );
+                                }}
+                              >
+                                {colOptions.map((opt) => (
+                                  <option key={`name-${opt.value}`} value={opt.value}>
+                                    {opt.label}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+
+                            {/* Campo 4: Unidade */}
+                            <div>
+                              <Label className="text-xs font-semibold text-slate-700 mb-1.5 block">
+                                Unidade de Medida
+                              </Label>
+                              <select
+                                className="w-full border border-slate-300 rounded-lg px-3 py-2 text-xs bg-white font-medium text-slate-800 shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                                value={columnMappingModal.selectedCols.unit}
+                                onChange={(e) => {
+                                  const val = parseInt(e.target.value);
+                                  setColumnMappingModal((prev) =>
+                                    prev
+                                      ? {
+                                          ...prev,
+                                          selectedCols: { ...prev.selectedCols, unit: val },
+                                        }
+                                      : null
+                                  );
+                                }}
+                              >
+                                <option value={-1}>-- Nenhum (Padrão "un") --</option>
+                                {colOptions.map((opt) => (
+                                  <option key={`unit-${opt.value}`} value={opt.value}>
+                                    {opt.label}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+
+                            {/* Campo 5: Quantidade Orçada */}
+                            <div>
+                              <Label className="text-xs font-semibold text-slate-700 mb-1.5 block">
+                                Quantidade Orçada <span className="text-red-500">*</span>
+                              </Label>
+                              <select
+                                className="w-full border border-slate-300 rounded-lg px-3 py-2 text-xs bg-white font-medium text-slate-800 shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                                value={columnMappingModal.selectedCols.qty}
+                                onChange={(e) => {
+                                  const val = parseInt(e.target.value);
+                                  setColumnMappingModal((prev) =>
+                                    prev
+                                      ? {
+                                          ...prev,
+                                          selectedCols: { ...prev.selectedCols, qty: val },
+                                        }
+                                      : null
+                                  );
+                                }}
+                              >
+                                {colOptions.map((opt) => (
+                                  <option key={`qty-${opt.value}`} value={opt.value}>
+                                    {opt.label}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+
+                            {/* Campo 6: Preço Unitário */}
+                            <div>
+                              <Label className="text-xs font-semibold text-slate-700 mb-1.5 block">
+                                Preço Unitário <span className="text-red-500">*</span>
+                              </Label>
+                              <select
+                                className="w-full border border-slate-300 rounded-lg px-3 py-2 text-xs bg-white font-medium text-slate-800 shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                                value={columnMappingModal.selectedCols.price}
+                                onChange={(e) => {
+                                  const val = parseInt(e.target.value);
+                                  setColumnMappingModal((prev) =>
+                                    prev
+                                      ? {
+                                          ...prev,
+                                          selectedCols: { ...prev.selectedCols, price: val },
+                                        }
+                                      : null
+                                  );
+                                }}
+                              >
+                                {colOptions.map((opt) => (
+                                  <option key={`price-${opt.value}`} value={opt.value}>
+                                    {opt.label}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                          </div>
+                        );
+                      })()}
+                    </div>
+
+                    {/* Prévia dos Dados Mapeados */}
+                    <div className="space-y-2 my-2 shrink-0">
+                      <div className="flex items-center justify-between">
+                        <h4 className="text-xs font-bold uppercase tracking-wider text-slate-600 flex items-center gap-1.5">
+                          <ClipboardList className="w-3.5 h-3.5 text-emerald-600" /> Prévia dos Dados Mapeados (Primeiras 5 Linhas)
+                        </h4>
+                        <span className="text-[11px] text-slate-400">
+                          Total na planilha: {Math.max(0, columnMappingModal.rawRows.length - columnMappingModal.headerRowIndex - 1)} linhas
+                        </span>
+                      </div>
+
+                      <div className="border border-slate-200 rounded-xl overflow-hidden bg-white shadow-inner">
+                        <Table>
+                          <TableHeader className="bg-slate-100">
+                            <TableRow>
+                              <TableHead className="text-xs font-bold text-slate-700 py-2">Grupo</TableHead>
+                              <TableHead className="text-xs font-bold text-slate-700 py-2">Código</TableHead>
+                              <TableHead className="text-xs font-bold text-blue-900 bg-blue-50/60 py-2">Discriminação / Descrição</TableHead>
+                              <TableHead className="text-xs font-bold text-slate-700 py-2 text-center">Unid.</TableHead>
+                              <TableHead className="text-xs font-bold text-slate-700 py-2 text-right">Qtd.</TableHead>
+                              <TableHead className="text-xs font-bold text-slate-700 py-2 text-right">Preço Unit.</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {(() => {
+                              const previewRows = columnMappingModal.rawRows
+                                .slice(columnMappingModal.headerRowIndex + 1)
+                                .filter((r) => Array.isArray(r) && r.some((c) => c !== null && c !== undefined && String(c).trim() !== ""))
+                                .slice(0, 5);
+
+                              if (previewRows.length === 0) {
+                                return (
+                                  <TableRow>
+                                    <TableCell colSpan={6} className="text-center py-4 text-xs text-slate-400 italic">
+                                      Nenhum dado encontrado após a linha de cabeçalho.
+                                    </TableCell>
+                                  </TableRow>
+                                );
+                              }
+
+                              const { group, code, name, unit, qty, price } = columnMappingModal.selectedCols;
+
+                              return previewRows.map((row, pIdx) => {
+                                const grpVal = group !== -1 && group < row.length && row[group] ? String(row[group]).trim() : "Geral";
+                                const codeVal = code !== -1 && code < row.length && row[code] ? String(row[code]).trim() : "-";
+                                const nameVal = name !== -1 && name < row.length && row[name] ? String(row[name]).trim() : "-";
+                                const unitVal = unit !== -1 && unit < row.length && row[unit] ? String(row[unit]).trim() : "un";
+
+                                const parseValNum = (v: any) => {
+                                  if (typeof v === "number") return v;
+                                  if (!v) return 0;
+                                  const p = parseFloat(String(v).replace(/\./g, "").replace(",", "."));
+                                  return isNaN(p) ? 0 : p;
+                                };
+
+                                const qtyVal = qty !== -1 && qty < row.length ? parseValNum(row[qty]) : 0;
+                                const priceVal = price !== -1 && price < row.length ? parseValNum(row[price]) : 0;
+
+                                return (
+                                  <TableRow key={`prev-${pIdx}`} className="hover:bg-slate-50/80">
+                                    <TableCell className="text-xs font-medium text-slate-600 max-w-[120px] truncate">{grpVal}</TableCell>
+                                    <TableCell className="text-xs font-mono font-semibold text-slate-800">{codeVal}</TableCell>
+                                    <TableCell className="text-xs font-semibold text-blue-950 bg-blue-50/20 max-w-[280px] truncate">{nameVal}</TableCell>
+                                    <TableCell className="text-xs text-center text-slate-600 font-mono">{unitVal}</TableCell>
+                                    <TableCell className="text-xs text-right text-slate-800 font-mono">{formatNumber(qtyVal)}</TableCell>
+                                    <TableCell className="text-xs text-right text-emerald-700 font-mono font-semibold">{formatCurrency(priceVal)}</TableCell>
+                                  </TableRow>
+                                );
+                              });
+                            })()}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    </div>
+
+                    <DialogFooter className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between gap-3 shrink-0">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => setColumnMappingModal(null)}
+                        className="rounded-xl border-slate-200 text-slate-700 font-semibold cursor-pointer"
+                      >
+                        Cancelar
+                      </Button>
+
+                      <Button
+                        type="button"
+                        onClick={() => executeImportWithMapping(columnMappingModal)}
+                        className="rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold px-6 shadow-md shadow-blue-500/20 flex items-center gap-2 cursor-pointer"
+                      >
+                        <Check className="w-4 h-4" /> Confirmar e Importar Planilha
+                      </Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
+              )}
             </>
           )}
           {!readonly && (
@@ -4445,7 +4858,7 @@ function MeasurementsSpreadsheet({
                   <ScrollArea className="flex-1 px-6">
                     <div className="space-y-8 py-4">
                       {configBudgetData.map((group, gIdx) => (
-                        <div key={gIdx} className="space-y-4">
+                        <div key={`group-config-${gIdx}`} className="space-y-4">
                           <div className="flex items-center gap-3">
                             <h4 className="text-sm font-black text-blue-600 uppercase tracking-[0.2em] whitespace-nowrap">
                               {group.name}
@@ -4453,7 +4866,7 @@ function MeasurementsSpreadsheet({
                             <div className="h-px bg-blue-100 flex-1" />
                           </div>
                           <div className="grid gap-3">
-                            {group.services.map((cs) => {
+                            {group.services.map((cs, sIdx) => {
                               const s = services.find(
                                 (x) => x.id === cs.serviceId,
                               );
@@ -4461,7 +4874,7 @@ function MeasurementsSpreadsheet({
                               const currentType = cs.worksheetType || "direct";
                               return (
                                 <div
-                                  key={cs.serviceId}
+                                  key={`cs-${gIdx}-${sIdx}-${cs.serviceId}`}
                                   className="flex flex-col sm:flex-row sm:items-center justify-between p-4 rounded-xl border border-gray-100 bg-white hover:border-blue-200 hover:shadow-md transition-all group/item gap-4"
                                 >
                                   <div className="flex-1 min-w-0">
@@ -4693,8 +5106,8 @@ function MeasurementsSpreadsheet({
                         <SelectValue placeholder="Selecione o grupo" />
                       </SelectTrigger>
                       <SelectContent>
-                        {budgetData.map((g) => (
-                          <SelectItem key={g.name} value={g.name}>
+                        {budgetData.map((g, gIdx) => (
+                          <SelectItem key={`group-sel-${g.name}-${gIdx}`} value={g.name}>
                             {g.name}
                           </SelectItem>
                         ))}
@@ -5070,7 +5483,7 @@ function MeasurementsSpreadsheet({
               {budgetData.map((group, groupIdx) => {
                 let groupTotalMedAtual = 0;
                 return (
-                  <React.Fragment key={groupIdx}>
+                  <React.Fragment key={`group-frag-${groupIdx}-${group.id || group.name || groupIdx}`}>
                     <TableRow className="bg-gray-100/50">
                       <TableCell
                         colSpan={14}
@@ -5158,7 +5571,7 @@ function MeasurementsSpreadsheet({
 
                       return (
                         <TableRow
-                          key={qs.serviceId}
+                          key={`qs-row-${groupIdx}-${qsIdx}-${qs.serviceId}`}
                           className="group cursor-pointer hover:bg-blue-50/30 transition-colors select-none active:bg-blue-100/40"
                           onDoubleClick={(e) => {
                             console.log(
@@ -8088,8 +8501,8 @@ function StationGroupsView({
                           />
                         </div>
                         <ScrollArea className="h-[150px]">
-                          {filteredServices.map((cs) => (
-                            <SelectItem key={cs.serviceId} value={cs.serviceId}>
+                          {filteredServices.map((cs, idx) => (
+                            <SelectItem key={`fs-sel-${cs.serviceId}-${idx}`} value={cs.serviceId}>
                               {cs.code} - {cs.name}
                             </SelectItem>
                           ))}
@@ -8622,10 +9035,10 @@ function TransportView({
                 </SelectValue>
               </SelectTrigger>
               <SelectContent>
-                {transportServices.map((cs) => {
+                {transportServices.map((cs, idx) => {
                   const s = services.find((x) => x.id === cs.serviceId);
                   return (
-                    <SelectItem key={cs.serviceId} value={cs.serviceId}>
+                    <SelectItem key={`trans-sel-${cs.serviceId}-${idx}`} value={cs.serviceId}>
                       {s?.code} - {s?.name}
                     </SelectItem>
                   );
@@ -9809,11 +10222,11 @@ function ProductionControlView({
                   {showDropdown && serviceFilter.trim().length > 0 && (
                     <div className="absolute z-50 w-full mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 overflow-hidden text-gray-900 max-h-[500px] overflow-y-auto min-w-[300px]">
                       {contractServices.length > 0 ? (
-                        contractServices.slice(0, 100).map((cs) => {
+                        contractServices.slice(0, 100).map((cs, idx) => {
                           const s = services.find((x) => x.id === cs.serviceId);
                           return (
                             <button
-                              key={cs.serviceId}
+                              key={`cs-btn-${cs.serviceId}-${idx}`}
                               className="w-full text-left px-5 py-4 hover:bg-blue-50 flex flex-col border-b border-gray-50 last:border-0 transition-colors"
                               onClick={() => {
                                 setSelectedServiceId(cs.serviceId);
