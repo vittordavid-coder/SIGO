@@ -3204,7 +3204,7 @@ export default function App() {
             updatedResources[index] = {
               ...updatedResources[index],
               code: eq.code || updatedResources[index].code,
-              name: eq.name,
+              name: eq.type || eq.name,
               unit: unitMapped,
               basePrice: basePriceMapped,
               productivePrice: eq.productivePrice || 0,
@@ -3214,7 +3214,7 @@ export default function App() {
             updatedResources.push({
               id: eq.id,
               code: eq.code || `EP-${eq.id.substring(0, 4).toUpperCase()}`,
-              name: eq.name,
+              name: eq.type || eq.name,
               unit: unitMapped,
               type: 'equipment',
               basePrice: basePriceMapped,

@@ -23,6 +23,7 @@ export function ContractSimulation({ sectorId = 'measurements', tabId = 'contrac
   // Determine active simulation
   let activeSim = 'contracts';
   if (sectorId === 'quotations' && tabId === 'resources') activeSim = 'resources';
+  if (sectorId === 'quotations' && tabId === 'quotations_tab') activeSim = 'quotations_tab';
   if (sectorId === 'rh' && tabId === 'employees') activeSim = 'employees';
   if (sectorId === 'purchases' && tabId === 'requests') activeSim = 'requests';
   if (sectorId === 'financeiro' && tabId === 'payables') activeSim = 'payables';
@@ -110,6 +111,20 @@ export function ContractSimulation({ sectorId = 'measurements', tabId = 'contrac
       ],
       browserUrl: 'https://sistema.synera.com/financeiro/aportes',
       pageTitle: 'Finanças • Gestão de Aportes'
+    },
+    quotations_tab: {
+      totalSteps: 6,
+      delays: { 0: 2500, 1: 1800, 2: 2500, 3: 2000, 4: 1500, 5: 4000 },
+      labels: [
+        'Acessar e clicar em "+ Nova Cotação"',
+        'Adicionar Fornecedores Concorrentes',
+        'Lançamento de Propostas de Preços',
+        'Geração Automática do Mapa Comparativo',
+        'Homologação e Fechamento da Cotação',
+        'Cotação exportada com sucesso!'
+      ],
+      browserUrl: 'https://sistema.synera.com/cotacoes/mapas',
+      pageTitle: 'Cotações • Mapas Comparativos'
     }
   };
 
@@ -306,6 +321,26 @@ export function ContractSimulation({ sectorId = 'measurements', tabId = 'contrac
           priority: 'Urgente',
           category: 'Material de Infraestrutura'
         });
+      }
+    } else if (activeSim === 'quotations_tab') {
+      if (step === 2) {
+        let i = 0;
+        const p1Text = "35.50";
+        const p2Text = "36.00";
+        activeInterval = setInterval(() => {
+          if (i < Math.max(p1Text.length, p2Text.length)) {
+            setTypedInputs(prev => ({
+              ...prev,
+              p1: p1Text.slice(0, i + 1),
+              p2: p2Text.slice(0, i + 1)
+            }));
+            i++;
+          } else {
+            clearInterval(activeInterval!);
+          }
+        }, 50);
+      } else if (step >= 3) {
+        setTypedInputs({ p1: "35.50", p2: "36.00" });
       }
     } else if (activeSim === 'payables') {
       if (step === 2) {
@@ -1157,6 +1192,133 @@ export function ContractSimulation({ sectorId = 'measurements', tabId = 'contrac
         )}
 
         {/* ==================== 5. FINANCEIRO APORTES SIMULATION ==================== */}
+        {/* ==================== 4. QUOTATIONS SIMULATION ==================== */}
+        {activeSim === 'quotations_tab' && (
+          <div className="w-full h-full flex flex-col justify-between text-left">
+            {! (step > 0 && step < 5) ? (
+              <div className="w-full h-full flex flex-col justify-between">
+                <div className="flex items-center justify-between pb-3 border-b border-slate-200 shrink-0">
+                  <div>
+                    <h4 className="text-sm font-extrabold text-slate-800">{currentConfig.pageTitle}</h4>
+                    <p className="text-[10px] text-slate-500 font-bold">Gerenciamento de cotações</p>
+                  </div>
+                  <div className="relative">
+                    <button className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white rounded-xl text-xs font-black shadow-sm">
+                      <Plus className="w-3.5 h-3.5" />
+                      Nova Cotação
+                    </button>
+                    {step === 0 && (
+                      <motion.div 
+                        initial={{ x: 120, y: 150 }}
+                        animate={{ x: [120, 20], y: [150, 10] }}
+                        transition={{ duration: 1.8, ease: "easeInOut", repeat: Infinity }}
+                        className="absolute pointer-events-none text-blue-600 drop-shadow-md z-30"
+                        style={{ left: '40px', top: '10px' }}
+                      >
+                        <MousePointer className="w-6 h-6 fill-current" />
+                      </motion.div>
+                    )}
+                  </div>
+                </div>
+                <div className="flex-1 mt-4 grid grid-cols-1 gap-2">
+                  {[1, 2, 3].map(i => (
+                    <div key={i} className="h-14 rounded-xl border border-slate-100 flex items-center justify-between px-4 bg-slate-50/50">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-lg bg-white border border-slate-200 flex items-center justify-center">
+                          <ShoppingCart className="w-4 h-4 text-slate-400" />
+                        </div>
+                        <div className="space-y-1.5">
+                          <div className="w-24 h-2 rounded bg-slate-200"></div>
+                          <div className="w-16 h-1.5 rounded bg-slate-100"></div>
+                        </div>
+                      </div>
+                      <div className="w-16 h-4 rounded-full bg-slate-200"></div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div className="absolute inset-0 bg-slate-950/40 flex items-center justify-center p-2 z-20 backdrop-blur-[1px]">
+                <motion.div 
+                  initial={{ scale: 0.93, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  className="bg-white w-full max-w-lg rounded-2xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col"
+                >
+                  <div className="bg-slate-50 px-5 py-3 border-b border-slate-100 flex items-center justify-between">
+                    <span className="text-sm font-black text-slate-800 flex items-center gap-2">
+                      <ShoppingCart className="w-4 h-4 text-blue-600" />
+                      Mapa Comparativo de Preços
+                    </span>
+                    <div className="w-3.5 h-3.5 rounded-full bg-slate-200 flex items-center justify-center text-[10px] text-slate-500 font-bold">&times;</div>
+                  </div>
+                  <div className="p-4 grid grid-cols-2 gap-3 text-left text-xs">
+                    <div className="space-y-1 col-span-2">
+                      <label className="font-bold text-slate-500">Fornecedores (Passo 2)</label>
+                      <input 
+                        type="text" 
+                        readOnly 
+                        value={step >= 1 ? 'Fornecedor A, Fornecedor B' : ' '} 
+                        placeholder="Adicionar fornecedores..."
+                        className={`w-full h-10 px-3 rounded-lg border font-bold transition-all ${step === 1 ? 'border-blue-500 bg-blue-50/20 ring-2 ring-blue-100' : 'border-slate-200'}`} 
+                      />
+                    </div>
+                    
+                    <div className="space-y-1">
+                      <label className="font-bold text-slate-500">Proposta Fornecedor A (Passo 3)</label>
+                      <div className="relative">
+                        <span className="absolute left-3 top-2.5 font-bold text-slate-400">R$</span>
+                        <input 
+                          type="text" 
+                          readOnly 
+                          value={typedInputs.p1 || ' '} 
+                          placeholder="0,00"
+                          className={`w-full h-10 pl-9 pr-3 rounded-lg border font-extrabold text-emerald-700 transition-all ${step === 2 ? 'border-blue-500 bg-blue-50/20 ring-2 ring-blue-100' : 'border-slate-200'}`} 
+                        />
+                      </div>
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="font-bold text-slate-500">Proposta Fornecedor B</label>
+                      <div className="relative">
+                        <span className="absolute left-3 top-2.5 font-bold text-slate-400">R$</span>
+                        <input 
+                          type="text" 
+                          readOnly 
+                          value={typedInputs.p2 || ' '} 
+                          placeholder="0,00"
+                          className={`w-full h-10 pl-9 pr-3 rounded-lg border font-extrabold text-rose-700 transition-all ${step === 2 ? 'border-blue-500 bg-blue-50/20 ring-2 ring-blue-100' : 'border-slate-200'}`} 
+                        />
+                      </div>
+                    </div>
+
+                    {step >= 3 && (
+                      <div className="col-span-2 bg-emerald-50 text-emerald-800 p-3 rounded-xl border border-emerald-100 mt-2 font-bold text-center">
+                        ✓ Fornecedor A é o mais vantajoso!
+                      </div>
+                    )}
+                  </div>
+                  <div className="bg-slate-50 px-5 py-3 border-t border-slate-100 flex items-center justify-end gap-2 shrink-0 relative">
+                    <button className="px-3 py-1.5 font-bold text-slate-500">Cancelar</button>
+                    <button className={`px-5 py-2 text-white font-black bg-blue-600 hover:bg-blue-700 rounded-xl shadow-sm ${step === 4 ? 'ring-4 ring-blue-100' : ' '}`}>
+                      Finalizar Mapa
+                    </button>
+                    {step === 4 && (
+                      <motion.div 
+                        initial={{ x: 120, y: 60 }}
+                        animate={{ x: [120, -25], y: [60, 5] }}
+                        transition={{ duration: 1.2, ease: "easeInOut", repeat: Infinity }}
+                        className="absolute pointer-events-none text-blue-600 drop-shadow-md z-30"
+                        style={{ right: '40px', bottom: '0px' }}
+                      >
+                        <MousePointer className="w-6 h-6 fill-current" />
+                      </motion.div>
+                    )}
+                  </div>
+                </motion.div>
+              </div>
+            )}
+          </div>
+        )}
         {activeSim === 'payables' && (
           <div className="w-full h-full flex flex-col justify-between text-left">
             <div className="flex items-center justify-between pb-3 border-b border-slate-200 shrink-0">
