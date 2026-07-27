@@ -2372,9 +2372,10 @@ export function MeasurementsView({
               targetMeasurement?.id,
             );
             if (targetMeasurement && targetMeasurement.status !== "closed") {
-              const serviceUnit = services.find(
-                (s) => s.id === m.serviceId,
-              )?.unit;
+              const contractItem = contract?.groups?.flatMap((g) => g.services).find((s) => s.serviceId === m.serviceId);
+              const serviceUnit =
+                (contractItem as any)?.unit ||
+                services.find((s) => s.id === m.serviceId)?.unit;
               console.log("[MeasureView] serviceUnit:", serviceUnit);
               const template = templates.find((t) => t.unit === serviceUnit);
               const medCol =
@@ -3203,33 +3204,34 @@ function ContractTab({
         }
 
         let headerRowIndex = -1;
-        let headers: string[] = [];
 
+        const cleanStr = (val: any) =>
+          String(val || "")
+            .toLowerCase()
+            .normalize("NFD")
+            .replace(/[\u0300-\u036f]/g, "")
+            .replace(/[^a-z0-9]/g, "")
+            .trim();
+
+        // Find header row dynamically
         for (let i = 0; i < rawRows.length; i++) {
           const row = rawRows[i];
           if (!row || !Array.isArray(row)) continue;
 
-          const rowStrings = row.map((cell) =>
-            String(cell || "")
-              .toLowerCase()
-              .normalize("NFD")
-              .replace(/[\u0300-\u036f]/g, "")
-              .trim(),
+          const rowCleans = row.map((cell) => cleanStr(cell));
+
+          const hasCode = rowCleans.some((s) =>
+            ["codigoservico", "codigo", "code", "cod", "item", "servico"].some((p) => s === p || s.startsWith(p))
+          );
+          const hasDesc = rowCleans.some((s) =>
+            ["descricaodoservico", "descricaoservico", "descricao", "desc", "nome", "discriminacao", "especificacao"].some((p) => s.includes(p))
+          );
+          const hasUnit = rowCleans.some((s) =>
+            ["unidadedoservico", "unidadedemedida", "unidade", "unid", "und", "um", "medida"].some((p) => s.includes(p))
           );
 
-          if (
-            rowStrings.some(
-              (s) =>
-                s === "codigo do servico" ||
-                s === "codigo" ||
-                s === "code" ||
-                s === "cod" ||
-                s === "item" ||
-                s === "servico",
-            )
-          ) {
+          if (hasCode || (hasDesc && hasUnit)) {
             headerRowIndex = i;
-            headers = rowStrings;
             break;
           }
         }
@@ -3239,12 +3241,62 @@ function ContractTab({
             "❌ Não foi possível encontrar a linha de cabeçalho na planilha.",
           );
           setImportFeedbackMsg(
-            '❌ Não foi possível encontrar a linha de cabeçalho. A planilha deve conter a coluna "Código", "Item", ou "Serviço".',
+            '❌ Não foi possível encontrar a linha de cabeçalho. A planilha deve conter colunas como "Código", "Descrição" e "Unidade".',
           );
           return;
         }
 
-        const rowsToProcess: any[] = [];
+        const headerRow = rawRows[headerRowIndex] || [];
+
+        // Detect column indices robustly
+        const findColIdx = (patterns: string[], defaultIdx: number) => {
+          for (let c = 0; c < headerRow.length; c++) {
+            const cellClean = cleanStr(headerRow[c]);
+            if (!cellClean) continue;
+            if (patterns.some((p) => cellClean === p || cellClean.startsWith(p) || cellClean.includes(p))) {
+              return c;
+            }
+          }
+          return defaultIdx;
+        };
+
+        let colCode = findColIdx(["codigoservico", "codigo", "code", "cod", "num"], 1);
+        let colName = findColIdx(["descricaodoservico", "descricaoservico", "descricao", "desc", "nome", "discriminacao", "especificacao", "servico", "detalhe"], 2);
+        let colUnit = findColIdx(["unidadedoservico", "unidadedemedida", "unidade", "unid", "und", "um", "medida", "un"], 3);
+        let colQty  = findColIdx(["quantidade", "qtd", "quant", "qnt", "vol", "volume"], 4);
+        let colPrice = findColIdx(["precounitarioservico", "precounitario", "valorunitario", "precounit", "preco", "valor", "punit", "pu"], 5);
+        let colGroup = findColIdx(["grupo", "etapa", "subgrupo", "fase", "categoria", "itempai"], 0);
+
+        // Disambiguate overlapping columns
+        if (colGroup === colCode || colGroup === colName) {
+          const groupIdx = headerRow.findIndex((cell) => {
+            const clean = cleanStr(cell);
+            return ["grupo", "etapa", "subgrupo", "fase"].some((p) => clean.includes(p));
+          });
+          colGroup = groupIdx;
+        }
+
+        if (colUnit === colCode || colUnit === colName) {
+          const unitIdx = headerRow.findIndex((cell, idx) => {
+            if (idx === colCode || idx === colName) return false;
+            const clean = cleanStr(cell);
+            return ["unidade", "unid", "und", "um", "medida"].some((p) => clean.includes(p));
+          });
+          colUnit = unitIdx !== -1 ? unitIdx : 3;
+        }
+
+        console.log(
+          `[Import] Mapeamento de Colunas -> Grupo: ${colGroup}, Código: ${colCode}, Nome: ${colName}, Unidade: ${colUnit}, Qtd: ${colQty}, Preço: ${colPrice}`
+        );
+
+        const rowsToProcess: {
+          code: string;
+          name: string;
+          unit: string;
+          quantity: number;
+          price: number;
+          groupName: string;
+        }[] = [];
         let skippedEmptyCount = 0;
 
         for (let i = headerRowIndex + 1; i < rawRows.length; i++) {
@@ -3261,71 +3313,74 @@ function ContractTab({
           )
             continue;
 
-          const normalizedRow: any = {};
-          for (let j = 0; j < headers.length; j++) {
-            if (headers[j]) {
-              normalizedRow[headers[j]] = row[j];
-            }
-          }
+          const rawCode = colCode !== -1 ? row[colCode] : null;
+          const rawName = colName !== -1 ? row[colName] : null;
+          const rawUnit = colUnit !== -1 ? row[colUnit] : null;
 
-          const getCode = (r: any) => {
-            const val =
-              r["codigo do servico"] ??
-              r["codigo"] ??
-              r["code"] ??
-              r["cod"] ??
-              r["item"] ??
-              r["servico"];
-            return val !== null && val !== undefined && val !== ""
-              ? String(val).trim()
+          const serviceCode =
+            rawCode !== null && rawCode !== undefined && String(rawCode).trim() !== ""
+              ? String(rawCode).trim()
               : "";
-          };
-          const serviceCode = getCode(normalizedRow);
+
           if (!serviceCode) {
             skippedEmptyCount++;
             continue;
           }
-          rowsToProcess.push(normalizedRow);
+
+          const serviceName =
+            rawName !== null && rawName !== undefined && String(rawName).trim() !== ""
+              ? String(rawName).trim()
+              : serviceCode;
+
+          const serviceUnit =
+            rawUnit !== null && rawUnit !== undefined && String(rawUnit).trim() !== ""
+              ? String(rawUnit).trim()
+              : "un";
+
+          const parseNum = (val: any) => {
+            if (typeof val === "number") return val;
+            if (!val) return 0;
+            const parsed = parseFloat(
+              String(val).replace(/\./g, "").replace(",", "."),
+            );
+            return isNaN(parsed) ? 0 : parsed;
+          };
+
+          const quantity = parseNum(colQty !== -1 ? row[colQty] : 0);
+          const price = parseNum(colPrice !== -1 ? row[colPrice] : 0);
+
+          let groupName = "Geral";
+          if (colGroup !== -1 && row[colGroup] && String(row[colGroup]).trim() !== "") {
+            groupName = String(row[colGroup]).trim();
+          }
+
+          rowsToProcess.push({
+            code: serviceCode,
+            name: serviceName,
+            unit: serviceUnit,
+            quantity,
+            price,
+            groupName,
+          });
         }
 
         const importedGroups: BudgetGroup[] = [];
         const missingServicesData: Omit<ServiceComposition, "id">[] = [];
 
         // Phase 1: Identify those missing from the system
-        rowsToProcess.forEach((normalizedRow) => {
-          const getCode = (r: any) => {
-            const val =
-              r["codigo do servico"] ??
-              r["codigo"] ??
-              r["code"] ??
-              r["cod"] ??
-              r["item"] ??
-              r["servico"];
-            return val !== null && val !== undefined && val !== ""
-              ? String(val).trim()
-              : "";
-          };
-          const serviceCode = getCode(normalizedRow);
-
+        rowsToProcess.forEach((r) => {
           const exists =
             services.some(
-              (s) => s.code.toLowerCase() === serviceCode.toLowerCase(),
+              (s) => s.code.toLowerCase() === r.code.toLowerCase(),
             ) ||
             missingServicesData.some(
-              (s) => s.code.toLowerCase() === serviceCode.toLowerCase(),
+              (s) => s.code.toLowerCase() === r.code.toLowerCase(),
             );
           if (!exists) {
             missingServicesData.push({
-              code: serviceCode,
-              name: String(
-                normalizedRow["descricao do servico"] ||
-                  normalizedRow["descricao"] ||
-                  normalizedRow["nome"] ||
-                  serviceCode,
-              ).trim(),
-              unit: String(
-                normalizedRow["unidade"] || normalizedRow["unid"] || "un",
-              ).trim(),
+              code: r.code,
+              name: r.name,
+              unit: r.unit || "un",
               production: 1,
               fit: 1,
               items: [],
@@ -3351,75 +3406,43 @@ function ContractTab({
         );
 
         // Phase 3: Build groups with the unified service IDs
-        rowsToProcess.forEach((row: any) => {
-          const groupName = row["grupo"] || "Geral";
-          const getCode = (r: any) => {
-            const val =
-              r["codigo do servico"] ??
-              r["codigo"] ??
-              r["code"] ??
-              r["cod"] ??
-              r["item"] ??
-              r["servico"];
-            return val !== null && val !== undefined && val !== ""
-              ? String(val).trim()
-              : "";
-          };
-          const serviceCode = getCode(row);
-
-          const parseNum = (val: any) => {
-            if (typeof val === "number") return val;
-            if (!val) return 0;
-            const parsed = parseFloat(
-              String(val).replace(/\./g, "").replace(",", "."),
-            );
-            return isNaN(parsed) ? 0 : parsed;
-          };
-
-          const quantity = parseNum(
-            row["quantidade"] || row["qtd"] || row["quant"] || 0,
-          );
-          const price = parseNum(
-            row["preco unitario"] || row["preco"] || row["valor"] || 0,
-          );
-
+        rowsToProcess.forEach((r) => {
           let service = allServices.find(
-            (s) => s.code.toLowerCase() === serviceCode.toLowerCase(),
+            (s) => s.code.toLowerCase() === r.code.toLowerCase(),
           );
 
-          // Se não encontrou como serviço, tenta criar um mockup temporário na memória para não perder a linha
           if (!service) {
             console.warn(
-              `[Import] Servico não encontrado e não foi criado na fase 2: ${serviceCode}`,
+              `[Import] Serviço não encontrado e não foi criado na fase 2: ${r.code}`,
             );
             service = {
               id: uuidv4(),
-              code: serviceCode,
-              name: String(
-                row["descricao do servico"] ||
-                  row["descricao"] ||
-                  row["nome"] ||
-                  serviceCode,
-              ).trim(),
-              unit: String(row["unidade"] || row["unid"] || "un").trim(),
+              code: r.code,
+              name: r.name,
+              unit: r.unit || "un",
               production: 1,
               fit: 1,
               items: [],
             };
+          } else {
+            if (r.unit && r.unit !== "un" && (service.unit === "un" || !service.unit)) {
+              service.unit = r.unit;
+            }
           }
 
-          let group = importedGroups.find((g) => g.name === groupName);
+          let group = importedGroups.find((g) => g.name === r.groupName);
           if (!group) {
-            group = { id: uuidv4(), name: groupName, services: [] };
+            group = { id: uuidv4(), name: r.groupName, services: [] };
             importedGroups.push(group);
           }
 
           group.services.push({
             serviceId: service.id,
-            code: service.code,
-            name: service.name, // Save name as fallback
-            quantity,
-            price,
+            code: r.code || service.code,
+            name: r.name || service.name,
+            unit: r.unit || service.unit || "un",
+            quantity: r.quantity,
+            price: r.price,
             worksheetType: "direct",
           });
         });
@@ -4349,6 +4372,8 @@ function MeasurementsSpreadsheet({
       targetGroup.services.push({
         serviceId: importData.serviceId,
         code: service?.code || "",
+        name: service?.name || "",
+        unit: service?.unit || "un",
         quantity: Number(importData.quantity),
         price: importData.price > 0 ? importData.price : undefined,
       });
@@ -5063,16 +5088,16 @@ function MeasurementsSpreadsheet({
                         );
                       }
 
-                      const displayCode = s?.code || (qs as any).code || "S/N";
+                      const displayCode = (qs as any).code || s?.code || "S/N";
                       const displayName =
-                        s?.name ||
                         (qs as any).name ||
                         (qs as any).description ||
+                        s?.name ||
                         "Descrição não disponível";
                       const displayUnit =
-                        s?.unit ||
                         (qs as any).unit ||
                         (qs as any).measurementUnit ||
+                        s?.unit ||
                         "un";
 
                       const unitCost =
