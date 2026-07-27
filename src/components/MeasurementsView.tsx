@@ -3153,8 +3153,28 @@ function ContractTab({
     const file = e.target.files?.[0];
     if (!file) return;
 
+    // Verificar se existe um contrato selecionado
+    const activeContract = editingContract || contracts.find((c) => c.id === selectedId);
+    if (!activeContract) {
+      alert("❌ Nenhum contrato selecionado! Por favor, selecione um contrato na lista para carregar a planilha de serviços.");
+      setImportFeedbackMsg("❌ Selecione um contrato antes de carregar a planilha de serviços.");
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      return;
+    }
+
+    const targetContractName = activeContract.contractNumber
+      ? `Contrato nº ${activeContract.contractNumber}${activeContract.workName ? ` (${activeContract.workName})` : ''}`
+      : activeContract.workName || 'Contrato selecionado';
+
+    // Pergunta de confirmação ao usuário
+    const confirmMessage = `Deseja realmente carregar a planilha de serviços para o ${targetContractName}?`;
+    if (!window.confirm(confirmMessage)) {
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      return;
+    }
+
     console.log(
-      `[Import] Iniciando leitura do arquivo: ${file.name}`,
+      `[Import] Iniciando leitura do arquivo: ${file.name} para ${targetContractName}`,
       file.size,
       file.type,
     );
@@ -3416,28 +3436,29 @@ function ContractTab({
             totalServicesArr,
           );
 
-          setNewContract((prev) => {
-            const updatedValues = {
-              ...prev,
-              groups: importedGroups,
-              services: [],
-              quotationId: prev.quotationId || "none",
-            };
+          const updatedContractData: Contract = {
+            ...activeContract,
+            groups: importedGroups,
+            services: [],
+            quotationId: activeContract.quotationId || "none",
+          };
 
-            if (editingContract) {
-              // Note: We use setTimeout to defer the onUpdate call out of the React rendering cycle
-              setTimeout(() => {
-                onUpdate({ ...editingContract, ...updatedValues } as Contract);
-                console.log(
-                  "[Import] Auto-saved the existing contract after import.",
-                );
-              }, 100);
-            }
+          setNewContract((prev) => ({
+            ...prev,
+            groups: importedGroups,
+            services: [],
+            quotationId: prev.quotationId || "none",
+          }));
 
-            return updatedValues;
-          });
+          // Direct save to update contract in database/state
+          setTimeout(() => {
+            onUpdate(updatedContractData);
+            console.log(
+              `[Import] Auto-saved services spreadsheet to contract: ${activeContract.id}`,
+            );
+          }, 100);
 
-          let feedback = `✅ SUCESSO! Importamos: ${importedGroups.length} Grupos e ${totalServicesArr} Serviços.`;
+          let feedback = `✅ SUCESSO! A planilha de serviços foi carregada e gravada com sucesso no ${targetContractName}! (${importedGroups.length} Grupos e ${totalServicesArr} Serviços gravados).`;
 
           if (missingServicesData.length > 0) {
             feedback += ` Foram criados ${missingServicesData.length} novos serviços no cadastro geral.`;
@@ -3447,13 +3468,8 @@ function ContractTab({
             feedback += ` (${skippedEmptyCount} linhas ignoradas sem código).`;
           }
 
-          if (editingContract) {
-            feedback += ` A planilha foi anexada ao contrato com sucesso! O contrato foi salvo pelo sistema.`;
-          } else {
-            feedback += ` Lembre-se de preencher os dados restantes e clicar em "Salvar Contrato" no final desta tela!`;
-          }
-
           setImportFeedbackMsg(feedback);
+          alert(`✅ SUCESSO! A planilha de serviços foi gravada com sucesso no ${targetContractName}!`);
         } else {
           console.error("❌ Nenhum serviço válido foi encontrado na planilha.");
           setImportFeedbackMsg(
@@ -3601,6 +3617,11 @@ function ContractTab({
                     <button
                       type="button"
                       onClick={() => {
+                        const activeContract = editingContract || contracts.find((c) => c.id === selectedId);
+                        if (!activeContract) {
+                          alert('Por favor, selecione um contrato na lista antes de importar a planilha de serviços.');
+                          return;
+                        }
                         fileInputRef.current?.click();
                         setIsExportImportModalOpen(false);
                       }}
