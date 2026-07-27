@@ -1,0 +1,74 @@
+      </Tabs>
+
+      <Dialog open={selectedDayModal !== null} onOpenChange={(open) => !open && setSelectedDayModal(null)}>
+        <DialogContent className="max-w-sm rounded-2xl p-0 overflow-hidden border-0 shadow-2xl">
+          <div className="bg-slate-50 border-b border-slate-100 px-5 py-4">
+            <DialogTitle className="text-sm font-black uppercase text-slate-800 tracking-wider flex items-center gap-2">
+              <Calendar className="w-4 h-4 text-blue-600" />
+              Editar Dia {selectedDayModal}
+            </DialogTitle>
+          </div>
+          {selectedDayModal !== null && (
+            <div className="px-5 py-5">
+               {(() => {
+                 const record = getRecordForDay(selectedDayModal);
+                 return (
+                    <div className="space-y-4">
+                      <div className="space-y-1.5">
+                         <Label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Noite Anterior</Label>
+                         <Select value={record?.nightStatus || 'Bom'} onValueChange={v => handleUpdate(selectedDayModal, 'nightStatus', v)}>
+                           <SelectTrigger className="font-bold h-10 rounded-xl bg-white"><SelectValue /></SelectTrigger>
+                           <SelectContent>
+                             <SelectItem value="Bom" className="font-bold text-xs">☀️ Bom</SelectItem>
+                             <SelectItem value="Chuvoso" className="font-bold text-xs text-blue-600">🌧️ Chuvoso</SelectItem>
+                             <SelectItem value="Impraticável" className="font-bold text-xs text-red-600">🛑 Impraticável</SelectItem>
+                           </SelectContent>
+                         </Select>
+                      </div>
+                      <div className="space-y-1.5">
+                         <Label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Manhã</Label>
+                         <Select value={record?.morningStatus || 'Bom'} onValueChange={v => handleUpdate(selectedDayModal, 'morningStatus', v)}>
+                           <SelectTrigger className="font-bold h-10 rounded-xl bg-white"><SelectValue /></SelectTrigger>
+                           <SelectContent>
+                             <SelectItem value="Bom" className="font-bold text-xs">☀️ Bom</SelectItem>
+                             <SelectItem value="Chuvoso" className="font-bold text-xs text-blue-600">🌧️ Chuvoso</SelectItem>
+                             <SelectItem value="Impraticável" className="font-bold text-xs text-red-600">🛑 Impraticável</SelectItem>
+                           </SelectContent>
+                         </Select>
+                      </div>
+                      <div className="space-y-1.5">
+                         <Label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Tarde</Label>
+                         <Select value={record?.afternoonStatus || 'Bom'} onValueChange={v => handleUpdate(selectedDayModal, 'afternoonStatus', v)}>
+                           <SelectTrigger className="font-bold h-10 rounded-xl bg-white"><SelectValue /></SelectTrigger>
+                           <SelectContent>
+                             <SelectItem value="Bom" className="font-bold text-xs">☀️ Bom</SelectItem>
+                             <SelectItem value="Chuvoso" className="font-bold text-xs text-blue-600">🌧️ Chuvoso</SelectItem>
+                             <SelectItem value="Impraticável" className="font-bold text-xs text-red-600">🛑 Impraticável</SelectItem>
+                           </SelectContent>
+                         </Select>
+                      </div>
+                      <div className="space-y-1.5 pt-2">
+                         <Label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Chuva (mm)</Label>
+                         <Input 
+                           type="number" 
+                           step="0.1" 
+                           className="font-black h-11 text-lg rounded-xl bg-white"
+                           value={record?.rainfallMm || 0}
+                           onChange={e => handleUpdate(selectedDayModal, 'rainfallMm', parseFloat(e.target.value) || 0)}
+                         />
+                      </div>
+                    </div>
+                 );
+               })()}
+            </div>
+          )}
+          <div className="px-5 py-4 bg-slate-50 border-t border-slate-100 flex justify-end">
+            <Button className="bg-blue-600 hover:bg-blue-700 font-black uppercase tracking-wider text-[10px] rounded-xl h-10 px-6 shadow-sm" onClick={() => setSelectedDayModal(null)}>
+               Concluir
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}

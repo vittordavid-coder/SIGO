@@ -28,13 +28,6 @@ export default defineConfig(({mode}) => {
                 return 'vendor-charts';
               }
             }
-            if (id.includes('src/components/')) {
-              const file = id.split('src/components/')[1];
-              if (file) {
-                const name = file.split('/')[0].replace('.tsx', '').replace('.ts', '').toLowerCase();
-                return `view-${name}`;
-              }
-            }
           }
         }
       }

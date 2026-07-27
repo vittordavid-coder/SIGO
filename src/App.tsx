@@ -76,25 +76,45 @@ const mapToCamel = (obj: any): any => {
 };
 
 export default function App() {
-  // Helper for SessionStorage
+  const [rememberMe, setRememberMe] = useState(() => {
+    try {
+      return window.localStorage.getItem('sigo_remember_me') === 'true';
+    } catch {
+      return false;
+    }
+  });
+
+  // Helper for Session/LocalStorage
   const [currentUser, setCurrentUser] = useState<User | null>(() => {
     try {
-      const item = window.sessionStorage.getItem('sigo_current_user');
-      return item ? JSON.parse(item) : null;
+      const localItem = window.localStorage.getItem('sigo_current_user');
+      if (localItem) return JSON.parse(localItem);
+      const sessionItem = window.sessionStorage.getItem('sigo_current_user');
+      if (sessionItem) return JSON.parse(sessionItem);
+      return null;
     } catch {
       return null;
     }
   });
 
-  const setAndSaveCurrentUser = (user: User | null) => {
+  const setAndSaveCurrentUser = (user: User | null, savePersistent: boolean = rememberMe) => {
     setCurrentUser(user);
     if (user) {
       // Security: Never save password or sensitive fields locally
       const secureUser = { ...user };
       delete (secureUser as any).password;
       window.sessionStorage.setItem('sigo_current_user', JSON.stringify(secureUser));
+      if (savePersistent) {
+        window.localStorage.setItem('sigo_current_user', JSON.stringify(secureUser));
+        window.localStorage.setItem('sigo_remember_me', 'true');
+      } else {
+        window.localStorage.removeItem('sigo_current_user');
+        window.localStorage.removeItem('sigo_remember_me');
+      }
     } else {
       window.sessionStorage.removeItem('sigo_current_user');
+      window.localStorage.removeItem('sigo_current_user');
+      window.localStorage.removeItem('sigo_remember_me');
     }
   };
 
@@ -123,13 +143,104 @@ export default function App() {
 
   const compId = currentUser?.companyId;
 
-  const [mainTab, setMainTab] = useState<'home' | 'quotations' | 'measurements' | 'rh' | 'control' | 'purchases' | 'project_admin' | 'settings' | 'admin' | 'profile' | 'gerencia' | 'financeiro' | 'almoxarife' | 'help'>('home');
-  const [activeTab, setActiveTab] = useState<'resources' | 'services' | 'quotations' | 'budget' | 'bdi' | 'abc' | 'schedule' | 'reports'>('resources');
-  const [activeMeasureTab, setActiveMeasureTab] = useState<'contracts' | 'measurements' | 'measure' | 'controls' | 'physical_progress' | 'rdo' | 'pluviometria' | 'schedule' | 'teams' | 'reports' | 'summary'>('contracts');
-  const [activeRHTab, setActiveRHTab] = useState('employees');
-  const [activeControlTab, setActiveControlTab] = useState('list');
-  const [activePurchasesTab, setActivePurchasesTab] = useState<'requests' | 'suppliers' | 'quotations' | 'orders' | 'tracking' | 'estoque' | 'evaluation'>('requests');
-  const [selectedMeasurementId, setSelectedMeasurementId] = useState<string | null>(null);
+  const [mainTab, setMainTab] = useState<'home' | 'quotations' | 'measurements' | 'rh' | 'control' | 'purchases' | 'project_admin' | 'settings' | 'admin' | 'profile' | 'gerencia' | 'financeiro' | 'almoxarife' | 'help'>(() => {
+    try {
+      return (window.sessionStorage.getItem('sigo_main_tab') as any) || 'home';
+    } catch {
+      return 'home';
+    }
+  });
+
+  const [activeTab, setActiveTab] = useState<'resources' | 'services' | 'quotations' | 'budget' | 'bdi' | 'abc' | 'schedule' | 'reports'>(() => {
+    try {
+      return (window.sessionStorage.getItem('sigo_active_tab') as any) || 'resources';
+    } catch {
+      return 'resources';
+    }
+  });
+
+  const [activeMeasureTab, setActiveMeasureTab] = useState<'contracts' | 'measurements' | 'measure' | 'controls' | 'physical_progress' | 'rdo' | 'pluviometria' | 'schedule' | 'teams' | 'reports' | 'summary'>(() => {
+    try {
+      return (window.sessionStorage.getItem('sigo_active_measure_tab') as any) || 'contracts';
+    } catch {
+      return 'contracts';
+    }
+  });
+
+  const [activeRHTab, setActiveRHTab] = useState<string>(() => {
+    try {
+      return window.sessionStorage.getItem('sigo_active_rh_tab') || 'employees';
+    } catch {
+      return 'employees';
+    }
+  });
+
+  const [activeControlTab, setActiveControlTab] = useState<string>(() => {
+    try {
+      return window.sessionStorage.getItem('sigo_active_control_tab') || 'list';
+    } catch {
+      return 'list';
+    }
+  });
+
+  const [activePurchasesTab, setActivePurchasesTab] = useState<'requests' | 'suppliers' | 'quotations' | 'orders' | 'tracking' | 'estoque' | 'evaluation'>(() => {
+    try {
+      return (window.sessionStorage.getItem('sigo_active_purchases_tab') as any) || 'requests';
+    } catch {
+      return 'requests';
+    }
+  });
+
+  const [selectedMeasurementId, setSelectedMeasurementId] = useState<string | null>(() => {
+    try {
+      return window.sessionStorage.getItem('sigo_selected_measurement_id') || null;
+    } catch {
+      return null;
+    }
+  });
+
+  useEffect(() => {
+    try {
+      window.sessionStorage.setItem('sigo_main_tab', mainTab);
+    } catch (e) {}
+  }, [mainTab]);
+
+  useEffect(() => {
+    try {
+      window.sessionStorage.setItem('sigo_active_tab', activeTab);
+    } catch (e) {}
+  }, [activeTab]);
+
+  useEffect(() => {
+    try {
+      window.sessionStorage.setItem('sigo_active_measure_tab', activeMeasureTab);
+    } catch (e) {}
+  }, [activeMeasureTab]);
+
+  useEffect(() => {
+    try {
+      window.sessionStorage.setItem('sigo_active_rh_tab', activeRHTab);
+    } catch (e) {}
+  }, [activeRHTab]);
+
+  useEffect(() => {
+    try {
+      window.sessionStorage.setItem('sigo_active_control_tab', activeControlTab);
+    } catch (e) {}
+  }, [activeControlTab]);
+
+  useEffect(() => {
+    try {
+      window.sessionStorage.setItem('sigo_active_purchases_tab', activePurchasesTab);
+    } catch (e) {}
+  }, [activePurchasesTab]);
+
+  useEffect(() => {
+    try {
+      if (selectedMeasurementId) window.sessionStorage.setItem('sigo_selected_measurement_id', selectedMeasurementId);
+      else window.sessionStorage.removeItem('sigo_selected_measurement_id');
+    } catch (e) {}
+  }, [selectedMeasurementId]);
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isSupabaseSynced, setIsSupabaseSynced] = useState(false);
@@ -3730,7 +3841,17 @@ export default function App() {
                     required 
                   />
                 </div>
-                <div className="flex justify-end">
+                <div className="flex items-center justify-between pt-1">
+                  <div className="flex items-center space-x-2">
+                    <Checkbox 
+                      id="remember-me" 
+                      checked={rememberMe} 
+                      onCheckedChange={(checked) => setRememberMe(!!checked)} 
+                    />
+                    <Label htmlFor="remember-me" className="text-sm cursor-pointer text-gray-600 font-medium select-none">
+                      Continuar conectado
+                    </Label>
+                  </div>
                   <button 
                     type="button" 
                     onClick={() => setIsResettingPassword(true)}

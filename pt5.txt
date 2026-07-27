@@ -1,1015 +1,3 @@
-import React, { useState } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
-import { 
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line, AreaChart, Area, ComposedChart, Cell
-} from 'recharts';
-import { 
-  Plus, Edit, Trash2, Download, Printer, 
-  CloudRain, Calendar, BookOpen, UserCheck, HardHat,
-  Construction, Map as MapIcon, Clock, ArrowRightLeft, Save,
-  Search, ThermometerSun, AlertTriangle, FileText, FileSpreadsheet, FileDown,
-  ChevronDown, ChevronRight, PanelRight, PanelRightClose, ZoomIn, ZoomOut,
-  TrendingUp, BarChart3, Maximize2, Minimize2, X, Layers, Activity
-} from 'lucide-react';
-import { v4 as uuidv4 } from 'uuid';
-import { jsPDF } from 'jspdf';
-import html2canvas from 'html2canvas';
-import autoTable from 'jspdf-autotable';
-import ExcelJS from 'exceljs';
-import { saveAs } from 'file-saver';
-import { getSupabaseConfig, createSupabaseClient } from '../lib/supabaseClient';
-import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
-import { 
-  Contract, DailyReport, DailyReportActivity, 
-  PluviometryRecord, TechnicalSchedule, TechnicalServiceSchedule,
-  ServiceComposition, Resource, Schedule, TimeUnit, Quotation,
-  ControllerManpower, ControllerEquipment, Measurement
-} from '../types';
-import { 
-  DropdownMenu, 
-  DropdownMenuContent, 
-  DropdownMenuItem, 
-  DropdownMenuTrigger 
-} from '@/components/ui/dropdown-menu';
-import { useLocalStorage } from '../lib/useLocalStorage';
-import { formatCurrency, formatNumber, cn } from '../lib/utils';
-import { calculateServiceUnitCost } from '../lib/calculations';
-import { exportTechnicalScheduleToExcel, exportTechnicalScheduleToPDF } from '../lib/exportUtils';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Badge } from '@/components/ui/badge';
-import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-
-const formatPercent = (value: number) => {
-  return new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value) + '%';
-};
-
-// --- DIÁRIO DE OBRAS (RDO) ---
-
-interface DailyReportViewProps {
-  contract: Contract;
-  reports: DailyReport[];
-  onAdd: (r: Omit<DailyReport, 'id'>) => void;
-  onUpdate: (r: DailyReport) => void;
-  onDelete: (id: string) => void;
-  onMoveActivity?: (activityId: string, fromId: string, toDate: string, contractId: string) => void;
-  pluviometryRecords: PluviometryRecord[];
-  readonly?: boolean;
-  companyLogo?: string;
-  companyLogoRight?: string;
-  logoMode?: 'left' | 'right' | 'both' | 'none';
-  controllerManpower?: ControllerManpower[];
-  controllerEquipments?: ControllerEquipment[];
-}
-
-export function DailyReportView({ 
-  contract, reports, onAdd, onUpdate, onDelete, onMoveActivity, 
-  pluviometryRecords, readonly, companyLogo, companyLogoRight, logoMode,
-  controllerManpower = [], controllerEquipments = []
-}: DailyReportViewProps) {
-  const [activeItem, setActiveItem] = useState<'activities' | 'viewer'>('activities');
-  const [selectedReportId, setSelectedReportId] = useState<string | null>(null);
-  const [expandedMonths, setExpandedMonths] = useState<string[]>([]);
-  const [focusedPhotoIdx, setFocusedPhotoIdx] = useState<number | null>(null);
-  const [isUploading, setIsUploading] = useState(false);
-  const hasAutoExpanded = React.useRef(false);
-  const selectedReport = React.useMemo(() => {
-    const r = reports.find(r => r.id === selectedReportId) || (reports.length > 0 ? [...reports].sort((a,b) => b.date.localeCompare(a.date))[0] : null);
-    if (!r) return null;
-
-    const groupItems = (list: { description: string, quantity: number }[], extactor: (desc: string) => string) => {
-      const map = new Map<string, number>();
-      list.forEach(item => {
-        const clean = extactor(item.description);
-        const key = clean.toUpperCase();
-        const existingKey = Array.from(map.keys()).find(k => k.toUpperCase() === key);
-        if (existingKey) {
-          map.set(existingKey, (map.get(existingKey) || 0) + item.quantity);
-        } else {
-          map.set(clean, item.quantity);
-        }
-      });
-      return Array.from(map.entries()).map(([description, quantity]) => ({ description, quantity }));
-    };
-
-    const cleanManpower = (desc: string) => {
-      const match = desc.match(/(.+)\s+\((.+)\)$/);
-      const searchName = match ? match[1].trim() : desc.trim();
-      const found = controllerManpower.find(m => m.name === searchName || `${m.name} (${m.role})` === desc);
-      if (found && found.role) return found.role;
-      return match ? match[2].trim() : desc.trim();
-    };
-
-    const cleanEquipment = (desc: string) => {
-      const match = desc.match(/(.+)\s+\((.+)\)$/);
-      const searchName = match ? match[1].trim() : desc.trim();
-      const found = controllerEquipments.find(e => e.name === searchName || `${e.name} (${e.model})` === desc);
-      if (found && found.type) return found.type;
-      return match ? match[1].trim() : desc.trim();
-    };
-
-    return {
-      ...r,
-      manpower: groupItems(r.manpower, cleanManpower),
-      equipment: groupItems(r.equipment, cleanEquipment)
-    };
-  }, [reports, selectedReportId]);
-
-  // Group reports by month/year
-  const groupedReports = React.useMemo(() => {
-    const groups: Record<string, DailyReport[]> = {};
-    const sortedReports = [...reports].sort((a, b) => b.date.localeCompare(a.date));
-    
-    sortedReports.forEach(report => {
-      const date = new Date(report.date + 'T12:00:00');
-      const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-      if (!groups[monthKey]) groups[monthKey] = [];
-      groups[monthKey].push(report);
-    });
-    
-    return groups;
-  }, [reports]);
-
-  const monthKeys = React.useMemo(() => {
-    return Object.keys(groupedReports).sort((a, b) => b.localeCompare(a));
-  }, [groupedReports]);
-
-  const getMonthLabel = (key: string) => {
-    const [year, month] = key.split('-');
-    const months = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
-    return `${months[parseInt(month) - 1]}/${year}`;
-  };
-
-  const toggleMonth = (key: string) => {
-    setExpandedMonths(prev => 
-      prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key]
-    );
-  };
-
-  // Sync selectedReportId and initial expanded month
-  React.useEffect(() => {
-    if (reports.length > 0) {
-      const hasValidSelection = selectedReportId && reports.some(r => r.id === selectedReportId);
-      if (!hasValidSelection) {
-        const latest = [...reports].sort((a,b) => b.date.localeCompare(a.date))[0];
-        setSelectedReportId(latest.id);
-      }
-      
-      // Expand the latest month by default ONLY ONCE
-      if (!hasAutoExpanded.current && monthKeys.length > 0) {
-        setExpandedMonths([monthKeys[0]]);
-        hasAutoExpanded.current = true;
-      }
-    } else {
-      if (selectedReportId !== null) {
-        setSelectedReportId(null);
-      }
-    }
-  }, [reports, selectedReportId, monthKeys]);
-
-  const allActivities = React.useMemo(() => {
-    return reports.flatMap(report => 
-      report.activities.map(activity => ({
-        ...activity,
-        date: report.date,
-        reportId: report.id
-      }))
-    ).sort((a, b) => b.date.localeCompare(a.date));
-  }, [reports]);
-
-  const handleAdd = () => {
-    const today = new Date().toISOString().split('T')[0];
-    
-    // Sort reports by date descending
-    const contractReports = reports
-      .filter(r => r.contractId === contract.id)
-      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-    
-    const latestReport = contractReports[0];
-    
-    let defaultManpower = [];
-    let defaultEquipment = [];
-    
-    if (latestReport) {
-      defaultManpower = JSON.parse(JSON.stringify(latestReport.manpower));
-      defaultEquipment = JSON.parse(JSON.stringify(latestReport.equipment));
-    } else {
-      // Auto-populate from contract's manpower & equipments
-      const filteredManpower = (controllerManpower || []).filter(m => m.contractId === contract.id);
-      const mpMap = new Map<string, number>();
-      filteredManpower.forEach(m => {
-        mpMap.set(m.role || 'Geral', (mpMap.get(m.role || 'Geral') || 0) + 1);
-      });
-      defaultManpower = Array.from(mpMap.entries()).map(([desc, qty]) => ({ description: desc, quantity: qty }));
-
-      const filteredEquipment = (controllerEquipments || []).filter(e => e.contractId === contract.id);
-      const eqMapInit = new Map<string, number>();
-      filteredEquipment.forEach(e => {
-        eqMapInit.set(e.type || 'Equipamento', (eqMapInit.get(e.type || 'Equipamento') || 0) + 1);
-      });
-      defaultEquipment = Array.from(eqMapInit.entries()).map(([desc, qty]) => ({ description: desc, quantity: qty }));
-    }
-
-    onAdd({
-      contractId: contract.id,
-      date: today,
-      weatherMorning: 'Bom',
-      weatherAfternoon: 'Bom',
-      weatherNight: 'Bom',
-      rainfallMm: 0,
-      manpower: defaultManpower,
-      equipment: defaultEquipment,
-      activities: [],
-      accidents: '',
-      photos: []
-    });
-  };
-
-  const handleUpdateActivity = (reportId: string, activityId: string, field: string, value: any) => {
-    const report = reports.find(r => r.id === reportId);
-    if (!report) return;
-    const newActivities = report.activities.map(a => 
-      a.id === activityId ? { ...a, [field]: value } : a
-    );
-    onUpdate({ ...report, activities: newActivities });
-  };
-
-  const handleUpdateActivityDate = (reportId: string, activityId: string, newDate: string) => {
-    if (!newDate || !onMoveActivity) return;
-    onMoveActivity(activityId, reportId, newDate, contract.id);
-  };
-
-  const handleUpdateManpower = (updatedManpower: any[]) => {
-    if (!selectedReport) return;
-    onUpdate({ ...selectedReport, manpower: updatedManpower });
-    
-    // Cascade to subsequent dates
-    const subsequentReports = reports.filter(r => r.contractId === contract.id && r.date > selectedReport.date);
-    subsequentReports.forEach(r => {
-      onUpdate({ ...r, manpower: updatedManpower });
-    });
-  };
-
-  const handleUpdateEquipment = (updatedEquipment: any[]) => {
-    if (!selectedReport) return;
-    onUpdate({ ...selectedReport, equipment: updatedEquipment });
-    
-    // Cascade to subsequent dates
-    const subsequentReports = reports.filter(r => r.contractId === contract.id && r.date > selectedReport.date);
-    subsequentReports.forEach(r => {
-      onUpdate({ ...r, equipment: updatedEquipment });
-    });
-  };
-
-  const generateRdoPdf = async (report: DailyReport) => {
-    const doc = new jsPDF() as any;
-    const pluviometry = pluviometryRecords.find(p => p.date === report.date);
-    
-    // Dimensions and Frame
-    const pageWidth = doc.internal.pageSize.width;
-    const margin = 10;
-    const contentWidth = pageWidth - (margin * 2);
-
-    doc.setDrawColor(200);
-    doc.setLineWidth(0.1);
-    doc.rect(margin - 2, margin - 2, contentWidth + 4, doc.internal.pageSize.height - (margin * 2) + 4);
-
-    // Header Structure
-    doc.setFillColor(30, 58, 138); 
-    doc.rect(margin, margin, contentWidth, 10, 'F');
-    
-    // Logos logic
-    const mode = logoMode || 'left';
-    const showLeft = (mode === 'left' || mode === 'both') && companyLogo;
-    const showRight = (mode === 'right' || mode === 'both') && companyLogoRight;
-
-    if (showLeft) {
-      try {
-        const props = doc.getImageProperties(companyLogo!);
-        const ratio = props.width / props.height;
-        let w = 8, h = 8 / ratio;
-        if (h > 8) { h = 8; w = 8 * ratio; }
-        doc.addImage(companyLogo!, 'PNG', margin + 1, margin + 1 + (8 - h) / 2, w, h);
-      } catch (e) { console.error(e); }
-    }
-    
-    if (showRight) {
-      try {
-        const props = doc.getImageProperties(companyLogoRight!);
-        const ratio = props.width / props.height;
-        let w = 8, h = 8 / ratio;
-        if (h > 8) { h = 8; w = 8 * ratio; }
-        doc.addImage(companyLogoRight!, 'PNG', pageWidth - margin - 1 - w, margin + 1 + (8 - h) / 2, w, h);
-      } catch (e) { console.error(e); }
-    }
-
-    doc.setTextColor(255);
-    doc.setFontSize(10);
-    doc.setFont('helvetica', 'bold');
-    doc.text('RELATÓRIO DIÁRIO DE OCORRÊNCIAS - RDO', pageWidth / 2, margin + 7, { align: 'center' });
-    
-    doc.setTextColor(0);
-    
-    const headerData = [
-      ['Nº DO RDO:', `RDO-${reports.indexOf(report) + 1}`, 'DATA DO REGISTRO:', new Date(report.date + 'T12:00:00').toLocaleDateString('pt-BR')],
-      ['CONTRATO:', contract.contractNumber, 'CONTRATANTE:', contract.client || 'N/A'],
-      ['OBJETO:', contract.object, 'CONTRATADA:', contract.contractor || 'CONTRATADA']
-    ];
-
-    autoTable(doc, {
-      startY: margin + 11,
-      body: headerData,
-      theme: 'grid',
-      styles: { fontSize: 6.5, cellPadding: 1.2, fontStyle: 'bold', textColor: [60,60,60] },
-      columnStyles: { 
-        0: { cellWidth: 25, fillColor: [248, 250, 252] }, 
-        1: { cellWidth: 70 },
-        2: { cellWidth: 30, fillColor: [248, 250, 252] },
-        3: { cellWidth: 'auto' }
-      }
-    });
-
-    // Helper for Section Titles
-    const sectionHeader = (title: string, startY: number) => {
-      doc.setFillColor(241, 245, 249);
-      doc.rect(margin, startY, contentWidth, 5, 'F');
-      doc.setFontSize(7.5);
-      doc.setFont('helvetica', 'bold');
-      doc.setTextColor(30, 58, 138);
-      doc.text(title, margin + 2, startY + 3.8);
-      doc.setTextColor(0);
-      return startY + 5;
-    };
-    
-    // Config values
-    const morning = pluviometry?.morningStatus || report.weatherMorning;
-    const afternoon = pluviometry?.afternoonStatus || report.weatherAfternoon;
-    const night = pluviometry?.nightStatus || report.weatherNight;
-    const rain = pluviometry?.rainfallMm || report.rainfallMm;
-
-    let currentY = (doc as any).lastAutoTable.finalY + 3;
-    currentY = sectionHeader('1. CONDIÇÕES CLIMÁTICAS (PLUVIOMETRIA)', currentY);
-
-    autoTable(doc, {
-        startY: currentY,
-        head: [['Noite Ant.', 'Manhã', 'Tarde', 'Índice (mm)']],
-        body: [[night, morning, afternoon, `${rain} mm`]],
-        theme: 'grid',
-        headStyles: { fillColor: [71, 85, 105], textColor: [255, 255, 255], fontStyle: 'bold', halign: 'center', fontSize: 6.5, cellPadding: 1.2 },
-        styles: { halign: 'center', fontSize: 6.5, cellPadding: 1.2, textColor: [50,50,50] }
-    });
-
-    currentY = (doc as any).lastAutoTable.finalY + 3;
-    currentY = sectionHeader('2. EFETIVO', currentY);
-
-    const mpMap = new Map<string, number>();
-    report.manpower.forEach(m => mpMap.set(m.description.toUpperCase(), (mpMap.get(m.description.toUpperCase()) || 0) + m.quantity));
-    const manpowerArr = Array.from(mpMap.entries());
-
-    const mpBody = [];
-    for (let i = 0; i < 14; i++) {
-        const item1 = manpowerArr[i];
-        const item2 = manpowerArr[i + 14];
-        mpBody.push([
-            item1 ? item1[0] : '', item1 ? item1[1] : '-',
-            item2 ? item2[0] : '', item2 ? item2[1] : '-'
-        ]);
-    }
-    
-    autoTable(doc, {
-        startY: currentY,
-        head: [['DESCRIÇÃO', 'QTDE', 'DESCRIÇÃO', 'QTDE']],
-        body: mpBody,
-        theme: 'grid',
-        headStyles: { fillColor: [22, 163, 74], textColor: [255, 255, 255], fontSize: 6.5, cellPadding: 1 },
-        styles: { fontSize: 6, cellPadding: 1, minCellHeight: 4, textColor: [50,50,50] },
-        columnStyles: { 
-            0: { cellWidth: (contentWidth / 2) - 15 },
-            1: { cellWidth: 15, halign: 'center' },
-            2: { cellWidth: (contentWidth / 2) - 15 },
-            3: { cellWidth: 15, halign: 'center' }
-        },
-        margin: { left: margin, right: margin }
-    });
-
-    currentY = (doc as any).lastAutoTable.finalY + 3;
-    currentY = sectionHeader('3. EQUIPAMENTOS', currentY);
-
-    const eqMap = new Map<string, number>();
-    report.equipment.forEach(e => eqMap.set(e.description.toUpperCase(), (eqMap.get(e.description.toUpperCase()) || 0) + e.quantity));
-    const eqArr = Array.from(eqMap.entries());
-
-    const eqBody = [];
-    for (let i = 0; i < 14; i++) {
-        const item1 = eqArr[i];
-        const item2 = eqArr[i + 14];
-        eqBody.push([
-            item1 ? item1[0] : '', item1 ? item1[1] : '-',
-            item2 ? item2[0] : '', item2 ? item2[1] : '-'
-        ]);
-    }
-
-    autoTable(doc, {
-        startY: currentY,
-        head: [['DESCRIÇÃO', 'QTDE', 'DESCRIÇÃO', 'QTDE']],
-        body: eqBody,
-        theme: 'grid',
-        headStyles: { fillColor: [234, 88, 12], textColor: [255, 255, 255], fontSize: 6.5, cellPadding: 1 },
-        styles: { fontSize: 6, cellPadding: 1, minCellHeight: 4, textColor: [50,50,50] },
-        columnStyles: { 
-            0: { cellWidth: (contentWidth / 2) - 15 },
-            1: { cellWidth: 15, halign: 'center' },
-            2: { cellWidth: (contentWidth / 2) - 15 },
-            3: { cellWidth: 15, halign: 'center' }
-        },
-        margin: { left: margin, right: margin }
-    });
-
-    currentY = (doc as any).lastAutoTable.finalY + 3;
-    currentY = sectionHeader('4. ATIVIDADES EXECUTADAS E PROGRESSO', currentY);
-
-    const activitiesBody = report.activities.map(a => [a.code || '-', a.description, a.type]);
-    autoTable(doc, {
-        startY: currentY,
-        head: [['CÓD.', 'DESCRIÇÃO DA ATIVIDADE', 'TIPO / CATEGORIA']],
-        body: activitiesBody.length > 0 ? activitiesBody : [['-', 'Nenhum registro de atividade para este dia.', '-']],
-        theme: 'grid',
-        headStyles: { fillColor: [15, 23, 42], textColor: [255, 255, 255], fontSize: 6.5, cellPadding: 1.2 },
-        styles: { fontSize: 6.5, cellPadding: 1.2 },
-        columnStyles: { 0: { cellWidth: 15 }, 1: { cellWidth: 'auto' }, 2: { cellWidth: 35 } }
-    });
-
-    currentY = (doc as any).lastAutoTable.finalY + 3;
-
-    if (report.accidents) {
-        currentY = sectionHeader('5. OCORRÊNCIAS E ACIDENTES', currentY);
-        autoTable(doc, {
-          startY: currentY,
-          body: [[report.accidents]],
-          theme: 'grid',
-          styles: { minCellHeight: 12, fontSize: 6.5, cellPadding: 1.2, textColor: [220, 38, 38] }
-        });
-        currentY = (doc as any).lastAutoTable.finalY + 3;
-    }
-
-    if (report.fiscalizationComments) {
-        currentY = sectionHeader('6. COMENTÁRIOS DA FISCALIZAÇÃO', currentY);
-        autoTable(doc, {
-          startY: currentY,
-          body: [[report.fiscalizationComments]],
-          theme: 'grid',
-          styles: { minCellHeight: 12, fontSize: 6.5, cellPadding: 1.2, fontStyle: 'italic' }
-        });
-        currentY = (doc as any).lastAutoTable.finalY + 3;
-    }
-
-    const pageHeight = doc.internal.pageSize.height;
-    if (currentY > pageHeight - 35) doc.addPage();
-    
-    currentY = Math.max(currentY + 5, pageHeight - 35);
-
-    doc.setDrawColor(200);
-    doc.setFillColor(248, 250, 252);
-    doc.rect(margin, currentY, contentWidth / 2 - 2, 25, 'FD');
-    doc.rect(pageWidth / 2 + 2, currentY, contentWidth / 2 - 2, 25, 'FD');
-
-    doc.line(margin + 5, currentY + 18, (margin + contentWidth / 2) - 10, currentY + 18);
-    doc.line(pageWidth / 2 + 7, currentY + 18, pageWidth - margin - 5, currentY + 18);
-    
-    doc.setFontSize(7);
-    doc.setTextColor(30, 41, 59);
-    doc.setFont('helvetica', 'bold');
-    doc.text('ENGENHEIRO DA OBRA', margin + contentWidth / 4, currentY + 22, { align: 'center' });
-    doc.text('FISCALIZAÇÃO', (pageWidth / 2) + (contentWidth / 4), currentY + 22, { align: 'center' });
-    
-    doc.setFontSize(5.5);
-    doc.setTextColor(148, 163, 184);
-    doc.setFont('helvetica', 'normal');
-    doc.text('Assinatura e Carimbo', margin + contentWidth / 4, currentY + 16, { align: 'center' });
-    doc.text('Assinatura e Carimbo', (pageWidth / 2) + (contentWidth / 4), currentY + 16, { align: 'center' });
-
-    // Append Photos Page
-    if (report.photos && report.photos.length > 0) {
-      doc.addPage();
-      
-      doc.setDrawColor(200);
-      doc.setLineWidth(0.1);
-      doc.rect(margin - 2, margin - 2, contentWidth + 4, doc.internal.pageSize.height - (margin * 2) + 4);
-  
-      doc.setFillColor(30, 58, 138); 
-      doc.rect(margin, margin, contentWidth, 10, 'F');
-      
-      doc.setTextColor(255);
-      doc.setFontSize(10);
-      doc.setFont('helvetica', 'bold');
-      doc.text('REGISTRO FOTOGRÁFICO', pageWidth / 2, margin + 7, { align: 'center' });
-      
-      let imgY = margin + 15;
-      for (const p of report.photos) {
-        const url = typeof p === 'string' ? p : p.url;
-        const desc = typeof p === 'string' ? '' : (p.description || '');
-        if (imgY + 90 > doc.internal.pageSize.height - margin) {
-          doc.addPage();
-          imgY = margin + 15;
-        }
-        try {
-          const loadedImg = await new Promise<HTMLImageElement>((resolve, reject) => {
-            const img = new window.Image();
-            img.crossOrigin = "Anonymous";
-            img.onload = () => resolve(img);
-            img.onerror = reject;
-            img.src = url;
-          });
-          
-          const canvas = document.createElement('canvas');
-          canvas.width = loadedImg.width;
-          canvas.height = loadedImg.height;
-          const ctx = canvas.getContext('2d');
-          if(ctx) {
-            ctx.drawImage(loadedImg, 0, 0);
-            const b64 = canvas.toDataURL('image/jpeg', 0.8);
-            
-            const props = doc.getImageProperties(b64);
-            const ratio = props.width / props.height;
-            let imgW = contentWidth * 0.8;
-            let imgH = imgW / ratio;
-            if (imgH > 80) {
-              imgH = 80;
-              imgW = imgH * ratio;
-            }
-            doc.addImage(b64, 'JPEG', margin + (contentWidth - imgW) / 2, imgY, imgW, imgH);
-            imgY += imgH + 2;
-            if (desc) {
-              doc.setFontSize(8);
-              doc.setTextColor(100);
-              doc.text(desc, pageWidth / 2, imgY + 2, { align: 'center', maxWidth: contentWidth * 0.8 });
-              const lines = doc.splitTextToSize(desc, contentWidth * 0.8);
-              imgY += (lines.length * 4) + 6;
-            } else {
-              imgY += 8;
-            }
-          }
-        } catch(e) {
-             console.error("Photo error", e);
-        }
-      }
-    }
-
-    return doc;
-  };
-
-  const handleExportPDF = async (report: DailyReport) => {
-    const doc = await generateRdoPdf(report);
-    doc.save(`RDO_${contract.contractNumber}_${report.date}.pdf`);
-  };
-
-  const handlePrintRDO = async (report: DailyReport) => {
-    try {
-      const doc = await generateRdoPdf(report);
-      doc.autoPrint();
-      const pdfBlob = doc.output('blob');
-      const pdfUrl = URL.createObjectURL(pdfBlob);
-      
-      let printed = false;
-      try {
-        const printWindow = window.open(pdfUrl);
-        if (printWindow) {
-          printed = true;
-        }
-      } catch (err) {
-        console.warn("window.open blocked or failed", err);
-      }
-      
-      if (!printed) {
-        console.warn("Falling back to download due to popup blocker.");
-        const link = document.createElement('a');
-        link.href = pdfUrl;
-        link.download = `RDO_${contract.contractNumber}_${report.date}_print.pdf`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-      }
-      setTimeout(() => URL.revokeObjectURL(pdfUrl), 30000);
-    } catch (e) {
-      console.error("Error generating or printing PDF", e);
-    }
-  };
-
-  const handleExportExcel = async (report: DailyReport) => {
-    const workbook = new ExcelJS.Workbook();
-    const worksheet = workbook.addWorksheet('RDO');
-    const pluviometry = pluviometryRecords.find(p => p.date === report.date);
-
-    // Title
-    worksheet.mergeCells('A1:D1');
-    const titleCell = worksheet.getCell('A1');
-    titleCell.value = 'RELATÓRIO DIÁRIO DE OCORRÊNCIAS - RDO';
-    titleCell.font = { bold: true, size: 12, color: { argb: 'FFFFFFFF' } };
-    titleCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1E3A8A' } };
-    titleCell.alignment = { horizontal: 'center', vertical: 'middle' };
-
-    // Info
-    worksheet.addRow(['Data:', new Date(report.date + 'T12:00:00').toLocaleDateString('pt-BR'), 'RDO Nº:', reports.indexOf(report) + 1]);
-    worksheet.addRow(['Contrato:', contract.contractNumber, 'Obra:', contract.object]);
-    
-    // Style Info block
-    [2, 3].forEach(rowNum => {
-      const row = worksheet.getRow(rowNum);
-      row.font = { size: 9 };
-      row.getCell(1).font = { bold: true };
-      row.getCell(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8FAFC' } };
-      row.getCell(3).font = { bold: true };
-      row.getCell(3).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8FAFC' } };
-    });
-
-    // Helper for Section Titles
-    const addSectionHeader = (title: string, color: string, textColor = 'FFFFFFFF') => {
-      const row = worksheet.addRow([title]);
-      worksheet.mergeCells(`A${row.number}:D${row.number}`);
-      row.font = { bold: true, size: 10, color: { argb: textColor } };
-      row.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: color } };
-    };
-
-    // Weather
-    addSectionHeader('1. CONDIÇÕES CLIMÁTICAS (PLUVIOMETRIA)', 'FF475569');
-    const headWeather = worksheet.addRow(['Noite Anterior', 'Manhã', 'Tarde', 'Precipitação (mm)']);
-    headWeather.font = { bold: true, size: 9 };
-    headWeather.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF1F5F9' } };
-    
-    worksheet.addRow([
-      pluviometry?.nightStatus || report.weatherNight,
-      pluviometry?.morningStatus || report.weatherMorning,
-      pluviometry?.afternoonStatus || report.weatherAfternoon,
-      (pluviometry?.rainfallMm || report.rainfallMm) + ' mm'
-    ]).font = { size: 9 };
-
-    // Manpower and Equipment
-    addSectionHeader('2. EFETIVO', 'FF16A34A');
-    
-    const headMp = worksheet.addRow(['Descrição', 'Quantidade', 'Descrição', 'Quantidade']);
-    headMp.font = { bold: true, size: 9 };
-    headMp.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF1F5F9' } };
-
-    const mpMap = new Map<string, number>();
-    report.manpower.forEach(m => mpMap.set(m.description.toUpperCase(), (mpMap.get(m.description.toUpperCase()) || 0) + m.quantity));
-    const manpowerArr = Array.from(mpMap.entries());
-
-    for (let i = 0; i < 14; i++) {
-       const item1 = manpowerArr[i];
-       const item2 = manpowerArr[i + 14];
-       worksheet.addRow([
-          item1 ? item1[0] : '', item1 ? item1[1] : '',
-          item2 ? item2[0] : '', item2 ? item2[1] : ''
-       ]).font = { size: 9 };
-    }
-    worksheet.addRow([]);
-
-    addSectionHeader('3. EQUIPAMENTOS', 'FFEA580C');
-    
-    const headEq = worksheet.addRow(['Descrição', 'Quantidade', 'Descrição', 'Quantidade']);
-    headEq.font = { bold: true, size: 9 };
-    headEq.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF1F5F9' } };
-
-    const eqMapExcel = new Map<string, number>();
-    report.equipment.forEach(e => eqMapExcel.set(e.description.toUpperCase(), (eqMapExcel.get(e.description.toUpperCase()) || 0) + e.quantity));
-    const eqArr = Array.from(eqMapExcel.entries());
-    
-    for (let i = 0; i < 14; i++) {
-       const item1 = eqArr[i];
-       const item2 = eqArr[i + 14];
-       worksheet.addRow([
-          item1 ? item1[0] : '', item1 ? item1[1] : '',
-          item2 ? item2[0] : '', item2 ? item2[1] : ''
-       ]).font = { size: 9 };
-    }
-
-    // Activities
-    addSectionHeader('4. ATIVIDADES EXECUTADAS E PROGRESSO', 'FF0F172A');
-    const headAct = worksheet.addRow(['Cód.', 'Atividade', 'Tipo']);
-    worksheet.mergeCells(`C${headAct.number}:D${headAct.number}`);
-    headAct.font = { bold: true, size: 9 };
-    headAct.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF1F5F9' } };
-    
-    if (report.activities.length === 0) {
-      const row = worksheet.addRow(['-', 'Nenhum registro de atividade.', '-']);
-      worksheet.mergeCells(`C${row.number}:D${row.number}`);
-      row.font = { size: 9 };
-    } else {
-      report.activities.forEach(a => {
-        const row = worksheet.addRow([a.code, a.description, a.type]);
-        worksheet.mergeCells(`C${row.number}:D${row.number}`);
-        row.font = { size: 9 };
-      });
-    }
-
-    // Occurrences
-    if (report.accidents) {
-      addSectionHeader('5. OCORRÊNCIAS E ACIDENTES', 'FFDC2626');
-      const row = worksheet.addRow([report.accidents]);
-      worksheet.mergeCells(`A${row.number}:D${row.number + 1}`);
-      row.font = { size: 9, color: { argb: 'FFDC2626' } };
-      worksheet.addRow([]);
-    }
-
-    // Fiscalization Comments
-    if (report.fiscalizationComments) {
-      addSectionHeader('6. COMENTÁRIOS DA FISCALIZAÇÃO', 'FF334155');
-      const row = worksheet.addRow([report.fiscalizationComments]);
-      worksheet.mergeCells(`A${row.number}:D${row.number + 1}`);
-      row.font = { italic: true, size: 9 };
-      worksheet.addRow([]);
-    }
-
-    worksheet.addRow([]);
-    
-    // Signatures
-    const sigRow = worksheet.addRow(['__________________________________', '', '__________________________________']);
-    worksheet.mergeCells(`A${sigRow.number}:B${sigRow.number}`);
-    worksheet.mergeCells(`C${sigRow.number}:D${sigRow.number}`);
-    sigRow.alignment = { horizontal: 'center' };
-    
-    const sigLabelRow = worksheet.addRow(['Engenheiro da Obra', '', 'Fiscalização']);
-    worksheet.mergeCells(`A${sigLabelRow.number}:B${sigLabelRow.number}`);
-    worksheet.mergeCells(`C${sigLabelRow.number}:D${sigLabelRow.number}`);
-    sigLabelRow.alignment = { horizontal: 'center' };
-    sigLabelRow.font = { size: 9, bold: true };
-
-    worksheet.columns = [
-      { width: 25 },
-      { width: 45 },
-      { width: 25 },
-      { width: 45 }
-    ];
-    
-    if (report.activities && report.activities.length > 0) {
-      addSectionHeader('4. ATIVIDADES', 'FF334155');
-      const headAct = worksheet.addRow(['Cód.', 'Atividade', 'Tipo']);
-      headAct.font = { bold: true, color: { argb: 'FFFFFFFF' } };
-      headAct.eachCell(cell => { cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF94A3B8' } }; });
-      report.activities.forEach(a => {
-        worksheet.addRow([a.code, a.description, a.type]);
-      });
-      worksheet.addRow([]);
-    }
-
-    const buffer = await workbook.xlsx.writeBuffer();
-    saveAs(new Blob([buffer]), `RDO-${report.date}.xlsx`);
-  };
-
-  return (
-    <div className="h-full flex flex-col gap-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-lg font-black uppercase tracking-wider text-gray-800">Diário de Obras (RDO)</h2>
-          <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">Gestão e Validação Diária</p>
-        </div>
-      </div>
-
-      <Tabs value={activeItem} onValueChange={v => setActiveItem(v as any)} className="w-full flex-1 flex flex-col min-h-0">
-        <TabsList className="mb-4 bg-gray-100 p-1 rounded-xl">
-          <TabsTrigger value="activities" className="flex items-center gap-2 rounded-lg font-black uppercase text-xs tracking-widest px-4 py-2">
-             Atividades
-          </TabsTrigger>
-          <TabsTrigger value="viewer" className="flex items-center gap-2 rounded-lg font-black uppercase text-xs tracking-widest px-4 py-2">
-             Diários
-          </TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="activities">
-          <Card className="overflow-hidden border border-gray-100 shadow-sm rounded-2xl flex-1 flex flex-col h-[calc(100vh-280px)]">
-            <Table>
-              <TableHeader className="bg-gray-50">
-                <TableRow>
-                  <TableHead className="w-24">Cód</TableHead>
-                  <TableHead>Descrição</TableHead>
-                  <TableHead className="w-32">Tipo</TableHead>
-                  {!readonly && <TableHead className="w-16"></TableHead>}
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {allActivities.map(a => (
-                  <TableRow key={a.id}>
-                    <TableCell className="p-2 font-mono text-xs">
-                      <div className="flex items-center gap-2">
-                        <Input 
-                          disabled={readonly}
-                          className="h-8 w-20 text-xs font-mono font-black text-blue-600 border-transparent hover:border-gray-200 focus:border-blue-500 transition-all"
-                          value={a.code || ''}
-                          onChange={e => handleUpdateActivity(a.reportId, a.id, 'code', e.target.value)}
-                        />
-                      </div>
-                    </TableCell>
-                    <TableCell className="p-2">
-                      <Input 
-                        disabled={readonly}
-                        className="h-8 text-sm border-transparent hover:border-gray-200 focus:border-blue-500 transition-all" 
-                        value={a.description}
-                        onChange={e => handleUpdateActivity(a.reportId, a.id, 'description', e.target.value)}
-                      />
-                    </TableCell>
-                    <TableCell className="p-2 border-l">
-                      <Select 
-                        disabled={readonly}
-                        value={a.type} 
-                        onValueChange={v => handleUpdateActivity(a.reportId, a.id, 'type', v)}
-                      >
-                        <SelectTrigger className="h-8 text-sm border-transparent"><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="Produção">Produção</SelectItem>
-                          <SelectItem value="Projeto">Projeto</SelectItem>
-                          <SelectItem value="Cronograma">Cronograma</SelectItem>
-                          <SelectItem value="Outros">Outros</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </TableCell>
-                    {!readonly && (
-                      <TableCell className="p-2 border-l text-center">
-                        <Button variant="ghost" size="xs" className="h-7 w-7 text-red-400 hover:text-red-600" onClick={() => {
-                          const report = reports.find(r => r.id === a.reportId);
-                          if (report) {
-                            onUpdate({
-                              ...report,
-                              activities: report.activities.filter(act => act.id !== a.id)
-                            });
-                          }
-                        }}>
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </Button>
-                      </TableCell>
-                    )}
-                  </TableRow>
-                ))}
-                {allActivities.length === 0 && (
-                  <TableRow>
-                    <TableCell colSpan={3} className="h-24 text-center text-gray-400 italic">
-                      Nenhuma atividade registrada. Crie um RDO para começar.
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="viewer">
-          <div className="grid grid-cols-12 gap-6">
-            {/* Sidebar Histórico */}
-            <div className="col-span-12 lg:col-span-3">
-              <Card className="h-[calc(100vh-360px)] flex flex-col border border-gray-100 shadow-sm rounded-2xl overflow-hidden">
-                <CardHeader className="p-4 border-b shrink-0 bg-gray-50/50">
-                  <CardTitle className="text-sm font-black uppercase tracking-wider text-gray-800 flex items-center gap-2">
-                    <Calendar className="w-4 h-4 text-blue-600" /> Histórico de Dias
-                  </CardTitle>
-                </CardHeader>
-                <div className="flex-1 min-h-0">
-                  <ScrollArea className="h-full">
-                    <div className="p-2 space-y-2">
-                    {monthKeys.map(monthKey => {
-                      const isExpanded = expandedMonths.includes(monthKey);
-                      const monthReports = groupedReports[monthKey];
-                      
-                      return (
-                        <div key={monthKey} className="space-y-1">
-                          <button
-                            onClick={() => toggleMonth(monthKey)}
-                            className="w-full flex items-center justify-between p-2 rounded-xl hover:bg-gray-100 transition-colors group"
-                          >
-                            <span className="text-xs font-black text-gray-500 uppercase tracking-widest">{getMonthLabel(monthKey)}</span>
-                            <div className="flex items-center gap-1.5">
-                              <Badge variant="secondary" className="h-5 text-[10px] font-black rounded-md">{monthReports.length}</Badge>
-                              {isExpanded ? <ChevronDown className="w-3.5 h-3.5 text-gray-400" /> : <ChevronRight className="w-3.5 h-3.5 text-gray-400" />}
-                            </div>
-                          </button>
-                          
-                          {isExpanded && (
-                            <div className="pl-2 space-y-1.5 border-l border-gray-200 ml-1">
-                              {monthReports.map((r) => {
-                                const reportIdx = reports.findIndex(rep => rep.id === r.id);
-                                const pluvi = pluviometryRecords.find(p => p.date === r.date);
-                                const isImp = pluvi?.morningStatus === 'Impraticável' || pluvi?.afternoonStatus === 'Impraticável' || r.weatherMorning === 'Impraticável' || r.weatherAfternoon === 'Impraticável';
-                                const isRain = pluvi?.morningStatus === 'Chuvoso' || pluvi?.afternoonStatus === 'Chuvoso' || r.weatherMorning === 'Chuvoso' || r.weatherAfternoon === 'Chuvoso';
-                                const weatherEmoji = isImp ? '🛑' : isRain ? '🌧️' : '☀️';
-
-                                return (
-                                  <button
-                                    key={r.id}
-                                    onClick={() => setSelectedReportId(r.id)}
-                                    className={cn(
-                                      "w-full text-left p-3 rounded-xl transition-all border",
-                                      selectedReportId === r.id 
-                                        ? "bg-blue-600 border-blue-600 shadow-md shadow-blue-100 text-white"
-                                        : "border-gray-50 bg-white hover:bg-gray-50/80 text-gray-800"
-                                    )}
-                                  >
-                                    <div className="flex justify-between items-start mb-0.5">
-                                      <div className="flex items-center gap-1">
-                                        <span className="text-[10px] font-bold opacity-75">{weatherEmoji}</span>
-                                        <span className={cn("font-black text-xs tracking-wider uppercase", selectedReportId === r.id ? "text-white" : "text-blue-900")}>
-                                          RDO #{reportIdx + 1}
-                                        </span>
-                                      </div>
-                                      <span className={cn("text-[10px] font-bold uppercase tracking-wider", selectedReportId === r.id ? "text-blue-100" : "text-gray-400")}>
-                                        {new Date(r.date + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}
-                                      </span>
-                                    </div>
-                                    <div className="flex justify-between items-center text-[10px] font-bold opacity-80">
-                                      <span className="capitalize">{new Date(r.date + 'T12:00:00').toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.', '')}</span>
-                                      <span>{r.activities.length} Ativ. • {pluvi?.rainfallMm || r.rainfallMm}mm</span>
-                                    </div>
-                                  </button>
-                                );
-                              })}
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                    {monthKeys.length === 0 && (
-                      <div className="p-8 text-center text-gray-400">
-                        <Calendar className="w-8 h-8 mx-auto mb-2 opacity-20" />
-                        <p className="text-sm font-bold uppercase tracking-wider text-gray-300">Nenhum RDO Criado</p>
-                      </div>
-                    )}
-                  </div>
-                  </ScrollArea>
-                </div>
-              </Card>
-            </div>
-
-            {/* Selected RDO Details Viewer Panel */}
-            <div className="col-span-12 lg:col-span-9">
-              {selectedReport ? (
-                <div className="space-y-6">
-                  {/* Modern Header Banner */}
-                  <Card className="border border-gray-100 shadow-sm rounded-2xl overflow-hidden bg-gradient-to-r from-gray-50 to-white">
-                    <div className="p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                      <div>
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="bg-blue-100 text-blue-900 text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md">
-                            DIÁRIO OFICIAL DE OBRA
-                          </span>
-                          <span className="bg-gray-100 text-gray-800 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md">
-                            RDO #{reports.findIndex(rep => rep.id === selectedReport.id) + 1}
-                          </span>
-                        </div>
-                        <h3 className="text-xl font-black text-gray-950 uppercase tracking-tight flex items-center gap-2">
-                          Relatório Diário de Ocorrências
-                        </h3>
-                        <p className="text-xs text-gray-500 font-bold uppercase tracking-wider">
-                          {new Date(selectedReport.date + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })} 
-                          <span className="mx-1 text-gray-300">•</span>
-                          <span className="text-blue-600 capitalize font-black">{new Date(selectedReport.date + 'T12:00:00').toLocaleDateString('pt-BR', { weekday: 'long' })}</span>
-                        </p>
-                      </div>
-                      <div className="flex gap-2 self-end sm:self-auto items-center">
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="outline" size="sm" className="font-extrabold uppercase text-[10px] tracking-widest bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100 flex items-center gap-1.5">
-                              <Download className="w-3.5 h-3.5" /> EXPORTAR
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end" className="w-40 border border-slate-200 shadow-xl rounded-xl bg-white p-1 z-50">
-                            <DropdownMenuItem 
-                              onClick={() => handleExportPDF(selectedReport)} 
-                              className="flex items-center gap-2 text-xs font-bold text-slate-700 cursor-pointer hover:bg-slate-50 rounded-lg p-2"
-                            >
-                              <FileText className="w-4 h-4 text-red-500" />
-                              PDF
-                            </DropdownMenuItem>
-                            <DropdownMenuItem 
-                              onClick={() => handleExportExcel(selectedReport)} 
-                              className="flex items-center gap-2 text-xs font-bold text-slate-700 cursor-pointer hover:bg-slate-50 rounded-lg p-2"
-                            >
-                              <FileSpreadsheet className="w-4 h-4 text-emerald-500" />
-                              Excel
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-
-                        <Button 
-                          variant="outline" 
-                          size="sm" 
-                          onClick={() => handlePrintRDO(selectedReport)} 
-                          className="font-extrabold uppercase text-[10px] tracking-widest bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-100 flex items-center gap-1.5"
-                        >
-                          <Printer className="w-3.5 h-3.5" /> IMPRIMIR
-                        </Button>
-                        {!readonly && (
-                          <Button 
-                            variant="destructive" 
-                            size="sm" 
-                            onClick={() => onDelete(selectedReport.id)} 
-                            className="font-extrabold uppercase text-[10px] tracking-widest flex items-center gap-1.5"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" /> EXCLUIR RDO
-                          </Button>
-                        )}
                       </div>
                     </div>
                   </Card>
@@ -1606,51 +594,8 @@ interface PluviometryViewProps {
 export function PluviometryView({ contract, records, onAdd, onUpdate, readonly }: PluviometryViewProps) {
   const [currentMonth, setCurrentMonth] = useState(new Date().getMonth());
   const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
-  const [activeTab, setActiveTab] = useState<'calendar' | 'chart'>('calendar');
+  const [activeTab, setActiveTab] = useState<'table' | 'chart'>('table');
   const [hoveredDay, setHoveredDay] = useState<number | null>(null);
-
-  // Modal State for Double-Click editing
-  const [selectedDayForModal, setSelectedDayForModal] = useState<number | null>(null);
-  const [modalNightStatus, setModalNightStatus] = useState<'Bom' | 'Chuvoso' | 'Impraticável'>('Bom');
-  const [modalMorningStatus, setModalMorningStatus] = useState<'Bom' | 'Chuvoso' | 'Impraticável'>('Bom');
-  const [modalAfternoonStatus, setModalAfternoonStatus] = useState<'Bom' | 'Chuvoso' | 'Impraticável'>('Bom');
-  const [modalRainfallMm, setModalRainfallMm] = useState<number>(0);
-
-  const handleOpenModal = (day: number) => {
-    setSelectedDayForModal(day);
-    const rec = getRecordForDay(day);
-    setModalNightStatus(rec?.nightStatus || 'Bom');
-    setModalMorningStatus(rec?.morningStatus || 'Bom');
-    setModalAfternoonStatus(rec?.afternoonStatus || 'Bom');
-    setModalRainfallMm(rec?.rainfallMm || 0);
-  };
-
-  const handleSaveModal = () => {
-    if (selectedDayForModal === null || readonly) return;
-    const day = selectedDayForModal;
-    const dStr = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-    const existing = records.find(r => r.date === dStr);
-
-    if (existing) {
-      onUpdate({
-        ...existing,
-        nightStatus: modalNightStatus,
-        morningStatus: modalMorningStatus,
-        afternoonStatus: modalAfternoonStatus,
-        rainfallMm: modalRainfallMm,
-      });
-    } else {
-      onAdd({
-        contractId: contract.id,
-        date: dStr,
-        nightStatus: modalNightStatus,
-        morningStatus: modalMorningStatus,
-        afternoonStatus: modalAfternoonStatus,
-        rainfallMm: modalRainfallMm,
-      });
-    }
-    setSelectedDayForModal(null);
-  };
 
   const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
   const monthDays = Array.from({ length: daysInMonth }, (_, i) => i + 1);
@@ -1680,7 +625,7 @@ export function PluviometryView({ contract, records, onAdd, onUpdate, readonly }
     }
   };
 
-  const getPluviometryHTMLReport = () => {
+  const handlePrintPluviometry = () => {
     const mNames = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
     const filterMonthText = `${mNames[currentMonth]} / ${currentYear}`;
     
@@ -1694,163 +639,155 @@ export function PluviometryView({ contract, records, onAdd, onUpdate, readonly }
       else if (rec?.morningStatus === 'Bom' && rec?.afternoonStatus === 'Bom') bDays++;
     });
 
-    const firstDayOfWeek = new Date(currentYear, currentMonth, 1).getDay();
-
-    let leadingCellsHtml = '';
-    for (let i = 0; i < firstDayOfWeek; i++) {
-      leadingCellsHtml += `<div style="background: #f8fafc; border: 1px dashed #e2e8f0; border-radius: 6px; min-height: 64px; opacity: 0.35;"></div>`;
-    }
-
-    const todayDate = new Date();
-
-    const dayCellsHtml = monthDays.map(day => {
+    const rowsHtml = monthDays.map(day => {
       const rec = getRecordForDay(day);
-      const night = rec?.nightStatus || 'Bom';
-      const morning = rec?.morningStatus || 'Bom';
-      const afternoon = rec?.afternoonStatus || 'Bom';
-      const rainfall = rec?.rainfallMm || 0;
+      const isRainy = (rec?.morningStatus === 'Chuvoso' || rec?.afternoonStatus === 'Chuvoso');
+      const isImpraticable = (rec?.morningStatus === 'Impraticável' || rec?.afternoonStatus === 'Impraticável');
+      const rowBg = isImpraticable ? '#fef2f2' : isRainy ? '#f0f9ff' : 'white';
+      const dayOfWeek = (() => {
+        const date = new Date(currentYear, currentMonth, day, 12);
+        return date.toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.', '').toUpperCase();
+      })();
 
-      const isImpraticable = morning === 'Impraticável' || afternoon === 'Impraticável';
-      const isRainy = morning === 'Chuvoso' || afternoon === 'Chuvoso' || night === 'Chuvoso' || rainfall > 0;
-      const dayOfWeek = new Date(currentYear, currentMonth, day).getDay();
-      const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
-      const isToday = day === todayDate.getDate() && currentMonth === todayDate.getMonth() && currentYear === todayDate.getFullYear();
-
-      let cellBg = 'white';
-      let borderColor = isToday ? '#2563eb' : '#cbd5e1';
-      let badgeHtml = '<span style="background: #ecfdf5; color: #047857; border: 1px solid #a7f3d0; padding: 2px 5px; border-radius: 4px; font-size: 8px; font-weight: bold; text-transform: uppercase;">☀️ Produtivo</span>';
-
-      if (isImpraticable) {
-        cellBg = '#fef2f2';
-        borderColor = isToday ? '#2563eb' : '#fca5a5';
-        badgeHtml = '<span style="background: #dc2626; color: white; padding: 2px 5px; border-radius: 4px; font-size: 8px; font-weight: bold; text-transform: uppercase;">🛑 Impraticável</span>';
-      } else if (isRainy) {
-        cellBg = '#eff6ff';
-        borderColor = isToday ? '#2563eb' : '#93c5fd';
-        badgeHtml = '<span style="background: #dbeafe; color: #1e40af; border: 1px solid #93c5fd; padding: 2px 5px; border-radius: 4px; font-size: 8px; font-weight: bold; text-transform: uppercase;">🌧️ Sob Chuva</span>';
-      } else if (isWeekend) {
-        cellBg = '#f8fafc';
-        borderColor = isToday ? '#2563eb' : '#e2e8f0';
-        badgeHtml = '<span style="color: #94a3b8; font-size: 8px; font-weight: bold; text-transform: uppercase;">Fim de Semana</span>';
-      }
-
-      const getEmoji = (st: string) => st === 'Bom' ? '☀️' : st === 'Chuvoso' ? '🌧️' : '🛑';
+      const getStatusBadgeHtml = (status?: string) => {
+        if (status === 'Chuvoso') return `<span style="background: #3b82f6; color: white; padding: 2px 6px; border-radius: 4px; font-size: 9px; font-weight: bold; text-transform: uppercase;">Chuvoso</span>`;
+        if (status === 'Impraticável') return `<span style="background: #dc2626; color: white; padding: 2px 6px; border-radius: 4px; font-size: 9px; font-weight: bold; text-transform: uppercase;">Impraticável</span>`;
+        return `<span style="background: #eab308; color: white; padding: 2px 6px; border-radius: 4px; font-size: 9px; font-weight: bold; text-transform: uppercase;">Bom</span>`;
+      };
 
       return `
-        <div style="background-color: ${cellBg}; border: ${isToday ? '2px' : '1px'} solid ${borderColor}; border-radius: 6px; padding: 5px; min-height: 64px; display: flex; flex-direction: column; justify-content: space-between; box-sizing: border-box; ${isToday ? 'background: #f0f7ff;' : ''}">
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2px;">
-            <div style="display: flex; align-items: center; gap: 4px;">
-              <span style="font-weight: 900; font-family: monospace; font-size: 11px; color: ${isToday ? '#2563eb' : '#0f172a'};">${String(day).padStart(2, '0')}</span>
-            </div>
-            ${badgeHtml}
-          </div>
-          <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 2px; text-align: center; background: rgba(255,255,255,0.9); padding: 3px; border-radius: 4px; border: 1px solid rgba(0,0,0,0.06); margin: 2px 0;">
-            <div><div style="font-size: 6px; font-weight: 800; color: #64748b; text-transform: uppercase;">NOITE</div><div style="font-size: 10px;">${getEmoji(night)}</div></div>
-            <div style="border-left: 1px solid #e2e8f0; border-right: 1px solid #e2e8f0;"><div style="font-size: 6px; font-weight: 800; color: #64748b; text-transform: uppercase;">MANHÃ</div><div style="font-size: 10px;">${getEmoji(morning)}</div></div>
-            <div><div style="font-size: 6px; font-weight: 800; color: #64748b; text-transform: uppercase;">TARDE</div><div style="font-size: 10px;">${getEmoji(afternoon)}</div></div>
-          </div>
-          <div style="display: flex; justify-content: space-between; align-items: center; font-size: 8px; font-weight: 800;">
-            ${rainfall > 0 ? `<span style="background: #dbeafe; color: #1e40af; padding: 1px 4px; border-radius: 3px; font-family: monospace; font-weight: bold;">🌧️ ${rainfall.toFixed(1)} mm</span>` : `<span style="color: #94a3b8; font-size: 8px;">0.0 mm</span>`}
-          </div>
-        </div>
+        <tr style="background-color: ${rowBg};">
+          <td style="padding: 6px; border: 1px solid #cbd5e1; text-align: center; font-weight: bold; font-family: monospace;">${String(day).padStart(2, '0')} (${dayOfWeek})</td>
+          <td style="padding: 6px; border: 1px solid #cbd5e1; text-align: center;">${getStatusBadgeHtml(rec?.nightStatus)}</td>
+          <td style="padding: 6px; border: 1px solid #cbd5e1; text-align: center;">${getStatusBadgeHtml(rec?.morningStatus)}</td>
+          <td style="padding: 6px; border: 1px solid #cbd5e1; text-align: center;">${getStatusBadgeHtml(rec?.afternoonStatus)}</td>
+          <td style="padding: 6px; border: 1px solid #cbd5e1; text-align: center; font-weight: bold; font-family: monospace; color: #1d4ed8;">${rec?.rainfallMm ? rec.rainfallMm.toFixed(1) + ' mm' : '0.0 mm'}</td>
+          <td style="padding: 6px; border: 1px solid #cbd5e1; font-size: 10px;">${(rec as any)?.impact || '-'}</td>
+        </tr>
       `;
     }).join('');
 
-    return `
+    const iframe = document.createElement('iframe');
+    iframe.style.position = 'fixed';
+    iframe.style.bottom = '0';
+    iframe.style.right = '0';
+    iframe.style.width = '1024px';
+    iframe.style.height = '1024px';
+    iframe.style.border = '0';
+    iframe.style.zIndex = '-9999';
+    iframe.style.opacity = '0';
+    iframe.style.pointerEvents = 'none';
+    document.body.appendChild(iframe);
+    
+    if (!iframe.contentWindow) return;
+
+    iframe.contentWindow.document.open();
+    iframe.contentWindow.document.write(`
       <!DOCTYPE html>
       <html>
         <head>
-          <title>Relatorio_Pluviometrico_${contract.contractNumber || 'SYNERA'}</title>
+          <title>Relatorio_Pluviometrico_SYNERA</title>
           <style>
-            @page { margin: 8mm; size: A4 portrait; }
+            @page { margin: 10mm; size: portrait; }
             body { 
-              font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+              font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
               color: #1e293b;
               background: white; 
               margin: 0;
-              padding: 12px;
-              -webkit-print-color-adjust: exact !important;
-              print-color-adjust: exact !important;
+              padding: 0;
             }
             .header {
               display: flex;
               justify-content: space-between;
               align-items: center;
               border-bottom: 2px solid #1e3a8a;
-              padding-bottom: 8px;
-              margin-bottom: 12px;
+              padding-bottom: 10px;
+              margin-bottom: 15px;
             }
             .title-box {
               background: #1e3a8a;
               color: white;
-              padding: 6px 12px;
+              padding: 8px 12px;
               text-align: center;
-              font-size: 13px;
+              font-size: 14px;
               font-weight: bold;
               text-transform: uppercase;
-              margin-bottom: 12px;
+              margin-bottom: 15px;
               border-radius: 4px;
             }
-            .details-table {
+            .details-table, .main-table {
               width: 100%;
               border-collapse: collapse;
-              margin-bottom: 12px;
-              font-size: 10px;
+              margin-bottom: 15px;
+              font-size: 11px;
             }
             .details-table td {
               padding: 4px 8px;
-              border: 1px solid #cbd5e1;
+              border: 1px solid #e2e8f0;
             }
             .details-label {
               background: #f1f5f9;
               font-weight: bold;
               width: 15%;
-              color: #1e3a8a;
             }
             .details-value {
               width: 35%;
             }
+            .main-table th {
+              background: #1e3a8a;
+              color: white;
+              padding: 8px 6px;
+              font-weight: bold;
+              font-size: 11px;
+              text-transform: uppercase;
+              border: 1px solid #1e3a8a;
+            }
+            .main-table td {
+              border: 1px solid #cbd5e1;
+              padding: 6px;
+              font-size: 11px;
+            }
             .kpi-container {
               display: flex;
-              gap: 8px;
-              margin-bottom: 12px;
+              gap: 10px;
+              margin-bottom: 15px;
             }
             .kpi-box {
               flex: 1;
               background: #f8fafc;
-              border: 1px solid #cbd5e1;
+              border: 1px solid #e2e8f0;
               border-radius: 6px;
-              padding: 6px;
+              padding: 8px;
               text-align: center;
             }
             .kpi-title {
-              font-size: 8.5px;
+              font-size: 9px;
               color: #64748b;
               font-weight: bold;
               text-transform: uppercase;
-              margin-bottom: 2px;
+              margin-bottom: 4px;
             }
             .kpi-val {
-              font-size: 13px;
+              font-size: 14px;
               color: #1e3a8a;
-              font-weight: 900;
+              font-weight: bold;
             }
             .signatures {
-              margin-top: 24px;
+              margin-top: 30px;
               display: flex;
               justify-content: space-between;
-              gap: 30px;
-              page-break-inside: avoid;
+              gap: 40px;
             }
             .signature-box {
               flex: 1;
               border: 1px solid #cbd5e1;
               border-radius: 4px;
-              padding: 12px;
+              padding: 15px;
               text-align: center;
+              page-break-inside: avoid;
             }
             .signature-line {
-              margin: 12px auto 4px auto;
+              margin: 15px auto 5px auto;
               width: 80%;
               border-bottom: 1px solid #475569;
             }
@@ -1869,12 +806,12 @@ export function PluviometryView({ contract, records, onAdd, onUpdate, readonly }
         <body>
           <div class="header">
             <div>
-              <h1 style="font-size: 16px; font-weight: 900; color: #1e3a8a; margin: 0; text-transform: uppercase;">SYNERA - Gestão e Planejamento</h1>
+              <h1 style="font-size: 16px; font-weight: bold; color: #1e3a8a; margin: 0; text-transform: uppercase;">SYNERA - Gestão e Planejamento</h1>
               <h2 style="font-size: 11px; font-weight: bold; color: #475569; margin: 2px 0 0 0;">RELATÓRIO PLUVIOMÉTRICO MENSAL</h2>
             </div>
             <div style="text-align: right; font-size: 10px; color: #64748b;">
-              Referência: <strong>${filterMonthText}</strong><br>
-              Gerado em: ${new Date().toLocaleDateString('pt-BR')}
+              Referência: <strong>\${filterMonthText}</strong><br>
+              Gerado em: \${new Date().toLocaleDateString('pt-BR')}
             </div>
           </div>
 
@@ -1883,67 +820,56 @@ export function PluviometryView({ contract, records, onAdd, onUpdate, readonly }
           <table class="details-table">
             <tr>
               <td class="details-label">CONTRATO:</td>
-              <td class="details-value">${contract.contractNumber || 'N/A'}</td>
+              <td class="details-value">\${contract.contractNumber || 'N/A'}</td>
               <td class="details-label">PERÍODO:</td>
-              <td class="details-value">${filterMonthText}</td>
+              <td class="details-value">\${filterMonthText}</td>
             </tr>
             <tr>
               <td class="details-label">CONTRATANTE:</td>
-              <td class="details-value">${contract.client || 'N/A'}</td>
+              <td class="details-value">\${contract.client || 'N/A'}</td>
               <td class="details-label">CONTRATADA:</td>
-              <td class="details-value">${contract.contractor || 'N/A'}</td>
+              <td class="details-value">\${contract.contractor || 'N/A'}</td>
             </tr>
             <tr>
               <td class="details-label">OBJETO:</td>
-              <td class="details-value" colspan="3">${contract.object || 'N/A'}</td>
+              <td class="details-value" colspan="3">\${contract.object || 'N/A'}</td>
             </tr>
           </table>
 
           <div class="kpi-container">
             <div class="kpi-box">
               <div class="kpi-title">Precipitação Total</div>
-              <div class="kpi-val">${stats.totalRain.toFixed(1)} mm</div>
+              <div class="kpi-val">\${stats.totalRain.toFixed(1)} mm</div>
             </div>
             <div class="kpi-box">
               <div class="kpi-title">Dias com Chuva</div>
-              <div class="kpi-val">${rainyDays} dias</div>
+              <div class="kpi-val">\${rainyDays} dias</div>
             </div>
             <div class="kpi-box">
               <div class="kpi-title">Dias Impraticáveis</div>
-              <div class="kpi-val">${impDays} dias</div>
+              <div class="kpi-val">\${impDays} dias</div>
             </div>
             <div class="kpi-box">
-              <div class="kpi-title">Dias Produtivos</div>
-              <div class="kpi-val">${bDays} dias</div>
+              <div class="kpi-title">Dias 100% Limpos</div>
+              <div class="kpi-val">\${bDays} dias</div>
             </div>
           </div>
 
-          <div style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 6px; padding: 6px 10px; margin-bottom: 10px; font-size: 8.5px; display: flex; align-items: center; justify-content: space-between;">
-            <span style="font-weight: 800; color: #1e3a8a; text-transform: uppercase;">Legenda Climática:</span>
-            <div style="display: flex; gap: 10px; flex-wrap: wrap;">
-              <span style="display: inline-flex; align-items: center; gap: 3px;"><span style="background: #dc2626; color: white; padding: 1px 4px; border-radius: 3px; font-weight: 800; font-size: 8px;">🛑 IMPRATICÁVEL</span> Paralisação da Obra</span>
-              <span style="display: inline-flex; align-items: center; gap: 3px;"><span style="background: #dbeafe; color: #1e40af; border: 1px solid #93c5fd; padding: 1px 4px; border-radius: 3px; font-weight: 800; font-size: 8px;">🌧️ TRABALHO SOB CHUVA</span> Sem Paralisação</span>
-              <span style="display: inline-flex; align-items: center; gap: 3px;"><span style="background: #ecfdf5; color: #047857; border: 1px solid #a7f3d0; padding: 1px 4px; border-radius: 3px; font-weight: 800; font-size: 8px;">☀️ PRODUTIVO / NORMAL</span> Tempo Limpo</span>
-              <span style="display: inline-flex; align-items: center; gap: 3px;"><span style="color: #64748b; font-weight: 800; font-size: 8px;">⚪ FIM DE SEMANA</span> Sáb / Dom</span>
-            </div>
-          </div>
-
-          <!-- Weekday Header -->
-          <div style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; text-align: center; font-weight: 900; font-size: 9px; text-transform: uppercase; margin-bottom: 4px;">
-            <div style="background: #f1f5f9; padding: 4px; border-radius: 4px; color: #64748b;">DOM</div>
-            <div style="background: #e2e8f0; padding: 4px; border-radius: 4px; color: #334155;">SEG</div>
-            <div style="background: #e2e8f0; padding: 4px; border-radius: 4px; color: #334155;">TER</div>
-            <div style="background: #e2e8f0; padding: 4px; border-radius: 4px; color: #334155;">QUA</div>
-            <div style="background: #e2e8f0; padding: 4px; border-radius: 4px; color: #334155;">QUI</div>
-            <div style="background: #e2e8f0; padding: 4px; border-radius: 4px; color: #334155;">SEX</div>
-            <div style="background: #f1f5f9; padding: 4px; border-radius: 4px; color: #64748b;">SÁB</div>
-          </div>
-
-          <!-- Calendar Grid -->
-          <div style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; margin-bottom: 12px;">
-            ${leadingCellsHtml}
-            ${dayCellsHtml}
-          </div>
+          <table class="main-table">
+            <thead>
+              <tr>
+                <th style="width: 15%; text-align: center;">Dia</th>
+                <th style="width: 15%; text-align: center;">Noite Anterior</th>
+                <th style="width: 15%; text-align: center;">Manhã</th>
+                <th style="width: 15%; text-align: center;">Tarde</th>
+                <th style="width: 15%; text-align: center;">Chuva (mm)</th>
+                <th style="width: 25%; text-align: left;">Impacto na Obra / Observações</th>
+              </tr>
+            </thead>
+            <tbody>
+              \${rowsHtml}
+            </tbody>
+          </table>
 
           <div class="signatures">
             <div class="signature-box">
@@ -1961,82 +887,344 @@ export function PluviometryView({ contract, records, onAdd, onUpdate, readonly }
           <script>
             window.onload = () => {
               setTimeout(() => {
-                window.focus();
                 window.print();
-              }, 300);
+              }, 400);
             };
           </script>
         </body>
       </html>
-    `;
-  };
-
-  const handlePrintPluviometry = () => {
-    const htmlContent = getPluviometryHTMLReport();
-    const win = window.open('', '_blank', 'width=1100,height=900');
-    if (!win) {
-      alert('Por favor, permita popups no seu navegador para abrir a tela de impressão.');
-      return;
-    }
-    win.document.write(htmlContent);
-    win.document.close();
-  };
-
-  const handleExportPluviometryPDF = async () => {
-    const htmlContent = getPluviometryHTMLReport();
+    `);
+    iframe.contentWindow.document.close();
     
-    // Create an off-screen container for rendering
-    const container = document.createElement('div');
-    container.style.position = 'fixed';
-    container.style.left = '-9999px';
-    container.style.top = '0';
-    container.style.width = '1050px';
-    container.style.backgroundColor = '#ffffff';
-    container.style.padding = '20px';
-    container.style.zIndex = '-9999';
-    container.innerHTML = htmlContent;
-    document.body.appendChild(container);
+    setTimeout(() => {
+      if (iframe.parentNode) iframe.parentNode.removeChild(iframe);
+    }, 15000);
+  };
 
-    try {
-      const canvas = await html2canvas(container, {
-        scale: 2,
-        useCORS: true,
-        logging: false,
-        backgroundColor: '#ffffff'
-      });
-      
-      const imgData = canvas.toDataURL('image/jpeg', 0.95);
-      const pdf = new jsPDF('p', 'mm', 'a4');
-      const pdfWidth = pdf.internal.pageSize.getWidth();
-      const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
-      const pageHeight = pdf.internal.pageSize.getHeight();
-      
-      if (pdfHeight <= pageHeight) {
-        pdf.addImage(imgData, 'JPEG', 0, 0, pdfWidth, pdfHeight);
-      } else {
-        let heightLeft = pdfHeight;
-        let position = 0;
-        
-        pdf.addImage(imgData, 'JPEG', 0, position, pdfWidth, pdfHeight);
-        heightLeft -= pageHeight;
-        
-        while (heightLeft > 0) {
-          position = heightLeft - pdfHeight;
-          pdf.addPage();
-          pdf.addImage(imgData, 'JPEG', 0, position, pdfWidth, pdfHeight);
-          heightLeft -= pageHeight;
-        }
+  const handleExportPluviometryPDF = () => {
+    const doc = new jsPDF() as any;
+    const pageWidth = doc.internal.pageSize.width;
+    const pageHeight = doc.internal.pageSize.height;
+    const margin = 10;
+    const contentWidth = pageWidth - (margin * 2);
+
+    // Document border
+    doc.setDrawColor(200);
+    doc.setLineWidth(0.1);
+    doc.rect(margin - 2, margin - 2, contentWidth + 4, pageHeight - (margin * 2) + 4);
+
+    // Title banner
+    doc.setFillColor(30, 58, 138); // Deep Blue
+    doc.rect(margin, margin, contentWidth, 12, 'F');
+    doc.setTextColor(255);
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'bold');
+    doc.text('RELATÓRIO PLUVIOMÉTRICO MENSAL', pageWidth / 2, margin + 7.5, { align: 'center' });
+
+    // Contract details
+    doc.setTextColor(0);
+    doc.setFontSize(7.5);
+    const mNames = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+    const filterMonthText = `${mNames[currentMonth].toUpperCase()} / ${currentYear}`;
+    const detailsData = [
+      ['CONTRATO:', contract.contractNumber || 'N/A', 'PERÍODO REFERÊNCIA:', filterMonthText],
+      ['CONTRATANTE:', contract.client || 'N/A', 'CONTRATADA:', contract.contractor || 'N/A'],
+      ['OBJETO:', contract.object || 'N/A', 'REQUISITANTE:', 'SALA TÉCNICA']
+    ];
+    autoTable(doc, {
+      startY: margin + 14,
+      body: detailsData,
+      theme: 'grid',
+      styles: { fontSize: 7, cellPadding: 1, fontStyle: 'bold' },
+      columnStyles: { 
+        0: { cellWidth: 35, fillColor: [245, 245, 245] }, 
+        1: { cellWidth: 62 },
+        2: { cellWidth: 35, fillColor: [245, 245, 245] },
+        3: { cellWidth: 62 }
       }
+    });
+
+    let currentY = ((doc as any).lastAutoTable?.finalY ?? (margin + 30)) + 4;
+
+    // Helper for Section Header inside Pluviometry Report
+    const sectionTitle = (title: string, y: number) => {
+      doc.setFillColor(240, 245, 255);
+      doc.rect(margin, y, contentWidth, 5, 'F');
+      doc.setFontSize(8);
+      doc.setFont('helvetica', 'bold');
+      doc.text(title, margin + 2, y + 3.5);
+      doc.setTextColor(0);
+      return y + 5;
+    };
+
+    // 1. INDICADORES GERAIS (KPI Dashboard)
+    currentY = sectionTitle('1. INDICADORES CLIMÁTICOS DO MÊS', currentY) + 2;
+
+    const boxW = contentWidth / 4 - 2;
+    const boxH = 14;
+    const kpiY = currentY;
+
+    // Calc stats on the fly to be certain
+    let rainyDays = 0;
+    let impDays = 0;
+    let bDays = 0;
+    monthDays.forEach(day => {
+      const rec = getRecordForDay(day);
+      if ((rec?.rainfallMm || 0) > 0) rainyDays++;
+      if (rec?.morningStatus === 'Impraticável' || rec?.afternoonStatus === 'Impraticável') impDays++;
+      else if (rec?.morningStatus === 'Bom' && rec?.afternoonStatus === 'Bom') bDays++;
+    });
+
+    const kpis = [
+      { label: 'PRECIPITAÇÃO TOTAL', val: `${stats.totalRain.toFixed(1)} mm` },
+      { label: 'DIAS COM CHUVA', val: `${rainyDays} dias` },
+      { label: 'DIAS IMPRATICÁVEIS', val: `${impDays} dias` },
+      { label: 'DIAS 100% LIMPOS', val: `${bDays} dias` }
+    ];
+
+    kpis.forEach((k, idx) => {
+      const bx = margin + (idx * (boxW + 2.6));
+      doc.setFillColor(248, 250, 252);
+      doc.setDrawColor(226, 232, 240);
+      doc.setLineWidth(0.1);
+      doc.rect(bx, kpiY, boxW, boxH, 'FD');
       
-      pdf.save(`Relatorio_Pluviometrico_${contract.contractNumber || 'SYNERA'}_${currentYear}_${currentMonth + 1}.pdf`);
-    } catch (err) {
-      console.error('[PDF] Erro ao exportar PDF via html2canvas:', err);
-      handlePrintPluviometry();
-    } finally {
-      if (document.body.contains(container)) {
-        document.body.removeChild(container);
-      }
+      doc.setTextColor(100);
+      doc.setFontSize(6);
+      doc.text(k.label, bx + boxW/2, kpiY + 4.5, { align: 'center' });
+      
+      doc.setTextColor(30, 58, 138);
+      doc.setFontSize(8);
+      doc.setFont('helvetica', 'bold');
+      doc.text(k.val, bx + boxW/2, kpiY + 10.5, { align: 'center' });
+    });
+
+    currentY = kpiY + boxH + 4;
+
+    // 2. DAILY PRECIPITATION CHART
+    currentY = sectionTitle('2. HISTÓRICO DE PRECIPITAÇÃO DIÁRIA (ÍNDICE PLUVIOMÉTRICO)', currentY) + 2;
+
+    const chartH = 32;
+    doc.setFillColor(250, 250, 250);
+    doc.setDrawColor(240, 240, 240);
+    doc.rect(margin, currentY, contentWidth, chartH, 'FD');
+
+    // Axes
+    const axesX = margin + 12;
+    const axesY = currentY + chartH - 6;
+    const chartW = contentWidth - 18;
+    const chartActualH = chartH - 10;
+
+    doc.setDrawColor(180);
+    doc.setLineWidth(0.1);
+    doc.line(axesX, axesY, axesX + chartW, axesY); // X-axis
+
+    // Max rain in month
+    let maxRain = 10;
+    monthDays.forEach(day => {
+      const r = getRecordForDay(day)?.rainfallMm || 0;
+      if (r > maxRain) maxRain = r;
+    });
+    maxRain = Math.ceil(maxRain / 10) * 10; // Round to next 10
+
+    // Draw Y ticks and horizontal gridlines
+    doc.setFontSize(5);
+    doc.setTextColor(120);
+    const ticksCount = 4;
+    for (let i = 0; i <= ticksCount; i++) {
+      const tickVal = (maxRain / ticksCount) * i;
+      const ty = axesY - (chartActualH / ticksCount) * i;
+      doc.text(`${tickVal.toFixed(0)} mm`, axesX - 1.5, ty + 1.5, { align: 'right' });
+      
+      doc.setDrawColor(240);
+      if (i > 0) doc.line(axesX, ty, axesX + chartW, ty);
     }
+
+    // Draw bars
+    const barSpacing = chartW / daysInMonth;
+    const barW = Math.max(1.5, barSpacing - 1.2);
+    
+    monthDays.forEach(day => {
+      const rec = getRecordForDay(day);
+      const rain = rec?.rainfallMm || 0;
+      const bx = axesX + (day - 1) * barSpacing + (barSpacing - barW) / 2;
+      
+      // Label X axis
+      if (day % 3 === 1 || day === daysInMonth) {
+        doc.text(String(day), bx + barW/2, axesY + 4, { align: 'center' });
+      }
+
+      if (rain > 0) {
+        const barH = (rain / maxRain) * chartActualH;
+        doc.setFillColor(59, 130, 246); // Blue
+        doc.rect(bx, axesY - barH, barW, barH, 'F');
+      } else {
+        // Tiny baseline mark for days with 0 rain
+        doc.setFillColor(220, 220, 220);
+        doc.rect(bx, axesY - 0.5, barW, 0.5, 'F');
+      }
+    });
+
+    currentY = currentY + chartH + 4;
+
+    // 3. MONTHLY WEATHER CALENDAR / MATRIX OVERVIEW (Elegant grid layout)
+    currentY = sectionTitle('3. CALENDÁRIO OPERACIONAL ADAPTATIVO (MANHÃ / TARDE / NOITE)', currentY) + 2;
+
+    const colWidth = contentWidth / 7;
+    const rowHeight = 11;
+    const gridY = currentY;
+
+    // Calendar Header
+    const weekdays = ['DOM', 'SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SÁB'];
+    weekdays.forEach((w, idx) => {
+      const wx = margin + (idx * colWidth);
+      doc.setFillColor(241, 245, 249);
+      doc.setDrawColor(226, 232, 240);
+      doc.rect(wx, gridY, colWidth, 4.5, 'FD');
+      doc.setFontSize(5.5);
+      doc.setTextColor(71, 85, 105);
+      doc.setFont('helvetica', 'bold');
+      doc.text(w, wx + colWidth / 2, gridY + 3.2, { align: 'center' });
+    });
+
+    // Calendar cells
+    let cellY = gridY + 4.5;
+    const firstDayDate = new Date(currentYear, currentMonth, 1);
+    const startOffset = firstDayDate.getDay(); // 0 is Sunday, 1 Monday...
+
+    let colIdx = startOffset;
+    let currentCellY = cellY;
+
+    // Pre-draw blank cells for previous month padding
+    for (let i = 0; i < startOffset; i++) {
+      const bx = margin + (i * colWidth);
+      doc.setFillColor(252, 252, 252);
+      doc.setDrawColor(241, 245, 249);
+      doc.rect(bx, currentCellY, colWidth, rowHeight, 'FD');
+    }
+
+    monthDays.forEach(day => {
+      const bx = margin + (colIdx * colWidth);
+      const rec = getRecordForDay(day);
+      const night = rec?.nightStatus || 'Bom';
+      const morning = rec?.morningStatus || 'Bom';
+      const afternoon = rec?.afternoonStatus || 'Bom';
+      const rAmount = rec?.rainfallMm || 0;
+
+      // Draw cell perimeter
+      doc.setFillColor(255);
+      const isWeekend = colIdx === 0 || colIdx === 6;
+      if (isWeekend) doc.setFillColor(251, 252, 253);
+      if (rec?.morningStatus === 'Impraticável' || rec?.afternoonStatus === 'Impraticável') {
+        doc.setFillColor(254, 242, 242); // Reddish for paralysis days
+      }
+      doc.setDrawColor(226, 232, 240);
+      doc.rect(bx, currentCellY, colWidth, rowHeight, 'FD');
+
+      // Day label
+      doc.setFontSize(6.5);
+      doc.setTextColor(30, 41, 59);
+      doc.setFont('helvetica', isWeekend ? 'normal' : 'bold');
+      doc.text(String(day), bx + 2, currentCellY + 4.5);
+
+      // Rain indicator
+      if (rAmount > 0) {
+        doc.setFontSize(5);
+        doc.setTextColor(59, 130, 246);
+        doc.setFont('helvetica', 'bold');
+        doc.text(`${rAmount.toFixed(1)}mm`, bx + colWidth - 2, currentCellY + 4.5, { align: 'right' });
+      }
+
+      // We draw 3 small status indicators side-by-side representing Night, Morning, Afternoon
+      const drawDotsY = currentCellY + 7.5;
+      const dotRadius = 1.1;
+      const dotSpacing = 3.5;
+      const firstDotX = bx + (colWidth - (dotSpacing * 2)) / 2;
+
+      const periods = [
+        { label: 'N', status: night },
+        { label: 'M', status: morning },
+        { label: 'T', status: afternoon }
+      ];
+
+      periods.forEach((p, pIdx) => {
+        const dotX = firstDotX + (pIdx * dotSpacing);
+        let color = [234, 179, 8]; // Amber (Bom)
+        if (p.status === 'Chuvoso') color = [59, 130, 246]; // Blue
+        else if (p.status === 'Impraticável') color = [220, 38, 38]; // Red
+
+        // Dot Circle
+        doc.setFillColor(color[0], color[1], color[2]);
+        doc.circle(dotX, drawDotsY, dotRadius, 'F');
+      });
+
+      // Move cell pointers
+      colIdx++;
+      if (colIdx > 6) {
+        colIdx = 0;
+        currentCellY += rowHeight;
+      }
+    });
+
+    // Outer padding for following month days
+    if (colIdx > 0) {
+      for (let i = colIdx; i <= 6; i++) {
+        const bx = margin + (i * colWidth);
+        doc.setFillColor(252, 252, 252);
+        doc.setDrawColor(241, 245, 249);
+        doc.rect(bx, currentCellY, colWidth, rowHeight, 'FD');
+      }
+      currentCellY += rowHeight;
+    }
+
+    currentY = Math.max(currentCellY + 4, currentY);
+
+    // 4. COLOR LEGEND & COMPREHENSIVE STATUS CODES
+    doc.setFillColor(248, 250, 252);
+    doc.setDrawColor(226, 232, 240);
+    doc.rect(margin, currentY, contentWidth, 12, 'FD');
+
+    doc.setFontSize(5.5);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(71, 85, 105);
+    doc.text('LEGENDA OPERACIONAL:', margin + 3, currentY + 7.5);
+
+    // Legends
+    const legends = [
+      { text: '☀️  BOM (OPERACIONAL)', color: [234, 179, 8], offset: 50 },
+      { text: '🌧️  CHUVOSO (REDUZIDO)', color: [59, 130, 246], offset: 100 },
+      { text: '🛑  IMPRATICÁVEL (PARADO)', color: [220, 38, 38], offset: 150 }
+    ];
+
+    legends.forEach(lg => {
+      doc.setFillColor(lg.color[0], lg.color[1], lg.color[2]);
+      doc.circle(margin + lg.offset - 3, currentY + 7, 1.2, 'F');
+      doc.setFont('helvetica', 'bold');
+      doc.text(lg.text, margin + lg.offset, currentY + 7.5);
+    });
+
+    currentY += 16;
+
+    // Stamps, sign block at bottom
+    doc.setDrawColor(180);
+    doc.rect(margin, pageHeight - 34, contentWidth / 2 - 2, 20);
+    doc.rect(pageWidth / 2 + 2, pageHeight - 34, contentWidth / 2 - 2, 20);
+
+    doc.line(margin + 5, pageHeight - 20, (margin + contentWidth / 2) - 10, pageHeight - 20);
+    doc.line(pageWidth / 2 + 7, pageHeight - 20, pageWidth - margin - 5, pageHeight - 20);
+
+    doc.setFontSize(7);
+    doc.setTextColor(30, 41, 59);
+    doc.setFont('helvetica', 'bold');
+    doc.text('RESPONSÁVEL TÉCNICO', margin + contentWidth / 4, pageHeight - 16, { align: 'center' });
+    doc.text('FISCALIZAÇÃO DO CONTRATO', (pageWidth / 2) + (contentWidth / 4), pageHeight - 16, { align: 'center' });
+
+    doc.setFontSize(5);
+    doc.setTextColor(150);
+    doc.text('Assinatura e Carimbo Digital', margin + contentWidth / 4, pageHeight - 22, { align: 'center' });
+    doc.text('Assinatura e Carimbo Digital', (pageWidth / 2) + (contentWidth / 4), pageHeight - 22, { align: 'center' });
+
+    doc.save(`Pluviometria_${contract.contractNumber}_${currentYear}_${currentMonth + 1}.pdf`);
   };
 
   const stats = React.useMemo(() => {
@@ -2148,176 +1336,113 @@ export function PluviometryView({ contract, records, onAdd, onUpdate, readonly }
 
       <Tabs value={activeTab} onValueChange={v => setActiveTab(v as any)} className="w-full">
         <TabsList className="mb-4 bg-gray-100 p-1 rounded-xl">
-          <TabsTrigger value="calendar" className="flex items-center gap-2 rounded-lg font-black uppercase text-xs tracking-widest px-4 py-2">
-            <Calendar className="w-4 h-4 text-blue-600" /> Calendário Mensal
+          <TabsTrigger value="table" className="flex items-center gap-2 rounded-lg font-black uppercase text-xs tracking-widest px-4 py-2">
+            <FileSpreadsheet className="w-4 h-4" /> Planilha de Dados
           </TabsTrigger>
           <TabsTrigger value="chart" className="flex items-center gap-2 rounded-lg font-black uppercase text-xs tracking-widest px-4 py-2">
             <Activity className="w-4 h-4" /> Gráfico
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="calendar" className="space-y-4">
-          {/* Header Legend and Tip */}
-          <Card className="p-4 border border-gray-100 shadow-sm rounded-2xl bg-gradient-to-r from-slate-50 to-white">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs">
-              <div className="flex items-center gap-2 text-slate-600 font-bold">
-                <span className="p-1.5 bg-blue-100 text-blue-700 rounded-lg">💡</span>
-                <span><strong>Dica:</strong> Clique duas vezes (2x) sobre qualquer dia para abrir o modal e registrar o status pluviométrico.</span>
-              </div>
-              <div className="flex flex-wrap items-center gap-2 text-[10px] font-black uppercase">
-                <div className="flex items-center gap-1.5 bg-red-50 text-red-700 px-2 py-1 rounded-md border border-red-200">
-                  <span className="w-2.5 h-2.5 rounded-full bg-red-600"></span>
-                  <span>Impraticável</span>
-                </div>
-                <div className="flex items-center gap-1.5 bg-blue-50 text-blue-700 px-2 py-1 rounded-md border border-blue-200">
-                  <span className="w-2.5 h-2.5 rounded-full bg-blue-500"></span>
-                  <span>Trabalho sob Chuva</span>
-                </div>
-                <div className="flex items-center gap-1.5 bg-emerald-50 text-emerald-700 px-2 py-1 rounded-md border border-emerald-200">
-                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
-                  <span>Produtivo / Normal</span>
-                </div>
-                <div className="flex items-center gap-1.5 bg-slate-100 text-slate-600 px-2 py-1 rounded-md border border-slate-200">
-                  <span className="w-2.5 h-2.5 rounded-full bg-slate-400"></span>
-                  <span>Fim de Semana</span>
-                </div>
-              </div>
-            </div>
-          </Card>
+        <TabsContent value="table">
+          <Card className="overflow-hidden border border-gray-100 shadow-sm rounded-2xl">
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader className="bg-gray-50">
+                  <TableRow>
+                    <TableHead className="w-20 text-center font-black text-xs uppercase tracking-wider text-gray-505">Dia</TableHead>
+                    <TableHead className="text-center font-black text-xs uppercase tracking-wider text-gray-505 bg-blue-50/20">Noite Anterior</TableHead>
+                    <TableHead className="text-center font-black text-xs uppercase tracking-wider text-gray-505 bg-blue-50/40">Manhã</TableHead>
+                    <TableHead className="text-center font-black text-xs uppercase tracking-wider text-gray-505 bg-blue-50/60">Tarde</TableHead>
+                    <TableHead className="w-32 text-center font-black text-xs uppercase tracking-wider text-gray-505">Chuva (mm)</TableHead>
+                    <TableHead className="font-black text-xs uppercase tracking-wider text-gray-505">Impacto na Obra</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {monthDays.map(day => {
+                    const record = getRecordForDay(day);
+                    const isRainy = (record?.morningStatus === 'Chuvoso' || record?.afternoonStatus === 'Chuvoso');
+                    const isImpraticable = (record?.morningStatus === 'Impraticável' || record?.afternoonStatus === 'Impraticável');
 
-          {/* Calendar Grid Container */}
-          <Card className="p-4 border border-gray-100 shadow-sm rounded-2xl bg-white overflow-hidden">
-            {/* Weekday Header */}
-            <div className="grid grid-cols-7 gap-2 mb-2 text-center">
-              {['DOM', 'SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SÁB'].map((dayName, idx) => (
-                <div 
-                  key={dayName} 
-                  className={cn(
-                    "py-2 font-black text-xs uppercase tracking-wider rounded-xl border border-slate-100",
-                    idx === 0 || idx === 6 ? "bg-slate-100/70 text-slate-500" : "bg-slate-50 text-slate-700"
-                  )}
-                >
-                  {dayName}
-                </div>
-              ))}
-            </div>
-
-            {/* Days Grid */}
-            <div className="grid grid-cols-7 gap-2 sm:gap-2.5">
-              {/* Empty leading cells */}
-              {Array.from({ length: new Date(currentYear, currentMonth, 1).getDay() }).map((_, idx) => (
-                <div key={`empty-${idx}`} className="bg-slate-50/40 border border-dashed border-slate-200/50 rounded-2xl min-h-[128px] opacity-30 pointer-events-none" />
-              ))}
-
-              {/* Month Days */}
-              {monthDays.map(day => {
-                const record = getRecordForDay(day);
-                const night = record?.nightStatus || 'Bom';
-                const morning = record?.morningStatus || 'Bom';
-                const afternoon = record?.afternoonStatus || 'Bom';
-                const rainfall = record?.rainfallMm || 0;
-
-                const isImpraticable = morning === 'Impraticável' || afternoon === 'Impraticável';
-                const isRainy = morning === 'Chuvoso' || afternoon === 'Chuvoso' || night === 'Chuvoso' || rainfall > 0;
-                const dayOfWeek = new Date(currentYear, currentMonth, day).getDay();
-                const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
-
-                const todayDate = new Date();
-                const isToday = day === todayDate.getDate() && currentMonth === todayDate.getMonth() && currentYear === todayDate.getFullYear();
-
-                let cellBg = "bg-white border-slate-200 text-slate-800 hover:border-blue-400 hover:shadow-md";
-                let impactBadge = <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200 font-bold text-[9px] uppercase px-1.5 py-0.5">☀️ Produtivo</Badge>;
-
-                if (isImpraticable) {
-                  cellBg = "bg-red-500/10 border-2 border-red-400 text-red-950 hover:bg-red-500/20 shadow-sm shadow-red-100/50 hover:border-red-500";
-                  impactBadge = <Badge className="bg-red-600 text-white font-extrabold text-[9px] uppercase px-1.5 py-0.5 tracking-wider shadow-xs">🛑 Impraticável</Badge>;
-                } else if (isRainy) {
-                  cellBg = "bg-blue-500/10 border-2 border-blue-300 text-blue-950 hover:bg-blue-500/20 shadow-sm shadow-blue-100/50 hover:border-blue-400";
-                  impactBadge = <Badge variant="outline" className="bg-blue-100 text-blue-800 border-blue-300 font-extrabold text-[9px] uppercase px-1.5 py-0.5 tracking-wider shadow-xs">🌧️ Sob Chuva</Badge>;
-                } else if (isWeekend) {
-                  cellBg = "bg-slate-100/80 border border-slate-200 text-slate-600 hover:bg-slate-200/80";
-                  impactBadge = <span className="text-[9px] font-extrabold text-slate-400 uppercase tracking-wider">Fim de Semana</span>;
-                }
-
-                if (isToday) {
-                  cellBg += " ring-2 ring-blue-600 ring-offset-2 border-blue-600 shadow-md shadow-blue-500/20";
-                }
-
-                return (
-                  <div
-                    key={day}
-                    onDoubleClick={() => handleOpenModal(day)}
-                    className={cn(
-                      "relative min-h-[132px] p-2.5 rounded-2xl border transition-all duration-300 flex flex-col justify-between cursor-pointer group select-none hover:-translate-y-1.5 hover:shadow-xl hover:z-20 hover:scale-[1.03]",
-                      cellBg
-                    )}
-                    title="Clique duas vezes para editar os dados do dia"
-                  >
-                    {/* Top row */}
-                    <div className="flex items-start justify-between gap-1">
-                      <div className="flex items-center gap-1.5">
-                        <span className={cn(
-                          "text-base font-black font-mono tracking-tight transition-all",
-                          isToday ? "bg-blue-600 text-white px-2 py-0.5 rounded-lg shadow-xs" : "group-hover:text-blue-600 group-hover:scale-110"
-                        )}>
-                          {String(day).padStart(2, '0')}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <div className="transition-transform duration-300 group-hover:scale-105">
-                          {impactBadge}
-                        </div>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-5 w-5 opacity-0 group-hover:opacity-100 transition-all duration-200 text-slate-400 hover:text-blue-600 p-0 hover:scale-125"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleOpenModal(day);
-                          }}
-                          title="Editar registro"
-                        >
-                          <Edit className="w-3 h-3" />
-                        </Button>
-                      </div>
-                    </div>
-
-                    {/* Middle row: Night, Morning, Afternoon status */}
-                    <div className="my-1.5 grid grid-cols-3 gap-1 text-center bg-white/80 backdrop-blur-xs p-1.5 rounded-xl border border-black/5 group-hover:border-blue-300 group-hover:bg-white group-hover:shadow-sm transition-all duration-300">
-                      <div className="flex flex-col items-center">
-                        <span className="text-[8px] font-black uppercase text-slate-400 group-hover:text-slate-600 transition-colors">Noite</span>
-                        <span className="text-sm transition-transform duration-300 inline-block group-hover:scale-125 group-hover:rotate-12">
-                          {night === 'Bom' ? '☀️' : night === 'Chuvoso' ? '🌧️' : '🛑'}
-                        </span>
-                      </div>
-                      <div className="flex flex-col items-center border-x border-slate-200/60">
-                        <span className="text-[8px] font-black uppercase text-slate-400 group-hover:text-slate-600 transition-colors">Manhã</span>
-                        <span className="text-sm transition-transform duration-300 inline-block group-hover:scale-125 group-hover:-translate-y-0.5">
-                          {morning === 'Bom' ? '☀️' : morning === 'Chuvoso' ? '🌧️' : '🛑'}
-                        </span>
-                      </div>
-                      <div className="flex flex-col items-center">
-                        <span className="text-[8px] font-black uppercase text-slate-400 group-hover:text-slate-600 transition-colors">Tarde</span>
-                        <span className="text-sm transition-transform duration-300 inline-block group-hover:scale-125 group-hover:-rotate-12">
-                          {afternoon === 'Bom' ? '☀️' : afternoon === 'Chuvoso' ? '🌧️' : '🛑'}
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* Bottom row: Precipitation mm */}
-                    <div className="flex items-center justify-between text-[10px] font-bold">
-                      {rainfall > 0 ? (
-                        <span className="inline-flex items-center gap-1 text-blue-700 font-mono font-black bg-blue-100/90 px-1.5 py-0.5 rounded-md group-hover:bg-blue-600 group-hover:text-white transition-all duration-300 shadow-xs">
-                          <CloudRain className="w-3 h-3 text-blue-600 group-hover:text-white group-hover:animate-bounce" />
-                          {rainfall} mm
-                        </span>
-                      ) : (
-                        <span className="text-[9px] text-slate-400 font-medium group-hover:text-slate-600 transition-colors">0.0 mm</span>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
+                    return (
+                      <TableRow key={day} className={cn(isImpraticable ? "bg-red-50/30 font-bold" : isRainy ? "bg-blue-50/20" : "")}>
+                        <TableCell className="text-center font-bold text-gray-600 border-r">
+                          <div className="flex flex-col items-center leading-tight">
+                            <span className="text-[10px] text-gray-400 font-bold uppercase leading-none mb-0.5">
+                              {(() => {
+                                const date = new Date(currentYear, currentMonth, day, 12);
+                                return date.toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.', '');
+                              })()}
+                            </span>
+                            <span className="text-sm font-mono font-black">{String(day).padStart(2, '0')}</span>
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <Select 
+                            disabled={readonly}
+                            value={record?.nightStatus || 'Bom'} 
+                            onValueChange={v => handleUpdate(day, 'nightStatus', v)}
+                          >
+                            <SelectTrigger className="h-8 text-xs font-bold w-32 mx-auto rounded-lg"><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="Bom" className="text-xs font-semibold">☀️ Bom</SelectItem>
+                              <SelectItem value="Chuvoso" className="text-xs font-semibold text-blue-600">🌧️ Chuvoso</SelectItem>
+                              <SelectItem value="Impraticável" className="text-xs font-semibold text-red-600">🛑 Impraticável</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <Select 
+                            disabled={readonly}
+                            value={record?.morningStatus || 'Bom'} 
+                            onValueChange={v => handleUpdate(day, 'morningStatus', v)}
+                          >
+                            <SelectTrigger className="h-8 text-xs font-bold w-32 mx-auto rounded-lg"><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="Bom" className="text-xs font-semibold">☀️ Bom</SelectItem>
+                              <SelectItem value="Chuvoso" className="text-xs font-semibold text-blue-600">🌧️ Chuvoso</SelectItem>
+                              <SelectItem value="Impraticável" className="text-xs font-semibold text-red-600">🛑 Impraticável</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <Select 
+                            disabled={readonly}
+                            value={record?.afternoonStatus || 'Bom'} 
+                            onValueChange={v => handleUpdate(day, 'afternoonStatus', v)}
+                          >
+                            <SelectTrigger className="h-8 text-xs font-bold w-32 mx-auto rounded-lg"><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="Bom" className="text-xs font-semibold">☀️ Bom</SelectItem>
+                              <SelectItem value="Chuvoso" className="text-xs font-semibold text-blue-600">🌧️ Chuvoso</SelectItem>
+                              <SelectItem value="Impraticável" className="text-xs font-semibold text-red-600">🛑 Impraticável</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </TableCell>
+                        <TableCell className="text-center border-l">
+                          <Input 
+                            disabled={readonly}
+                            type="number" 
+                            step="0.1"
+                            className="h-8 text-center text-xs w-24 mx-auto font-mono font-black" 
+                            value={record?.rainfallMm || 0}
+                            onChange={e => handleUpdate(day, 'rainfallMm', parseFloat(e.target.value) || 0)}
+                          />
+                        </TableCell>
+                        <TableCell className="border-l">
+                          {isImpraticable ? (
+                            <Badge className="bg-red-600 hover:bg-red-700 font-extrabold uppercase text-[10px] tracking-wider rounded-lg px-2 py-0.5">Paralisação Total</Badge>
+                          ) : isRainy ? (
+                            <Badge variant="outline" className="text-blue-600 border-blue-200 bg-blue-50/40 font-extrabold uppercase text-[10px] tracking-wider rounded-lg px-2 py-0.5">Trabalho sob chuva</Badge>
+                          ) : (
+                            <span className="text-xs text-gray-400 font-bold uppercase">Produtivo / Bom Estado</span>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
             </div>
           </Card>
         </TabsContent>
@@ -2521,193 +1646,6 @@ export function PluviometryView({ contract, records, onAdd, onUpdate, readonly }
           </div>
         </TabsContent>
       </Tabs>
-
-      {/* Modal Dialog for Double-Click editing */}
-      <Dialog open={selectedDayForModal !== null} onOpenChange={(open) => { if (!open) setSelectedDayForModal(null); }}>
-        <DialogContent className="max-w-md rounded-2xl p-6 bg-white border border-slate-200 shadow-2xl z-[100]">
-          <DialogHeader className="pb-3 border-b border-slate-100">
-            <DialogTitle className="text-base font-black uppercase text-slate-900 flex items-center gap-2">
-              <Calendar className="w-5 h-5 text-blue-600" />
-              Lançamento Pluviométrico
-            </DialogTitle>
-            <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mt-1">
-              {selectedDayForModal && `${String(selectedDayForModal).padStart(2, '0')} de ${['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'][currentMonth]} de ${currentYear}`}
-            </p>
-          </DialogHeader>
-
-          <div className="space-y-4 py-3">
-            {/* Quick Presets */}
-            <div className="space-y-1.5">
-              <Label className="text-[10px] font-black uppercase tracking-wider text-slate-400">Preenchimento Rápido</Label>
-              <div className="grid grid-cols-3 gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="text-[10px] font-bold uppercase tracking-wider border-emerald-200 hover:bg-emerald-50 text-emerald-700 h-8"
-                  onClick={() => {
-                    setModalNightStatus('Bom');
-                    setModalMorningStatus('Bom');
-                    setModalAfternoonStatus('Bom');
-                    setModalRainfallMm(0);
-                  }}
-                >
-                  ☀️ Bom / Sol
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="text-[10px] font-bold uppercase tracking-wider border-blue-200 hover:bg-blue-50 text-blue-700 h-8"
-                  onClick={() => {
-                    setModalNightStatus('Bom');
-                    setModalMorningStatus('Chuvoso');
-                    setModalAfternoonStatus('Chuvoso');
-                    if (modalRainfallMm === 0) setModalRainfallMm(10);
-                  }}
-                >
-                  🌧️ Sob Chuva
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="text-[10px] font-bold uppercase tracking-wider border-red-200 hover:bg-red-50 text-red-700 h-8"
-                  onClick={() => {
-                    setModalNightStatus('Chuvoso');
-                    setModalMorningStatus('Impraticável');
-                    setModalAfternoonStatus('Impraticável');
-                    if (modalRainfallMm === 0) setModalRainfallMm(25);
-                  }}
-                >
-                  🛑 Impraticável
-                </Button>
-              </div>
-            </div>
-
-            {/* 1. Noite Anterior */}
-            <div className="space-y-1.5">
-              <Label className="text-xs font-bold uppercase text-slate-700">1. Noite Anterior</Label>
-              <div className="grid grid-cols-3 gap-1.5 p-1 bg-slate-100 rounded-xl border border-slate-200/80">
-                {(['Bom', 'Chuvoso', 'Impraticável'] as const).map((st) => (
-                  <button
-                    key={`night-${st}`}
-                    type="button"
-                    disabled={readonly}
-                    onClick={() => setModalNightStatus(st)}
-                    className={cn(
-                      "py-2 px-2 text-[11px] font-extrabold rounded-lg transition-all flex items-center justify-center gap-1 uppercase tracking-wider cursor-pointer select-none",
-                      modalNightStatus === st
-                        ? st === 'Bom'
-                          ? "bg-emerald-600 text-white shadow-sm"
-                          : st === 'Chuvoso'
-                          ? "bg-blue-600 text-white shadow-sm"
-                          : "bg-red-600 text-white shadow-sm"
-                        : "text-slate-600 hover:bg-slate-200/60 hover:text-slate-900"
-                    )}
-                  >
-                    <span>{st === 'Bom' ? '☀️ Bom' : st === 'Chuvoso' ? '🌧️ Chuvoso' : '🛑 Impraticável'}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* 2. Manhã */}
-            <div className="space-y-1.5">
-              <Label className="text-xs font-bold uppercase text-slate-700">2. Manhã</Label>
-              <div className="grid grid-cols-3 gap-1.5 p-1 bg-slate-100 rounded-xl border border-slate-200/80">
-                {(['Bom', 'Chuvoso', 'Impraticável'] as const).map((st) => (
-                  <button
-                    key={`morning-${st}`}
-                    type="button"
-                    disabled={readonly}
-                    onClick={() => setModalMorningStatus(st)}
-                    className={cn(
-                      "py-2 px-2 text-[11px] font-extrabold rounded-lg transition-all flex items-center justify-center gap-1 uppercase tracking-wider cursor-pointer select-none",
-                      modalMorningStatus === st
-                        ? st === 'Bom'
-                          ? "bg-emerald-600 text-white shadow-sm"
-                          : st === 'Chuvoso'
-                          ? "bg-blue-600 text-white shadow-sm"
-                          : "bg-red-600 text-white shadow-sm"
-                        : "text-slate-600 hover:bg-slate-200/60 hover:text-slate-900"
-                    )}
-                  >
-                    <span>{st === 'Bom' ? '☀️ Bom' : st === 'Chuvoso' ? '🌧️ Chuvoso' : '🛑 Impraticável'}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* 3. Tarde */}
-            <div className="space-y-1.5">
-              <Label className="text-xs font-bold uppercase text-slate-700">3. Tarde</Label>
-              <div className="grid grid-cols-3 gap-1.5 p-1 bg-slate-100 rounded-xl border border-slate-200/80">
-                {(['Bom', 'Chuvoso', 'Impraticável'] as const).map((st) => (
-                  <button
-                    key={`afternoon-${st}`}
-                    type="button"
-                    disabled={readonly}
-                    onClick={() => setModalAfternoonStatus(st)}
-                    className={cn(
-                      "py-2 px-2 text-[11px] font-extrabold rounded-lg transition-all flex items-center justify-center gap-1 uppercase tracking-wider cursor-pointer select-none",
-                      modalAfternoonStatus === st
-                        ? st === 'Bom'
-                          ? "bg-emerald-600 text-white shadow-sm"
-                          : st === 'Chuvoso'
-                          ? "bg-blue-600 text-white shadow-sm"
-                          : "bg-red-600 text-white shadow-sm"
-                        : "text-slate-600 hover:bg-slate-200/60 hover:text-slate-900"
-                    )}
-                  >
-                    <span>{st === 'Bom' ? '☀️ Bom' : st === 'Chuvoso' ? '🌧️ Chuvoso' : '🛑 Impraticável'}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Volume Chuva mm */}
-            <div className="space-y-1.5">
-              <Label className="text-xs font-bold uppercase text-slate-700">4. Precipitação Pluviométrica</Label>
-              <div className="relative">
-                <Input
-                  type="number"
-                  step="0.1"
-                  min="0"
-                  disabled={readonly}
-                  className="h-10 text-sm font-mono font-black rounded-xl pr-12 focus:ring-2 focus:ring-blue-500"
-                  value={modalRainfallMm}
-                  onChange={(e) => setModalRainfallMm(parseFloat(e.target.value) || 0)}
-                />
-                <span className="absolute right-3 top-2.5 text-xs font-bold text-slate-400">mm</span>
-              </div>
-            </div>
-
-            {/* Calculated Impact Preview */}
-            <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between">
-              <span className="text-[10px] font-black uppercase text-slate-500">Impacto Estimado:</span>
-              {modalMorningStatus === 'Impraticável' || modalAfternoonStatus === 'Impraticável' ? (
-                <Badge className="bg-red-600 text-white font-extrabold text-[10px] uppercase shadow-xs">🛑 Impraticável</Badge>
-              ) : modalMorningStatus === 'Chuvoso' || modalAfternoonStatus === 'Chuvoso' || modalNightStatus === 'Chuvoso' || modalRainfallMm > 0 ? (
-                <Badge variant="outline" className="text-blue-700 border-blue-300 bg-blue-50 font-extrabold text-[10px] uppercase shadow-xs">🌧️ Trabalho sob chuva</Badge>
-              ) : (
-                <Badge variant="outline" className="text-emerald-700 border-emerald-300 bg-emerald-50 font-extrabold text-[10px] uppercase shadow-xs">☀️ Produtivo / Normal</Badge>
-              )}
-            </div>
-          </div>
-
-          <DialogFooter className="gap-2 sm:gap-0 pt-2 border-t border-slate-100">
-            <Button variant="ghost" size="sm" onClick={() => setSelectedDayForModal(null)} className="font-bold uppercase text-xs">
-              Cancelar
-            </Button>
-            {!readonly && (
-              <Button size="sm" onClick={handleSaveModal} className="bg-blue-600 hover:bg-blue-700 text-white font-black uppercase text-xs tracking-wider gap-1.5 rounded-xl px-5">
-                <Save className="w-4 h-4" /> Salvar Alterações
-              </Button>
-            )}
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

@@ -1,0 +1,198 @@
+                      </div>
+                    </TableCell>
+                    <TableCell className="p-2">
+                      <Input 
+                        disabled={readonly}
+                        className="h-8 text-sm border-transparent hover:border-gray-200 focus:border-blue-500 transition-all" 
+                        value={a.description}
+                        onChange={e => handleUpdateActivity(a.reportId, a.id, 'description', e.target.value)}
+                      />
+                    </TableCell>
+                    <TableCell className="p-2 border-l">
+                      <Select 
+                        disabled={readonly}
+                        value={a.type} 
+                        onValueChange={v => handleUpdateActivity(a.reportId, a.id, 'type', v)}
+                      >
+                        <SelectTrigger className="h-8 text-sm border-transparent"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Produção">Produção</SelectItem>
+                          <SelectItem value="Projeto">Projeto</SelectItem>
+                          <SelectItem value="Cronograma">Cronograma</SelectItem>
+                          <SelectItem value="Outros">Outros</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </TableCell>
+                    {!readonly && (
+                      <TableCell className="p-2 border-l text-center">
+                        <Button variant="ghost" size="xs" className="h-7 w-7 text-red-400 hover:text-red-600" onClick={() => {
+                          const report = reports.find(r => r.id === a.reportId);
+                          if (report) {
+                            onUpdate({
+                              ...report,
+                              activities: report.activities.filter(act => act.id !== a.id)
+                            });
+                          }
+                        }}>
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </Button>
+                      </TableCell>
+                    )}
+                  </TableRow>
+                ))}
+                {allActivities.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={3} className="h-24 text-center text-gray-400 italic">
+                      Nenhuma atividade registrada. Crie um RDO para começar.
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="viewer">
+          <div className="grid grid-cols-12 gap-6">
+            {/* Sidebar Histórico */}
+            <div className="col-span-12 lg:col-span-3">
+              <Card className="h-[calc(100vh-360px)] flex flex-col border border-gray-100 shadow-sm rounded-2xl overflow-hidden">
+                <CardHeader className="p-4 border-b shrink-0 bg-gray-50/50">
+                  <CardTitle className="text-sm font-black uppercase tracking-wider text-gray-800 flex items-center gap-2">
+                    <Calendar className="w-4 h-4 text-blue-600" /> Histórico de Dias
+                  </CardTitle>
+                </CardHeader>
+                <div className="flex-1 min-h-0">
+                  <ScrollArea className="h-full">
+                    <div className="p-2 space-y-2">
+                    {monthKeys.map(monthKey => {
+                      const isExpanded = expandedMonths.includes(monthKey);
+                      const monthReports = groupedReports[monthKey];
+                      
+                      return (
+                        <div key={monthKey} className="space-y-1">
+                          <button
+                            onClick={() => toggleMonth(monthKey)}
+                            className="w-full flex items-center justify-between p-2 rounded-xl hover:bg-gray-100 transition-colors group"
+                          >
+                            <span className="text-xs font-black text-gray-500 uppercase tracking-widest">{getMonthLabel(monthKey)}</span>
+                            <div className="flex items-center gap-1.5">
+                              <Badge variant="secondary" className="h-5 text-[10px] font-black rounded-md">{monthReports.length}</Badge>
+                              {isExpanded ? <ChevronDown className="w-3.5 h-3.5 text-gray-400" /> : <ChevronRight className="w-3.5 h-3.5 text-gray-400" />}
+                            </div>
+                          </button>
+                          
+                          {isExpanded && (
+                            <div className="pl-2 space-y-1.5 border-l border-gray-200 ml-1">
+                              {monthReports.map((r) => {
+                                const reportIdx = reports.findIndex(rep => rep.id === r.id);
+                                const pluvi = pluviometryRecords.find(p => p.date === r.date);
+                                const isImp = pluvi?.morningStatus === 'Impraticável' || pluvi?.afternoonStatus === 'Impraticável' || r.weatherMorning === 'Impraticável' || r.weatherAfternoon === 'Impraticável';
+                                const isRain = pluvi?.morningStatus === 'Chuvoso' || pluvi?.afternoonStatus === 'Chuvoso' || r.weatherMorning === 'Chuvoso' || r.weatherAfternoon === 'Chuvoso';
+                                const weatherEmoji = isImp ? '🛑' : isRain ? '🌧️' : '☀️';
+
+                                return (
+                                  <button
+                                    key={r.id}
+                                    onClick={() => setSelectedReportId(r.id)}
+                                    className={cn(
+                                      "w-full text-left p-3 rounded-xl transition-all border",
+                                      selectedReportId === r.id 
+                                        ? "bg-blue-600 border-blue-600 shadow-md shadow-blue-100 text-white"
+                                        : "border-gray-50 bg-white hover:bg-gray-50/80 text-gray-800"
+                                    )}
+                                  >
+                                    <div className="flex justify-between items-start mb-0.5">
+                                      <div className="flex items-center gap-1">
+                                        <span className="text-[10px] font-bold opacity-75">{weatherEmoji}</span>
+                                        <span className={cn("font-black text-xs tracking-wider uppercase", selectedReportId === r.id ? "text-white" : "text-blue-900")}>
+                                          RDO #{reportIdx + 1}
+                                        </span>
+                                      </div>
+                                      <span className={cn("text-[10px] font-bold uppercase tracking-wider", selectedReportId === r.id ? "text-blue-100" : "text-gray-400")}>
+                                        {new Date(r.date + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}
+                                      </span>
+                                    </div>
+                                    <div className="flex justify-between items-center text-[10px] font-bold opacity-80">
+                                      <span className="capitalize">{new Date(r.date + 'T12:00:00').toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.', '')}</span>
+                                      <span>{r.activities.length} Ativ. • {pluvi?.rainfallMm || r.rainfallMm}mm</span>
+                                    </div>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                    {monthKeys.length === 0 && (
+                      <div className="p-8 text-center text-gray-400">
+                        <Calendar className="w-8 h-8 mx-auto mb-2 opacity-20" />
+                        <p className="text-sm font-bold uppercase tracking-wider text-gray-300">Nenhum RDO Criado</p>
+                      </div>
+                    )}
+                  </div>
+                  </ScrollArea>
+                </div>
+              </Card>
+            </div>
+
+            {/* Selected RDO Details Viewer Panel */}
+            <div className="col-span-12 lg:col-span-9">
+              {selectedReport ? (
+                <div className="space-y-6">
+                  {/* Modern Header Banner */}
+                  <Card className="border border-gray-100 shadow-sm rounded-2xl overflow-hidden bg-gradient-to-r from-gray-50 to-white">
+                    <div className="p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                      <div>
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="bg-blue-100 text-blue-900 text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md">
+                            DIÁRIO OFICIAL DE OBRA
+                          </span>
+                          <span className="bg-gray-100 text-gray-800 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md">
+                            RDO #{reports.findIndex(rep => rep.id === selectedReport.id) + 1}
+                          </span>
+                        </div>
+                        <h3 className="text-xl font-black text-gray-950 uppercase tracking-tight flex items-center gap-2">
+                          Relatório Diário de Ocorrências
+                        </h3>
+                        <p className="text-xs text-gray-500 font-bold uppercase tracking-wider">
+                          {new Date(selectedReport.date + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })} 
+                          <span className="mx-1 text-gray-300">•</span>
+                          <span className="text-blue-600 capitalize font-black">{new Date(selectedReport.date + 'T12:00:00').toLocaleDateString('pt-BR', { weekday: 'long' })}</span>
+                        </p>
+                      </div>
+                      <div className="flex gap-2 self-end sm:self-auto items-center">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="outline" size="sm" className="font-extrabold uppercase text-[10px] tracking-widest bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100 flex items-center gap-1.5">
+                              <Download className="w-3.5 h-3.5" /> EXPORTAR
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="w-40 border border-slate-200 shadow-xl rounded-xl bg-white p-1 z-50">
+                            <DropdownMenuItem 
+                              onClick={() => handleExportPDF(selectedReport)} 
+                              className="flex items-center gap-2 text-xs font-bold text-slate-700 cursor-pointer hover:bg-slate-50 rounded-lg p-2"
+                            >
+                              <FileText className="w-4 h-4 text-red-500" />
+                              PDF
+                            </DropdownMenuItem>
+                            <DropdownMenuItem 
+                              onClick={() => handleExportExcel(selectedReport)} 
+                              className="flex items-center gap-2 text-xs font-bold text-slate-700 cursor-pointer hover:bg-slate-50 rounded-lg p-2"
+                            >
+                              <FileSpreadsheet className="w-4 h-4 text-emerald-500" />
+                              Excel
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          onClick={() => handlePrintRDO(selectedReport)} 
+                          className="font-extrabold uppercase text-[10px] tracking-widest bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-100 flex items-center gap-1.5"
+                        >
+                          <Printer className="w-3.5 h-3.5" /> IMPRIMIR
+                        </Button>
+                        {!readonly && (

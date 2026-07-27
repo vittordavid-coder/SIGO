@@ -30,6 +30,8 @@ export function ContractSimulation({ sectorId = 'measurements', tabId = 'contrac
   else if (sectorId === 'rh' && tabId === 'employees') activeSim = 'employees';
   else if (sectorId === 'purchases' && tabId === 'requests') activeSim = 'requests';
   else if (sectorId === 'financeiro' && tabId === 'payables') activeSim = 'payables';
+  else if (sectorId === 'measurements' && tabId === 'pluviometria') activeSim = 'pluviometria';
+  else if (sectorId === 'measurements' && tabId === 'rdo') activeSim = 'rdo';
 
   // Define steps configurations
   const simulationsConfig: Record<string, {
@@ -39,6 +41,36 @@ export function ContractSimulation({ sectorId = 'measurements', tabId = 'contrac
     browserUrl: string;
     pageTitle: string;
   }> = {
+    rdo: {
+      totalSteps: 7,
+      delays: { 0: 2500, 1: 1500, 2: 2500, 3: 2000, 4: 2500, 5: 1800, 6: 4000 },
+      labels: [
+        'Acessar e clicar em "Novo RDO"',
+        'Abertura do Diário de Obra',
+        'Preenchimento de Condições Climáticas',
+        'Declaração de Efetivo e Equipamentos',
+        'Registro do Relato Diário',
+        'Finalizar e Assinar RDO',
+        'RDO emitido com sucesso!'
+      ],
+      browserUrl: 'https://sistema.synera.com/sala-tecnica/rdo',
+      pageTitle: 'Sala Técnica • Diário de Obra'
+    },
+    pluviometria: {
+      totalSteps: 7,
+      delays: { 0: 2500, 1: 1500, 2: 1800, 3: 1500, 4: 1500, 5: 1800, 6: 4000 },
+      labels: [
+        'Acessar aba "Pluviometria"',
+        'Selecionar Data (Dia 15)',
+        'Preencher Volume de Chuvas (mm)',
+        'Classificar Impacto ("Trabalhável")',
+        'Salvar Registro',
+        'Registro concluído no calendário',
+        'Controle salvo com sucesso!'
+      ],
+      browserUrl: 'https://sistema.synera.com/sala-tecnica/pluviometria',
+      pageTitle: 'Sala Técnica • Pluviometria'
+    },
     generic: {
       totalSteps: Math.max(2, steps.length + 2),
       delays: { 0: 2500, [Math.max(2, steps.length + 2) - 1]: 4000 },
@@ -393,6 +425,43 @@ export function ContractSimulation({ sectorId = 'measurements', tabId = 'contrac
           descricao: 'Aquisição de cimento para concreto do viaduto',
           dueDate: '2026-07-25',
           value: '6375.00'
+        });
+      }
+    } else if (activeSim === 'pluviometria') {
+      if (step === 2) {
+        activeInterval = typeText('chuva', '35', 150);
+      } else if (step === 3) {
+        setTypedInputs({ chuva: '35', impacto: 'Trabalhável' });
+      } else if (step >= 4) {
+        setTypedInputs({ chuva: '35', impacto: 'Trabalhável' });
+      }
+    } else if (activeSim === 'rdo') {
+      if (step === 2) {
+        setTypedInputs({ climaM: 'Sol', climaT: 'Nublado' });
+      } else if (step === 3) {
+        setTypedInputs({ climaM: 'Sol', climaT: 'Nublado' });
+        activeInterval = typeText('efetivo', '45', 100);
+      } else if (step === 4) {
+        setTypedInputs({ climaM: 'Sol', climaT: 'Nublado', efetivo: '45' });
+        const textoRelato = 'Concretagem da laje nível 2. \nAvanço na alvenaria do bloco B.';
+        let i = 0;
+        activeInterval = setInterval(() => {
+          if (i < textoRelato.length) {
+            setTypedInputs(prev => ({
+              ...prev,
+              relato: textoRelato.slice(0, i + 1)
+            }));
+            i++;
+          } else {
+            clearInterval(activeInterval!);
+          }
+        }, 30);
+      } else if (step >= 5) {
+        setTypedInputs({
+          climaM: 'Sol',
+          climaT: 'Nublado',
+          efetivo: '45',
+          relato: 'Concretagem da laje nível 2. \nAvanço na alvenaria do bloco B.'
         });
       }
     }
@@ -1507,73 +1576,439 @@ export function ContractSimulation({ sectorId = 'measurements', tabId = 'contrac
           </div>
         )}
 
+        {/* ==================== 7. PLUVIOMETRIA SIMULATION ==================== */}
+        {activeSim === 'pluviometria' && (
+          <div className="w-full h-full flex flex-col justify-between text-left">
+            {! (step > 0 && step < 6) ? (
+              <div className="w-full h-full flex flex-col justify-between">
+                <div className="flex items-center justify-between pb-3 border-b border-slate-200 shrink-0">
+                  <div>
+                    <h4 className="text-sm font-extrabold text-slate-800">{currentConfig.pageTitle}</h4>
+                    <p className="text-[10px] text-slate-500 font-bold">Controle diário de chuvas</p>
+                  </div>
+                  <div className="relative">
+                    <div className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 text-slate-600 rounded-xl text-xs font-black shadow-sm border border-slate-200">
+                      <Calendar className="w-3.5 h-3.5" />
+                      Agosto 2026
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex-1 mt-4 overflow-hidden relative flex flex-col">
+                  {/* Calendar Header */}
+                  <div className="grid grid-cols-7 gap-2 mb-2 text-center text-xs font-bold text-slate-400 uppercase tracking-widest">
+                    <div>Dom</div><div>Seg</div><div>Ter</div><div>Qua</div><div>Qui</div><div>Sex</div><div>Sáb</div>
+                  </div>
+                  
+                  {/* Calendar Grid */}
+                  <div className="grid grid-cols-7 gap-2 flex-1">
+                    {Array.from({ length: 31 }).map((_, i) => {
+                      const day = i + 1;
+                      // Just simulating month of August starting on Sat
+                      const isTargetDay = day === 15;
+                      const hasRain = day === 5 || day === 12;
+                      
+                      return (
+                        <div 
+                          key={day} 
+                          className={`
+                            border rounded-lg relative flex flex-col items-center justify-center
+                            ${isTargetDay && step === 0 ? 'ring-2 ring-blue-500 bg-blue-50/50' : 'bg-white border-slate-200'}
+                            ${hasRain ? 'bg-blue-50' : ''}
+                            ${step >= 6 && isTargetDay ? 'bg-amber-50 border-amber-200' : ''}
+                          `}
+                        >
+                          <span className="text-sm font-bold text-slate-700">{day}</span>
+                          {hasRain && <div className="text-[10px] font-black text-blue-600 mt-1">12mm</div>}
+                          {step >= 6 && isTargetDay && <div className="text-[10px] font-black text-amber-600 mt-1">{typedInputs.chuva || '35'}mm</div>}
+                          
+                          {/* Animated pointer on the specific day */}
+                          {isTargetDay && step === 0 && (
+                            <motion.div 
+                              initial={{ opacity: 0, scale: 0.8, y: 10 }}
+                              animate={{ opacity: 1, scale: 1, y: 0 }}
+                              className="absolute top-1/2 left-1/2"
+                            >
+                              <MousePointer className="w-6 h-6 text-blue-600 fill-current drop-shadow-md z-30" />
+                            </motion.div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="absolute inset-0 bg-slate-900/40 flex items-center justify-center p-4 z-20 backdrop-blur-sm">
+                <motion.div 
+                  initial={{ scale: 0.95, opacity: 0, y: 20 }}
+                  animate={{ scale: 1, opacity: 1, y: 0 }}
+                  className="bg-white w-full max-w-sm rounded-2xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col"
+                >
+                  <div className="bg-slate-50 px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+                    <span className="text-sm font-black text-slate-800 flex items-center gap-2">
+                      <FileEdit className="w-4 h-4 text-blue-600" />
+                      Registro: 15 de Agosto
+                    </span>
+                  </div>
+                  
+                  <div className="p-5 flex flex-col gap-4">
+                    {/* Volume de Chuvas */}
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                        Precipitação (mm)
+                      </label>
+                      <div className={`
+                        w-full h-11 px-4 rounded-xl border flex items-center justify-between font-extrabold text-lg
+                        transition-all duration-300
+                        ${step === 2 ? 'border-blue-500 bg-blue-50/20 ring-4 ring-blue-100' : 'border-slate-200 bg-slate-50'}
+                      `}>
+                        <span className={typedInputs.chuva ? 'text-slate-800' : 'text-slate-400'}>
+                          {typedInputs.chuva || '0'}
+                        </span>
+                        <span className="text-slate-400 text-sm">mm</span>
+                        
+                        {step === 2 && (
+                          <motion.div 
+                            animate={{ opacity: [1, 0, 1] }} 
+                            transition={{ repeat: Infinity, duration: 1 }}
+                            className="w-0.5 h-6 bg-blue-500 absolute left-8"
+                          />
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Impacto */}
+                    <div className={`space-y-1.5 transition-all duration-300 ${step >= 3 ? 'opacity-100' : 'opacity-40'}`}>
+                      <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                        Impacto Operacional
+                      </label>
+                      <div className="grid grid-cols-1 gap-2">
+                        <div className={`h-10 rounded-lg border flex items-center px-3 transition-colors ${typedInputs.impacto === 'Trabalhável' ? 'border-emerald-500 bg-emerald-50' : 'border-slate-200 bg-white'}`}>
+                          <div className={`w-4 h-4 rounded-full border-2 mr-3 flex items-center justify-center ${typedInputs.impacto === 'Trabalhável' ? 'border-emerald-500 bg-emerald-500' : 'border-slate-300'}`}>
+                            {typedInputs.impacto === 'Trabalhável' && <div className="w-1.5 h-1.5 bg-white rounded-full"></div>}
+                          </div>
+                          <span className={`text-xs font-bold ${typedInputs.impacto === 'Trabalhável' ? 'text-emerald-800' : 'text-slate-600'}`}>Trabalhável</span>
+                        </div>
+                        <div className={`h-10 rounded-lg border flex items-center px-3 transition-colors ${typedInputs.impacto === 'Parcial' ? 'border-amber-500 bg-amber-50' : 'border-slate-200 bg-white'} ${step === 3 ? 'ring-2 ring-amber-200' : ''}`}>
+                          <div className={`w-4 h-4 rounded-full border-2 mr-3 flex items-center justify-center ${typedInputs.impacto === 'Parcial' ? 'border-amber-500 bg-amber-500' : 'border-slate-300'}`}>
+                            {typedInputs.impacto === 'Parcial' && <div className="w-1.5 h-1.5 bg-white rounded-full"></div>}
+                          </div>
+                          <span className={`text-xs font-bold ${typedInputs.impacto === 'Parcial' ? 'text-amber-800' : 'text-slate-600'}`}>Parcialmente Improdutivo</span>
+                          {step === 3 && (
+                             <motion.div 
+                               initial={{ opacity: 0, x: 20 }}
+                               animate={{ opacity: 1, x: 0 }}
+                               className="absolute right-6"
+                             >
+                               <MousePointer className="w-5 h-5 text-blue-600 fill-current drop-shadow-sm" />
+                             </motion.div>
+                          )}
+                        </div>
+                        <div className={`h-10 rounded-lg border flex items-center px-3 transition-colors ${typedInputs.impacto === 'Improdutivo' ? 'border-rose-500 bg-rose-50' : 'border-slate-200 bg-white'}`}>
+                          <div className={`w-4 h-4 rounded-full border-2 mr-3 flex items-center justify-center ${typedInputs.impacto === 'Improdutivo' ? 'border-rose-500 bg-rose-500' : 'border-slate-300'}`}>
+                            {typedInputs.impacto === 'Improdutivo' && <div className="w-1.5 h-1.5 bg-white rounded-full"></div>}
+                          </div>
+                          <span className={`text-xs font-bold ${typedInputs.impacto === 'Improdutivo' ? 'text-rose-800' : 'text-slate-600'}`}>Improdutivo</span>
+                        </div>
+                      </div>
+                    </div>
+
+                  </div>
+
+                  <div className="bg-slate-50 px-5 py-4 border-t border-slate-100 flex items-center justify-end gap-2">
+                    <button className="px-4 py-2 font-bold text-slate-500 text-sm">Cancelar</button>
+                    <button className={`px-5 py-2 text-white font-black bg-blue-600 hover:bg-blue-700 rounded-xl shadow-sm text-sm transition-all ${step === 4 ? 'ring-4 ring-blue-100 scale-105' : ''}`}>
+                      Salvar Registro
+                    </button>
+                    {step === 4 && (
+                      <motion.div 
+                        initial={{ opacity: 0, scale: 0.8, x: 20, y: 20 }}
+                        animate={{ opacity: 1, scale: 1, x: 0, y: 0 }}
+                        className="absolute right-8 bottom-6 z-30 pointer-events-none"
+                      >
+                        <MousePointer className="w-6 h-6 text-blue-600 fill-current drop-shadow-md" />
+                      </motion.div>
+                    )}
+                  </div>
+                </motion.div>
+              </div>
+            )}
+          </div>
+        )}
+        {/* ==================== 8. RDO SIMULATION ==================== */}
+        {activeSim === 'rdo' && (
+          <div className="w-full h-full flex flex-col justify-between text-left">
+            {! (step > 0 && step < 6) ? (
+              <div className="w-full h-full flex flex-col justify-between">
+                <div className="flex items-center justify-between pb-3 border-b border-slate-200 shrink-0">
+                  <div>
+                    <h4 className="text-sm font-extrabold text-slate-800">{currentConfig.pageTitle}</h4>
+                    <p className="text-[10px] text-slate-500 font-bold">Relatório Diário de Obra</p>
+                  </div>
+                  <div className="relative">
+                    <button className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white rounded-xl text-xs font-black shadow-sm">
+                      <Plus className="w-3.5 h-3.5 stroke-[3px]" />
+                      Novo RDO
+                    </button>
+                    {step === 0 && (
+                      <motion.div 
+                        initial={{ x: 120, y: 150 }}
+                        animate={{ x: [120, 20], y: [150, 10] }}
+                        transition={{ duration: 1.8, ease: "easeInOut", repeat: Infinity }}
+                        className="absolute pointer-events-none text-blue-600 drop-shadow-md z-30"
+                        style={{ right: '10px', top: '10px' }}
+                      >
+                        <MousePointer className="w-6 h-6 fill-current" />
+                      </motion.div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex-1 mt-4 border border-slate-200 rounded-xl overflow-hidden bg-white flex flex-col relative shadow-sm">
+                  <div className="h-10 bg-slate-50 border-b border-slate-200 flex items-center px-4 gap-4">
+                    <div className="w-24 h-4 bg-slate-200 rounded"></div>
+                    <div className="w-32 h-4 bg-slate-200 rounded"></div>
+                    <div className="flex-1"></div>
+                    <div className="w-16 h-4 bg-slate-200 rounded"></div>
+                  </div>
+                  {[1,2,3].map(i => (
+                    <div key={i} className="h-12 border-b border-slate-100 flex items-center px-4 gap-4 relative">
+                      <div className="w-24 h-4 bg-slate-100 rounded"></div>
+                      <div className="w-40 h-4 bg-slate-100 rounded"></div>
+                      <div className="flex-1"></div>
+                      <div className="w-24 h-6 bg-slate-50 border border-slate-100 rounded-full"></div>
+                      
+                      {i === 1 && step >= 6 && (
+                        <motion.div 
+                          initial={{ opacity: 0, scale: 0.8 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          className="absolute left-0 top-0 bottom-0 w-1 bg-blue-500"
+                        />
+                      )}
+                    </div>
+                  ))}
+                  
+                  {step >= 6 && (
+                    <motion.div 
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-slate-800 text-white px-4 py-2 rounded-lg text-xs font-bold shadow-lg flex items-center gap-2 z-10"
+                    >
+                      <Check className="w-4 h-4 text-emerald-400" />
+                      RDO assinado com sucesso.
+                    </motion.div>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <div className="absolute inset-0 bg-slate-900/40 flex items-center justify-center p-4 z-20 backdrop-blur-sm">
+                <motion.div 
+                  initial={{ scale: 0.95, opacity: 0, y: 20 }}
+                  animate={{ scale: 1, opacity: 1, y: 0 }}
+                  className="bg-white w-full max-w-xl rounded-2xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col"
+                >
+                  <div className="bg-slate-50 px-5 py-3 border-b border-slate-100 flex items-center justify-between">
+                    <span className="text-sm font-black text-slate-800 flex items-center gap-2">
+                      <FileEdit className="w-4 h-4 text-blue-600" />
+                      Diário de Obra - 15/08/2026
+                    </span>
+                  </div>
+                  
+                  <div className="p-5 flex flex-col gap-4 overflow-y-auto max-h-[60vh]">
+                    
+                    {/* Condições Climáticas */}
+                    <div className="space-y-2">
+                      <h5 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Condições Climáticas</h5>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className={`h-10 rounded-lg border flex items-center justify-between px-3 transition-colors ${step >= 2 ? 'border-blue-500 bg-blue-50/20' : 'border-slate-200 bg-slate-50'}`}>
+                          <span className="text-xs font-bold text-slate-600">Manhã</span>
+                          <span className={`text-xs font-black ${step >= 2 ? 'text-blue-700' : 'text-slate-400'}`}>{typedInputs.climaM || '---'}</span>
+                        </div>
+                        <div className={`h-10 rounded-lg border flex items-center justify-between px-3 transition-colors ${step >= 2 ? 'border-blue-500 bg-blue-50/20' : 'border-slate-200 bg-slate-50'}`}>
+                          <span className="text-xs font-bold text-slate-600">Tarde</span>
+                          <span className={`text-xs font-black ${step >= 2 ? 'text-blue-700' : 'text-slate-400'}`}>{typedInputs.climaT || '---'}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Efetivo */}
+                    <div className={`space-y-2 transition-opacity duration-300 ${step >= 3 ? 'opacity-100' : 'opacity-40'}`}>
+                      <h5 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Efetivo de Produção</h5>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className={`h-10 rounded-lg border flex items-center justify-between px-3 transition-colors ${step === 3 ? 'border-blue-500 bg-white ring-2 ring-blue-100' : 'border-slate-200 bg-slate-50'}`}>
+                          <span className="text-xs font-bold text-slate-600">Mão de Obra Direta</span>
+                          <span className="text-sm font-black text-slate-800">{typedInputs.efetivo || '0'}</span>
+                          {step === 3 && <motion.div animate={{ opacity: [1, 0, 1] }} transition={{ repeat: Infinity, duration: 1 }} className="w-0.5 h-4 bg-blue-500 absolute right-4" />}
+                        </div>
+                        <div className="h-10 rounded-lg border border-slate-200 bg-slate-50 flex items-center justify-between px-3 opacity-60">
+                          <span className="text-xs font-bold text-slate-600">Equipamentos</span>
+                          <span className="text-sm font-black text-slate-800">12</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Relato */}
+                    <div className={`space-y-2 transition-opacity duration-300 ${step >= 4 ? 'opacity-100' : 'opacity-40'}`}>
+                      <h5 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Relatório Diário</h5>
+                      <div className={`p-3 rounded-lg border h-24 overflow-hidden relative transition-colors ${step === 4 ? 'border-blue-500 bg-white ring-2 ring-blue-100' : 'border-slate-200 bg-slate-50'}`}>
+                         <p className="text-xs font-medium text-slate-700 whitespace-pre-wrap">{typedInputs.relato}</p>
+                         {step === 4 && <motion.div animate={{ opacity: [1, 0, 1] }} transition={{ repeat: Infinity, duration: 1 }} className="inline-block w-0.5 h-3 bg-blue-500 align-middle ml-1" />}
+                      </div>
+                    </div>
+
+                  </div>
+
+                  <div className="bg-slate-50 px-5 py-3 border-t border-slate-100 flex items-center justify-end gap-2">
+                    <button className="px-4 py-1.5 font-bold text-slate-500 text-sm">Cancelar</button>
+                    <button className={`px-5 py-2 text-white font-black bg-blue-600 hover:bg-blue-700 rounded-xl shadow-sm text-sm transition-all ${step === 5 ? 'ring-4 ring-blue-100 scale-105' : ''}`}>
+                      Assinar e Finalizar
+                    </button>
+                    {step === 5 && (
+                      <motion.div 
+                        initial={{ opacity: 0, scale: 0.8, x: 20, y: 20 }}
+                        animate={{ opacity: 1, scale: 1, x: 0, y: 0 }}
+                        className="absolute right-8 bottom-6 z-30 pointer-events-none"
+                      >
+                        <MousePointer className="w-6 h-6 text-blue-600 fill-current drop-shadow-md" />
+                      </motion.div>
+                    )}
+                  </div>
+                </motion.div>
+              </div>
+            )}
+          </div>
+        )}
         {/* ==================== 6. GENERIC SIMULATION ==================== */}
         {activeSim === 'generic' && (
           <div className="w-full h-full flex flex-col justify-between text-left">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-200 shrink-0">
-              <div>
-                <h4 className="text-sm font-extrabold text-slate-800">{currentConfig.pageTitle}</h4>
-                <p className="text-[10px] text-slate-500 font-bold">Automação e Controle</p>
-              </div>
-              <div className="relative">
-                <button className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white rounded-xl text-xs font-black shadow-sm">
-                  <Play className="w-3.5 h-3.5 fill-current" />
-                  Iniciar
-                </button>
-                {step === 0 && (
-                  <motion.div 
-                    initial={{ x: 120, y: 150 }}
-                    animate={{ x: [120, 20], y: [150, 10] }}
-                    transition={{ duration: 1.8, ease: "easeInOut", repeat: Infinity }}
-                    className="absolute pointer-events-none text-blue-600 drop-shadow-md z-30"
-                    style={{ left: '10px', top: '10px' }}
-                  >
-                    <MousePointer className="w-6 h-6 fill-current" />
-                  </motion.div>
-                )}
-              </div>
-            </div>
-
-            <div className="flex-1 bg-white border border-slate-200 rounded-xl mt-3 p-4 flex flex-col gap-3 relative overflow-hidden shadow-sm">
-              <div className="flex items-center gap-2 mb-2">
-                <FileText className="w-4 h-4 text-slate-400" />
-                <span className="text-xs font-bold text-slate-600">Executando processo...</span>
-              </div>
-              
-              {/* Show dummy skeleton items */}
-              {Array.from({ length: 4 }).map((_, i) => {
-                // Map the 4 skeleton items to the middle steps of the generic simulation
-                // Step 0: click Iniciar
-                // Step 1 to length: execution
-                const isItemActive = step > i;
+            {! (step > 0 && step < currentConfig.totalSteps - 1) ? (
+              <div className="w-full h-full flex flex-col justify-between">
+                <div className="flex items-center justify-between pb-3 border-b border-slate-200 shrink-0">
+                  <div>
+                    <h4 className="text-sm font-extrabold text-slate-800">{currentConfig.pageTitle}</h4>
+                    <p className="text-[10px] text-slate-500 font-bold">Listagem e Gerenciamento</p>
+                  </div>
+                  <div className="relative">
+                    <button className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white rounded-xl text-xs font-black shadow-sm">
+                      <Plus className="w-3.5 h-3.5 stroke-[3px]" />
+                      Novo Registro
+                    </button>
+                    {step === 0 && (
+                      <motion.div 
+                        initial={{ x: 120, y: 150 }}
+                        animate={{ x: [120, 20], y: [150, 10] }}
+                        transition={{ duration: 1.8, ease: "easeInOut", repeat: Infinity }}
+                        className="absolute pointer-events-none text-blue-600 drop-shadow-md z-30"
+                        style={{ right: '10px', top: '10px' }}
+                      >
+                        <MousePointer className="w-6 h-6 fill-current" />
+                      </motion.div>
+                    )}
+                  </div>
+                </div>
                 
-                return (
-                  <div key={i} className={`h-12 border rounded-lg flex items-center px-4 transition-all duration-500 ${isItemActive ? 'bg-slate-50 border-slate-200' : 'bg-slate-100/50 border-transparent opacity-50'}`}>
-                     <div className={`w-6 h-6 rounded-full flex items-center justify-center mr-3 transition-colors ${isItemActive ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-200 text-slate-400'}`}>
-                       {isItemActive ? <Check className="w-3.5 h-3.5 stroke-[3px]" /> : <span className="text-[10px] font-bold">{i+1}</span>}
-                     </div>
-                     <div className="flex-1 space-y-2">
-                       <div className={`h-2 rounded-full transition-all duration-1000 ${isItemActive ? 'w-3/4 bg-slate-300' : 'w-0 bg-transparent'}`}></div>
-                       <div className={`h-1.5 rounded-full transition-all duration-1000 ${isItemActive ? 'w-1/2 bg-slate-200' : 'w-0 bg-transparent'}`}></div>
-                     </div>
+                {/* Fake Data Table */}
+                <div className="flex-1 mt-4 border border-slate-200 rounded-xl overflow-hidden bg-white flex flex-col relative">
+                  <div className="h-10 bg-slate-50 border-b border-slate-200 flex items-center px-4 gap-4">
+                    <div className="w-8 h-4 bg-slate-200 rounded"></div>
+                    <div className="w-32 h-4 bg-slate-200 rounded"></div>
+                    <div className="flex-1"></div>
+                    <div className="w-20 h-4 bg-slate-200 rounded"></div>
+                    <div className="w-16 h-4 bg-slate-200 rounded"></div>
                   </div>
-                )
-              })}
-
-              {step >= currentConfig.totalSteps - 1 && (
+                  {[1,2,3].map(i => (
+                    <div key={i} className="h-12 border-b border-slate-100 flex items-center px-4 gap-4 relative">
+                      <div className="w-8 h-4 bg-slate-100 rounded"></div>
+                      <div className="w-40 h-4 bg-slate-100 rounded"></div>
+                      <div className="flex-1"></div>
+                      <div className="w-24 h-6 bg-slate-50 border border-slate-100 rounded-full"></div>
+                      <div className="w-16 h-4 bg-slate-100 rounded"></div>
+                      
+                      {/* Show success indicator on the first row when finished */}
+                      {i === 1 && step >= currentConfig.totalSteps - 1 && (
+                        <motion.div 
+                          initial={{ opacity: 0, scale: 0.8 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          className="absolute left-0 top-0 bottom-0 w-1 bg-emerald-500"
+                        />
+                      )}
+                    </div>
+                  ))}
+                  
+                  {step >= currentConfig.totalSteps - 1 && (
+                    <motion.div 
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-slate-800 text-white px-4 py-2 rounded-lg text-xs font-bold shadow-lg flex items-center gap-2 z-10"
+                    >
+                      <Check className="w-4 h-4 text-emerald-400" />
+                      Registro salvo com sucesso.
+                    </motion.div>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <div className="absolute inset-0 bg-slate-900/20 flex items-center justify-center p-4 z-20 backdrop-blur-[1px]">
                 <motion.div 
-                  initial={{ opacity: 0, scale: 0.9, y: 10 }}
-                  animate={{ opacity: 1, scale: 1, y: 0 }}
-                  className="absolute inset-0 bg-white/90 backdrop-blur-sm flex flex-col items-center justify-center z-20"
+                  initial={{ scale: 0.95, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  className="bg-white w-full max-w-xl rounded-2xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col"
                 >
-                  <div className="w-12 h-12 bg-emerald-100 rounded-full flex items-center justify-center mb-3">
-                    <Check className="w-6 h-6 text-emerald-600 stroke-[3px]" />
+                  <div className="bg-slate-50 px-5 py-3 border-b border-slate-100 flex items-center justify-between">
+                    <span className="text-sm font-black text-slate-800 flex items-center gap-2">
+                      <FileEdit className="w-4 h-4 text-blue-600" />
+                      Formulário: {currentConfig.pageTitle}
+                    </span>
+                    <div className="w-5 h-5 rounded-full bg-slate-200 flex items-center justify-center text-[10px] text-slate-500 font-bold">&times;</div>
                   </div>
-                  <h3 className="text-sm font-black text-slate-800">Processo Finalizado</h3>
-                  <p className="text-xs font-bold text-slate-500">Etapa executada com sucesso</p>
+                  
+                  <div className="p-5 grid grid-cols-2 gap-4 text-left text-xs bg-white">
+                    {steps.map((s, idx) => {
+                      const colonIndex = s.indexOf(':');
+                      const label = colonIndex > 0 && colonIndex < 40 ? s.substring(0, colonIndex) : `Campo ${idx + 1}`;
+                      
+                      // We only show up to 4 fields to fit in the modal
+                      if (idx > 3) return null;
+                      
+                      const fieldStep = idx + 1; // steps mapping
+                      const isCurrentStep = step === fieldStep;
+                      const isPastStep = step > fieldStep;
+                      
+                      return (
+                        <div key={idx} className={`space-y-1.5 ${idx === 0 || idx === 3 ? 'col-span-2' : 'col-span-1'}`}>
+                          <label className="font-bold text-slate-500">{label}</label>
+                          <div className={`w-full h-9 px-3 rounded-lg border flex items-center font-extrabold transition-all text-slate-700
+                            ${isCurrentStep ? 'border-blue-500 bg-blue-50/20 ring-2 ring-blue-100' : 'border-slate-200 bg-slate-50'}
+                            ${isPastStep ? 'border-slate-300 bg-white text-slate-700' : ''}
+                          `}>
+                            {isPastStep ? 'Preenchido ✓' : (isCurrentStep ? <span className="animate-pulse text-blue-500">|</span> : '')}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  <div className="bg-slate-50 px-5 py-3 border-t border-slate-100 flex items-center justify-end gap-2 shrink-0 relative">
+                    <button className="px-3 py-1.5 font-bold text-slate-500">Cancelar</button>
+                    <button className={`px-5 py-2 text-white font-black bg-blue-600 hover:bg-blue-700 rounded-xl shadow-sm ${step === currentConfig.totalSteps - 2 ? 'ring-4 ring-blue-100' : ''}`}>
+                      Salvar Registro
+                    </button>
+                    {step === currentConfig.totalSteps - 2 && (
+                      <motion.div 
+                        initial={{ x: 120, y: 60 }}
+                        animate={{ x: [120, -25], y: [60, 5] }}
+                        transition={{ duration: 1.2, ease: "easeInOut", repeat: Infinity }}
+                        className="absolute pointer-events-none text-blue-600 drop-shadow-md z-30"
+                        style={{ right: '40px', bottom: '0px' }}
+                      >
+                        <MousePointer className="w-6 h-6 fill-current" />
+                      </motion.div>
+                    )}
+                  </div>
                 </motion.div>
-              )}
-            </div>
+              </div>
+            )}
           </div>
         )}
 
