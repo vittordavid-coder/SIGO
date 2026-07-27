@@ -333,7 +333,18 @@ export function ResourceView({ resources, onAdd, onDelete, onUpdate, purchaseOrd
       r.code.toLowerCase().includes(searchTerm.toLowerCase())
     );
 
-    return [...filtered].sort((a, b) => {
+    // Filter out duplicate equipment by name
+    const seenEquipment = new Set<string>();
+    const uniqueFiltered = filtered.filter(r => {
+      if (r.type === 'equipment') {
+        const nameKey = (r.name || '').trim().toLowerCase();
+        if (seenEquipment.has(nameKey)) return false;
+        seenEquipment.add(nameKey);
+      }
+      return true;
+    });
+
+    return [...uniqueFiltered].sort((a, b) => {
       let comparison = 0;
       switch (sortField) {
         case 'code':

@@ -644,6 +644,7 @@ export interface PurchaseOrderItem {
   unit: string;
   quantity: number;
   price: number;
+  application?: string;
 }
 
 export interface PaymentCondition {

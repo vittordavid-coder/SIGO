@@ -1311,6 +1311,49 @@ export const ManagementView = ({
     } catch { return []; }
   }, [propResources, companyId]);
 
+  const resourceAvgPrices = useMemo(() => {
+    const priceMap = new Map<string, { totalVal: number; totalQty: number }>();
+    localOrders.forEach((po: any) => {
+      if (selectedContractId !== 'all' && po.contractId && po.contractId !== selectedContractId) {
+        return;
+      }
+      (po.items || []).forEach((item: any) => {
+        if (!item.itemId && !item.code) return;
+        const key = item.itemId || item.code;
+        const qty = Number(item.quantity) || 0;
+        const price = Number(item.price) || 0;
+        if (qty <= 0) return;
+        
+        const existing = priceMap.get(key);
+        if (existing) {
+          existing.totalVal += (price * qty);
+          existing.totalQty += qty;
+        } else {
+          priceMap.set(key, {
+            totalVal: price * qty,
+            totalQty: qty
+          });
+        }
+      });
+    });
+
+    const avgMap = new Map<string, number>();
+    priceMap.forEach((val, key) => {
+      avgMap.set(key, val.totalQty > 0 ? (val.totalVal / val.totalQty) : 0);
+    });
+    return avgMap;
+  }, [localOrders, selectedContractId]);
+
+  const currentResources = useMemo(() => {
+    return localResources.map((r: any) => {
+      const avgPrice = resourceAvgPrices.get(r.id) || resourceAvgPrices.get(r.code);
+      return {
+        ...r,
+        basePrice: avgPrice !== undefined ? avgPrice : (r.basePrice || 0)
+      };
+    });
+  }, [localResources, resourceAvgPrices]);
+
   const [activeCustomDetail, setActiveCustomDetail] = useState<any | null>(null);
 
   const [isAddCardOpen, setIsAddCardOpen] = useState(false);
@@ -1456,7 +1499,10 @@ export const ManagementView = ({
     if (!activeCustomDetail || activeCustomDetail.type !== 'Equipamentos') return [];
     const eqType = activeCustomDetail.equipmentType || 'ambos';
     
-    const selected = controllerEquipments.filter((eq: any) => {
+    const selected = (controllerEquipments || []).filter((eq: any) => {
+      const matchesContract = selectedContractId === "all" || eq.contractId === selectedContractId;
+      const matchesCompany = !currentUser?.companyId || eq.companyId === currentUser.companyId;
+      if (!matchesContract || !matchesCompany) return false;
       if (eqType === 'alugado') return isAlugado(eq);
       if (eqType === 'proprio') return isProprio(eq);
       return true;
@@ -1480,7 +1526,7 @@ export const ManagementView = ({
         totalCost
       };
     });
-  }, [activeCustomDetail, controllerEquipments, localMaint, localFuelLogs]);
+  }, [activeCustomDetail, controllerEquipments, localMaint, localFuelLogs, selectedContractId, currentUser]);
 
   const top10Equipments = useMemo(() => {
     return [...selectedEqsList].sort((a, b) => b.totalCost - a.totalCost).slice(0, 10);
@@ -1537,6 +1583,7 @@ export const ManagementView = ({
 
       const avgPrice = item.count > 0 ? (item.priceSum / item.count) : 0;
       const unitCost = calculateServiceUnitCost(composition, localResources, services);
+      const currentCost = calculateServiceUnitCost(composition, currentResources, services);
 
       const totalRev = item.quantity * avgPrice;
       const totalCost = item.quantity * unitCost;
@@ -1551,6 +1598,7 @@ export const ManagementView = ({
         quantity: item.quantity,
         avgPrice,
         unitCost,
+        currentCost,
         totalRev,
         totalCost,
         rentabilidade,
@@ -1578,7 +1626,7 @@ export const ManagementView = ({
       classA.push(mapped[0]);
     }
     return classA;
-  }, [contracts, selectedContractId, services, localResources]);
+  }, [contracts, selectedContractId, services, localResources, currentResources]);
 
   const handleAddCard = () => {
     const cardId = Date.now().toString();
@@ -1657,7 +1705,10 @@ export const ManagementView = ({
   };
 
   const getEquipmentCardProps = (eqType: 'alugado' | 'proprio' | 'ambos') => {
-    const selected = controllerEquipments.filter((eq: any) => {
+    const selected = (controllerEquipments || []).filter((eq: any) => {
+      const matchesContract = selectedContractId === "all" || eq.contractId === selectedContractId;
+      const matchesCompany = !currentUser?.companyId || eq.companyId === currentUser.companyId;
+      if (!matchesContract || !matchesCompany) return false;
       if (eqType === 'alugado') return isAlugado(eq);
       if (eqType === 'proprio') return isProprio(eq);
       return true;
@@ -2123,6 +2174,7 @@ export const ManagementView = ({
                       <TableHead className="font-bold uppercase text-slate-600 text-right">Qtd Planilha</TableHead>
                       <TableHead className="font-bold uppercase text-slate-600 text-right">Preço Unit. Venda</TableHead>
                       <TableHead className="font-bold uppercase text-slate-600 text-right">Custo Composição</TableHead>
+                      <TableHead className="font-bold uppercase text-slate-600 text-right">Custo Atual</TableHead>
                       <TableHead className="font-bold uppercase text-slate-600 text-right">Lucro Acumulado</TableHead>
                       <TableHead className="font-bold uppercase text-slate-600 text-right">Margem (%)</TableHead>
                     </TableRow>
@@ -2130,7 +2182,7 @@ export const ManagementView = ({
                   <TableBody>
                     {classifiedServices.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={8} className="text-center py-8 text-slate-400 italic">Nenhum serviço de Classe A encontrado.</TableCell>
+                        <TableCell colSpan={9} className="text-center py-8 text-slate-400 italic">Nenhum serviço de Classe A encontrado.</TableCell>
                       </TableRow>
                     ) : (
                       classifiedServices.map((s, idx) => (
@@ -2141,6 +2193,7 @@ export const ManagementView = ({
                           <TableCell className="text-right font-mono font-medium text-slate-600">{Number(s.quantity).toLocaleString()}</TableCell>
                           <TableCell className="text-right font-mono font-medium text-blue-600">R$ {s.avgPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</TableCell>
                           <TableCell className="text-right font-mono font-medium text-amber-600">R$ {s.unitCost.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</TableCell>
+                          <TableCell className="text-right font-mono font-medium text-rose-600">R$ {(s.currentCost || s.unitCost).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</TableCell>
                           <TableCell className="text-right font-mono font-bold text-emerald-600">R$ {s.rentabilidade.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</TableCell>
                           <TableCell className="text-right font-mono font-bold text-indigo-600">{s.margin.toFixed(1)}%</TableCell>
                         </TableRow>
@@ -2499,10 +2552,19 @@ export const ManagementView = ({
         : measurements?.filter((m: any) => m.contractId === selectedContractId);
 
     const equipments = (controllerEquipments || []).filter(
-      (e: any) => (!e.situation || e.situation === "Ativo" || e.situation === "active") && !e.exitDate
+      (e: any) => 
+        (!e.situation || e.situation === "Ativo" || e.situation === "active") && 
+        !e.exitDate &&
+        (selectedContractId === "all" || e.contractId === selectedContractId) &&
+        (!currentUser?.companyId || e.companyId === currentUser.companyId)
     );
     const rh = (employees || []).filter(
-      (e: any) => (!e.status || e.status === "active" || e.status === "Ativo") && !e.dismissalDate && !e.exitDate
+      (e: any) => 
+        (!e.status || e.status === "active" || e.status === "Ativo") && 
+        !e.dismissalDate && 
+        !e.exitDate &&
+        (selectedContractId === "all" || e.contractId === selectedContractId) &&
+        (!currentUser?.companyId || e.companyId === currentUser.companyId)
     );
 
     const getRhParamsTotalPercentage = () => {

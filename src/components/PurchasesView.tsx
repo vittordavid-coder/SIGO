@@ -2398,6 +2398,7 @@ function OrdersTab({
                     <TableHead className="w-[50px] font-bold text-base text-gray-600 uppercase">Item</TableHead>
                     <TableHead className="w-[100px] font-bold text-base text-gray-600 uppercase">Cod</TableHead>
                     <TableHead className="font-bold text-base text-gray-600 uppercase">Descrição dos Produtos</TableHead>
+                    <TableHead className="w-[180px] font-bold text-base text-gray-600 uppercase">Aplicação</TableHead>
                     <TableHead className="w-[80px] font-bold text-base text-gray-600 uppercase text-center">Un</TableHead>
                     <TableHead className="w-[100px] font-bold text-base text-gray-600 uppercase text-center">Qtde</TableHead>
                     <TableHead className="w-[120px] font-bold text-base text-gray-600 uppercase text-right">Preço (R$)</TableHead>
@@ -2408,7 +2409,7 @@ function OrdersTab({
                 <TableBody>
                   {currentOrder.items?.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={8} className="text-center text-gray-400 py-6">
+                      <TableCell colSpan={9} className="text-center text-gray-400 py-6">
                         Nenhum item adicionado
                       </TableCell>
                     </TableRow>
@@ -2473,6 +2474,55 @@ function OrdersTab({
                             </div>
                           );
                         })()}
+                      </TableCell>
+                      <TableCell className="p-1">
+                        <select
+                          disabled={isReadOnly}
+                          className="w-full h-8 px-2 bg-transparent border border-gray-200 hover:border-gray-300 focus:border-emerald-500 focus:bg-white rounded-md text-sm outline-none"
+                          value={item.application || ''}
+                          onChange={e => updateItem(index, 'application', e.target.value)}
+                        >
+                          <option value="">Selecione...</option>
+                          {(() => {
+                            const selectedContract = contracts.find(c => c.id === currentOrder.contractId);
+                            if (selectedContract) {
+                              return (
+                                <>
+                                  <optgroup label="Grupos de Serviços">
+                                    {(selectedContract.groups || []).map((g: any, sIdx: number) => (
+                                      <option key={`group-${g.id || g.name}-${sIdx}`} value={`Grupo: ${g.name}`}>
+                                        Grupo: {g.name}
+                                      </option>
+                                    ))}
+                                  </optgroup>
+                                  <optgroup label="Serviços do Contrato">
+                                    {(selectedContract.services || []).map((s: any) => {
+                                      const serviceName = s.name || services.find((serv: any) => serv.id === s.serviceId)?.name || 'Serviço';
+                                      const displayLabel = s.code ? `${s.code} - ${serviceName}` : serviceName;
+                                      return (
+                                        <option key={`service-${s.serviceId}`} value={`Serviço: ${displayLabel}`}>
+                                          {displayLabel}
+                                        </option>
+                                      );
+                                    })}
+                                  </optgroup>
+                                </>
+                              );
+                            }
+                            return (
+                              <optgroup label="Todos os Serviços">
+                                {(services || []).map((s: any) => {
+                                  const displayLabel = s.code ? `${s.code} - ${s.name}` : s.name;
+                                  return (
+                                    <option key={`service-${s.id}`} value={`Serviço: ${displayLabel}`}>
+                                      {displayLabel}
+                                    </option>
+                                  );
+                                })}
+                              </optgroup>
+                            );
+                          })()}
+                        </select>
                       </TableCell>
                       <TableCell className="p-1">
                         <Input disabled={isReadOnly} className="h-8 text-base text-center bg-transparent border-transparent hover:border-gray-200 focus:border-emerald-500 focus:bg-white" value={item.unit} onChange={e => updateItem(index, 'unit', e.target.value)} />
@@ -2906,7 +2956,14 @@ function OrdersTab({
                     <tr key={item.id} className="even:bg-blue-50/20 leading-snug">
                       <td className="border border-blue-200 p-1.5 text-center text-sm">{i + 1}</td>
                       <td className="border border-blue-200 p-1.5 text-center text-sm font-mono">{item.code || '-'}</td>
-                      <td className="border border-blue-200 p-1.5 text-base font-medium text-left">{item.description}</td>
+                      <td className="border border-blue-200 p-1.5 text-base font-medium text-left">
+                        {item.description}
+                        {item.application && (
+                          <div className="text-xs text-blue-600 font-semibold mt-0.5">
+                            Aplicação: {item.application}
+                          </div>
+                        )}
+                      </td>
                       <td className="border border-blue-200 p-1.5 text-center text-sm">{item.unit}</td>
                       <td className="border border-blue-200 p-1.5 text-center font-bold text-base">{item.quantity}</td>
                       <td className="border border-blue-200 p-1.5 text-right text-base">R$ {(item.price ?? 0).toLocaleString('pt-BR', {minimumFractionDigits: 2})}</td>

@@ -2400,15 +2400,21 @@ export default function RHView({
     }, 150);
   };
 
-  const filteredEmployees = useMemo(() => {
-    let result = employees.filter(
+  const currentContractEmployees = useMemo(() => {
+    return employees.filter(
       (e) =>
         (currentUser.role === "master" ||
           e.companyId === currentUser.companyId) &&
-        (e.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          e.cpf.includes(searchTerm) ||
-          (e.registrationNumber && e.registrationNumber.toLowerCase().includes(searchTerm.toLowerCase()))) &&
         (!selectedContractId || e.contractId === selectedContractId),
+    );
+  }, [employees, currentUser, selectedContractId]);
+
+  const filteredEmployees = useMemo(() => {
+    let result = currentContractEmployees.filter(
+      (e) =>
+        e.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        e.cpf.includes(searchTerm) ||
+        (e.registrationNumber && e.registrationNumber.toLowerCase().includes(searchTerm.toLowerCase())),
     );
 
     return result.sort((a, b) => {
@@ -2436,12 +2442,10 @@ export default function RHView({
       return sortOrder === "asc" ? comparison : -comparison;
     });
   }, [
-    employees,
-    currentUser,
+    currentContractEmployees,
     searchTerm,
     sortField,
     sortOrder,
-    selectedContractId,
   ]);
 
   // Reset selected employee if contract filter makes them unavailable
@@ -2885,7 +2889,7 @@ export default function RHView({
   };
 
   const sortedFechamentoEmployees = useMemo(() => {
-    let sorted = employees.filter((e) => e.status === "active");
+    let sorted = currentContractEmployees.filter((e) => e.status === "active");
 
     sorted = sorted.sort((a, b) => {
       let aValue: any = "";
@@ -2936,9 +2940,9 @@ export default function RHView({
       return 0;
     });
     return sorted;
-  }, [employees, closingRecordsMap, fechamentoSortField, fechamentoSortOrder]);
+  }, [currentContractEmployees, closingRecordsMap, fechamentoSortField, fechamentoSortOrder]);
 
-  const existingRoles = Array.from(new Set(employees.map(e => e.role).filter(Boolean))).sort();
+  const existingRoles = Array.from(new Set(currentContractEmployees.map(e => e.role).filter(Boolean))).sort();
 
   return (
     <div className="p-6 max-w-[1700px] mx-auto space-y-6">
@@ -2987,7 +2991,7 @@ export default function RHView({
                 <CardDescription className="font-bold text-orange-900">Total de Funcionários</CardDescription>
               </CardHeader>
               <CardContent className="mt-auto">
-                <div className="text-3xl font-black text-gray-900">{employees.filter(e => e.status === 'active').length}</div>
+                <div className="text-3xl font-black text-gray-900">{currentContractEmployees.filter(e => e.status === 'active' || !e.status).length}</div>
                 <p className="text-[10px] text-orange-600 font-semibold mt-1">Colaboradores Ativos</p>
               </CardContent>
             </Card>
@@ -4386,7 +4390,7 @@ export default function RHView({
                 <CardContent>
                   <div className="flex items-center justify-between">
                     <span className="text-3xl font-black text-gray-900 font-mono">
-                      {employees.filter(e => e.alojamentoId && e.status === "active" && alojamentos.some(al => al.id === e.alojamentoId)).length}
+                      {currentContractEmployees.filter(e => e.alojamentoId && (e.status === "active" || !e.status) && alojamentos.some(al => al.id === e.alojamentoId)).length}
                     </span>
                     <Users className="w-8 h-8 text-orange-500 opacity-80" />
                   </div>
@@ -4400,7 +4404,7 @@ export default function RHView({
                 <CardContent>
                   <div className="flex items-center justify-between">
                     <span className="text-3xl font-black text-gray-900 font-mono">
-                      {Math.max(0, alojamentos.reduce((acc, al) => acc + (al.maxCapacity || 0), 0) - employees.filter(e => e.alojamentoId && e.status === "active" && alojamentos.some(al => al.id === e.alojamentoId)).length)}
+                      {Math.max(0, alojamentos.reduce((acc, al) => acc + (al.maxCapacity || 0), 0) - currentContractEmployees.filter(e => e.alojamentoId && (e.status === "active" || !e.status) && alojamentos.some(al => al.id === e.alojamentoId)).length)}
                     </span>
                     <Clock className="w-8 h-8 text-orange-500 opacity-80" />
                   </div>
@@ -4458,7 +4462,7 @@ export default function RHView({
                           return al.name.toLowerCase().includes(term) || al.city.toLowerCase().includes(term);
                         })
                         .map(al => {
-                          const occupants = employees.filter(e => e.alojamentoId === al.id && e.status === "active");
+                          const occupants = currentContractEmployees.filter(e => e.alojamentoId === al.id && (e.status === "active" || !e.status));
                           const percent = al.maxCapacity > 0 ? (occupants.length / al.maxCapacity) * 100 : 0;
                           
                           return (
@@ -5370,15 +5374,15 @@ export default function RHView({
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {employees.filter(e => e.alojamentoId === viewingAlojamentoId && e.status === "active").length === 0 ? (
+                  {currentContractEmployees.filter(e => e.alojamentoId === viewingAlojamentoId && (e.status === "active" || !e.status)).length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={3} className="text-center py-8 text-gray-400 text-xs">
                         Nenhum colaborador alojado aqui.
                       </TableCell>
                     </TableRow>
                   ) : (
-                    employees
-                      .filter(e => e.alojamentoId === viewingAlojamentoId && e.status === "active")
+                    currentContractEmployees
+                      .filter(e => e.alojamentoId === viewingAlojamentoId && (e.status === "active" || !e.status))
                       .map(e => (
                         <TableRow key={e.id} className="hover:bg-gray-50/30">
                           <TableCell className="font-semibold text-xs py-2.5 text-gray-950">{e.name}</TableCell>
@@ -5480,7 +5484,7 @@ export default function RHView({
                                 onClick={() => {
                                   // Assign and verify capacity in UI warning
                                   const alObj = alojamentos.find(al => al.id === addingToAlojamentoId);
-                                  const currentOcc = employees.filter(emp => emp.alojamentoId === addingToAlojamentoId && emp.status === "active").length;
+                                  const currentOcc = currentContractEmployees.filter(emp => emp.alojamentoId === addingToAlojamentoId && (emp.status === "active" || !emp.status)).length;
                                   if (alObj && currentOcc >= alObj.maxCapacity) {
                                     alert("Alojamento atingiu a capacidade máxima!");
                                     return;

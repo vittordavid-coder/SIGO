@@ -4441,6 +4441,9 @@ export default function App() {
                   companyLogo={companyLogo}
                   bdi={calculateBDI(bdiConfig)}
                   readonly={currentUser?.role === 'reader'}
+                  selectedContractId={selectedContractId}
+                  contracts={finalContracts}
+                  quotations={finalQuotations}
                 />
               )}
 

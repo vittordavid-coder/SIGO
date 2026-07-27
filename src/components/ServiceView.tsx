@@ -17,6 +17,7 @@ import { Separator } from '@/components/ui/separator';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuLabel } from "@/components/ui/dropdown-menu";
 import jsPDF from 'jspdf';
+import { Switch } from '@/components/ui/switch';
 
 interface ServiceViewProps {
   key?: string;
@@ -28,11 +29,52 @@ interface ServiceViewProps {
   companyLogo?: string;
   bdi?: number;
   readonly?: boolean;
+  selectedContractId?: string | null;
+  contracts?: any[];
+  quotations?: any[];
 }
 
-export function ServiceView({ services, resources, onAdd, onDelete, onUpdate, companyLogo, bdi = 0, readonly }: ServiceViewProps) {
+export function ServiceView({ 
+  services, 
+  resources, 
+  onAdd, 
+  onDelete, 
+  onUpdate, 
+  companyLogo, 
+  bdi = 0, 
+  readonly,
+  selectedContractId,
+  contracts,
+  quotations
+}: ServiceViewProps) {
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
+  const [showAllServices, setShowAllServices] = useState(false);
+
+  const contractServiceIds = React.useMemo(() => {
+    if (!selectedContractId || !contracts || !quotations) return null;
+    const contract = contracts.find(c => c.id === selectedContractId);
+    if (!contract || !contract.quotationId) return null;
+    const quotation = quotations.find(q => q.id === contract.quotationId);
+    if (!quotation) return null;
+
+    const serviceIds = new Set<string>();
+    const qServices = [
+      ...(quotation.services || []),
+      ...(quotation.groups?.flatMap((g: any) => g.services || []) || [])
+    ];
+    qServices.forEach((s: any) => {
+      if (s.serviceId) serviceIds.add(s.serviceId);
+    });
+    return serviceIds;
+  }, [selectedContractId, contracts, quotations]);
+
+  const displayedServices = React.useMemo(() => {
+    if (selectedContractId && contractServiceIds && !showAllServices) {
+      return services.filter(s => contractServiceIds.has(s.id));
+    }
+    return services;
+  }, [services, selectedContractId, contractServiceIds, showAllServices]);
   const [editingService, setEditingService] = useState<ServiceComposition | null>(null);
   const [editingItemIndex, setEditingItemIndex] = useState<number | null>(null);
   const [resourceSearch, setResourceSearch] = useState('');
@@ -728,11 +770,22 @@ export function ServiceView({ services, resources, onAdd, onDelete, onUpdate, co
                                     <span className="text-xs font-black text-gray-400 uppercase tracking-wider">Insumos</span>
                                     <span className="text-[10px] bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded-full font-bold">Total: {resources.length}</span>
                                   </div>
-                                  {resources
-                                    .filter(r => 
-                                      r.name.toLowerCase().includes(resourceSearch.toLowerCase()) || 
-                                      r.code.toLowerCase().includes(resourceSearch.toLowerCase())
-                                    )
+                                  {(() => {
+                                    const seenEquipment = new Set<string>();
+                                    return resources
+                                      .filter(r => 
+                                        r.name.toLowerCase().includes(resourceSearch.toLowerCase()) || 
+                                        r.code.toLowerCase().includes(resourceSearch.toLowerCase())
+                                      )
+                                      .filter(r => {
+                                        if (r.type === 'equipment') {
+                                          const nameKey = (r.name || '').trim().toLowerCase();
+                                          if (seenEquipment.has(nameKey)) return false;
+                                          seenEquipment.add(nameKey);
+                                        }
+                                        return true;
+                                      });
+                                  })()
                                     .map(r => (
                                       <button
                                         type="button"
@@ -1013,11 +1066,22 @@ export function ServiceView({ services, resources, onAdd, onDelete, onUpdate, co
                                   <span className="text-xs font-black text-gray-400 uppercase tracking-wider">Insumos</span>
                                   <span className="text-[10px] bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded-full font-bold">Total: {resources.length}</span>
                                 </div>
-                                {resources
-                                  .filter(r => 
-                                    r.name.toLowerCase().includes(resourceSearch.toLowerCase()) || 
-                                    r.code.toLowerCase().includes(resourceSearch.toLowerCase())
-                                  )
+                                {(() => {
+                                  const seenEquipment = new Set<string>();
+                                  return resources
+                                    .filter(r => 
+                                      r.name.toLowerCase().includes(resourceSearch.toLowerCase()) || 
+                                      r.code.toLowerCase().includes(resourceSearch.toLowerCase())
+                                    )
+                                    .filter(r => {
+                                      if (r.type === 'equipment') {
+                                        const nameKey = (r.name || '').trim().toLowerCase();
+                                        if (seenEquipment.has(nameKey)) return false;
+                                        seenEquipment.add(nameKey);
+                                      }
+                                      return true;
+                                    });
+                                })()
                                   .map(r => (
                                     <button
                                       type="button"
@@ -1198,18 +1262,42 @@ export function ServiceView({ services, resources, onAdd, onDelete, onUpdate, co
       </div>
     </div>
 
+      {selectedContractId && (
+        <div className="flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center bg-slate-50 border border-slate-100 p-4 rounded-2xl shadow-sm">
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-bold text-slate-400 uppercase tracking-wider">Obra Ativa:</span>
+            <span className="text-sm font-black text-blue-700 bg-blue-100/50 px-3 py-1 rounded-xl">
+              {(() => {
+                const c = contracts?.find(x => x.id === selectedContractId);
+                return c?.workName || c?.contractNumber || 'Sem Nome';
+              })()}
+            </span>
+          </div>
+          <div className="flex items-center space-x-3 bg-white px-4 py-2 rounded-xl border border-gray-100 shadow-sm">
+            <Switch 
+              id="show-all-services" 
+              checked={showAllServices} 
+              onCheckedChange={setShowAllServices} 
+            />
+            <Label htmlFor="show-all-services" className="font-bold text-gray-700 cursor-pointer text-sm">
+              Mostrar serviços de todas as obras (on/off)
+            </Label>
+          </div>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 gap-4">
-        {services.filter(s => 
+        {displayedServices.filter(s => 
           s.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
           s.code.toLowerCase().includes(searchTerm.toLowerCase())
         ).length === 0 ? (
           <Card className="border-none shadow-sm">
             <CardContent className="py-12 text-center text-gray-500">
-              {searchTerm ? 'Nenhum serviço encontrado para esta pesquisa.' : 'Nenhuma composição de serviço cadastrada.'}
+              {searchTerm ? 'Nenhum serviço encontrado para esta pesquisa.' : 'Nenhuma composição de serviço cadastrada para este contrato.'}
             </CardContent>
           </Card>
         ) : (
-          services
+          displayedServices
             .filter(s => 
               s.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
               s.code.toLowerCase().includes(searchTerm.toLowerCase())
