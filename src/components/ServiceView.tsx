@@ -52,20 +52,48 @@ export function ServiceView({
   const [showAllServices, setShowAllServices] = useState(false);
 
   const contractServiceIds = React.useMemo(() => {
-    if (!selectedContractId || !contracts || !quotations) return null;
+    if (!selectedContractId || !contracts) return null;
     const contract = contracts.find(c => c.id === selectedContractId);
-    if (!contract || !contract.quotationId) return null;
-    const quotation = quotations.find(q => q.id === contract.quotationId);
-    if (!quotation) return null;
+    if (!contract) return null;
 
     const serviceIds = new Set<string>();
-    const qServices = [
-      ...(quotation.services || []),
-      ...(quotation.groups?.flatMap((g: any) => g.services || []) || [])
-    ];
-    qServices.forEach((s: any) => {
-      if (s.serviceId) serviceIds.add(s.serviceId);
-    });
+
+    // 1. Check direct contract services/groups first
+    const hasDirectServices = contract.services && contract.services.length > 0;
+    const hasDirectGroups = contract.groups && contract.groups.length > 0;
+
+    if (hasDirectServices || hasDirectGroups) {
+      if (hasDirectServices) {
+        contract.services.forEach((s: any) => {
+          if (s.serviceId) serviceIds.add(s.serviceId);
+        });
+      }
+      if (hasDirectGroups) {
+        contract.groups.forEach((g: any) => {
+          g.services?.forEach((s: any) => {
+            if (s.serviceId) serviceIds.add(s.serviceId);
+          });
+        });
+      }
+      return serviceIds;
+    }
+
+    // 2. Fallback to quotation if quotationId is valid and not "none"
+    if (contract.quotationId && contract.quotationId !== 'none' && quotations) {
+      const quotation = quotations.find(q => q.id === contract.quotationId);
+      if (quotation) {
+        const qServices = [
+          ...(quotation.services || []),
+          ...(quotation.groups?.flatMap((g: any) => g.services || []) || [])
+        ];
+        qServices.forEach((s: any) => {
+          if (s.serviceId) serviceIds.add(s.serviceId);
+        });
+        return serviceIds;
+      }
+    }
+
+    // If no services are defined, return an empty set to show 0 services for this contract (toggle can show all)
     return serviceIds;
   }, [selectedContractId, contracts, quotations]);
 
