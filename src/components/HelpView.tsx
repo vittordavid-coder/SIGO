@@ -982,26 +982,21 @@ export function HelpView({ currentUser }: HelpViewProps) {
                       </p>
 
                       {/* Animated Demonstration for Key System Operations */}
-                      {((activeSectorId === 'measurements' && activeTabId === 'contracts') ||
-                        (activeSectorId === 'quotations' && activeTabId === 'resources') ||
-                        (activeSectorId === 'rh' && activeTabId === 'employees') ||
-                        (activeSectorId === 'purchases' && activeTabId === 'requests') ||
-                        (activeSectorId === 'financeiro' && activeTabId === 'payables')) && (
-                        <div className="mt-6 pt-4 border-t border-slate-100">
-                          <h4 className="text-sm font-black uppercase text-slate-500 tracking-wider mb-4 flex items-center gap-2">
-                            <span className="flex h-2 w-2 relative">
-                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
-                              <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500"></span>
-                            </span>
-                            {activeSectorId === 'measurements' && activeTabId === 'contracts' && 'Demonstração Animada: Cadastrando um Novo Contrato'}
-                            {activeSectorId === 'quotations' && activeTabId === 'resources' && 'Demonstração Animada: Cadastrando um Novo Insumo'}
-                            {activeSectorId === 'rh' && activeTabId === 'employees' && 'Demonstração Animada: Ficha de Admissão Digital (RH)'}
-                            {activeSectorId === 'purchases' && activeTabId === 'requests' && 'Demonstração Animada: Criando Solicitação de Compra (RC)'}
-                            {activeSectorId === 'financeiro' && activeTabId === 'payables' && 'Demonstração Animada: Lançando Item no Contas a Pagar'}
-                          </h4>
-                          <ContractSimulation sectorId={activeSectorId} tabId={activeTabId} />
-                        </div>
-                      )}
+                      <div className="mt-6 pt-4 border-t border-slate-100">
+                        <h4 className="text-sm font-black uppercase text-slate-500 tracking-wider mb-4 flex items-center gap-2">
+                          <span className="flex h-2 w-2 relative">
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
+                            <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500"></span>
+                          </span>
+                          Demonstração Animada: {activeTab?.title || 'Guia Interativo'}
+                        </h4>
+                        <ContractSimulation 
+                          sectorId={activeSectorId} 
+                          tabId={activeTabId}
+                          title={activeTab?.title}
+                          steps={activeTab?.steps}
+                        />
+                      </div>
                     </div>
 
                     {/* Step-by-Step Activities */}

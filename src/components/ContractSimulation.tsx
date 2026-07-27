@@ -9,11 +9,13 @@ import {
 } from 'lucide-react';
 
 interface ContractSimulationProps {
+  steps?: string[];
+  title?: string;
   sectorId?: string;
   tabId?: string;
 }
 
-export function ContractSimulation({ sectorId = 'measurements', tabId = 'contracts' }: ContractSimulationProps) {
+export function ContractSimulation({ sectorId = 'measurements', tabId = 'contracts', steps = [], title = '' }: ContractSimulationProps) {
   const [step, setStep] = useState(0);
   const [isPlaying, setIsPlaying] = useState(true);
 
@@ -21,12 +23,13 @@ export function ContractSimulation({ sectorId = 'measurements', tabId = 'contrac
   const [typedInputs, setTypedInputs] = useState<Record<string, string>>({});
 
   // Determine active simulation
-  let activeSim = 'contracts';
-  if (sectorId === 'quotations' && tabId === 'resources') activeSim = 'resources';
-  if (sectorId === 'quotations' && tabId === 'quotations_tab') activeSim = 'quotations_tab';
-  if (sectorId === 'rh' && tabId === 'employees') activeSim = 'employees';
-  if (sectorId === 'purchases' && tabId === 'requests') activeSim = 'requests';
-  if (sectorId === 'financeiro' && tabId === 'payables') activeSim = 'payables';
+  let activeSim = 'generic';
+  if (sectorId === 'measurements' && tabId === 'contracts') activeSim = 'contracts';
+  else if (sectorId === 'quotations' && tabId === 'resources') activeSim = 'resources';
+  else if (sectorId === 'quotations' && tabId === 'quotations_tab') activeSim = 'quotations_tab';
+  else if (sectorId === 'rh' && tabId === 'employees') activeSim = 'employees';
+  else if (sectorId === 'purchases' && tabId === 'requests') activeSim = 'requests';
+  else if (sectorId === 'financeiro' && tabId === 'payables') activeSim = 'payables';
 
   // Define steps configurations
   const simulationsConfig: Record<string, {
@@ -36,6 +39,20 @@ export function ContractSimulation({ sectorId = 'measurements', tabId = 'contrac
     browserUrl: string;
     pageTitle: string;
   }> = {
+    generic: {
+      totalSteps: Math.max(2, steps.length + 2),
+      delays: { 0: 2500, [Math.max(2, steps.length + 2) - 1]: 4000 },
+      labels: [
+        `Acessar o módulo de ${title || 'Operações'}`,
+        ...(steps.length > 0 ? steps.map(s => {
+          const colonIndex = s.indexOf(':');
+          return colonIndex > 0 && colonIndex < 35 ? s.substring(0, colonIndex) : s.substring(0, 45) + '...';
+        }) : ['Iniciando processo principal...']),
+        'Processo concluído com sucesso!'
+      ],
+      browserUrl: `https://sistema.synera.com/${sectorId}/${tabId}`,
+      pageTitle: title || 'Módulo do Sistema'
+    },
     contracts: {
       totalSteps: 8,
       delays: { 0: 2500, 1: 1500, 2: 2000, 3: 2200, 4: 2200, 5: 1800, 6: 1500, 7: 4000 },
@@ -1487,6 +1504,76 @@ export function ContractSimulation({ sectorId = 'measurements', tabId = 'contrac
                 </motion.div>
               </div>
             )}
+          </div>
+        )}
+
+        {/* ==================== 6. GENERIC SIMULATION ==================== */}
+        {activeSim === 'generic' && (
+          <div className="w-full h-full flex flex-col justify-between text-left">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-200 shrink-0">
+              <div>
+                <h4 className="text-sm font-extrabold text-slate-800">{currentConfig.pageTitle}</h4>
+                <p className="text-[10px] text-slate-500 font-bold">Automação e Controle</p>
+              </div>
+              <div className="relative">
+                <button className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white rounded-xl text-xs font-black shadow-sm">
+                  <Play className="w-3.5 h-3.5 fill-current" />
+                  Iniciar
+                </button>
+                {step === 0 && (
+                  <motion.div 
+                    initial={{ x: 120, y: 150 }}
+                    animate={{ x: [120, 20], y: [150, 10] }}
+                    transition={{ duration: 1.8, ease: "easeInOut", repeat: Infinity }}
+                    className="absolute pointer-events-none text-blue-600 drop-shadow-md z-30"
+                    style={{ left: '10px', top: '10px' }}
+                  >
+                    <MousePointer className="w-6 h-6 fill-current" />
+                  </motion.div>
+                )}
+              </div>
+            </div>
+
+            <div className="flex-1 bg-white border border-slate-200 rounded-xl mt-3 p-4 flex flex-col gap-3 relative overflow-hidden shadow-sm">
+              <div className="flex items-center gap-2 mb-2">
+                <FileText className="w-4 h-4 text-slate-400" />
+                <span className="text-xs font-bold text-slate-600">Executando processo...</span>
+              </div>
+              
+              {/* Show dummy skeleton items */}
+              {Array.from({ length: 4 }).map((_, i) => {
+                // Map the 4 skeleton items to the middle steps of the generic simulation
+                // Step 0: click Iniciar
+                // Step 1 to length: execution
+                const isItemActive = step > i;
+                
+                return (
+                  <div key={i} className={`h-12 border rounded-lg flex items-center px-4 transition-all duration-500 ${isItemActive ? 'bg-slate-50 border-slate-200' : 'bg-slate-100/50 border-transparent opacity-50'}`}>
+                     <div className={`w-6 h-6 rounded-full flex items-center justify-center mr-3 transition-colors ${isItemActive ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-200 text-slate-400'}`}>
+                       {isItemActive ? <Check className="w-3.5 h-3.5 stroke-[3px]" /> : <span className="text-[10px] font-bold">{i+1}</span>}
+                     </div>
+                     <div className="flex-1 space-y-2">
+                       <div className={`h-2 rounded-full transition-all duration-1000 ${isItemActive ? 'w-3/4 bg-slate-300' : 'w-0 bg-transparent'}`}></div>
+                       <div className={`h-1.5 rounded-full transition-all duration-1000 ${isItemActive ? 'w-1/2 bg-slate-200' : 'w-0 bg-transparent'}`}></div>
+                     </div>
+                  </div>
+                )
+              })}
+
+              {step >= currentConfig.totalSteps - 1 && (
+                <motion.div 
+                  initial={{ opacity: 0, scale: 0.9, y: 10 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  className="absolute inset-0 bg-white/90 backdrop-blur-sm flex flex-col items-center justify-center z-20"
+                >
+                  <div className="w-12 h-12 bg-emerald-100 rounded-full flex items-center justify-center mb-3">
+                    <Check className="w-6 h-6 text-emerald-600 stroke-[3px]" />
+                  </div>
+                  <h3 className="text-sm font-black text-slate-800">Processo Finalizado</h3>
+                  <p className="text-xs font-bold text-slate-500">Etapa executada com sucesso</p>
+                </motion.div>
+              )}
+            </div>
           </div>
         )}
 
