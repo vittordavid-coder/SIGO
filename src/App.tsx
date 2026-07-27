@@ -388,7 +388,29 @@ export default function App() {
   const [transfers, setTransfers] = useLocalStorage<WarehouseTransfer[]>('sigo_warehouse_transfers', [], compId);
   const [applications, setApplications] = useLocalStorage<WarehouseApplication[]>('sigo_warehouse_applications', [], compId);
   
-  const [selectedContractId, setSelectedContractId] = useState<string | null>(null);
+  const [selectedContractId, setSelectedContractId] = useState<string | null>(() => {
+    try {
+      const sessionVal = window.sessionStorage.getItem('sigo_selected_contract_id');
+      if (sessionVal) return sessionVal;
+      const localVal = window.localStorage.getItem('sigo_selected_contract_id');
+      if (localVal) return localVal;
+      return null;
+    } catch {
+      return null;
+    }
+  });
+
+  useEffect(() => {
+    try {
+      if (selectedContractId) {
+        window.sessionStorage.setItem('sigo_selected_contract_id', selectedContractId);
+        window.localStorage.setItem('sigo_selected_contract_id', selectedContractId);
+      } else {
+        window.sessionStorage.removeItem('sigo_selected_contract_id');
+        window.localStorage.removeItem('sigo_selected_contract_id');
+      }
+    } catch (e) {}
+  }, [selectedContractId]);
   const [isContractSheetOpen, setIsContractSheetOpen] = useState(false);
 
   // Custom navigation helper to support sub-tabs

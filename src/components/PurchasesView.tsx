@@ -128,7 +128,7 @@ export default function PurchasesView({
   const [activeTab, setActiveTab] = useState<'requests' | 'suppliers' | 'quotations' | 'orders' | 'tracking' | 'estoque' | 'evaluation'>(initialTab || 'requests');
   const [localSelectedContractId, setLocalSelectedContractId] = useState<string>(contracts[0]?.id || 'all');
   
-  const selectedContractId = propSelectedContractId || localSelectedContractId;
+  const selectedContractId = propSelectedContractId !== undefined ? (propSelectedContractId || 'all') : localSelectedContractId;
   const setSelectedContractId = onUpdateContractId || setLocalSelectedContractId;
   
   // Ensure selectedContractId is valid when contracts change
