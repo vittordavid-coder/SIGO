@@ -742,6 +742,30 @@ export interface EquipmentTransfer {
   approvedAt?: string;
 }
 
+export interface EmployeeTransfer {
+  id: string;
+  companyId: string;
+  employeeId: string;
+  employeeName: string;
+  employeeCpf?: string;
+  employeeRole?: string;
+  sourceContractId: string;
+  targetContractId: string;
+  transferDate: string;
+  status: 'pending' | 'approved' | 'rejected';
+  sourceStatus: 'pending' | 'approved' | 'rejected';
+  targetStatus: 'pending' | 'approved' | 'rejected';
+  requestedBy: string;
+  requestedAt: string;
+  sourceApprovedBy?: string;
+  sourceApprovedAt?: string;
+  targetApprovedBy?: string;
+  targetApprovedAt?: string;
+  rejectedBy?: string;
+  rejectedAt?: string;
+  notes?: string;
+}
+
 export interface MaterialRequestItem {
   id: string;
   quantity: number;

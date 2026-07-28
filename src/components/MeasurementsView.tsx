@@ -9526,33 +9526,20 @@ function ProductionControlView({
   );
   const chartRef = useRef<HTMLDivElement>(null);
 
-  const contractServices = useMemo(() => {
-    const s = contract.services || [];
-    const g = contract.groups || [];
-    const all = [...s];
-    g.forEach((group) => {
-      group.services.forEach((gs) => {
-        if (!all.find((x) => x.serviceId === gs.serviceId)) {
-          all.push(gs as any);
-        }
-      });
-    });
-    // Filter out services with 0 quantity
-    let filtered = all.filter((cs) => (cs.quantity || 0) > 0);
+  const availableServices = useMemo(() => {
+    let filtered = services;
 
     if (serviceFilter) {
       const term = serviceFilter.toLowerCase();
-      filtered = filtered.filter((cs) => {
-        const s = services.find((x) => x.id === cs.serviceId);
-        return (
-          s?.code.toLowerCase().includes(term) ||
-          s?.name.toLowerCase().includes(term)
-        );
-      });
+      filtered = filtered.filter(
+        (s) =>
+          s.code.toLowerCase().includes(term) ||
+          s.name.toLowerCase().includes(term)
+      );
     }
 
     return filtered;
-  }, [contract, services, serviceFilter]);
+  }, [services, serviceFilter]);
 
   const activeProductions = useMemo(() => {
     return serviceProductions.filter((p) => p.contractId === contract.id);
@@ -10221,24 +10208,23 @@ function ProductionControlView({
 
                   {showDropdown && serviceFilter.trim().length > 0 && (
                     <div className="absolute z-50 w-full mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 overflow-hidden text-gray-900 max-h-[500px] overflow-y-auto min-w-[300px]">
-                      {contractServices.length > 0 ? (
-                        contractServices.slice(0, 100).map((cs, idx) => {
-                          const s = services.find((x) => x.id === cs.serviceId);
+                      {availableServices.length > 0 ? (
+                        availableServices.slice(0, 100).map((s, idx) => {
                           return (
                             <button
-                              key={`cs-btn-${cs.serviceId}-${idx}`}
+                              key={`cs-btn-${s.id}-${idx}`}
                               className="w-full text-left px-5 py-4 hover:bg-blue-50 flex flex-col border-b border-gray-50 last:border-0 transition-colors"
                               onClick={() => {
-                                setSelectedServiceId(cs.serviceId);
-                                setServiceFilter(`${s?.code} - ${s?.name}`);
+                                setSelectedServiceId(s.id);
+                                setServiceFilter(`${s.code} - ${s.name}`);
                                 setShowDropdown(false);
                               }}
                             >
                               <span className="font-black text-sm text-blue-600 uppercase tracking-wider mb-1">
-                                {s?.code}
+                                {s.code}
                               </span>
                               <span className="text-base font-semibold leading-tight text-gray-800">
-                                {s?.name}
+                                {s.name}
                               </span>
                             </button>
                           );

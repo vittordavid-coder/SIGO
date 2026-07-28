@@ -363,6 +363,7 @@ export default function App() {
   const [measurementParameters, setMeasurementParameters] = useLocalStorage<MeasurementParameter[]>('sigo_measurement_parameters', [], compId);
   const [equipmentMonthlyData, setEquipmentMonthlyData] = useLocalStorage<EquipmentMonthlyData[]>('sigo_equipments_monthly', [], compId);
   const [equipmentTransfers, setEquipmentTransfers] = useLocalStorage<EquipmentTransfer[]>('sigo_equipment_transfers', [], compId);
+  const [employeeTransfers, setEmployeeTransfers] = useLocalStorage<EmployeeTransfer[]>('sigo_employee_transfers', [], compId);
   const [manpowerRecords, setManpowerRecords] = useLocalStorage<ControllerManpower[]>('sigo_controller_manpower', [], compId);
   const [manpowerMonthlyData, setManpowerMonthlyData] = useLocalStorage<ManpowerMonthlyData[]>('sigo_manpower_monthly', [], compId);
   const [teamAssignments, setTeamAssignments] = useLocalStorage<TeamAssignment[]>('sigo_team_assignments', [], compId);
@@ -1624,6 +1625,7 @@ export default function App() {
       { id: `${compId}_sigo_purchase_requests`, content: purchaseRequests },
       { id: `${compId}_sigo_purchase_quotations`, content: purchaseQuotations },
       { id: `${compId}_sigo_equipment_transfers`, content: equipmentTransfers },
+      { id: `${compId}_sigo_employee_transfers`, content: employeeTransfers },
       { id: `${compId}_sigo_aportes`, content: aportes },
       { id: `${compId}_sigo_ctrl_charges`, content: chargesPerc },
       { id: `${compId}_sigo_ctrl_ot`, content: otPerc },
@@ -3324,6 +3326,23 @@ export default function App() {
     }
   };
 
+  const updateEmployeeTransfers = async (transfers: EmployeeTransfer[]) => {
+    lastLocalUpdate.current = Date.now();
+    setEmployeeTransfers(transfers);
+    const config = getSupabaseConfig();
+    if (config.enabled && compId) {
+      const supabase = createSupabaseClient(config.url, config.key);
+      if (supabase) {
+        try {
+          await supabase.from('app_state').upsert({
+            id: `${compId}_sigo_employee_transfers`,
+            content: transfers
+          });
+        } catch (err) { console.warn('[Sync] Employee transfers persist failed', err); }
+      }
+    }
+  };
+
   const updateTechnicalEquipments = async (val: ControllerEquipment[] | ((prev: ControllerEquipment[]) => ControllerEquipment[])) => {
     lastLocalUpdate.current = Date.now();
     let equips: ControllerEquipment[];
@@ -4786,6 +4805,8 @@ export default function App() {
                   teamAssignments={teamAssignments}
                   onUpdateAssignments={updateTeamAssignments}
                   onUpdateTeams={setControllerTeams}
+                  employeeTransfers={employeeTransfers}
+                  onUpdateTransfers={updateEmployeeTransfers}
                 />
               )}
 

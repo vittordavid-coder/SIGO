@@ -46,6 +46,7 @@ import {
   Edit,
   Check,
   ArrowRight,
+  ArrowRightLeft,
   Upload,
   Printer,
   X,
@@ -69,6 +70,7 @@ import {
   ControllerTeam,
   TeamAssignment,
   Alojamento,
+  EmployeeTransfer,
 } from "../types";
 import {
   Card,
@@ -204,6 +206,8 @@ interface RHViewProps {
   teamAssignments?: TeamAssignment[];
   onUpdateAssignments?: (assignments: TeamAssignment[]) => void;
   onUpdateTeams?: (teams: ControllerTeam[]) => void;
+  employeeTransfers?: EmployeeTransfer[];
+  onUpdateTransfers?: (transfers: EmployeeTransfer[]) => void;
 }
 
 export default function RHView({
@@ -222,6 +226,8 @@ export default function RHView({
   teamAssignments = [],
   onUpdateAssignments,
   onUpdateTeams,
+  employeeTransfers = [],
+  onUpdateTransfers,
 }: RHViewProps) {
   const [activeTab, setActiveTab] = useState(initialTab || "employees");
   const [rhParams, setRhParams] = useState(() => {
@@ -272,6 +278,203 @@ export default function RHView({
   const [editingCostId, setEditingCostId] = useState<string | null>(null);
   const [editingCostName, setEditingCostName] = useState("");
   const [editingCostPercentage, setEditingCostPercentage] = useState("");
+
+  // --- Employee Transfer States ---
+  const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
+  const [transferModalEmployee, setTransferModalEmployee] = useState<Employee | null>(null);
+  const [transferTargetContractId, setTransferTargetContractId] = useState("");
+  const [transferNotes, setTransferNotes] = useState("");
+
+  // --- Transfers Tab States ---
+  const [showAllCompanyTransfers, setShowAllCompanyTransfers] = useState(false);
+  const [transferSearchTerm, setTransferSearchTerm] = useState("");
+
+  const getContractName = (cId: string) => {
+    if (!cId) return "Obra não vinculada";
+    const c = contracts.find((item) => item.id === cId);
+    if (!c) return "Obra não encontrada";
+    return c.contractNumber ? `[${c.contractNumber}] ${c.name}` : c.name;
+  };
+
+  const handleOpenTransferModal = (emp: Employee) => {
+    setTransferModalEmployee(emp);
+    setTransferTargetContractId("");
+    setTransferNotes("");
+    setIsTransferModalOpen(true);
+  };
+
+  const handleRequestTransfer = () => {
+    if (!transferModalEmployee) return;
+    if (!transferTargetContractId) {
+      alert("Por favor, selecione a obra de destino para o colaborador.");
+      return;
+    }
+
+    const currentContractId = transferModalEmployee.contractId || (selectedContractId !== "all" ? selectedContractId : "") || "";
+    if (transferTargetContractId === currentContractId) {
+      alert("A obra de destino não pode ser igual à obra atual do colaborador.");
+      return;
+    }
+
+    const pending = employeeTransfers.find(
+      (t) => t.employeeId === transferModalEmployee.id && t.status === "pending"
+    );
+    if (pending) {
+      alert("Já existe uma solicitação de transferência pendente para este colaborador.");
+      return;
+    }
+
+    const newTransfer: EmployeeTransfer = {
+      id: generateUUID(),
+      companyId: currentUser?.companyId || "default",
+      employeeId: transferModalEmployee.id,
+      employeeName: transferModalEmployee.name,
+      employeeCpf: transferModalEmployee.cpf,
+      employeeRole: transferModalEmployee.role,
+      sourceContractId: currentContractId,
+      targetContractId: transferTargetContractId,
+      transferDate: new Date().toISOString().split("T")[0],
+      status: "pending",
+      sourceStatus: "pending",
+      targetStatus: "pending",
+      requestedBy: currentUser?.name || currentUser?.username || "Administrador",
+      requestedAt: new Date().toISOString(),
+      notes: transferNotes.trim() || undefined,
+    };
+
+    const updated = [newTransfer, ...employeeTransfers];
+    if (onUpdateTransfers) {
+      onUpdateTransfers(updated);
+    }
+    setIsTransferModalOpen(false);
+    alert(`Solicitação de transferência para ${transferModalEmployee.name} enviada com sucesso! Aguardando aprovações.`);
+  };
+
+  const executeTransfer = (transfer: EmployeeTransfer) => {
+    const updatedTransfers = employeeTransfers.map((t) =>
+      t.id === transfer.id
+        ? {
+            ...t,
+            status: "approved" as const,
+            sourceStatus: "approved" as const,
+            targetStatus: "approved" as const,
+          }
+        : t
+    );
+
+    const targetEmp = employees.find((e) => e.id === transfer.employeeId);
+    if (targetEmp) {
+      const updatedEmployees = employees.map((emp) => {
+        if (emp.id === transfer.employeeId) {
+          const { alojamentoId, team, ...rest } = emp;
+          return {
+            ...rest,
+            contractId: transfer.targetContractId,
+          };
+        }
+        return emp;
+      });
+      onUpdateEmployees(updatedEmployees);
+
+      if (teamAssignments && onUpdateAssignments) {
+        onUpdateAssignments(
+          teamAssignments.filter((a) => a.memberId !== transfer.employeeId)
+        );
+      }
+
+      if (controllerTeams && onUpdateTeams) {
+        onUpdateTeams(
+          controllerTeams.map((team) =>
+            team.supervisorId === transfer.employeeId ? { ...team, supervisorId: "" } : team
+          )
+        );
+      }
+    }
+
+    if (onUpdateTransfers) {
+      onUpdateTransfers(updatedTransfers);
+    }
+
+    const targetName = getContractName(transfer.targetContractId);
+    alert(
+      `Transferência concluída! O colaborador ${transfer.employeeName} foi retirado da equipe e alojamento da obra atual e transferido para ${targetName}.`
+    );
+  };
+
+  const handleApproveSource = (transfer: EmployeeTransfer) => {
+    const updatedTransfer: EmployeeTransfer = {
+      ...transfer,
+      sourceStatus: "approved",
+      sourceApprovedBy: currentUser?.name || currentUser?.username || "Admin Obra Origem",
+      sourceApprovedAt: new Date().toISOString(),
+    };
+
+    if (updatedTransfer.targetStatus === "approved") {
+      executeTransfer(updatedTransfer);
+    } else {
+      const updatedList = employeeTransfers.map((t) =>
+        t.id === transfer.id ? updatedTransfer : t
+      );
+      if (onUpdateTransfers) onUpdateTransfers(updatedList);
+      alert("Aprovação da Obra de Origem registrada! Aguardando aprovação da Obra de Destino.");
+    }
+  };
+
+  const handleApproveTarget = (transfer: EmployeeTransfer) => {
+    const updatedTransfer: EmployeeTransfer = {
+      ...transfer,
+      targetStatus: "approved",
+      targetApprovedBy: currentUser?.name || currentUser?.username || "Admin Obra Destino",
+      targetApprovedAt: new Date().toISOString(),
+    };
+
+    if (updatedTransfer.sourceStatus === "approved") {
+      executeTransfer(updatedTransfer);
+    } else {
+      const updatedList = employeeTransfers.map((t) =>
+        t.id === transfer.id ? updatedTransfer : t
+      );
+      if (onUpdateTransfers) onUpdateTransfers(updatedList);
+      alert("Aprovação da Obra de Destino registrada! Aguardando aprovação da Obra de Origem.");
+    }
+  };
+
+  const handleApproveBoth = (transfer: EmployeeTransfer) => {
+    const updatedTransfer: EmployeeTransfer = {
+      ...transfer,
+      sourceStatus: "approved",
+      sourceApprovedBy: currentUser?.name || currentUser?.username || "Admin Origem",
+      sourceApprovedAt: new Date().toISOString(),
+      targetStatus: "approved",
+      targetApprovedBy: currentUser?.name || currentUser?.username || "Admin Destino",
+      targetApprovedAt: new Date().toISOString(),
+    };
+    executeTransfer(updatedTransfer);
+  };
+
+  const handleRejectTransfer = (transfer: EmployeeTransfer) => {
+    if (!confirm(`Tem certeza que deseja rejeitar a transferência de ${transfer.employeeName}?`)) {
+      return;
+    }
+    const updatedList = employeeTransfers.map((t) =>
+      t.id === transfer.id
+        ? {
+            ...t,
+            status: "rejected" as const,
+            rejectedBy: currentUser?.name || currentUser?.username || "Administrador",
+            rejectedAt: new Date().toISOString(),
+          }
+        : t
+    );
+    if (onUpdateTransfers) onUpdateTransfers(updatedList);
+    alert(`Transferência de ${transfer.employeeName} foi rejeitada.`);
+  };
+
+  const handleDeleteTransfer = (transferId: string) => {
+    if (!confirm("Tem certeza que deseja excluir o registro desta transferência?")) return;
+    const updatedList = employeeTransfers.filter((t) => t.id !== transferId);
+    if (onUpdateTransfers) onUpdateTransfers(updatedList);
+  };
 
   // States for Lodgings (Alojamentos)
   const [showAddAlojamento, setShowAddAlojamento] = useState(false);
@@ -2770,6 +2973,9 @@ export default function RHView({
           <TabsTrigger value="alojamentos" className="gap-2">
             <Home className="w-4 h-4" /> Alojamento
           </TabsTrigger>
+          <TabsTrigger value="transfers" className="gap-2">
+            <ArrowRightLeft className="w-4 h-4" /> Transferências
+          </TabsTrigger>
           <TabsTrigger value="parameters" className="gap-2">
             <Settings className="w-4 h-4" /> Parâmetros
           </TabsTrigger>
@@ -3573,6 +3779,20 @@ export default function RHView({
                           </TableCell>
                           <TableCell className="text-right">
                             <div className="flex items-center justify-end gap-1">
+                              {e.status !== "dismissed" && (
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8 text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50"
+                                  onClick={(ev) => {
+                                    ev.stopPropagation();
+                                    handleOpenTransferModal(e);
+                                  }}
+                                  title="Transferir Colaborador para outra obra"
+                                >
+                                  <ArrowRightLeft className="w-4 h-4" />
+                                </Button>
+                              )}
                               <Button
                                 variant="ghost"
                                 size="icon"
@@ -4365,6 +4585,327 @@ export default function RHView({
                     </TableBody>
                   </Table>
                 </div>
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="transfers">
+          <div className="space-y-6 animate-fade-in">
+            {/* Header Card */}
+            <Card className="border-none shadow-sm rounded-3xl overflow-hidden bg-white">
+              <CardHeader className="bg-gradient-to-r from-slate-900 via-indigo-950 to-blue-950 text-white p-6">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                  <div className="flex items-center gap-3">
+                    <div className="p-3 bg-white/10 rounded-2xl backdrop-blur-sm">
+                      <ArrowRightLeft className="w-6 h-6 text-blue-300" />
+                    </div>
+                    <div>
+                      <CardTitle className="text-xl font-extrabold text-white">
+                        Transferências de Colaboradores
+                      </CardTitle>
+                      <CardDescription className="text-blue-200/80 text-xs mt-0.5">
+                        Acompanhe, aprove e gerencie a movimentação de pessoal entre obras da empresa.
+                      </CardDescription>
+                    </div>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="p-6 space-y-6">
+                {/* Search and Marked Filter */}
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
+                  <div className="relative flex-1 max-w-md">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                    <Input
+                      placeholder="Buscar por colaborador, CPF, obra de origem ou destino..."
+                      value={transferSearchTerm}
+                      onChange={(e) => setTransferSearchTerm(e.target.value)}
+                      className="pl-9 bg-slate-50 border-slate-200 rounded-xl focus:bg-white"
+                    />
+                  </div>
+
+                  {/* Marked Switch / Checkbox for all company transfers */}
+                  <div className="flex items-center gap-3 bg-slate-100/80 px-4 py-2.5 rounded-xl border border-slate-200 shrink-0">
+                    <Checkbox
+                      id="show-all-company-transfers"
+                      checked={showAllCompanyTransfers}
+                      onCheckedChange={(checked) => setShowAllCompanyTransfers(!!checked)}
+                    />
+                    <Label
+                      htmlFor="show-all-company-transfers"
+                      className="text-xs font-bold text-slate-700 cursor-pointer select-none"
+                    >
+                      Mostrar toda a movimentação da empresa
+                    </Label>
+                  </div>
+                </div>
+
+                {/* Filter logic calculation */}
+                {(() => {
+                  const filteredTransfers = employeeTransfers.filter((t) => {
+                    if (!showAllCompanyTransfers && selectedContractId && selectedContractId !== "all") {
+                      if (t.sourceContractId !== selectedContractId && t.targetContractId !== selectedContractId) {
+                        return false;
+                      }
+                    }
+
+                    if (transferSearchTerm.trim()) {
+                      const term = transferSearchTerm.toLowerCase();
+                      const empName = (t.employeeName || "").toLowerCase();
+                      const empCpf = (t.employeeCpf || "").toLowerCase();
+                      const empRole = (t.employeeRole || "").toLowerCase();
+                      const srcName = getContractName(t.sourceContractId).toLowerCase();
+                      const tgtName = getContractName(t.targetContractId).toLowerCase();
+                      const reqBy = (t.requestedBy || "").toLowerCase();
+
+                      return (
+                        empName.includes(term) ||
+                        empCpf.includes(term) ||
+                        empRole.includes(term) ||
+                        srcName.includes(term) ||
+                        tgtName.includes(term) ||
+                        reqBy.includes(term)
+                      );
+                    }
+
+                    return true;
+                  });
+
+                  const totalCount = filteredTransfers.length;
+                  const pendingCount = filteredTransfers.filter((t) => t.status === "pending").length;
+                  const approvedCount = filteredTransfers.filter((t) => t.status === "approved").length;
+                  const rejectedCount = filteredTransfers.filter((t) => t.status === "rejected").length;
+
+                  return (
+                    <div className="space-y-6">
+                      {/* Summary KPI Cards */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                        <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-4 flex items-center justify-between">
+                          <div>
+                            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                              Total de Movimentações
+                            </p>
+                            <p className="text-2xl font-black text-slate-800 mt-1">{totalCount}</p>
+                          </div>
+                          <div className="w-10 h-10 rounded-xl bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-600">
+                            <ArrowRightLeft className="w-5 h-5" />
+                          </div>
+                        </div>
+
+                        <div className="bg-amber-50/50 border border-amber-200/80 rounded-2xl p-4 flex items-center justify-between">
+                          <div>
+                            <p className="text-xs font-semibold text-amber-700 uppercase tracking-wider">
+                              Pendentes de Aprovação
+                            </p>
+                            <p className="text-2xl font-black text-amber-800 mt-1">{pendingCount}</p>
+                          </div>
+                          <div className="w-10 h-10 rounded-xl bg-amber-100/80 border border-amber-200 flex items-center justify-center text-amber-700">
+                            <Clock className="w-5 h-5" />
+                          </div>
+                        </div>
+
+                        <div className="bg-emerald-50/50 border border-emerald-200/80 rounded-2xl p-4 flex items-center justify-between">
+                          <div>
+                            <p className="text-xs font-semibold text-emerald-700 uppercase tracking-wider">
+                              Concluídas / Aprovadas
+                            </p>
+                            <p className="text-2xl font-black text-emerald-800 mt-1">{approvedCount}</p>
+                          </div>
+                          <div className="w-10 h-10 rounded-xl bg-emerald-100/80 border border-emerald-200 flex items-center justify-center text-emerald-700">
+                            <Check className="w-5 h-5" />
+                          </div>
+                        </div>
+
+                        <div className="bg-rose-50/50 border border-rose-200/80 rounded-2xl p-4 flex items-center justify-between">
+                          <div>
+                            <p className="text-xs font-semibold text-rose-700 uppercase tracking-wider">
+                              Rejeitadas
+                            </p>
+                            <p className="text-2xl font-black text-rose-800 mt-1">{rejectedCount}</p>
+                          </div>
+                          <div className="w-10 h-10 rounded-xl bg-rose-100/80 border border-rose-200 flex items-center justify-center text-rose-700">
+                            <X className="w-5 h-5" />
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Transfers Table */}
+                      <div className="border border-slate-200 rounded-2xl overflow-hidden bg-white shadow-xs">
+                        <Table>
+                          <TableHeader className="bg-slate-50 border-b border-slate-200">
+                            <TableRow>
+                              <TableHead className="font-bold text-slate-700 text-xs uppercase">Data</TableHead>
+                              <TableHead className="font-bold text-slate-700 text-xs uppercase">Colaborador</TableHead>
+                              <TableHead className="font-bold text-slate-700 text-xs uppercase">Obra de Origem</TableHead>
+                              <TableHead className="font-bold text-slate-700 text-xs uppercase">Obra de Destino</TableHead>
+                              <TableHead className="font-bold text-slate-700 text-xs uppercase text-center">Aprovações</TableHead>
+                              <TableHead className="font-bold text-slate-700 text-xs uppercase text-center">Status Geral</TableHead>
+                              <TableHead className="font-bold text-slate-700 text-xs uppercase text-right">Ações</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {filteredTransfers.length === 0 ? (
+                              <TableRow>
+                                <TableCell colSpan={7} className="h-40 text-center py-10 text-slate-400">
+                                  <ArrowRightLeft className="w-10 h-10 text-slate-200 mx-auto mb-2" />
+                                  Nenhuma transferência encontrada para os filtros aplicados.
+                                </TableCell>
+                              </TableRow>
+                            ) : (
+                              filteredTransfers.map((t) => (
+                                <TableRow key={t.id} className="hover:bg-slate-50/80 transition-colors">
+                                  <TableCell className="text-xs text-slate-600 font-mono whitespace-nowrap">
+                                    {t.transferDate ? formatDateForDisplay(t.transferDate) : "-"}
+                                  </TableCell>
+                                  <TableCell>
+                                    <div className="flex flex-col">
+                                      <span className="font-bold text-slate-900 text-sm">{t.employeeName}</span>
+                                      <div className="flex items-center gap-2 text-[11px] text-slate-500">
+                                        <span>CPF: {t.employeeCpf ? maskCPF(t.employeeCpf) : "-"}</span>
+                                        {t.employeeRole && (
+                                          <span className="bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded text-[10px]">
+                                            {t.employeeRole}
+                                          </span>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </TableCell>
+                                  <TableCell className="text-xs text-slate-800 font-semibold">
+                                    <div className="flex flex-col">
+                                      <span>{getContractName(t.sourceContractId)}</span>
+                                      <span className="text-[10px] text-slate-400">
+                                        {t.sourceStatus === "approved"
+                                          ? `Aprovado por ${t.sourceApprovedBy || "Admin"}`
+                                          : t.sourceStatus === "rejected"
+                                          ? "Rejeitado na Origem"
+                                          : "Aguardando aprovação do admin da origem"}
+                                      </span>
+                                    </div>
+                                  </TableCell>
+                                  <TableCell className="text-xs text-slate-800 font-semibold">
+                                    <div className="flex flex-col">
+                                      <span>{getContractName(t.targetContractId)}</span>
+                                      <span className="text-[10px] text-slate-400">
+                                        {t.targetStatus === "approved"
+                                          ? `Aprovado por ${t.targetApprovedBy || "Admin"}`
+                                          : t.targetStatus === "rejected"
+                                          ? "Rejeitado no Destino"
+                                          : "Aguardando aprovação do admin do destino"}
+                                      </span>
+                                    </div>
+                                  </TableCell>
+                                  <TableCell className="text-center">
+                                    <div className="flex flex-col items-center gap-1">
+                                      <Badge
+                                        variant="outline"
+                                        className={cn(
+                                          "text-[10px] px-2 py-0.5 font-bold uppercase",
+                                          t.sourceStatus === "approved"
+                                            ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                                            : t.sourceStatus === "rejected"
+                                            ? "bg-rose-50 text-rose-700 border-rose-200"
+                                            : "bg-amber-50 text-amber-700 border-amber-200"
+                                        )}
+                                      >
+                                        Origem: {t.sourceStatus === "approved" ? "Aprovado" : t.sourceStatus === "rejected" ? "Rejeitado" : "Pendente"}
+                                      </Badge>
+                                      <Badge
+                                        variant="outline"
+                                        className={cn(
+                                          "text-[10px] px-2 py-0.5 font-bold uppercase",
+                                          t.targetStatus === "approved"
+                                            ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                                            : t.targetStatus === "rejected"
+                                            ? "bg-rose-50 text-rose-700 border-rose-200"
+                                            : "bg-amber-50 text-amber-700 border-amber-200"
+                                        )}
+                                      >
+                                        Destino: {t.targetStatus === "approved" ? "Aprovado" : t.targetStatus === "rejected" ? "Rejeitado" : "Pendente"}
+                                      </Badge>
+                                    </div>
+                                  </TableCell>
+                                  <TableCell className="text-center">
+                                    <Badge
+                                      className={cn(
+                                        "text-xs px-2.5 py-1 font-extrabold shadow-none",
+                                        t.status === "approved"
+                                          ? "bg-emerald-600 text-white"
+                                          : t.status === "rejected"
+                                          ? "bg-rose-600 text-white"
+                                          : "bg-amber-500 text-white"
+                                      )}
+                                    >
+                                      {t.status === "approved"
+                                        ? "Concluída"
+                                        : t.status === "rejected"
+                                        ? "Rejeitada"
+                                        : "Pendente"}
+                                    </Badge>
+                                  </TableCell>
+                                  <TableCell className="text-right">
+                                    <div className="flex items-center justify-end gap-1.5">
+                                      {t.status === "pending" && (
+                                        <>
+                                          {t.sourceStatus === "pending" && (
+                                            <Button
+                                              size="sm"
+                                              onClick={() => handleApproveSource(t)}
+                                              className="bg-amber-600 hover:bg-amber-700 text-white text-[11px] h-7 px-2.5 rounded-lg cursor-pointer"
+                                              title="Aprovar como Administrador da Obra de Origem"
+                                            >
+                                              Aprovar Origem
+                                            </Button>
+                                          )}
+                                          {t.targetStatus === "pending" && (
+                                            <Button
+                                              size="sm"
+                                              onClick={() => handleApproveTarget(t)}
+                                              className="bg-blue-600 hover:bg-blue-700 text-white text-[11px] h-7 px-2.5 rounded-lg cursor-pointer"
+                                              title="Aprovar como Administrador da Obra de Destino"
+                                            >
+                                              Aprovar Destino
+                                            </Button>
+                                          )}
+                                          {t.sourceStatus === "pending" && t.targetStatus === "pending" && (
+                                            <Button
+                                              size="sm"
+                                              onClick={() => handleApproveBoth(t)}
+                                              className="bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] h-7 px-2.5 rounded-lg cursor-pointer"
+                                              title="Aprovar por ambas as obras e concluir transferência"
+                                            >
+                                              Aprovar Ambas
+                                            </Button>
+                                          )}
+                                          <Button
+                                            size="sm"
+                                            variant="ghost"
+                                            onClick={() => handleRejectTransfer(t)}
+                                            className="text-rose-600 hover:text-rose-800 hover:bg-rose-50 text-[11px] h-7 px-2 rounded-lg cursor-pointer"
+                                          >
+                                            Rejeitar
+                                          </Button>
+                                        </>
+                                      )}
+                                      <Button
+                                        size="icon"
+                                        variant="ghost"
+                                        onClick={() => handleDeleteTransfer(t.id)}
+                                        className="h-7 w-7 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg cursor-pointer"
+                                        title="Excluir histórico de transferência"
+                                      >
+                                        <Trash2 className="w-3.5 h-3.5" />
+                                      </Button>
+                                    </div>
+                                  </TableCell>
+                                </TableRow>
+                              ))
+                            )}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    </div>
+                  );
+                })()}
               </CardContent>
             </Card>
           </div>
@@ -6830,6 +7371,114 @@ export default function RHView({
           </DialogContent>
         </Dialog>
       )}
+
+      {/* Modal de Solicitação de Transferência de Colaborador */}
+      <Dialog open={isTransferModalOpen} onOpenChange={setIsTransferModalOpen}>
+        <DialogContent className="max-w-lg bg-white border border-slate-200 shadow-2xl rounded-2xl p-6 text-left">
+          <DialogHeader className="text-left space-y-2">
+            <DialogTitle className="text-lg font-bold text-slate-900 flex items-center gap-2">
+              <ArrowRightLeft className="w-5 h-5 text-indigo-600" />
+              Solicitar Transferência de Colaborador
+            </DialogTitle>
+            <DialogDescription className="text-xs text-slate-500">
+              Informe a obra de destino para movimentar o colaborador. A transferência exigirá aprovação dos administradores das duas obras.
+            </DialogDescription>
+          </DialogHeader>
+
+          {transferModalEmployee && (
+            <div className="space-y-4 py-2 text-left">
+              {/* Employee Summary Card */}
+              <div className="bg-slate-50 border border-slate-200/80 rounded-xl p-3 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="p-2.5 rounded-full bg-indigo-100 text-indigo-700 font-bold">
+                    <Contact className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <p className="font-extrabold text-slate-900 text-sm">{transferModalEmployee.name}</p>
+                    <p className="text-xs text-slate-500">
+                      CPF: {maskCPF(transferModalEmployee.cpf)} | Cargo: {transferModalEmployee.role}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Obra Atual */}
+              <div className="space-y-1">
+                <Label className="text-xs font-bold text-slate-700">Obra Atual (Origem)</Label>
+                <div className="p-3 bg-slate-100 rounded-xl text-xs font-semibold text-slate-700 border border-slate-200">
+                  {getContractName(
+                    transferModalEmployee.contractId ||
+                      (selectedContractId !== "all" ? selectedContractId : "") ||
+                      ""
+                  )}
+                </div>
+              </div>
+
+              {/* Obra Destino */}
+              <div className="space-y-1">
+                <Label htmlFor="target-contract-select" className="text-xs font-bold text-slate-700">
+                  Obra de Destino <span className="text-rose-500">*</span>
+                </Label>
+                <Select
+                  value={transferTargetContractId}
+                  onValueChange={setTransferTargetContractId}
+                >
+                  <SelectTrigger id="target-contract-select" className="w-full bg-white border-slate-200 rounded-xl">
+                    <SelectValue placeholder="Selecione a obra de destino..." />
+                  </SelectTrigger>
+                  <SelectContent className="bg-white border-slate-200 z-50">
+                    {contracts
+                      .filter(
+                        (c) =>
+                          c.id !==
+                          (transferModalEmployee.contractId ||
+                            (selectedContractId !== "all" ? selectedContractId : ""))
+                      )
+                      .map((c) => (
+                        <SelectItem key={c.id} value={c.id}>
+                          {c.contractNumber ? `[${c.contractNumber}] ` : ""}
+                          {c.name}
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Observações / Motivo */}
+              <div className="space-y-1">
+                <Label htmlFor="transfer-notes" className="text-xs font-bold text-slate-700">
+                  Observações / Motivo da Transferência (Opcional)
+                </Label>
+                <textarea
+                  id="transfer-notes"
+                  rows={3}
+                  value={transferNotes}
+                  onChange={(e) => setTransferNotes(e.target.value)}
+                  placeholder="Descreva o motivo ou detalhes da transferência..."
+                  className="w-full p-2.5 text-xs bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                />
+              </div>
+            </div>
+          )}
+
+          <DialogFooter className="flex justify-end gap-2 border-t pt-4">
+            <Button
+              variant="outline"
+              onClick={() => setIsTransferModalOpen(false)}
+              className="rounded-xl text-xs font-semibold cursor-pointer"
+            >
+              Cancelar
+            </Button>
+            <Button
+              onClick={handleRequestTransfer}
+              className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-xs px-5 flex items-center gap-2 cursor-pointer"
+            >
+              <ArrowRightLeft className="w-4 h-4" />
+              Solicitar Transferência
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
