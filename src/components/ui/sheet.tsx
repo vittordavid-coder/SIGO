@@ -73,6 +73,8 @@ function SheetContent({
         )}
         {...props}
       >
+        <SheetPrimitive.Title className="sr-only">Painel Lateral</SheetPrimitive.Title>
+        <SheetPrimitive.Description className="sr-only">Painel de navegação e opções</SheetPrimitive.Description>
         {children}
         {showCloseButton && (
           <SheetPrimitive.Close className="absolute top-4 right-4 rounded-xs opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:outline-hidden disabled:pointer-events-none data-[state=open]:bg-secondary">

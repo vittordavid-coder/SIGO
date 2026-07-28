@@ -57,6 +57,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { printDocument, exportToPDF, exportToExcel, ReportConfig } from "../lib/reportTemplate";
 import {
   Employee,
   TimeRecord,
@@ -882,129 +883,105 @@ export default function RHView({
     return new Date(dateStr + "T12:00:00").toLocaleDateString("pt-BR");
   };
 
-  const exportEmployeeToPDF = (e: Employee) => {
-    const doc = new jsPDF("p", "mm", "a4");
-    const title = `FICHA DE ADMISSÃO - ${e.name.toUpperCase()}`;
-
-    // Header
-    doc.setFillColor(30, 64, 175);
-    doc.rect(0, 0, 210, 40, "F");
-    doc.setTextColor(255, 255, 255);
-    doc.setFontSize(20);
-    doc.setFont("helvetica", "bold");
-    doc.text("SYNERA - GESTÃO DE RECURSOS HUMANOS", 105, 15, {
-      align: "center",
+  const getEmployeeReportConfig = (e: Employee): ReportConfig => {
+    const contract = contracts.find((c) => c.id === e.contractId);
+    const team = controllerTeams?.find((t) => t.id === e.team);
+    const formattedSalary = (e.salary || 0).toLocaleString("pt-BR", {
+      style: "currency",
+      currency: "BRL",
     });
-    doc.setFontSize(12);
-    doc.setFont("helvetica", "normal");
-    doc.text("Sistema Integrado de Gestão Operacional", 105, 22, {
-      align: "center",
-    });
-    doc.setFontSize(14);
-    doc.setFont("helvetica", "bold");
-    doc.text(title, 105, 32, { align: "center" });
 
-    doc.setTextColor(0, 0, 0);
-    doc.setFontSize(10);
-
-    const tableData = [
-      ["NOME COMPLETO", e.name || "-"],
-      ["CPF / PIS", `${e.cpf || "-"} / ${e.pis || "-"}`],
-      ["DATA NASCIMENTO", formatDateForDisplay(e.birthDate)],
-      ["NATURALIDADE", `${e.birthPlace || "-"} - ${e.birthState || "-"}`],
-      [
-        "RG / EMISSÃO / ÓRGÃO / UF",
-        `${e.rgNumber || "-"} / ${formatDateForDisplay(e.rgAgency)} / ${e.rgIssuer || "-"} / ${e.rgState || "-"}`,
-      ],
-      [
-        "CTPS / SÉRIE",
-        `${e.workBookletNumber || "-"} / ${e.workBookletSeries || "-"}`,
-      ],
-      [
-        "TÍTULO ELEITOR",
-        `${e.voterIdNumber || "-"} (Zona: ${e.voterZone || "-"} - Seç: ${e.voterSection || "-"})`,
-      ],
-      ["CARGO / FUNÇÃO", e.role || "-"],
-      ["DATA ADMISSÃO", formatDateForDisplay(e.admissionDate)],
-      [
-        "SALÁRIO BASE",
-        `R$ ${e.salary?.toLocaleString("pt-BR", { minimumFractionDigits: 2 }) || "0,00"}`,
-      ],
-      [
-        "TIPO CONTRATO",
-        e.paymentType === "month"
-          ? "Mensalista"
-          : e.paymentType === "hour"
-            ? "Horista"
-            : "Diarista",
-      ],
-      ["FILIAÇÃO", `PAI: ${e.fatherName || "-"} | MÃE: ${e.motherName || "-"}`],
-      ["CÔNJUGE", e.spouseName || "NÃO INFORMADO"],
-      [
-        "ENDEREÇO",
-        `${e.addressLogradouro || "-"}, ${e.addressNumber || "-"} - ${e.addressComplement || "-"}`,
-      ],
-      [
-        "BAIRRO / CIDADE / UF",
-        `${e.addressNeighborhood || "-"} - ${e.addressCity || "-"}/${e.addressState || "-"}`,
-      ],
-      [
-        "CEP / CONTATO",
-        `${e.addressZipCode || "-"} | ${e.mobile || "-"} / ${e.phone || "-"}`,
-      ],
-      [
-        "VALE TRANSPORTE",
-        e.commuterBenefits
-          ? `SIM (R$ ${e.commuterValue1 + e.commuterValue2})`
-          : "NÃO",
-      ],
-    ];
-
-    autoTable(doc, {
-      startY: 45,
-      head: [["CATEGORIA", "DETALHES"]],
-      body: tableData,
-      theme: "grid",
-      headStyles: { fillColor: [30, 64, 175], textColor: 255 },
-      styles: { fontSize: 9, cellPadding: 3 },
-      columnStyles: {
-        0: { fontStyle: "bold", fillColor: [245, 247, 250], cellWidth: 60 },
+    return {
+      header: {
+        companyName: "SYNERA",
+        companySub: "Gestão de Recursos Humanos & Obras",
+        docTitle: "FICHA CADASTRAL DO COLABORADOR",
+        statusBadge: {
+          text: e.status === "active" ? "ATIVO NO SISTEMA" : "DESLIGADO",
+          variant: e.status === "active" ? "active" : "inactive",
+        },
       },
-    });
+      filename: `Ficha_Cadastral_${e.name.replace(/\s+/g, "_")}`,
+      signatures: {
+        leftLabel: "Assinatura do Colaborador",
+        rightLabel: "Responsável RH / Empresa",
+      },
+      sections: [
+        {
+          title: "Identificação Pessoal",
+          type: "grid",
+          fields: [
+            { label: "Nome Completo", value: e.name || "-" },
+            { label: "CPF", value: e.cpf || "-" },
+            { label: "Data de Nascimento", value: formatDateForDisplay(e.birthDate) },
+            { label: "Naturalidade", value: `${e.birthPlace || "-"} / ${e.birthState || "-"}` },
+            { label: "Nome do Cônjuge", value: e.spouseName || "Não Informado" },
+            { label: "Nome da Mãe", value: e.motherName || "-" },
+            { label: "Nome do Pai", value: e.fatherName || "-", fullWidth: true },
+          ],
+        },
+        {
+          title: "Documentação e Registros",
+          type: "grid",
+          fields: [
+            { label: "RG (Número)", value: e.rgNumber || "-" },
+            { label: "Órgão Emissor / UF", value: `${e.rgIssuer || "-"} / ${e.rgState || "-"}` },
+            { label: "Data de Emissão RG", value: formatDateForDisplay(e.rgAgency) },
+            { label: "PIS / PASEP / NIT", value: e.pis || "-" },
+            { label: "CTPS Número", value: e.workBookletNumber || "-" },
+            { label: "CTPS Série", value: e.workBookletSeries || "-" },
+            { label: "Título de Eleitor", value: e.voterIdNumber || "-" },
+            { label: "Zona / Seção", value: `${e.voterZone || "-"} / ${e.voterSection || "-"}` },
+          ],
+        },
+        {
+          title: "Dados Contratuais e Remuneração",
+          type: "grid",
+          fields: [
+            { label: "Cargo / Função", value: e.role || "-", highlightColor: "blue" },
+            { label: "Data de Admissão", value: formatDateForDisplay(e.admissionDate) },
+            { label: "Salário Base", value: formattedSalary, highlightColor: "green" },
+            { label: "Tipo de Pagamento", value: e.paymentType === "month" ? "Mensalista" : e.paymentType === "hour" ? "Horista" : "Diarista" },
+            { label: "Contrato / Obra", value: contract ? `${contract.contractNumber} - ${contract.object || ""}` : "Sem Contrato Atribuído" },
+            { label: "Equipe / Frente", value: team?.name || e.team || "Sem Equipe" },
+          ],
+        },
+        {
+          title: "Endereço e Contato",
+          type: "grid",
+          fields: [
+            { label: "Logradouro / Endereço", value: `${e.addressLogradouro || "-"}, Nº ${e.addressNumber || "S/N"} ${e.addressComplement ? `(${e.addressComplement})` : ""}`, fullWidth: true },
+            { label: "Bairro", value: e.addressNeighborhood || "-" },
+            { label: "Cidade / UF", value: `${e.addressCity || "-"} / ${e.addressState || "-"}` },
+            { label: "CEP", value: e.addressZipCode || "-" },
+            { label: "Celular / WhatsApp", value: e.mobile || e.phone || "-" },
+          ],
+        },
+        {
+          title: "Vale Transporte e Deslocamento",
+          type: "grid",
+          fields: [
+            { label: "Optante por Vale Transporte", value: e.commuterBenefits ? "SIM" : "NÃO" },
+            { label: "Trajeto 1 (Cidade / Valor)", value: `${e.commuterCity1 || "-"} ${e.commuterValue1 ? `(R$ ${e.commuterValue1})` : ""}` },
+            { label: "Trajeto 2 (Cidade / Valor)", value: `${e.commuterCity2 || "-"} ${e.commuterValue2 ? `(R$ ${e.commuterValue2})` : ""}`, fullWidth: true },
+          ],
+        },
+        ...(e.dependents && e.dependents.length > 0 ? [{
+          title: `Dependentes Registrados (${e.dependents.length})`,
+          type: "table" as const,
+          headers: ["Nome do Dependente", "CPF", "Data de Nascimento"],
+          rows: e.dependents.map((d) => [d.name, d.cpf || "-", formatDateForDisplay(d.birthDate)]),
+        }] : []),
+      ],
+    };
+  };
 
-    if (e.dependents && e.dependents.length > 0) {
-      doc.setFont("helvetica", "bold");
-      doc.text(
-        "DEPENDENTES / FILHOS",
-        14,
-        (doc as any).lastAutoTable.finalY + 10,
-      );
-      autoTable(doc, {
-        startY: (doc as any).lastAutoTable.finalY + 15,
-        head: [["NOME COMPLETO DO DEPENDENTE", "CPF", "DATA DE NASCIMENTO"]],
-        body: e.dependents.map((d) => [
-          d.name,
-          d.cpf || "-",
-          formatDateForDisplay(d.birthDate),
-        ]),
-        theme: "striped",
-        headStyles: { fillColor: [71, 85, 105] },
-        styles: { fontSize: 8 },
-      });
-    }
+  const printEmployeeCard = (e: Employee) => {
+    printDocument(getEmployeeReportConfig(e));
+  };
 
-    const finalY = (doc as any).lastAutoTable.finalY;
-    const footerY = finalY + 35 > 270 ? 270 : finalY + 35;
-
-    doc.line(20, footerY, 90, footerY);
-    doc.line(120, footerY, 190, footerY);
-    doc.setFontSize(8);
-    doc.text("ASSINATURA DO COLABORADOR", 55, footerY + 5, { align: "center" });
-    doc.text("ASSINATURA DO RESPONSÁVEL RH", 155, footerY + 5, {
-      align: "center",
-    });
-
-    doc.save(`Ficha_Admissao_${e.name.replace(/\s+/g, "_")}.pdf`);
+  const exportEmployeeToPDF = (e: Employee) => {
+    exportToPDF(getEmployeeReportConfig(e));
   };
 
   const exportFechamentoToPDF = () => {
@@ -1359,86 +1336,7 @@ export default function RHView({
   };
 
   const exportEmployeeToExcel = (e: Employee) => {
-    const mainData = [
-      ["SYNERA - GESTÃO DE RECURSOS HUMANOS"],
-      ["FICHA DE ADMISSÃO DIGITAL"],
-      ["Gerado em:", new Date().toLocaleString("pt-BR")],
-      [""],
-      ["Identificação Pessoal", ""],
-      ["Nome Completo", e.name],
-      ["CPF", e.cpf],
-      ["Data de Nascimento", formatDateForDisplay(e.birthDate)],
-      ["Naturalidade", e.birthPlace],
-      ["UF Naturalidade", e.birthState],
-      ["Nome do Pai", e.fatherName],
-      ["Nome da Mãe", e.motherName],
-      ["Nome do Cônjuge", e.spouseName || "NÃO POSSUI"],
-      [""],
-      ["Documentação", ""],
-      ["RG", e.rgNumber],
-      ["Data de Emissão", formatDateForDisplay(e.rgAgency)],
-      ["Orgão Emissor", e.rgIssuer],
-      ["RG UF", e.rgState],
-      ["CTPS Nº", e.workBookletNumber],
-      ["CTPS Série", e.workBookletSeries],
-      ["PIS", e.pis],
-      ["Título Eleitor", e.voterIdNumber],
-      ["Título Zona", e.voterZone],
-      ["Título Seção", e.voterSection],
-      [""],
-      ["Endereço e Contato", ""],
-      ["Rua/Logradouro", e.addressLogradouro],
-      ["Número", e.addressNumber],
-      ["Complemento", e.addressComplement],
-      ["Bairro", e.addressNeighborhood],
-      ["Cidade", e.addressCity],
-      ["UF Estado", e.addressState],
-      ["CEP", e.addressZipCode],
-      ["E-mail", e.email],
-      ["Celular/WhatsApp", e.mobile],
-      ["Telefone Fixo", e.phone],
-      [""],
-      ["Dados Contratuais", ""],
-      ["Cargo/Função", e.role],
-      ["Data Admissão", formatDateForDisplay(e.admissionDate)],
-      ["Status", e.status === "active" ? "Ativo" : "Desativado"],
-      ["Data Demissão", formatDateForDisplay(e.dismissalDate)],
-      ["Salário Base", e.salary],
-      [
-        "Tipo de Recebimento",
-        e.paymentType === "month"
-          ? "Mensalista"
-          : e.paymentType === "hour"
-            ? "Horista"
-            : "Diarista",
-      ],
-      ["Vale Transporte", e.commuterBenefits ? "SIM" : "NÃO"],
-      ["Tarifa Trajeto 1", e.commuterValue1],
-      ["Tarifa Trajeto 2", e.commuterValue2],
-    ];
-
-    if (e.dependents && e.dependents.length > 0) {
-      mainData.push([""]);
-      mainData.push(["DEPENDENTES"]);
-      e.dependents.forEach((d, i) => {
-        mainData.push([
-          `Dependente ${i + 1}`,
-          d.name,
-          `CPF: ${d.cpf || ""}`,
-          `Nascimento: ${d.birthDate ? new Date(d.birthDate).toLocaleDateString("pt-BR") : ""}`,
-        ]);
-      });
-    }
-
-    const ws = XLSX.utils.aoa_to_sheet(mainData);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Dados do Colaborador");
-
-    const wbout = XLSX.write(wb, { bookType: "xlsx", type: "array" });
-    saveAs(
-      new Blob([wbout], { type: "application/octet-stream" }),
-      `Ficha_Admissao_${e.name.replace(/\s+/g, "_")}.xlsx`,
-    );
+    exportToExcel(getEmployeeReportConfig(e));
   };
 
   const handleDownloadTemplate = (withData = false) => {
@@ -3687,30 +3585,62 @@ export default function RHView({
                               >
                                 <Edit className="w-4 h-4" />
                               </Button>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8 text-blue-500 hover:text-blue-700 hover:bg-blue-50"
-                                onClick={(ev) => {
-                                  ev.stopPropagation();
-                                  exportEmployeeToPDF(e);
-                                }}
-                                title="Exportar PDF"
-                              >
-                                <FileDown className="w-4 h-4" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8 text-green-500 hover:text-green-700 hover:bg-green-50"
-                                onClick={(ev) => {
-                                  ev.stopPropagation();
-                                  exportEmployeeToExcel(e);
-                                }}
-                                title="Exportar Excel"
-                              >
-                                <FileSpreadsheet className="w-4 h-4" />
-                              </Button>
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="h-8 px-2 gap-1 text-xs font-semibold text-slate-700 bg-white hover:bg-slate-50 border-slate-200 rounded-lg shadow-xs cursor-pointer"
+                                    onClick={(ev) => ev.stopPropagation()}
+                                    title="Ações da Ficha do Colaborador"
+                                  >
+                                    <FileText className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                                    <span>Ficha</span>
+                                    <ChevronDown className="w-3 h-3 text-slate-400 shrink-0" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end" className="w-52 bg-white border border-slate-200 shadow-lg rounded-xl p-1 z-50 text-left">
+                                  <DropdownMenuItem
+                                    onClick={(ev) => {
+                                      ev.stopPropagation();
+                                      exportEmployeeToPDF(e);
+                                    }}
+                                    className="flex items-center gap-2.5 px-3 py-2 text-xs font-medium text-slate-700 hover:bg-blue-50 hover:text-blue-700 rounded-lg cursor-pointer"
+                                  >
+                                    <FileDown className="w-4 h-4 text-blue-600 shrink-0" />
+                                    <div className="flex flex-col text-left">
+                                      <span className="font-semibold">Exportar em PDF</span>
+                                      <span className="text-[10px] text-slate-400">Documento A4 formatado</span>
+                                    </div>
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem
+                                    onClick={(ev) => {
+                                      ev.stopPropagation();
+                                      exportEmployeeToExcel(e);
+                                    }}
+                                    className="flex items-center gap-2.5 px-3 py-2 text-xs font-medium text-slate-700 hover:bg-emerald-50 hover:text-emerald-700 rounded-lg cursor-pointer"
+                                  >
+                                    <FileSpreadsheet className="w-4 h-4 text-emerald-600 shrink-0" />
+                                    <div className="flex flex-col text-left">
+                                      <span className="font-semibold">Exportar em Excel</span>
+                                      <span className="text-[10px] text-slate-400">Planilha .xlsx estruturada</span>
+                                    </div>
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem
+                                    onClick={(ev) => {
+                                      ev.stopPropagation();
+                                      printEmployeeCard(e);
+                                    }}
+                                    className="flex items-center gap-2.5 px-3 py-2 text-xs font-medium text-slate-700 hover:bg-purple-50 hover:text-purple-700 rounded-lg cursor-pointer"
+                                  >
+                                    <Printer className="w-4 h-4 text-purple-600 shrink-0" />
+                                    <div className="flex flex-col text-left">
+                                      <span className="font-semibold">Imprimir Ficha</span>
+                                      <span className="text-[10px] text-slate-400">Janela de impressão A4</span>
+                                    </div>
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
                               {colabSelectedMonth && (
                                 <Button
                                   variant="ghost"

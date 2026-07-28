@@ -47,9 +47,22 @@ import {
   Tag,
   Settings2,
   ClipboardList,
+  FileSpreadsheet,
 } from "lucide-react";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
+import {
+  printDocument,
+  exportToPDF,
+  exportToExcel,
+  ReportConfig,
+} from "../lib/reportTemplate";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   ControllerEquipment,
   EquipmentMonthlyData,
@@ -526,6 +539,119 @@ export default function ControlView({
       setApplyEquipmentSearch("");
     }
   }, [isApplyStockOpen]);
+
+  const getEquipmentReportConfig = (eq: ControllerEquipment): ReportConfig => {
+    const contractName = getContractName(eq.contractId || "");
+    const formattedContractedPrice = (eq.contractedPrice || 0).toLocaleString("pt-BR", {
+      style: "currency",
+      currency: "BRL",
+    });
+    const formattedMonthlyPrice = (eq.monthlyPrice || 0).toLocaleString("pt-BR", {
+      style: "currency",
+      currency: "BRL",
+    });
+    const formattedProductivePrice = (eq.productivePrice || 0).toLocaleString("pt-BR", {
+      style: "currency",
+      currency: "BRL",
+    });
+    const formattedUnproductivePrice = (eq.unproductivePrice || 0).toLocaleString("pt-BR", {
+      style: "currency",
+      currency: "BRL",
+    });
+
+    const customFieldsList = Object.entries(eq.customFields || {}).map(([key, attr]) => {
+      const field = attr as EquipmentAttribute;
+      return {
+        label: key.replace(/_/g, " "),
+        value: field.type === "boolean" ? (field.value ? "Sim" : "Não") : String(field.value || "-"),
+      };
+    });
+
+    return {
+      header: {
+        companyName: "SYNERA",
+        companySub: "Gestão de Ativos & Equipamentos",
+        docTitle: "FICHA TÉCNICA DO EQUIPAMENTO",
+        statusBadge: {
+          text: eq.inMaintenance ? "EM MANUTENÇÃO" : (eq.situation?.toUpperCase() || "ATIVO"),
+          variant: eq.situation === "Inativo" || eq.situation === "Vendido" ? "inactive" : eq.inMaintenance ? "warning" : "active",
+        },
+      },
+      filename: `Ficha_Equipamento_${(eq.code || eq.name).replace(/\s+/g, "_")}`,
+      signatures: {
+        leftLabel: "Responsável Operacional / Obra",
+        rightLabel: "Gestão de Frotas & Equipamentos",
+      },
+      sections: [
+        {
+          title: "Identificação do Equipamento",
+          type: "grid",
+          fields: [
+            { label: "Código / Tag", value: eq.code || "-", highlightColor: "blue" },
+            { label: "Nome / Descrição", value: eq.name || "-" },
+            { label: "Categoria / Porte", value: eq.category || "-" },
+            { label: "Marca / Fabricante", value: eq.brand || "-" },
+            { label: "Modelo", value: eq.model || "-" },
+            { label: "Ano de Fabricação", value: eq.year ? String(eq.year) : "-" },
+            { label: "Placa / Identificador", value: eq.plate || "-" },
+            { label: "Origem / Propriedade", value: eq.origin || "-" },
+          ],
+        },
+        {
+          title: "Leitura e Status Operacional",
+          type: "grid",
+          fields: [
+            { label: "Unidade de Medição", value: eq.measurementUnit || "-" },
+            { label: "Horímetro / Odômetro Atual", value: eq.currentReading ? `${eq.currentReading} ${eq.measurementUnit === 'Quilometragem' ? 'km' : 'h'}` : "-", highlightColor: "green" },
+            { label: "Status de Manutenção", value: eq.inMaintenance ? "SIM (Em Manutenção)" : "NÃO (Operacional)" },
+            { label: "Situação do Patrimônio", value: eq.situation || "Ativo" },
+            { label: "Contrato / Obra Atual", value: contractName || "Não Alocado", fullWidth: true },
+            { label: "Data de Entrada", value: eq.entryDate ? new Date(eq.entryDate + "T12:00:00").toLocaleDateString("pt-BR") : "-" },
+            { label: "Data de Saída", value: eq.exitDate ? new Date(eq.exitDate + "T12:00:00").toLocaleDateString("pt-BR") : "Em uso" },
+          ],
+        },
+        {
+          title: "Valores e Condições Contratuais",
+          type: "grid",
+          fields: [
+            { label: "Proprietário / Fornecedor", value: eq.ownerName || "-" },
+            { label: "CNPJ do Proprietário", value: eq.ownerCnpj || "-" },
+            { label: "Preço Contratado Base", value: formattedContractedPrice },
+            { label: "Preço Mensal", value: formattedMonthlyPrice },
+            { label: "Horas / Valor Produtivo", value: formattedProductivePrice },
+            { label: "Horas / Valor Improdutivo", value: formattedUnproductivePrice },
+          ],
+        },
+        ...(customFieldsList.length > 0 ? [{
+          title: "Atributos Técnicos Específicos",
+          type: "grid" as const,
+          fields: customFieldsList,
+        }] : []),
+        {
+          title: "Registros Visuais / Fotos do Ativo",
+          type: "custom" as const,
+          imageUrls: eq.photos && eq.photos.length > 0 ? eq.photos : [],
+        },
+        ...(eq.observations ? [{
+          title: "Observações Gerais",
+          type: "grid" as const,
+          fields: [{ label: "Anotações e Histórico", value: eq.observations, fullWidth: true }],
+        }] : []),
+      ],
+    };
+  };
+
+  const handlePrintEquipmentCard = (eq: ControllerEquipment) => {
+    printDocument(getEquipmentReportConfig(eq));
+  };
+
+  const handleExportEquipmentPDF = (eq: ControllerEquipment) => {
+    exportToPDF(getEquipmentReportConfig(eq));
+  };
+
+  const handleExportEquipmentExcel = (eq: ControllerEquipment) => {
+    exportToExcel(getEquipmentReportConfig(eq));
+  };
 
   React.useEffect(() => {
     if (initialTab) {
@@ -5727,6 +5853,62 @@ export default function ControlView({
                             >
                               <Fuel className="w-3.5 h-3.5" />
                             </Button>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="h-7 px-2 gap-1 text-xs font-semibold text-slate-700 bg-white hover:bg-slate-50 border-slate-200 rounded-lg shadow-xs cursor-pointer"
+                                  onClick={(ev) => ev.stopPropagation()}
+                                  title="Ações da Ficha do Equipamento"
+                                >
+                                  <FileText className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                                  <span>Ficha</span>
+                                  <ChevronDown className="w-3 h-3 text-slate-400 shrink-0" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end" className="w-52 bg-white border border-slate-200 shadow-lg rounded-xl p-1 z-50 text-left">
+                                <DropdownMenuItem
+                                  onClick={(ev) => {
+                                    ev.stopPropagation();
+                                    handleExportEquipmentPDF(e);
+                                  }}
+                                  className="flex items-center gap-2.5 px-3 py-2 text-xs font-medium text-slate-700 hover:bg-blue-50 hover:text-blue-700 rounded-lg cursor-pointer"
+                                >
+                                  <FileDown className="w-4 h-4 text-blue-600 shrink-0" />
+                                  <div className="flex flex-col text-left">
+                                    <span className="font-semibold">Exportar em PDF</span>
+                                    <span className="text-[10px] text-slate-400">Documento A4 formatado</span>
+                                  </div>
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  onClick={(ev) => {
+                                    ev.stopPropagation();
+                                    handleExportEquipmentExcel(e);
+                                  }}
+                                  className="flex items-center gap-2.5 px-3 py-2 text-xs font-medium text-slate-700 hover:bg-emerald-50 hover:text-emerald-700 rounded-lg cursor-pointer"
+                                >
+                                  <FileSpreadsheet className="w-4 h-4 text-emerald-600 shrink-0" />
+                                  <div className="flex flex-col text-left">
+                                    <span className="font-semibold">Exportar em Excel</span>
+                                    <span className="text-[10px] text-slate-400">Planilha .xlsx estruturada</span>
+                                  </div>
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  onClick={(ev) => {
+                                    ev.stopPropagation();
+                                    handlePrintEquipmentCard(e);
+                                  }}
+                                  className="flex items-center gap-2.5 px-3 py-2 text-xs font-medium text-slate-700 hover:bg-purple-50 hover:text-purple-700 rounded-lg cursor-pointer"
+                                >
+                                  <Printer className="w-4 h-4 text-purple-600 shrink-0" />
+                                  <div className="flex flex-col text-left">
+                                    <span className="font-semibold">Imprimir Ficha</span>
+                                    <span className="text-[10px] text-slate-400">Janela de impressão A4</span>
+                                  </div>
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
                             <Button
                               variant="ghost"
                               size="icon"
@@ -10108,7 +10290,7 @@ export default function ControlView({
           )}
         </div>
 
-        <DialogFooter className="p-6 bg-gray-50 border-t flex flex-col sm:flex-row gap-3">
+        <DialogFooter className="p-6 bg-gray-50 border-t flex flex-col sm:flex-row gap-3 items-center">
           <Button
             variant="ghost"
             onClick={() => setIsDetailOpen(false)}
@@ -10116,6 +10298,54 @@ export default function ControlView({
           >
             Fechar
           </Button>
+
+          {selectedEquipment && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="outline"
+                  className="h-12 rounded-xl border-slate-300 font-bold uppercase text-base tracking-wider px-5 flex-1 gap-2 bg-white hover:bg-slate-50"
+                >
+                  <FileText className="w-4 h-4 text-blue-600" />
+                  <span>Exportar / Imprimir Ficha</span>
+                  <ChevronDown className="w-4 h-4 text-slate-400" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56 bg-white border border-slate-200 shadow-xl rounded-xl p-1 z-50 text-left">
+                <DropdownMenuItem
+                  onClick={() => handleExportEquipmentPDF(selectedEquipment)}
+                  className="flex items-center gap-2.5 px-3 py-2.5 text-xs font-medium text-slate-700 hover:bg-blue-50 hover:text-blue-700 rounded-lg cursor-pointer"
+                >
+                  <FileDown className="w-4 h-4 text-blue-600 shrink-0" />
+                  <div className="flex flex-col text-left">
+                    <span className="font-semibold">Exportar em PDF</span>
+                    <span className="text-[10px] text-slate-400">Documento A4 formatado</span>
+                  </div>
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => handleExportEquipmentExcel(selectedEquipment)}
+                  className="flex items-center gap-2.5 px-3 py-2.5 text-xs font-medium text-slate-700 hover:bg-emerald-50 hover:text-emerald-700 rounded-lg cursor-pointer"
+                >
+                  <FileSpreadsheet className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <div className="flex flex-col text-left">
+                    <span className="font-semibold">Exportar em Excel</span>
+                    <span className="text-[10px] text-slate-400">Planilha .xlsx estruturada</span>
+                  </div>
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => handlePrintEquipmentCard(selectedEquipment)}
+                  className="flex items-center gap-2.5 px-3 py-2.5 text-xs font-medium text-slate-700 hover:bg-purple-50 hover:text-purple-700 rounded-lg cursor-pointer"
+                >
+                  <Printer className="w-4 h-4 text-purple-600 shrink-0" />
+                  <div className="flex flex-col text-left">
+                    <span className="font-semibold">Imprimir Ficha</span>
+                    <span className="text-[10px] text-slate-400">Janela de impressão A4</span>
+                  </div>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
+
           <Button
             onClick={() => {
               setEquipmentToEdit(selectedEquipment);
