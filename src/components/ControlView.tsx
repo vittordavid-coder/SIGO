@@ -567,6 +567,10 @@ export default function ControlView({
       };
     });
 
+    const cleanedPhotos = (eq.photos || [])
+      .map((p) => (typeof p === "string" ? p.split("|")[0].trim() : ""))
+      .filter(Boolean);
+
     return {
       header: {
         companyName: "SYNERA",
@@ -630,7 +634,7 @@ export default function ControlView({
         {
           title: "Registros Visuais / Fotos do Ativo",
           type: "custom" as const,
-          imageUrls: eq.photos && eq.photos.length > 0 ? eq.photos : [],
+          imageUrls: cleanedPhotos,
         },
         ...(eq.observations ? [{
           title: "Observações Gerais",

@@ -75,19 +75,87 @@ export function printDocument(config: ReportConfig) {
     doc.write(html);
     doc.close();
 
-    // Give images and styles time to load before calling print
+    // Give images time to finish rendering before calling print
     setTimeout(() => {
       iframe.contentWindow?.focus();
       iframe.contentWindow?.print();
-    }, 300);
+    }, 700);
   }
+}
+
+/**
+ * Helper to convert an image URL or Base64 data string to an image payload for jsPDF.
+ */
+async function getImageDataUrl(
+  url: string
+): Promise<{ dataUrl: string; width: number; height: number; format: "PNG" | "JPEG" } | null> {
+  if (!url) return null;
+  const cleanUrl = url.split("|")[0].trim();
+  if (!cleanUrl) return null;
+
+  const isPng = cleanUrl.toLowerCase().includes(".png") || cleanUrl.startsWith("data:image/png");
+  const format: "PNG" | "JPEG" = isPng ? "PNG" : "JPEG";
+
+  if (cleanUrl.startsWith("data:image/")) {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => {
+        resolve({
+          dataUrl: cleanUrl,
+          width: img.naturalWidth || 400,
+          height: img.naturalHeight || 300,
+          format,
+        });
+      };
+      img.onerror = () => {
+        resolve({
+          dataUrl: cleanUrl,
+          width: 400,
+          height: 300,
+          format,
+        });
+      };
+      img.src = cleanUrl;
+    });
+  }
+
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.crossOrigin = "Anonymous";
+    img.onload = () => {
+      try {
+        const canvas = document.createElement("canvas");
+        const w = img.naturalWidth || img.width || 400;
+        const h = img.naturalHeight || img.height || 300;
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext("2d");
+        if (ctx) {
+          ctx.drawImage(img, 0, 0);
+          const dataUrl = canvas.toDataURL(isPng ? "image/png" : "image/jpeg", 0.85);
+          resolve({ dataUrl, width: w, height: h, format });
+        } else {
+          resolve({ dataUrl: cleanUrl, width: w, height: h, format });
+        }
+      } catch (err) {
+        console.warn("Could not convert image on canvas (CORS or canvas error), using raw URL:", err);
+        resolve({ dataUrl: cleanUrl, width: 400, height: 300, format });
+      }
+    };
+    img.onerror = (e) => {
+      console.warn("Error loading image for PDF:", cleanUrl, e);
+      resolve(null);
+    };
+    img.src = cleanUrl;
+  });
 }
 
 /**
  * Exports a PDF matching the exact visual brand guidelines and layout.
  */
-export function exportToPDF(config: ReportConfig) {
+export async function exportToPDF(config: ReportConfig) {
   const pdf = new jsPDF("p", "mm", "a4");
+  const pageHeight = pdf.internal.pageSize.height;
 
   // Header Brand Logo & Subtitle
   pdf.setFont("helvetica", "bold");
@@ -150,7 +218,12 @@ export function exportToPDF(config: ReportConfig) {
 
   let currentY = 34;
 
-  config.sections.forEach((section) => {
+  for (const section of config.sections) {
+    if (currentY + 25 > pageHeight - 20) {
+      pdf.addPage();
+      currentY = 20;
+    }
+
     // Section Header
     autoTable(pdf, {
       startY: currentY,
@@ -233,41 +306,93 @@ export function exportToPDF(config: ReportConfig) {
     }
 
     if (section.imageUrls !== undefined) {
-      pdf.setFontSize(7.5);
-      pdf.setFont("helvetica", "normal");
-      pdf.setTextColor(148, 163, 184);
-      pdf.setDrawColor(203, 213, 225);
+      const validUrls = section.imageUrls
+        .map((p) => (typeof p === "string" ? p.split("|")[0].trim() : ""))
+        .filter(Boolean);
 
-      const photoBoxWidth = 50;
-      const photoBoxHeight = 32;
-      let startX = 14;
+      const boxW = 54;
+      const boxH = 38;
 
-      if (section.imageUrls.length > 0) {
-        section.imageUrls.slice(0, 3).forEach((_, pIdx) => {
-          pdf.roundedRect(startX, currentY, photoBoxWidth, photoBoxHeight, 2, 2, "D");
-          pdf.text(`[ Foto Anexada ${pIdx + 1} ]`, startX + photoBoxWidth / 2, currentY + photoBoxHeight / 2, { align: "center" });
-          startX += photoBoxWidth + 8;
-        });
+      if (validUrls.length > 0) {
+        let startX = 14;
+        let countInRow = 0;
+
+        for (let pIdx = 0; pIdx < validUrls.length; pIdx++) {
+          if (countInRow === 3 || startX + boxW > 196) {
+            startX = 14;
+            currentY += boxH + 6;
+            countInRow = 0;
+          }
+
+          if (currentY + boxH > pageHeight - 20) {
+            pdf.addPage();
+            currentY = 20;
+            startX = 14;
+            countInRow = 0;
+          }
+
+          const imgRes = await getImageDataUrl(validUrls[pIdx]);
+
+          // Draw card background & border
+          pdf.setFillColor(248, 250, 252);
+          pdf.setDrawColor(203, 213, 225);
+          pdf.setLineWidth(0.3);
+          pdf.roundedRect(startX, currentY, boxW, boxH, 2, 2, "FD");
+
+          if (imgRes && imgRes.dataUrl) {
+            try {
+              const aspect = imgRes.width / imgRes.height;
+              let renderW = boxW - 2;
+              let renderH = renderW / aspect;
+              if (renderH > boxH - 2) {
+                renderH = boxH - 2;
+                renderW = renderH * aspect;
+              }
+              const offsetX = startX + (boxW - renderW) / 2;
+              const offsetY = currentY + (boxH - renderH) / 2;
+
+              pdf.addImage(imgRes.dataUrl, imgRes.format, offsetX, offsetY, renderW, renderH);
+            } catch (err) {
+              console.warn("pdf.addImage error, showing photo label:", err);
+              pdf.setFontSize(7.5);
+              pdf.setTextColor(100, 116, 139);
+              pdf.text(`[ Foto ${pIdx + 1} ]`, startX + boxW / 2, currentY + boxH / 2, { align: "center" });
+            }
+          } else {
+            pdf.setFontSize(7.5);
+            pdf.setTextColor(148, 163, 184);
+            pdf.text(`[ Foto ${pIdx + 1} indisponível ]`, startX + boxW / 2, currentY + boxH / 2, { align: "center" });
+          }
+
+          startX += boxW + 6;
+          countInRow++;
+        }
+        currentY += boxH + 6;
       } else {
-        pdf.roundedRect(startX, currentY, photoBoxWidth, photoBoxHeight, 2, 2, "D");
-        pdf.text("[ Espaço p/ Foto 1 ]", startX + photoBoxWidth / 2, currentY + photoBoxHeight / 2, { align: "center" });
-        startX += photoBoxWidth + 8;
+        let startX = 14;
+        for (let pIdx = 0; pIdx < 3; pIdx++) {
+          pdf.setFillColor(250, 250, 250);
+          pdf.setDrawColor(226, 232, 240);
+          pdf.setLineWidth(0.3);
+          pdf.roundedRect(startX, currentY, boxW, boxH, 2, 2, "FD");
 
-        pdf.roundedRect(startX, currentY, photoBoxWidth, photoBoxHeight, 2, 2, "D");
-        pdf.text("[ Espaço p/ Foto 2 ]", startX + photoBoxWidth / 2, currentY + photoBoxHeight / 2, { align: "center" });
-        startX += photoBoxWidth + 8;
-
-        pdf.roundedRect(startX, currentY, photoBoxWidth, photoBoxHeight, 2, 2, "D");
-        pdf.text("[ Espaço p/ Foto 3 ]", startX + photoBoxWidth / 2, currentY + photoBoxHeight / 2, { align: "center" });
+          pdf.setFontSize(7.5);
+          pdf.setTextColor(148, 163, 184);
+          pdf.text(`[ Sem foto ${pIdx + 1} ]`, startX + boxW / 2, currentY + boxH / 2, { align: "center" });
+          startX += boxW + 6;
+        }
+        currentY += boxH + 6;
       }
-      currentY += photoBoxHeight + 6;
     }
-  });
+  }
 
   // Signatures
-  const pageHeight = pdf.internal.pageSize.height;
   const sigs = config.signatures || { leftLabel: "ASSINATURA RESPONSÁVEL", rightLabel: "RESPONSÁVEL OPERACIONAL / EMPRESA" };
-  const footerY = currentY + 25 > pageHeight - 25 ? pageHeight - 25 : currentY + 25;
+  if (currentY + 30 > pageHeight - 15) {
+    pdf.addPage();
+    currentY = 20;
+  }
+  const footerY = currentY + 20;
 
   pdf.setLineWidth(0.5);
   pdf.setDrawColor(71, 85, 105);
@@ -508,12 +633,26 @@ function generateHTMLDocument(config: ReportConfig, isForPrint: boolean): string
 
           ${sec.imageUrls !== undefined ? `
             <div class="images-grid">
-              ${sec.imageUrls.length > 0 ? sec.imageUrls.map((url) => `
-                <img src="${url}" class="image-box" alt="Foto Equipamento" />
-              `).join("") : `
-                <div class="image-placeholder">Nenhuma foto anexada</div>
-                <div class="image-placeholder">Espaço para Foto 2</div>
-              `}
+              ${(() => {
+                const cleanUrls = sec.imageUrls
+                  .map((u) => (typeof u === "string" ? u.split("|")[0].trim() : ""))
+                  .filter(Boolean);
+
+                if (cleanUrls.length === 0) {
+                  return `
+                    <div class="image-placeholder">Sem fotos anexadas</div>
+                    <div class="image-placeholder">Espaço p/ Foto 2</div>
+                    <div class="image-placeholder">Espaço p/ Foto 3</div>
+                  `;
+                }
+
+                return cleanUrls.map((url, pIdx) => `
+                  <div class="image-card" style="display: flex; flex-direction: column; align-items: center; page-break-inside: avoid;">
+                    <img src="${url}" class="image-box" alt="Foto ${pIdx + 1}" style="width: 150px; height: 110px; object-fit: cover; border: 1px solid #cbd5e1; border-radius: 6px; background-color: #f8fafc;" />
+                    <span style="font-size: 7pt; font-weight: 700; color: #64748b; margin-top: 3px; text-transform: uppercase;">Foto Anexada ${pIdx + 1}</span>
+                  </div>
+                `).join("");
+              })()}
             </div>
           ` : ""}
 
