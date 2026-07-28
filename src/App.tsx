@@ -628,7 +628,7 @@ export default function App() {
   const finalDailyReports = useMemo(() => filteredDailyReports.filter(r => allowedContractIds.has(r.contractId)), [filteredDailyReports, allowedContractIds]);
   const finalTechnicalSchedules = useMemo(() => technicalSchedules.filter(s => allowedContractIds.has(s.contractId)), [technicalSchedules, allowedContractIds]);
   const finalControllerTeams = useMemo(() => controllerTeams.filter(t => !t.contractId || allowedContractIds.has(t.contractId)), [controllerTeams, allowedContractIds]);
-  const finalControllerEquipments = useMemo(() => controllerEquipments.filter(e => !e.contractId || allowedContractIds.has(e.contractId)), [controllerEquipments, allowedContractIds]);
+  const finalControllerEquipments = useMemo(() => controllerEquipments.filter(e => !e.contractId || e.contractId === "all" || allowedContractIds.has(e.contractId)), [controllerEquipments, allowedContractIds]);
   const filteredControllerManpower = useMemo(() => {
     const baseManpower = manpowerRecords.filter(m => !m.contractId || allowedContractIds.has(m.contractId));
     

@@ -1331,11 +1331,15 @@ export default function ControlView({
     let result = (equipments || []).filter((e) => {
       const matchesCompany =
         currentUser?.role === "master" ||
+        !e.companyId ||
         e.companyId === currentUser?.companyId;
+
+      const normEqContract = (e.contractId === "all" ? "" : (e.contractId || "")).trim();
+      const normSelContract = (!selectedContractId || selectedContractId === "all") ? "" : selectedContractId.trim();
+
       const matchesContract =
-        !selectedContractId ||
-        selectedContractId === "all" ||
-        e.contractId === selectedContractId;
+        !normSelContract || normEqContract === normSelContract;
+
       const matchesActive = filterOnlyActive ? !e.exitDate : true;
 
       if (!matchesCompany || !matchesContract || !matchesActive) return false;
@@ -1577,20 +1581,27 @@ export default function ControlView({
   };
 
   const stats = useMemo(
-    () => ({
-      activeEquips: equipments.filter(
-        (e) =>
-          e.situation === 'Ativo' &&
-          !e.exitDate &&
-          (!selectedContractId || e.contractId === selectedContractId),
-      ).length,
-      inMaintenanceCount: equipments.filter(
-        (e) =>
-          e.inMaintenance &&
-          !e.exitDate &&
-          (!selectedContractId || e.contractId === selectedContractId),
-      ).length,
-    }),
+    () => {
+      const normSelContract = (!selectedContractId || selectedContractId === "all") ? "" : selectedContractId.trim();
+      return {
+        activeEquips: equipments.filter((e) => {
+          const normEqContract = (e.contractId === "all" ? "" : (e.contractId || "")).trim();
+          return (
+            e.situation === 'Ativo' &&
+            !e.exitDate &&
+            (!normSelContract || normEqContract === normSelContract)
+          );
+        }).length,
+        inMaintenanceCount: equipments.filter((e) => {
+          const normEqContract = (e.contractId === "all" ? "" : (e.contractId || "")).trim();
+          return (
+            e.inMaintenance &&
+            !e.exitDate &&
+            (!normSelContract || normEqContract === normSelContract)
+          );
+        }).length,
+      };
+    },
     [equipments, selectedContractId],
   );
 
@@ -1836,14 +1847,16 @@ export default function ControlView({
     if (isAddOpen) {
       setNewEquip((prev) => ({
         ...prev,
-        contractId: selectedContractId || "",
+        contractId: (selectedContractId && selectedContractId !== "all") ? selectedContractId : "",
       }));
     }
   }, [isAddOpen, selectedContractId]);
 
   const handleCreateEquip = () => {
     if (!newEquip.name) return;
-    const finalContractId = selectedContractId || newEquip.contractId;
+    const finalContractId = (newEquip.contractId && newEquip.contractId !== "all" && newEquip.contractId !== "_none_")
+      ? newEquip.contractId
+      : (selectedContractId && selectedContractId !== "all" ? selectedContractId : undefined);
 
     onUpdateEquipments((prev) => [
       ...prev,
@@ -1851,7 +1864,7 @@ export default function ControlView({
         ...(newEquip as ControllerEquipment),
         id: crypto.randomUUID(),
         companyId: currentUser?.companyId,
-        contractId: finalContractId || undefined,
+        contractId: finalContractId,
         currentReading: Number(newEquip.currentReading) || 0,
         contractedPrice: Number(newEquip.contractedPrice) || 0,
         monthlyPrice: Number(newEquip.monthlyPrice) || 0,
@@ -1874,7 +1887,7 @@ export default function ControlView({
       category: "Médio",
       measurementUnit: "Horímetro",
       entryDate: new Date().toISOString().split("T")[0],
-      contractId: selectedContractId || "",
+      contractId: (selectedContractId && selectedContractId !== "all") ? selectedContractId : "",
       currentReading: 0,
       contractedPrice: 0,
       monthlyPrice: 0,
@@ -4979,7 +4992,7 @@ export default function ControlView({
                                   contractId: val === "_none_" ? "" : val,
                                 })
                               }
-                              disabled={!!selectedContractId}
+                              disabled={!!selectedContractId && selectedContractId !== "all"}
                             >
                               <SelectTrigger className="rounded-xl border-slate-200 bg-slate-50/50 h-12 text-base font-bold transition-all focus:ring-2 focus:ring-blue-500/20">
                                 <SelectValue placeholder="Selecione a obra...">

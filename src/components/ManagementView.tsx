@@ -2555,8 +2555,8 @@ export const ManagementView = ({
       (e: any) => 
         (!e.situation || e.situation === "Ativo" || e.situation === "active") && 
         !e.exitDate &&
-        (selectedContractId === "all" || e.contractId === selectedContractId) &&
-        (!currentUser?.companyId || e.companyId === currentUser.companyId)
+        (!selectedContractId || selectedContractId === "all" || (e.contractId === "all" ? "" : (e.contractId || "")) === selectedContractId) &&
+        (!currentUser?.companyId || !e.companyId || e.companyId === currentUser.companyId)
     );
     const rh = (employees || []).filter(
       (e: any) => 
