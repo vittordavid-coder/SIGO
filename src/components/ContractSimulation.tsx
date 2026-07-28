@@ -5,7 +5,9 @@ import {
   User, Calendar, FileText, Briefcase, DollarSign, Users,
   AlertCircle, ShoppingCart, ArrowLeft, ShieldAlert,
   CreditCard, Smartphone, Heart, Landmark, HardHat,
-  Receipt, Building2, UserPlus, FileEdit, HelpCircle
+  Receipt, Building2, UserPlus, FileEdit, HelpCircle,
+  Printer, Download, BarChart3, PieChart, Layers,
+  Calculator, Clock, TrendingUp, FolderPlus, Table, FileSpreadsheet
 } from 'lucide-react';
 
 interface ContractSimulationProps {
@@ -24,9 +26,15 @@ export function ContractSimulation({ sectorId = 'measurements', tabId = 'contrac
 
   // Determine active simulation
   let activeSim = 'generic';
-  if (sectorId === 'measurements' && tabId === 'contracts') activeSim = 'contracts';
+  if (sectorId === 'quotations' && tabId === 'quotations_tab') activeSim = 'none'; // Excluded as requested
+  else if (sectorId === 'quotations' && tabId === 'services') activeSim = 'services';
+  else if (sectorId === 'quotations' && tabId === 'budget') activeSim = 'budget';
+  else if (sectorId === 'quotations' && tabId === 'bdi') activeSim = 'bdi';
+  else if (sectorId === 'quotations' && tabId === 'abc') activeSim = 'abc';
+  else if ((sectorId === 'quotations' || sectorId === 'measurements') && (tabId === 'schedule' || tabId === 'schedule_sub')) activeSim = 'schedule';
+  else if ((sectorId === 'quotations' || sectorId === 'measurements') && (tabId === 'reports' || tabId === 'reports_sub')) activeSim = 'reports';
+  else if (sectorId === 'measurements' && tabId === 'contracts') activeSim = 'contracts';
   else if (sectorId === 'quotations' && tabId === 'resources') activeSim = 'resources';
-  else if (sectorId === 'quotations' && tabId === 'quotations_tab') activeSim = 'quotations_tab';
   else if (sectorId === 'rh' && tabId === 'employees') activeSim = 'employees';
   else if (sectorId === 'purchases' && tabId === 'requests') activeSim = 'requests';
   else if (sectorId === 'financeiro' && tabId === 'payables') activeSim = 'payables';
@@ -174,6 +182,96 @@ export function ContractSimulation({ sectorId = 'measurements', tabId = 'contrac
       ],
       browserUrl: 'https://sistema.synera.com/cotacoes/mapas',
       pageTitle: 'Cotações • Mapas Comparativos'
+    },
+    services: {
+      totalSteps: 7,
+      delays: { 0: 2400, 1: 1800, 2: 2000, 3: 2000, 4: 2000, 5: 2200, 6: 4000 },
+      labels: [
+        'Acessar e clicar em "+ Novo Serviço / Composição"',
+        'Preenchimento de Código (CPU-004), Descrição e Unidade (m³)',
+        'Inclusão do Insumo "Pedreiro" (Coef: 0.50 h)',
+        'Inclusão do Insumo "Servente" (Coef: 1.00 h)',
+        'Inclusão do Material "Concreto Usinado fck=30MPa" (Coef: 1.05 m³)',
+        'Cálculo Automático do Custo Direto (CUD: R$ 485,50/m³)',
+        'Composição homologada e salva no banco de dados!'
+      ],
+      browserUrl: 'https://sistema.synera.com/cotacoes/servicos',
+      pageTitle: 'Cotações • Composições de Preços (CPU)'
+    },
+    budget: {
+      totalSteps: 7,
+      delays: { 0: 2400, 1: 1800, 2: 2000, 3: 2000, 4: 2000, 5: 2200, 6: 4000 },
+      labels: [
+        'Clicar no botão "+ Adicionar Grupo de Serviços"',
+        'Inserção do Nome do Grupo ("1.0 SERVIÇOS PRELIMINARES")',
+        'Clicar em "+ Inserir Serviço" dentro do Grupo',
+        'Seleção da Composição CPU-001 (Placa da Obra)',
+        'Preenchimento da Quantidade Orçada (12.00 m²)',
+        'Cálculo do Valor Total com BDI (R$ 2.689,20)',
+        'Serviço e Grupos estruturados na Planilha Orçamentária!'
+      ],
+      browserUrl: 'https://sistema.synera.com/cotacoes/planilha',
+      pageTitle: 'Orçamento • Planilha Orçamentária'
+    },
+    bdi: {
+      totalSteps: 7,
+      delays: { 0: 2400, 1: 1800, 2: 1800, 3: 1800, 4: 1800, 5: 2200, 6: 4000 },
+      labels: [
+        'Acessar Tela de Parâmetros de BDI da Obra',
+        'Lançamento da Administração Central (4.50%)',
+        'Lançamento de Seguros (0.80%) e Riscos (1.25%)',
+        'Lançamento de Despesas Financeiras (1.00%) e Lucro (7.40%)',
+        'Configuração das Alíquotas de Tributos (PIS, COFINS, ISS = 8.65%)',
+        'Cálculo Automático pela Fórmula Oficial do TCU',
+        'BDI de 24.50% aplicado a todos os itens orçados!'
+      ],
+      browserUrl: 'https://sistema.synera.com/cotacoes/bdi',
+      pageTitle: 'Orçamento • Benefícios e Despesas Indiretas (BDI)'
+    },
+    abc: {
+      totalSteps: 7,
+      delays: { 0: 2500, 1: 2200, 2: 2200, 3: 2200, 4: 2500, 5: 2500, 6: 4000 },
+      labels: [
+        'Visão Geral da Curva ABC por Relevância Financeira',
+        'Campo "Posição / Rank": Ordenação do maior para o menor custo',
+        'Campos "Valor Total" e "% Individual": Custo e peso no orçamento',
+        'Campo "% Acumulado": Soma contínua das porcentagens',
+        'Faixa "Classe A" (~80% do valor): Insumos de alta prioridade',
+        'Faixas "Classe B" (~15%) e "Classe C" (~5%): Média e baixa relevância',
+        'Análise de Pareto concluída para negociação com fornecedores!'
+      ],
+      browserUrl: 'https://sistema.synera.com/cotacoes/curva-abc',
+      pageTitle: 'Orçamento • Curva ABC / Análise de Pareto'
+    },
+    schedule: {
+      totalSteps: 7,
+      delays: { 0: 2500, 1: 2000, 2: 2000, 3: 2000, 4: 2200, 5: 2500, 6: 4000 },
+      labels: [
+        'Visão Geral do Cronograma Físico-Financeiro',
+        'Ferramenta "Duração": Definir quantidade de dias da atividade',
+        'Lançamento de Avanço do Mês 1 (60% da execução)',
+        'Lançamento de Avanço do Mês 2 (40% da execução)',
+        'Ferramenta "Sincronizar": Validação de fechamento acumulado em 100%',
+        'Ferramenta "Curva S": Projeção do desembolso financeiro acumulado',
+        'Cronograma e curva financeira configurados!'
+      ],
+      browserUrl: 'https://sistema.synera.com/sala-tecnica/cronograma',
+      pageTitle: 'Sala Técnica • Cronograma Físico-Financeiro'
+    },
+    reports: {
+      totalSteps: 7,
+      delays: { 0: 2500, 1: 2000, 2: 2200, 3: 2200, 4: 2200, 5: 2200, 6: 4000 },
+      labels: [
+        'Acessar Central de Emissão de Relatórios',
+        'Visualização Prévia do Relatório Formatado da Obra',
+        'Ferramenta "🖨️ Imprimir": Disparo direto para impressora física',
+        'Impressão acionada com cabeçalho corporativo',
+        'Ferramenta "📄 Exportar PDF": Download do documento em PDF',
+        'Ferramenta "📊 Exportar Excel": Download da planilha em .XLSX',
+        'Relatórios gerados e prontos para distribuição!'
+      ],
+      browserUrl: 'https://sistema.synera.com/sala-tecnica/relatorios',
+      pageTitle: 'Sala Técnica • Emissão e Exportação de Relatórios'
     }
   };
 
@@ -464,6 +562,31 @@ export function ContractSimulation({ sectorId = 'measurements', tabId = 'contrac
           relato: 'Concretagem da laje nível 2. \nAvanço na alvenaria do bloco B.'
         });
       }
+    } else if (activeSim === 'services') {
+      if (step === 1) {
+        activeInterval = typeText('desc', 'Concreto Usinado fck=30MPa com bomba', 40);
+      } else if (step === 2) {
+        setTypedInputs({ code: 'CPU-004', desc: 'Concreto Usinado fck=30MPa com bomba', unit: 'm³', ins1: 'Pedreiro (0.50 h)' });
+      } else if (step === 3) {
+        setTypedInputs({ code: 'CPU-004', desc: 'Concreto Usinado fck=30MPa com bomba', unit: 'm³', ins1: 'Pedreiro (0.50 h)', ins2: 'Servente (1.00 h)' });
+      } else if (step >= 4) {
+        setTypedInputs({ code: 'CPU-004', desc: 'Concreto Usinado fck=30MPa com bomba', unit: 'm³', ins1: 'Pedreiro (0.50 h)', ins2: 'Servente (1.00 h)', ins3: 'Concreto Usinado C30 (1.05 m³)', cud: '485.50' });
+      }
+    } else if (activeSim === 'budget') {
+      if (step === 1) {
+        activeInterval = typeText('group', '1.0 SERVIÇOS PRELIMINARES', 50);
+      } else if (step >= 2) {
+        setTypedInputs({ group: '1.0 SERVIÇOS PRELIMINARES', service: 'Placa de Obra Galvanizada', qty: '12.00', total: '2.689,20' });
+      }
+    } else if (activeSim === 'bdi') {
+      if (step === 1) setTypedInputs({ adm: '4.50' });
+      else if (step === 2) setTypedInputs({ adm: '4.50', seg: '0.80', risc: '1.25' });
+      else if (step === 3) setTypedInputs({ adm: '4.50', seg: '0.80', risc: '1.25', df: '1.00', lucro: '7.40' });
+      else if (step >= 4) setTypedInputs({ adm: '4.50', seg: '0.80', risc: '1.25', df: '1.00', lucro: '7.40', trib: '8.65', bdiTotal: '24.50' });
+    } else if (activeSim === 'schedule') {
+      if (step === 1) setTypedInputs({ dur: '30 dias' });
+      else if (step === 2) setTypedInputs({ dur: '30 dias', m1: '60%' });
+      else if (step >= 3) setTypedInputs({ dur: '30 dias', m1: '60%', m2: '40%' });
     }
 
     return () => {
@@ -476,6 +599,8 @@ export function ContractSimulation({ sectorId = 'measurements', tabId = 'contrac
     setStep(0);
     setIsPlaying(true);
   }, [sectorId, tabId]);
+
+  if (activeSim === 'none') return null;
 
   return (
     <div className="w-full border border-slate-200 bg-slate-900 rounded-3xl overflow-hidden shadow-2xl flex flex-col font-sans select-none text-slate-800">
@@ -2009,6 +2134,416 @@ export function ContractSimulation({ sectorId = 'measurements', tabId = 'contrac
                 </motion.div>
               </div>
             )}
+          </div>
+        )}
+
+        {/* ==================== SERVICES (COMPOSIÇÕES CPU) SIMULATION ==================== */}
+        {activeSim === 'services' && (
+          <div className="w-full h-full flex flex-col justify-between text-left text-xs">
+            <div className="flex items-center justify-between pb-2 border-b border-slate-200 shrink-0">
+              <div>
+                <h4 className="text-sm font-extrabold text-slate-800">{currentConfig.pageTitle}</h4>
+                <p className="text-[10px] text-slate-500 font-bold">Cadastro de Composição de Preço Unitário (CPU)</p>
+              </div>
+              <button className={`px-3 py-1.5 bg-blue-600 text-white rounded-xl text-xs font-black shadow-sm flex items-center gap-1.5 ${step === 0 ? 'ring-4 ring-blue-100' : ''}`}>
+                <Plus className="w-3.5 h-3.5 stroke-[3px]" />
+                Novo Serviço / CPU
+              </button>
+            </div>
+
+            <div className="flex-1 mt-3 bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between space-y-3">
+              <div className="grid grid-cols-12 gap-2 bg-slate-50 p-2.5 rounded-lg border border-slate-200">
+                <div className="col-span-3">
+                  <label className="text-[9px] font-black uppercase text-slate-400">Código CPU</label>
+                  <p className="font-extrabold text-blue-700 bg-white px-2 py-1 rounded border border-slate-200">{typedInputs.code || 'CPU-004'}</p>
+                </div>
+                <div className="col-span-7">
+                  <label className="text-[9px] font-black uppercase text-slate-400">Descrição do Serviço</label>
+                  <p className="font-bold text-slate-800 bg-white px-2 py-1 rounded border border-slate-200 truncate">{typedInputs.desc || 'Digite para preencher a descrição...'}</p>
+                </div>
+                <div className="col-span-2">
+                  <label className="text-[9px] font-black uppercase text-slate-400">Unidade</label>
+                  <p className="font-extrabold text-slate-700 bg-white px-2 py-1 rounded border border-slate-200 text-center">{typedInputs.unit || 'm³'}</p>
+                </div>
+              </div>
+
+              {/* Composition Insumos Table */}
+              <div className="space-y-1.5 flex-1 overflow-hidden">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-black uppercase text-slate-500">Insumos da Composição (Mão de Obra e Materiais)</span>
+                  <span className="text-[9px] font-bold text-blue-600">+ Adicionar Insumo</span>
+                </div>
+                <div className="space-y-1 text-[11px]">
+                  {step >= 2 && (
+                    <motion.div initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} className="flex items-center justify-between p-1.5 bg-blue-50/50 rounded border border-blue-100">
+                      <span className="font-bold text-slate-700">INS-0012 • Pedreiro</span>
+                      <span className="text-slate-500">Coef: <strong className="text-slate-800">0.50 h</strong></span>
+                      <span className="text-slate-500">R$ 25,00/h</span>
+                      <span className="font-extrabold text-slate-800">R$ 12,50</span>
+                    </motion.div>
+                  )}
+                  {step >= 3 && (
+                    <motion.div initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} className="flex items-center justify-between p-1.5 bg-blue-50/50 rounded border border-blue-100">
+                      <span className="font-bold text-slate-700">INS-0015 • Servente</span>
+                      <span className="text-slate-500">Coef: <strong className="text-slate-800">1.00 h</strong></span>
+                      <span className="text-slate-500">R$ 18,00/h</span>
+                      <span className="font-extrabold text-slate-800">R$ 18,00</span>
+                    </motion.div>
+                  )}
+                  {step >= 4 && (
+                    <motion.div initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} className="flex items-center justify-between p-1.5 bg-emerald-50/50 rounded border border-emerald-100">
+                      <span className="font-bold text-slate-700">INS-0420 • Concreto Usinado fck=30MPa</span>
+                      <span className="text-slate-500">Coef: <strong className="text-slate-800">1.05 m³</strong></span>
+                      <span className="text-slate-500">R$ 433,33/m³</span>
+                      <span className="font-extrabold text-slate-800">R$ 455,00</span>
+                    </motion.div>
+                  )}
+                </div>
+              </div>
+
+              {/* Direct Cost Footer */}
+              <div className="bg-slate-900 text-white p-2.5 rounded-xl flex items-center justify-between">
+                <span className="text-xs font-bold text-slate-300">Custo Unitário Direto (CUD):</span>
+                <span className="text-sm font-black text-emerald-400">R$ {typedInputs.cud || '0,00'} / m³</span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ==================== BUDGET (PLANILHA ORÇAMENTÁRIA) SIMULATION ==================== */}
+        {activeSim === 'budget' && (
+          <div className="w-full h-full flex flex-col justify-between text-left text-xs">
+            <div className="flex items-center justify-between pb-2 border-b border-slate-200 shrink-0">
+              <div>
+                <h4 className="text-sm font-extrabold text-slate-800">{currentConfig.pageTitle}</h4>
+                <p className="text-[10px] text-slate-500 font-bold">Estruturação de Grupos e Serviços Orçados</p>
+              </div>
+              <div className="flex gap-1.5">
+                <button className={`px-2.5 py-1 bg-slate-800 text-white rounded-lg text-[10px] font-black flex items-center gap-1 ${step === 0 ? 'ring-2 ring-blue-300' : ''}`}>
+                  <FolderPlus className="w-3 h-3" /> + Adicionar Grupo
+                </button>
+                <button className={`px-2.5 py-1 bg-blue-600 text-white rounded-lg text-[10px] font-black flex items-center gap-1 ${step === 2 ? 'ring-2 ring-blue-300' : ''}`}>
+                  <Plus className="w-3 h-3" /> + Inserir Serviço
+                </button>
+              </div>
+            </div>
+
+            <div className="flex-1 mt-2 bg-white rounded-xl border border-slate-200 p-2.5 shadow-sm space-y-2 overflow-y-auto">
+              {/* Group 1 */}
+              {step >= 1 && (
+                <motion.div initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }} className="space-y-1">
+                  <div className="bg-slate-800 text-white px-3 py-1.5 rounded-lg flex items-center justify-between font-black text-xs">
+                    <span>{typedInputs.group || '1.0 SERVIÇOS PRELIMINARES'}</span>
+                    <span className="text-[10px] text-slate-300 font-bold">Subtotal: R$ 2.689,20</span>
+                  </div>
+                  {step >= 2 && (
+                    <div className="pl-2 border-l-2 border-blue-500 py-1 space-y-1">
+                      <div className="bg-blue-50/50 p-2 rounded-lg border border-blue-100 grid grid-cols-12 items-center text-[11px]">
+                        <span className="col-span-2 font-black text-blue-700">1.1 CPU-001</span>
+                        <span className="col-span-5 font-bold text-slate-800 truncate">{typedInputs.service || 'Placa de Obra Galvanizada'}</span>
+                        <span className="col-span-2 text-slate-500">Qtd: <strong className="text-slate-800">{typedInputs.qty || '12.00'} m²</strong></span>
+                        <span className="col-span-3 text-right font-black text-emerald-700">R$ {typedInputs.total || '2.689,20'}</span>
+                      </div>
+                    </div>
+                  )}
+                </motion.div>
+              )}
+
+              {/* Group 2 */}
+              <div className="space-y-1 opacity-90">
+                <div className="bg-slate-100 text-slate-800 px-3 py-1.5 rounded-lg flex items-center justify-between font-extrabold text-xs border border-slate-200">
+                  <span>2.0 INFRAESTRUTURA E ESTRUTURA</span>
+                  <span className="text-[10px] text-slate-600 font-bold">Subtotal: R$ 33.738,56</span>
+                </div>
+                <div className="pl-2 border-l-2 border-slate-300 py-1 space-y-1">
+                  <div className="bg-slate-50 p-2 rounded-lg border border-slate-200 grid grid-cols-12 items-center text-[11px]">
+                    <span className="col-span-2 font-bold text-slate-600">2.1 CPU-002</span>
+                    <span className="col-span-5 font-medium text-slate-700 truncate">Escavação mecanizada de valas</span>
+                    <span className="col-span-2 text-slate-500">150.00 m³</span>
+                    <span className="col-span-3 text-right font-bold text-slate-800">R$ 6.536,25</span>
+                  </div>
+                  <div className="bg-slate-50 p-2 rounded-lg border border-slate-200 grid grid-cols-12 items-center text-[11px]">
+                    <span className="col-span-2 font-bold text-slate-600">2.2 CPU-004</span>
+                    <span className="col-span-5 font-medium text-slate-700 truncate">Concreto usinado fck=30MPa com bomba</span>
+                    <span className="col-span-2 text-slate-500">45.00 m³</span>
+                    <span className="col-span-3 text-right font-bold text-slate-800">R$ 27.202,31</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-blue-900 text-white p-2.5 rounded-xl flex items-center justify-between mt-2">
+              <span className="text-xs font-bold text-blue-200">Total Geral da Planilha (c/ BDI 24.50%):</span>
+              <span className="text-sm font-black text-amber-300">R$ 36.427,76</span>
+            </div>
+          </div>
+        )}
+
+        {/* ==================== BDI SIMULATION ==================== */}
+        {activeSim === 'bdi' && (
+          <div className="w-full h-full flex flex-col justify-between text-left text-xs">
+            <div className="flex items-center justify-between pb-2 border-b border-slate-200 shrink-0">
+              <div>
+                <h4 className="text-sm font-extrabold text-slate-800">{currentConfig.pageTitle}</h4>
+                <p className="text-[10px] text-slate-500 font-bold">Cálculo de BDI conforme Acórdão do Tribunal de Contas da União (TCU)</p>
+              </div>
+              <span className="px-2.5 py-1 bg-amber-100 text-amber-800 rounded-lg text-[10px] font-black border border-amber-200">
+                Fórmula Oficial TCU
+              </span>
+            </div>
+
+            <div className="flex-1 mt-2 grid grid-cols-2 gap-2 overflow-y-auto">
+              <div className="bg-white p-2.5 rounded-xl border border-slate-200 space-y-2">
+                <h5 className="text-[10px] font-black text-slate-400 uppercase">Custos Indiretos e Margem</h5>
+                <div className="space-y-1.5">
+                  <div className="flex justify-between items-center bg-slate-50 p-1.5 rounded border border-slate-100">
+                    <span className="text-[11px] font-bold text-slate-600">Administração Central</span>
+                    <span className="font-black text-blue-700 bg-white px-2 py-0.5 rounded border border-slate-200">{typedInputs.adm || '0.00'} %</span>
+                  </div>
+                  <div className="flex justify-between items-center bg-slate-50 p-1.5 rounded border border-slate-100">
+                    <span className="text-[11px] font-bold text-slate-600">Seguro e Garantia</span>
+                    <span className="font-black text-blue-700 bg-white px-2 py-0.5 rounded border border-slate-200">{typedInputs.seg || '0.00'} %</span>
+                  </div>
+                  <div className="flex justify-between items-center bg-slate-50 p-1.5 rounded border border-slate-100">
+                    <span className="text-[11px] font-bold text-slate-600">Riscos e Contingências</span>
+                    <span className="font-black text-blue-700 bg-white px-2 py-0.5 rounded border border-slate-200">{typedInputs.risc || '0.00'} %</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-white p-2.5 rounded-xl border border-slate-200 space-y-2">
+                <h5 className="text-[10px] font-black text-slate-400 uppercase">Financeiro e Lucro</h5>
+                <div className="space-y-1.5">
+                  <div className="flex justify-between items-center bg-slate-50 p-1.5 rounded border border-slate-100">
+                    <span className="text-[11px] font-bold text-slate-600">Despesas Financeiras</span>
+                    <span className="font-black text-blue-700 bg-white px-2 py-0.5 rounded border border-slate-200">{typedInputs.df || '0.00'} %</span>
+                  </div>
+                  <div className="flex justify-between items-center bg-slate-50 p-1.5 rounded border border-slate-100">
+                    <span className="text-[11px] font-bold text-slate-600">Lucro Operacional</span>
+                    <span className="font-black text-blue-700 bg-white px-2 py-0.5 rounded border border-slate-200">{typedInputs.lucro || '0.00'} %</span>
+                  </div>
+                  <div className="flex justify-between items-center bg-slate-50 p-1.5 rounded border border-slate-100">
+                    <span className="text-[11px] font-bold text-slate-600">Tributos (PIS/COFINS/ISS)</span>
+                    <span className="font-black text-blue-700 bg-white px-2 py-0.5 rounded border border-slate-200">{typedInputs.trib || '0.00'} %</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-slate-900 text-white p-3 rounded-xl flex items-center justify-between mt-2 border border-slate-800">
+              <div>
+                <p className="text-[10px] font-bold text-slate-400">Taxa de BDI Resultante Homologada:</p>
+                <p className="text-xs text-slate-300 font-medium">BDI = [((1+(AC+S+R+G))*(1+DF)*(1+L))/(1-I)] - 1</p>
+              </div>
+              <div className="text-right">
+                <span className="text-xl font-black text-emerald-400">{typedInputs.bdiTotal || '0,00'}%</span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ==================== CURVA ABC SIMULATION ==================== */}
+        {activeSim === 'abc' && (
+          <div className="w-full h-full flex flex-col justify-between text-left text-xs">
+            <div className="flex items-center justify-between pb-2 border-b border-slate-200 shrink-0">
+              <div>
+                <h4 className="text-sm font-extrabold text-slate-800">{currentConfig.pageTitle}</h4>
+                <p className="text-[10px] text-slate-500 font-bold">Classificação da curva de representatividade financeira da obra</p>
+              </div>
+              <span className="px-2.5 py-1 bg-blue-100 text-blue-800 rounded-lg text-[10px] font-black">
+                Análise de Pareto
+              </span>
+            </div>
+
+            <div className="flex-1 mt-2 bg-white rounded-xl border border-slate-200 p-2.5 overflow-y-auto space-y-2">
+              <div className="grid grid-cols-12 text-[9px] font-black text-slate-400 uppercase tracking-wider px-2 border-b pb-1">
+                <span className={`col-span-1 ${step === 1 ? 'text-blue-600 font-extrabold' : ''}`}>Rank</span>
+                <span className="col-span-4">Insumo / Descrição</span>
+                <span className={`col-span-3 text-right ${step === 2 ? 'text-blue-600 font-extrabold' : ''}`}>Valor Total (R$)</span>
+                <span className={`col-span-2 text-right ${step === 3 ? 'text-blue-600 font-extrabold' : ''}`}>% Indiv. / Acum.</span>
+                <span className={`col-span-2 text-center ${step >= 4 ? 'text-blue-600 font-extrabold' : ''}`}>Classe</span>
+              </div>
+
+              {/* Row 1 - Classe A */}
+              <div className={`grid grid-cols-12 items-center p-2 rounded-lg border text-[11px] ${step >= 4 ? 'bg-amber-50/60 border-amber-200' : 'bg-slate-50 border-slate-200'}`}>
+                <span className="col-span-1 font-black text-slate-700">1º</span>
+                <span className="col-span-4 font-extrabold text-slate-800 truncate">Aço CA-50 10mm</span>
+                <span className="col-span-3 text-right font-bold text-slate-800">R$ 125.000,00</span>
+                <span className="col-span-2 text-right font-medium text-slate-600">45.0% / <strong>45.0%</strong></span>
+                <div className="col-span-2 text-center">
+                  <span className="px-2 py-0.5 bg-amber-500 text-white rounded-full text-[9px] font-black">Classe A</span>
+                </div>
+              </div>
+
+              {/* Row 2 - Classe A */}
+              <div className={`grid grid-cols-12 items-center p-2 rounded-lg border text-[11px] ${step >= 4 ? 'bg-amber-50/60 border-amber-200' : 'bg-slate-50 border-slate-200'}`}>
+                <span className="col-span-1 font-black text-slate-700">2º</span>
+                <span className="col-span-4 font-extrabold text-slate-800 truncate">Concreto Usinado FCK 30</span>
+                <span className="col-span-3 text-right font-bold text-slate-800">R$ 97.000,00</span>
+                <span className="col-span-2 text-right font-medium text-slate-600">35.0% / <strong>80.0%</strong></span>
+                <div className="col-span-2 text-center">
+                  <span className="px-2 py-0.5 bg-amber-500 text-white rounded-full text-[9px] font-black">Classe A</span>
+                </div>
+              </div>
+
+              {/* Row 3 - Classe B */}
+              <div className="grid grid-cols-12 items-center p-2 bg-slate-50 rounded-lg border border-slate-200 text-[11px]">
+                <span className="col-span-1 font-black text-slate-700">3º</span>
+                <span className="col-span-4 font-medium text-slate-800 truncate">Formas de Madeira Resinada</span>
+                <span className="col-span-3 text-right font-bold text-slate-800">R$ 32.000,00</span>
+                <span className="col-span-2 text-right font-medium text-slate-600">11.5% / <strong>91.5%</strong></span>
+                <div className="col-span-2 text-center">
+                  <span className="px-2 py-0.5 bg-blue-500 text-white rounded-full text-[9px] font-black">Classe B</span>
+                </div>
+              </div>
+
+              {/* Row 4 - Classe C */}
+              <div className="grid grid-cols-12 items-center p-2 bg-slate-50 rounded-lg border border-slate-200 text-[11px]">
+                <span className="col-span-1 font-black text-slate-700">4º</span>
+                <span className="col-span-4 font-medium text-slate-800 truncate">Prego c/ Cabeça 18x27</span>
+                <span className="col-span-3 text-right font-bold text-slate-800">R$ 12.000,00</span>
+                <span className="col-span-2 text-right font-medium text-slate-600">4.3% / <strong>95.8%</strong></span>
+                <div className="col-span-2 text-center">
+                  <span className="px-2 py-0.5 bg-slate-400 text-white rounded-full text-[9px] font-black">Classe C</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-slate-900 text-white p-2.5 rounded-xl flex items-center justify-between mt-2">
+              <span className="text-[10px] text-slate-300">Resumo de Pareto: <strong className="text-amber-400">Classe A (2 itens = 80% do valor total)</strong></span>
+              <span className="text-xs font-bold text-emerald-400">Orçamento Total: R$ 277.700,00</span>
+            </div>
+          </div>
+        )}
+
+        {/* ==================== SCHEDULE SIMULATION ==================== */}
+        {activeSim === 'schedule' && (
+          <div className="w-full h-full flex flex-col justify-between text-left text-xs">
+            <div className="flex items-center justify-between pb-2 border-b border-slate-200 shrink-0">
+              <div>
+                <h4 className="text-sm font-extrabold text-slate-800">{currentConfig.pageTitle}</h4>
+                <p className="text-[10px] text-slate-500 font-bold">Planejamento e Distribuição Físico-Financeira</p>
+              </div>
+              <div className="flex gap-1">
+                <span className={`px-2 py-1 rounded text-[9px] font-black border flex items-center gap-1 ${step === 1 ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600'}`}>
+                  <Clock className="w-3 h-3" /> Duração (Dias)
+                </span>
+                <span className={`px-2 py-1 rounded text-[9px] font-black border flex items-center gap-1 ${step === 4 ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-600'}`}>
+                  <Check className="w-3 h-3" /> Sincronizar 100%
+                </span>
+                <span className={`px-2 py-1 rounded text-[9px] font-black border flex items-center gap-1 ${step === 5 ? 'bg-purple-600 text-white' : 'bg-slate-100 text-slate-600'}`}>
+                  <TrendingUp className="w-3 h-3" /> Curva S
+                </span>
+              </div>
+            </div>
+
+            <div className="flex-1 mt-2 bg-white rounded-xl border border-slate-200 p-2.5 overflow-y-auto space-y-2">
+              <div className="grid grid-cols-12 text-[9px] font-black text-slate-400 uppercase tracking-wider px-2 border-b pb-1">
+                <span className="col-span-4">Atividade</span>
+                <span className="col-span-2 text-center">Duração</span>
+                <span className="col-span-2 text-center">Mês 1</span>
+                <span className="col-span-2 text-center">Mês 2</span>
+                <span className="col-span-2 text-center">Mês 3</span>
+              </div>
+
+              <div className="grid grid-cols-12 items-center p-2 bg-slate-50 rounded-lg border border-slate-200 text-[11px]">
+                <span className="col-span-4 font-bold text-slate-800 truncate">1.1 Placa da Obra</span>
+                <span className="col-span-2 text-center font-semibold text-slate-600">10d</span>
+                <span className="col-span-2 text-center font-extrabold text-emerald-700 bg-emerald-50 rounded py-0.5">100%</span>
+                <span className="col-span-2 text-center text-slate-400">0%</span>
+                <span className="col-span-2 text-center text-slate-400">0%</span>
+              </div>
+
+              <div className="grid grid-cols-12 items-center p-2 bg-blue-50/50 rounded-lg border border-blue-200 text-[11px]">
+                <span className="col-span-4 font-bold text-slate-800 truncate">2.1 Escavação</span>
+                <span className="col-span-2 text-center font-bold text-blue-700">{typedInputs.dur || '20d'}</span>
+                <span className="col-span-2 text-center font-extrabold text-blue-700 bg-white border border-blue-200 rounded py-0.5">{typedInputs.m1 || '0%'}</span>
+                <span className="col-span-2 text-center font-extrabold text-blue-700 bg-white border border-blue-200 rounded py-0.5">{typedInputs.m2 || '0%'}</span>
+                <span className="col-span-2 text-center text-slate-400">0%</span>
+              </div>
+            </div>
+
+            <div className="bg-slate-900 text-white p-2.5 rounded-xl flex items-center justify-between mt-2">
+              <span className="text-[10px] text-slate-300">Desembolso Financeiro Mês 1: <strong className="text-emerald-400">R$ 6.610,00 (18.1%)</strong></span>
+              <span className="text-[10px] text-slate-300">Mês 2: <strong className="text-amber-300">R$ 16.215,00 (44.5%)</strong></span>
+            </div>
+          </div>
+        )}
+
+        {/* ==================== REPORTS SIMULATION ==================== */}
+        {activeSim === 'reports' && (
+          <div className="w-full h-full flex flex-col justify-between text-left text-xs relative">
+            <div className="flex items-center justify-between pb-2 border-b border-slate-200 shrink-0">
+              <div>
+                <h4 className="text-sm font-extrabold text-slate-800">{currentConfig.pageTitle}</h4>
+                <p className="text-[10px] text-slate-500 font-bold">Impressão e Exportação em PDF / Excel</p>
+              </div>
+
+              {/* Action Tools Toolbar */}
+              <div className="flex gap-1.5">
+                <button className={`px-2.5 py-1.5 bg-slate-800 text-white rounded-lg text-[10px] font-black flex items-center gap-1 ${step === 2 || step === 3 ? 'ring-2 ring-blue-300' : ''}`}>
+                  <Printer className="w-3.5 h-3.5" /> Imprimir
+                </button>
+                <button className={`px-2.5 py-1.5 bg-rose-600 text-white rounded-lg text-[10px] font-black flex items-center gap-1 ${step === 4 ? 'ring-2 ring-rose-300' : ''}`}>
+                  <Download className="w-3.5 h-3.5" /> Gerar PDF
+                </button>
+                <button className={`px-2.5 py-1.5 bg-emerald-600 text-white rounded-lg text-[10px] font-black flex items-center gap-1 ${step === 5 ? 'ring-2 ring-emerald-300' : ''}`}>
+                  <FileSpreadsheet className="w-3.5 h-3.5" /> Gerar Excel
+                </button>
+              </div>
+            </div>
+
+            {/* Document Preview Card */}
+            <div className="flex-1 mt-2 bg-white rounded-xl border border-slate-200 p-4 shadow-inner overflow-hidden flex flex-col justify-between relative">
+              <div className="border-b pb-2 flex items-center justify-between">
+                <div>
+                  <h5 className="font-extrabold text-slate-900 text-sm">RELATÓRIO ORÇAMENTÁRIO SINTÉTICO</h5>
+                  <p className="text-[9px] text-slate-500 font-bold">Obra: Pavimentação Trecho Sul • Cliente: Prefeitura de Curitiba</p>
+                </div>
+                <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center font-black text-slate-400">PDF</div>
+              </div>
+
+              <div className="space-y-1.5 py-2 text-[10px]">
+                <div className="flex justify-between p-1 bg-slate-50 rounded"><span className="font-bold">1.0 SERVIÇOS PRELIMINARES</span><span>R$ 2.689,20</span></div>
+                <div className="flex justify-between p-1 bg-slate-50 rounded"><span className="font-bold">2.0 INFRAESTRUTURA E ESTRUTURA</span><span>R$ 33.738,56</span></div>
+              </div>
+
+              <div className="border-t pt-2 flex justify-between items-center font-black text-xs text-slate-900">
+                <span>VALOR TOTAL DO ORÇAMENTO:</span>
+                <span className="text-emerald-700">R$ 36.427,76</span>
+              </div>
+
+              {/* Toast overlays for action triggers */}
+              {step === 3 && (
+                <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="absolute inset-x-4 top-1/4 bg-slate-900 text-white p-3 rounded-xl shadow-2xl flex items-center gap-3 border border-slate-700">
+                  <Printer className="w-5 h-5 text-blue-400 shrink-0" />
+                  <div>
+                    <p className="font-bold text-xs">Diálogo de Impressão Acionado</p>
+                    <p className="text-[9px] text-slate-400">Enviando documento formatado para a impressora do sistema...</p>
+                  </div>
+                </motion.div>
+              )}
+
+              {step === 4 && (
+                <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="absolute inset-x-4 top-1/4 bg-rose-900 text-white p-3 rounded-xl shadow-2xl flex items-center gap-3 border border-rose-700">
+                  <Download className="w-5 h-5 text-rose-300 shrink-0" />
+                  <div>
+                    <p className="font-bold text-xs">Arquivo PDF Gerado!</p>
+                    <p className="text-[9px] text-rose-200">Download automático: Orçamento_Sintetico_Curitiba.pdf</p>
+                  </div>
+                </motion.div>
+              )}
+
+              {step === 5 && (
+                <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="absolute inset-x-4 top-1/4 bg-emerald-900 text-white p-3 rounded-xl shadow-2xl flex items-center gap-3 border border-emerald-700">
+                  <FileSpreadsheet className="w-5 h-5 text-emerald-300 shrink-0" />
+                  <div>
+                    <p className="font-bold text-xs">Planilha Excel Exportada!</p>
+                    <p className="text-[9px] text-emerald-200">Download automático: Planilha_Orcamentaria_2026.xlsx</p>
+                  </div>
+                </motion.div>
+              )}
+            </div>
           </div>
         )}
 

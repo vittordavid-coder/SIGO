@@ -8,13 +8,14 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { Landmark, Plus, Edit, Trash2, Printer, FileText, Download, FileSpreadsheet, Upload, Eye, CheckCircle, ShoppingBag, Search, ExternalLink, Calculator } from 'lucide-react';
+import { Landmark, Plus, Edit, Trash2, Printer, FileText, Download, FileSpreadsheet, Upload, Eye, CheckCircle, ShoppingBag, Search, ExternalLink, Calculator, Settings2, Layers, ClipboardList, Check } from 'lucide-react';
 import { Aporte, AporteItem, PurchaseOrder } from '../types';
 import { v4 as uuidv4 } from 'uuid';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
 import { getSupabaseConfig, createSupabaseClient } from '../lib/supabaseClient';
+import { cn } from '../lib/utils';
 
 export const FinanceView = ({ 
   contracts, 
@@ -48,6 +49,25 @@ export const FinanceView = ({
 
   const [isExportImportModalOpen, setIsExportImportModalOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  interface AporteColumnMappingModalState {
+    isOpen: boolean;
+    rawRows: any[][];
+    headerRowIndex: number;
+    fileName: string;
+    selectedCols: {
+      numeroAporte: number;
+      categoria: number;
+      subcategoria: number;
+      fornecedor: number;
+      descricao: number;
+      mesCompetencia: number;
+      dataVencimento: number;
+      valor: number;
+    };
+  }
+
+  const [aporteColumnMappingModal, setAporteColumnMappingModal] = useState<AporteColumnMappingModalState | null>(null);
 
   // Confirm delete state
   const [itemToDelete, setItemToDelete] = useState<string | null>(null);
@@ -776,146 +796,310 @@ export const FinanceView = ({
     if (!file) return;
 
     if (isImporting) return;
-    setIsImporting(true);
-
-    const parseDate = (val: any) => {
-      if (!val) return '';
-      if (val instanceof Date) {
-         return val.toISOString().split('T')[0];
-      }
-      if (typeof val === 'number') {
-         const date = new Date(Math.round((val - 25569) * 86400 * 1000));
-         return date.toISOString().split('T')[0];
-      }
-      if (typeof val === 'string') {
-         const parts = val.split(/[\/\-]/);
-         if (parts.length === 3) {
-            const day = parts[0];
-            const month = parts[1];
-            let year = parts[2];
-            if (year.length === 2) {
-               year = `20${year}`;
-            }
-            if (year.length === 4) {
-               if (day.length === 4) {
-                  return `${day}-${month.padStart(2, '0')}-${year.padStart(2, '0')}`;
-               }
-               return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
-            }
-         }
-         const d = new Date(val);
-         if (!isNaN(d.getTime())) {
-            return d.toISOString().split('T')[0];
-         }
-      }
-      return '';
-    };
 
     const reader = new FileReader();
     reader.onload = async (evt) => {
       try {
-        const bstr = evt.target?.result;
-        const workbook = XLSX.read(bstr, { type: 'binary', cellDates: true });
+        const buildData = evt.target?.result;
+        if (!buildData) throw new Error("Falha ao ler arquivo");
+        const workbook = XLSX.read(buildData, { type: 'binary', cellDates: true });
         const wsname = workbook.SheetNames[0];
         const ws = workbook.Sheets[wsname];
-        const data = XLSX.utils.sheet_to_json(ws);
-        
-        let newAportes = [...aportes];
-        let itemsCount = 0;
-        let aportesAdded = 0;
 
-        // Group rows by new tag formatting or old as fallback
-        const groupedByAporte: Record<string, any[]> = {};
-        data.forEach((row: any) => {
-          const numeroAporte = row['[NUMERO_APORTE]'] || row['Número do Aporte'] || row['Numero do Aporte'] || selectedAporte?.numero;
-          if (!numeroAporte) return; // Skip if we have no way to link to an aporte
-          if (!groupedByAporte[numeroAporte]) {
-            groupedByAporte[numeroAporte] = [];
-          }
-          groupedByAporte[numeroAporte].push(row);
-        });
+        const rawRows = XLSX.utils.sheet_to_json(ws, {
+          header: 1,
+          defval: "",
+        }) as any[][];
 
-        Object.keys(groupedByAporte).forEach(numeroAporte => {
-          const rows = groupedByAporte[numeroAporte];
-          const importedItems: AporteItem[] = rows.map((row: any) => ({
-            id: uuidv4(),
-            categoria: row['[CATEGORIA]'] || row.Categoria || '',
-            subcategoria: row['[SUBCATEGORIA]'] || row.Subcategoria || '',
-            fornecedor: row['[FORNECEDOR]'] || row.Fornecedor || '',
-            descricao: row['[DESCRICAO]'] || row.Descrição || row.Descricao || '',
-            mesCompetencia: row['[MES_COMPETENCIA]'] || row['Mês Competencia'] || row.MesCompetencia || '',
-            dataVencimento: parseDate(row['[VENCIMENTO]'] || row.Vencimento),
-            valor: Number(row['[VALOR]'] || row.Valor) || 0,
-          }));
-
-          itemsCount += importedItems.length;
-
-          const existingIndex = newAportes.findIndex(a => a.numero === numeroAporte 
-            && (!currentUser?.companyId || a.companyId === currentUser.companyId)
-            && (selectedContractId === 'all' || a.contractId === selectedContractId || !a.contractId)
-          );
-
-          if (existingIndex >= 0) {
-            newAportes[existingIndex] = {
-              ...newAportes[existingIndex],
-              items: [...(newAportes[existingIndex].items || []), ...importedItems]
-            };
-          } else {
-            // Create new aporte
-            newAportes.push({
-              id: uuidv4(),
-              companyId: currentUser?.companyId || '',
-              contractId: selectedContractId !== 'all' ? selectedContractId : undefined,
-              numero: numeroAporte,
-              data: new Date().toISOString().split('T')[0], // Default data for new
-              items: importedItems
-            });
-            aportesAdded++;
-          }
-        });
-
-        if (itemsCount > 0) {
-          // Set to local state so UI updates immediately
-          setAportes(newAportes);
-
-          // Force Supabase sync verification before showing success
-          const config = getSupabaseConfig();
-          if (config.enabled && config.url && config.key && currentUser?.companyId) {
-             const supabase = createSupabaseClient(config.url, config.key);
-             if (supabase) {
-                const blobId = `${currentUser.companyId}_sigo_aportes`;
-                
-                // Using upsert with mapped snake_case data structure for backend compatibility if necessary,
-                // but since these are store blobs in app_state, we just put content straight away.
-                const { error: blobError } = await supabase.from('app_state').upsert({
-                   id: blobId,
-                   content: newAportes,
-                   updated_at: new Date().toISOString()
-                });
-                
-                if (blobError) {
-                   alert("Atenção: Os dados foram processados localmente, mas ocorreu um erro ao salvar na nuvem Supabase. Verifique sua conexão e tente sincronizar manualmente.");
-                   console.error("Supabase Import Error:", blobError);
-                   setIsImporting(false);
-                   return;
-                }
-             }
-          }
-          
-          alert(`${itemsCount} itens importados e salvos com sucesso! ${aportesAdded > 0 ? `(${aportesAdded} novos aportes criados)` : ''}`);
-        } else {
-           alert("Nenhum dado válido encontrado. Certifique-se de que a TAG '[NUMERO_APORTE]' está preenchida.");
+        if (!rawRows || rawRows.length === 0) {
+          alert("❌ Arquivo vazio ou formato incompatível.");
+          return;
         }
+
+        let headerRowIndex = 0;
+        for (let i = 0; i < Math.min(15, rawRows.length); i++) {
+          const rowStr = (rawRows[i] || []).map((c: any) => String(c).toLowerCase()).join(" ");
+          if (
+            rowStr.includes("aporte") ||
+            rowStr.includes("numero") ||
+            rowStr.includes("número") ||
+            rowStr.includes("descricao") ||
+            rowStr.includes("descrição") ||
+            rowStr.includes("valor") ||
+            rowStr.includes("fornecedor") ||
+            rowStr.includes("vencimento") ||
+            rowStr.includes("categoria")
+          ) {
+            headerRowIndex = i;
+            break;
+          }
+        }
+
+        const headerRow = rawRows[headerRowIndex] || [];
+
+        const findColIdx = (candidates: string[]): number => {
+          for (let c = 0; c < headerRow.length; c++) {
+            const headerStr = String(headerRow[c] || "")
+              .replace(/^#/, "")
+              .replace(/^\[/, "")
+              .replace(/\]$/, "")
+              .toLowerCase()
+              .trim();
+            if (candidates.some((cand) => headerStr.includes(cand.toLowerCase()))) {
+              return c;
+            }
+          }
+          return -1;
+        };
+
+        const colNumeroAporte = findColIdx([
+          "numero_aporte",
+          "numero do aporte",
+          "número do aporte",
+          "num_aporte",
+          "numero",
+          "número",
+          "aporte",
+        ]);
+        const colCategoria = findColIdx(["categoria", "cat"]);
+        const colSubcategoria = findColIdx(["subcategoria", "subcat", "sub_categoria"]);
+        const colFornecedor = findColIdx(["fornecedor", "credor", "empresa", "fornecedor_nome"]);
+        const colDescricao = findColIdx([
+          "descricao",
+          "descrição",
+          "item",
+          "detalhe",
+          "historico",
+          "histórico",
+          "servico",
+          "serviço",
+        ]);
+        const colMesCompetencia = findColIdx([
+          "mes_competencia",
+          "mês competencia",
+          "mes competencia",
+          "competencia",
+          "competência",
+          "mes",
+          "mês",
+        ]);
+        const colDataVencimento = findColIdx([
+          "vencimento",
+          "data_vencimento",
+          "data vencimento",
+          "dt_vencimento",
+        ]);
+        const colValor = findColIdx(["valor", "valor_item", "quantia", "monto", "preco", "preço"]);
+
+        setAporteColumnMappingModal({
+          isOpen: true,
+          rawRows,
+          headerRowIndex,
+          fileName: file.name,
+          selectedCols: {
+            numeroAporte: colNumeroAporte,
+            categoria: colCategoria,
+            subcategoria: colSubcategoria,
+            fornecedor: colFornecedor,
+            descricao: colDescricao !== -1 ? colDescricao : 0,
+            mesCompetencia: colMesCompetencia,
+            dataVencimento: colDataVencimento,
+            valor: colValor !== -1 ? colValor : 0,
+          },
+        });
       } catch (err) {
-        alert("Erro ao importar arquivo Excel. Verifique o arquivo enviado.");
-        console.error(err);
-      } finally {
-        setIsImporting(false);
+        console.error("Aporte import error:", err);
+        alert("❌ Erro ao ler a planilha. Verifique o formato do arquivo.");
       }
     };
     reader.readAsBinaryString(file);
-    // Reset file input
-    e.target.value = '';
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
+  const executeAporteImportWithMapping = async (
+    state: AporteColumnMappingModalState
+  ) => {
+    setIsImporting(true);
+    try {
+      const { rawRows, headerRowIndex, selectedCols } = state;
+      const rows = rawRows.slice(headerRowIndex + 1);
+
+      const parseDate = (val: any) => {
+        if (!val) return '';
+        if (val instanceof Date) {
+          return val.toISOString().split('T')[0];
+        }
+        if (typeof val === 'number') {
+          const date = new Date(Math.round((val - 25569) * 86400 * 1000));
+          return date.toISOString().split('T')[0];
+        }
+        if (typeof val === 'string') {
+          const parts = val.trim().split(/[\/\-]/);
+          if (parts.length === 3) {
+            const day = parts[0];
+            const month = parts[1];
+            let year = parts[2];
+            if (year.length === 2) {
+              year = `20${year}`;
+            }
+            if (year.length === 4) {
+              if (day.length === 4) {
+                return `${day}-${month.padStart(2, '0')}-${year.padStart(2, '0')}`;
+              }
+              return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+            }
+          }
+          const d = new Date(val);
+          if (!isNaN(d.getTime())) {
+            return d.toISOString().split('T')[0];
+          }
+        }
+        return '';
+      };
+
+      const getCellVal = (row: any[], colIdx: number) => {
+        if (colIdx === -1 || !row || colIdx >= row.length) return null;
+        const v = row[colIdx];
+        if (v === undefined || v === null || String(v).trim() === '') return null;
+        return v;
+      };
+
+      const parseNumber = (val: any): number => {
+        if (val === null || val === undefined) return 0;
+        if (typeof val === 'number') return val;
+        const str = String(val).trim().replace(/\./g, '').replace(',', '.');
+        const num = parseFloat(str);
+        return isNaN(num) ? 0 : num;
+      };
+
+      let newAportes = [...aportes];
+      let itemsCount = 0;
+      let aportesAdded = 0;
+
+      const groupedByAporte: Record<string, any[]> = {};
+
+      rows.forEach((row) => {
+        if (
+          !Array.isArray(row) ||
+          !row.some(
+            (cell) => cell !== null && cell !== undefined && String(cell).trim() !== ""
+          )
+        ) {
+          return;
+        }
+
+        const numVal = getCellVal(row, selectedCols.numeroAporte);
+        const numeroAporte = numVal ? String(numVal).trim() : (selectedAporte?.numero || "1");
+
+        if (!groupedByAporte[numeroAporte]) {
+          groupedByAporte[numeroAporte] = [];
+        }
+        groupedByAporte[numeroAporte].push(row);
+      });
+
+      Object.keys(groupedByAporte).forEach((numeroAporte) => {
+        const itemRows = groupedByAporte[numeroAporte];
+        const importedItems: AporteItem[] = itemRows.map((row: any) => {
+          const cat = getCellVal(row, selectedCols.categoria);
+          const subcat = getCellVal(row, selectedCols.subcategoria);
+          const forn = getCellVal(row, selectedCols.fornecedor);
+          const desc = getCellVal(row, selectedCols.descricao);
+          const mesComp = getCellVal(row, selectedCols.mesCompetencia);
+          const venc = getCellVal(row, selectedCols.dataVencimento);
+          const val = getCellVal(row, selectedCols.valor);
+
+          return {
+            id: uuidv4(),
+            categoria: cat ? String(cat) : "",
+            subcategoria: subcat ? String(subcat) : "",
+            fornecedor: forn ? String(forn) : "",
+            descricao: desc ? String(desc) : "",
+            mesCompetencia: mesComp ? String(mesComp) : "",
+            dataVencimento: parseDate(venc),
+            valor: parseNumber(val),
+          };
+        });
+
+        itemsCount += importedItems.length;
+
+        const existingIndex = newAportes.findIndex(
+          (a) =>
+            a.numero === numeroAporte &&
+            (!currentUser?.companyId || a.companyId === currentUser.companyId) &&
+            (selectedContractId === "all" ||
+              a.contractId === selectedContractId ||
+              !a.contractId)
+        );
+
+        if (existingIndex >= 0) {
+          newAportes[existingIndex] = {
+            ...newAportes[existingIndex],
+            items: [...(newAportes[existingIndex].items || []), ...importedItems],
+          };
+        } else {
+          newAportes.push({
+            id: uuidv4(),
+            companyId: currentUser?.companyId || "",
+            contractId:
+              selectedContractId !== "all" ? selectedContractId : undefined,
+            numero: numeroAporte,
+            data: new Date().toISOString().split("T")[0],
+            items: importedItems,
+          });
+          aportesAdded++;
+        }
+      });
+
+      if (itemsCount > 0) {
+        setAportes(newAportes);
+
+        const config = getSupabaseConfig();
+        if (
+          config.enabled &&
+          config.url &&
+          config.key &&
+          currentUser?.companyId
+        ) {
+          const supabase = createSupabaseClient(config.url, config.key);
+          if (supabase) {
+            const blobId = `${currentUser.companyId}_sigo_aportes`;
+            const { error: blobError } = await supabase.from("app_state").upsert({
+              id: blobId,
+              content: newAportes,
+              updated_at: new Date().toISOString(),
+            });
+
+            if (blobError) {
+              alert(
+                "Atenção: Os dados foram processados localmente, mas ocorreu um erro ao salvar na nuvem Supabase. Verifique sua conexão e tente sincronizar manualmente."
+              );
+              console.error("Supabase Import Error:", blobError);
+              setAporteColumnMappingModal(null);
+              setIsExportImportModalOpen(false);
+              setIsImporting(false);
+              return;
+            }
+          }
+        }
+
+        alert(
+          `✅ Importação concluída com sucesso! ${itemsCount} itens de aportes foram importados e salvos! ${
+            aportesAdded > 0 ? `(${aportesAdded} novos aportes criados)` : ""
+          }`
+        );
+      } else {
+        alert(
+          "⚠️ Nenhum item de aporte válido encontrado para importar com as colunas selecionadas."
+        );
+      }
+    } catch (err) {
+      console.error("Error importing aportes:", err);
+      alert("❌ Ocorreu um erro ao processar a importação de aportes.");
+    } finally {
+      setIsImporting(false);
+      setAporteColumnMappingModal(null);
+      setIsExportImportModalOpen(false);
+    }
   };
 
   const calculateTotal = (aporte: Aporte) => {
@@ -1857,6 +2041,249 @@ export const FinanceView = ({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Modal de Mapeamento de Colunas de Aportes Financeiros */}
+      {aporteColumnMappingModal && aporteColumnMappingModal.isOpen && (
+        <Dialog
+          open={aporteColumnMappingModal.isOpen}
+          onOpenChange={(open) => {
+            if (!open) setAporteColumnMappingModal(null);
+          }}
+        >
+          <DialogContent className="sm:max-w-[950px] w-full bg-white border border-slate-200 shadow-2xl rounded-2xl p-6 text-left flex flex-col max-h-[90vh] overflow-y-auto">
+            <DialogHeader className="text-left space-y-1 shrink-0">
+              <div className="flex items-center gap-2 text-emerald-600 font-semibold text-xs tracking-wider uppercase mb-1">
+                <Settings2 className="w-4 h-4" /> Importação de Aportes Financeiros
+              </div>
+              <DialogTitle className="text-xl font-bold text-slate-900">
+                Mapeamento de Colunas da Planilha
+              </DialogTitle>
+              <DialogDescription className="text-sm text-slate-500">
+                Selecione qual coluna da planilha corresponde a cada dado do aporte financeiro antes de finalizar a importação.
+              </DialogDescription>
+            </DialogHeader>
+
+            {/* Info bar */}
+            <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 flex flex-wrap items-center justify-between gap-3 text-xs my-3 shrink-0">
+              <div>
+                <span className="text-slate-400 font-medium">Arquivo:</span>{" "}
+                <strong className="text-slate-700">{aporteColumnMappingModal.fileName}</strong>
+              </div>
+              <div>
+                <span className="text-slate-400 font-medium">Total de Linhas:</span>{" "}
+                <strong className="text-emerald-700">{aporteColumnMappingModal.rawRows.length}</strong>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-slate-500 font-medium">Linha do Cabeçalho:</span>
+                <select
+                  className="border border-slate-300 rounded-lg px-2 py-1 text-xs bg-white font-medium text-slate-800"
+                  value={aporteColumnMappingModal.headerRowIndex}
+                  onChange={(e) => {
+                    const newIdx = parseInt(e.target.value);
+                    setAporteColumnMappingModal((prev) => prev ? { ...prev, headerRowIndex: newIdx } : null);
+                  }}
+                >
+                  {aporteColumnMappingModal.rawRows.slice(0, 15).map((row, idx) => (
+                    <option key={`hr-${idx}`} value={idx}>
+                      Linha {idx + 1}: {Array.isArray(row) ? row.slice(0, 4).filter(Boolean).join(" | ").substring(0, 45) || "Vazia" : "Vazia"}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {/* Grid of Column Selection */}
+            <div className="space-y-4 my-2 shrink-0">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+                <Layers className="w-3.5 h-3.5 text-emerald-500" /> Correspondência de Colunas
+              </h4>
+
+              {(() => {
+                const currentHeaderRow = aporteColumnMappingModal.rawRows[aporteColumnMappingModal.headerRowIndex] || [];
+                const maxCols = Math.max(...aporteColumnMappingModal.rawRows.slice(0, 20).map((r) => Array.isArray(r) ? r.length : 0));
+                const colOptions = Array.from({ length: Math.max(maxCols, 1) }, (_, idx) => {
+                  const rawLabel = String(currentHeaderRow[idx] || "").trim();
+                  return {
+                    value: idx,
+                    label: rawLabel ? `Col ${idx + 1} (${rawLabel})` : `Coluna ${idx + 1}`,
+                  };
+                });
+
+                const renderSelect = (
+                  label: string,
+                  fieldName: keyof AporteColumnMappingModalState["selectedCols"],
+                  required: boolean = false,
+                  highlight: boolean = false,
+                  noneLabel: string = "-- Ignorar / Usar Aporte Selecionado --"
+                ) => (
+                  <div>
+                    <Label className={cn("text-xs mb-1.5 block", highlight ? "font-bold text-emerald-900" : "font-semibold text-slate-700")}>
+                      {label} {required && <span className="text-red-500">*</span>}
+                    </Label>
+                    <select
+                      className={cn(
+                        "w-full rounded-lg px-3 py-2 text-xs font-medium shadow-sm focus:outline-none focus:ring-1",
+                        highlight
+                          ? "border-2 border-emerald-400 bg-emerald-50/40 text-emerald-950 focus:border-emerald-600 focus:ring-emerald-600 font-bold"
+                          : "border border-slate-300 bg-white text-slate-800 focus:border-emerald-500 focus:ring-emerald-500"
+                      )}
+                      value={aporteColumnMappingModal.selectedCols[fieldName]}
+                      onChange={(e) => {
+                        const val = parseInt(e.target.value);
+                        setAporteColumnMappingModal((prev) =>
+                          prev
+                            ? {
+                                ...prev,
+                                selectedCols: { ...prev.selectedCols, [fieldName]: val },
+                              }
+                            : null
+                        );
+                      }}
+                    >
+                      {!required && <option value={-1}>{noneLabel}</option>}
+                      {colOptions.map((opt) => (
+                        <option key={`${fieldName}-${opt.value}`} value={opt.value}>
+                          {opt.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                );
+
+                return (
+                  <div className="space-y-4">
+                    {/* Seção 1: Identificação do Aporte & Fornecedor */}
+                    <div className="bg-slate-50/80 p-4 rounded-xl border border-slate-200">
+                      <p className="text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-3 flex items-center gap-1.5">
+                        <Landmark className="w-3.5 h-3.5 text-emerald-600" /> Identificação do Aporte & Fornecedor
+                      </p>
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+                        {renderSelect("Número / Identificador do Aporte", "numeroAporte", false, true)}
+                        {renderSelect("Fornecedor / Credor", "fornecedor")}
+                        {renderSelect("Categoria", "categoria")}
+                        {renderSelect("Subcategoria", "subcategoria")}
+                      </div>
+                    </div>
+
+                    {/* Seção 2: Detalhes do Item, Valores & Prazos */}
+                    <div className="bg-slate-50/80 p-4 rounded-xl border border-slate-200">
+                      <p className="text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-3 flex items-center gap-1.5">
+                        <Calculator className="w-3.5 h-3.5 text-blue-600" /> Detalhes do Item, Valores & Prazos
+                      </p>
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+                        {renderSelect("Descrição do Item / Serviço", "descricao", true, true)}
+                        {renderSelect("Valor do Item (R$)", "valor", true, true)}
+                        {renderSelect("Data de Vencimento", "dataVencimento")}
+                        {renderSelect("Mês Competência", "mesCompetencia")}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
+
+            {/* Live Preview Table */}
+            <div className="space-y-2 my-2 shrink-0">
+              <div className="flex items-center justify-between">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-slate-600 flex items-center gap-1.5">
+                  <ClipboardList className="w-3.5 h-3.5 text-emerald-600" /> Prévia dos Dados Mapeados (Primeiras 5 Linhas)
+                </h4>
+                <span className="text-[11px] text-slate-400">
+                  Amostra de leitura
+                </span>
+              </div>
+
+              <div className="border border-slate-200 rounded-xl overflow-hidden bg-white shadow-inner">
+                <Table>
+                  <TableHeader className="bg-slate-100">
+                    <TableRow>
+                      <TableHead className="text-xs font-bold text-emerald-900 bg-emerald-50/60 py-2">Nº Aporte</TableHead>
+                      <TableHead className="text-xs font-bold text-slate-700 py-2">Categoria / Subcat</TableHead>
+                      <TableHead className="text-xs font-bold text-slate-700 py-2">Fornecedor</TableHead>
+                      <TableHead className="text-xs font-bold text-slate-700 py-2">Descrição</TableHead>
+                      <TableHead className="text-xs font-bold text-slate-700 py-2">Mês Comp.</TableHead>
+                      <TableHead className="text-xs font-bold text-slate-700 py-2">Vencimento</TableHead>
+                      <TableHead className="text-xs font-bold text-slate-700 py-2 text-right">Valor (R$)</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {(() => {
+                      const previewRows = aporteColumnMappingModal.rawRows
+                        .slice(aporteColumnMappingModal.headerRowIndex + 1)
+                        .filter((r) => Array.isArray(r) && r.some((c) => c !== null && c !== undefined && String(c).trim() !== ""))
+                        .slice(0, 5);
+
+                      if (previewRows.length === 0) {
+                        return (
+                          <TableRow>
+                            <TableCell colSpan={7} className="text-center py-4 text-xs text-slate-400 italic">
+                              Nenhum dado encontrado após a linha de cabeçalho.
+                            </TableCell>
+                          </TableRow>
+                        );
+                      }
+
+                      const { numeroAporte, categoria, subcategoria, fornecedor, descricao, mesCompetencia, dataVencimento, valor } = aporteColumnMappingModal.selectedCols;
+
+                      const getVal = (row: any[], idx: number) => (idx !== -1 && idx < row.length && row[idx] !== undefined && row[idx] !== null) ? String(row[idx]).trim() : "-";
+
+                      return previewRows.map((row, pIdx) => {
+                        const numVal = getVal(row, numeroAporte);
+                        const catVal = getVal(row, categoria);
+                        const subcatVal = getVal(row, subcategoria);
+                        const fornVal = getVal(row, fornecedor);
+                        const descVal = getVal(row, descricao);
+                        const mesCompVal = getVal(row, mesCompetencia);
+                        const vencVal = getVal(row, dataVencimento);
+                        const valorVal = getVal(row, valor);
+
+                        let parsedVal = 0;
+                        if (valorVal !== "-") {
+                          const clean = valorVal.replace(/\./g, "").replace(",", ".");
+                          parsedVal = parseFloat(clean) || 0;
+                        }
+
+                        return (
+                          <TableRow key={`prev-ap-${pIdx}`} className="hover:bg-slate-50/80">
+                            <TableCell className="text-xs font-bold text-emerald-950 bg-emerald-50/20">{numVal !== "-" ? numVal : (selectedAporte?.numero || "1")}</TableCell>
+                            <TableCell className="text-xs text-slate-700">{catVal !== "-" || subcatVal !== "-" ? `${catVal} / ${subcatVal}`.trim() : "-"}</TableCell>
+                            <TableCell className="text-xs font-medium text-slate-700">{fornVal}</TableCell>
+                            <TableCell className="text-xs font-semibold text-slate-800 max-w-[200px] truncate">{descVal}</TableCell>
+                            <TableCell className="text-xs text-slate-600">{mesCompVal}</TableCell>
+                            <TableCell className="text-xs text-slate-600">{vencVal}</TableCell>
+                            <TableCell className="text-xs text-right text-emerald-700 font-mono font-bold">
+                              {parsedVal > 0 ? `R$ ${parsedVal.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}` : valorVal}
+                            </TableCell>
+                          </TableRow>
+                        );
+                      });
+                    })()}
+                  </TableBody>
+                </Table>
+              </div>
+            </div>
+
+            <DialogFooter className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between gap-3 shrink-0">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setAporteColumnMappingModal(null)}
+                className="rounded-xl border-slate-200 text-slate-700 font-semibold cursor-pointer"
+              >
+                Cancelar
+              </Button>
+
+              <Button
+                type="button"
+                onClick={() => executeAporteImportWithMapping(aporteColumnMappingModal)}
+                className="rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-6 shadow-md shadow-emerald-500/20 flex items-center gap-2 cursor-pointer"
+              >
+                <Check className="w-4 h-4" /> Confirmar e Importar Aportes
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 };

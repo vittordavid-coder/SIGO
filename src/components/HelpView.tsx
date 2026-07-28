@@ -703,6 +703,7 @@ export function HelpView({ currentUser }: HelpViewProps) {
 
   const activeSector = sectors.find(s => s.id === activeSectorId) || sectors[0];
   const activeTab = activeSector.tabs.find(t => t.id === activeTabId) || activeSector.tabs[0] || { id: '', label: '', title: '', description: '', steps: [] };
+  const isFirstTabOfSector = activeSector.tabs[0]?.id === activeTabId;
 
   // Sync active sub-tab when sector changes
   useEffect(() => {
@@ -981,22 +982,24 @@ export function HelpView({ currentUser }: HelpViewProps) {
                         {activeTab?.description || 'Nenhuma descrição cadastrada para esta aba.'}
                       </p>
 
-                      {/* Animated Demonstration for Key System Operations */}
-                      <div className="mt-6 pt-4 border-t border-slate-100">
-                        <h4 className="text-sm font-black uppercase text-slate-500 tracking-wider mb-4 flex items-center gap-2">
-                          <span className="flex h-2 w-2 relative">
-                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
-                            <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500"></span>
-                          </span>
-                          Demonstração Animada: {activeTab?.title || 'Guia Interativo'}
-                        </h4>
-                        <ContractSimulation 
-                          sectorId={activeSectorId} 
-                          tabId={activeTabId}
-                          title={activeTab?.title}
-                          steps={activeTab?.steps}
-                        />
-                      </div>
+                      {/* Animated Demonstration for Key System Operations - Only on First Tab of Sector */}
+                      {isFirstTabOfSector && (
+                        <div className="mt-6 pt-4 border-t border-slate-100">
+                          <h4 className="text-sm font-black uppercase text-slate-500 tracking-wider mb-4 flex items-center gap-2">
+                            <span className="flex h-2 w-2 relative">
+                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
+                              <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500"></span>
+                            </span>
+                            Demonstração Animada: {activeTab?.title || 'Guia Interativo'}
+                          </h4>
+                          <ContractSimulation 
+                            sectorId={activeSectorId} 
+                            tabId={activeTabId}
+                            title={activeTab?.title}
+                            steps={activeTab?.steps}
+                          />
+                        </div>
+                      )}
                     </div>
 
                     {/* Step-by-Step Activities */}

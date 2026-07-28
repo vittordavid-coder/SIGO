@@ -45,6 +45,8 @@ import {
   Printer,
   Download,
   Tag,
+  Settings2,
+  ClipboardList,
 } from "lucide-react";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -681,6 +683,40 @@ export default function ControlView({
   });
   const [importContractId, setImportContractId] = useState<string>("");
 
+  interface EquipmentColumnMappingModalState {
+    isOpen: boolean;
+    rawRows: any[][];
+    headerRowIndex: number;
+    fileName: string;
+    selectedCols: {
+      code: number;
+      name: number;
+      type: number;
+      brand: number;
+      model: number;
+      year: number;
+      situation: number;
+      plate: number;
+      origin: number;
+      category: number;
+      ownerName: number;
+      ownerCnpj: number;
+      measurementUnit: number;
+      contractedPrice: number;
+      monthlyPrice: number;
+      entryDate: number;
+      exitDate: number;
+      chargesPercentage: number;
+      overtimePercentage: number;
+      currentReading: number;
+      observations: number;
+      contract: number;
+    };
+  }
+
+  const [equipmentColumnMappingModal, setEquipmentColumnMappingModal] =
+    useState<EquipmentColumnMappingModalState | null>(null);
+
   const availableContracts = useMemo(() => {
     const isRestricted =
       currentUser?.role !== "master" && currentUser?.role !== "admin";
@@ -768,6 +804,220 @@ export default function ControlView({
     const file = e.target.files?.[0];
     if (!file) return;
 
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      try {
+        const buildData = evt.target?.result;
+        if (!buildData) throw new Error("Falha ao ler o arquivo.");
+
+        const wb = XLSX.read(buildData, { type: "binary" });
+        const wsname = wb.SheetNames[0];
+        const ws = wb.Sheets[wsname];
+
+        const rawRows = XLSX.utils.sheet_to_json(ws, {
+          header: 1,
+          defval: "",
+        }) as any[][];
+
+        if (!rawRows || rawRows.length === 0) {
+          alert("❌ Arquivo vazio ou formato incompatível.");
+          return;
+        }
+
+        let headerRowIndex = 0;
+        for (let i = 0; i < Math.min(15, rawRows.length); i++) {
+          const rowStr = (rawRows[i] || [])
+            .map((c: any) => String(c).toLowerCase())
+            .join(" ");
+          if (
+            rowStr.includes("equipamento") ||
+            rowStr.includes("nome") ||
+            rowStr.includes("descricao") ||
+            rowStr.includes("descrição") ||
+            rowStr.includes("codigo") ||
+            rowStr.includes("código") ||
+            rowStr.includes("placa") ||
+            rowStr.includes("modelo")
+          ) {
+            headerRowIndex = i;
+            break;
+          }
+        }
+
+        const headerRow = rawRows[headerRowIndex] || [];
+
+        const findColIdx = (candidates: string[]): number => {
+          for (let c = 0; c < headerRow.length; c++) {
+            const headerStr = String(headerRow[c] || "")
+              .replace(/^#/, "")
+              .toLowerCase()
+              .trim();
+            if (
+              candidates.some((cand) => headerStr.includes(cand.toLowerCase()))
+            ) {
+              return c;
+            }
+          }
+          return -1;
+        };
+
+        const colCode = findColIdx([
+          "codigo",
+          "código",
+          "id_patrimonio",
+          "cod_patrimonial",
+          "cod",
+          "patrimonio",
+        ]);
+        const colName = findColIdx([
+          "nome",
+          "equipamento",
+          "descricao",
+          "descrição",
+          "ativo",
+        ]);
+        const colType = findColIdx(["tipo", "tipo_equipamento", "grupo"]);
+        const colCategory = findColIdx(["categoria", "porte", "capacidade"]);
+        const colBrand = findColIdx(["marca", "fabricante"]);
+        const colModel = findColIdx(["modelo"]);
+        const colYear = findColIdx(["ano", "ano_fabricacao", "ano_modelo"]);
+        const colSituation = findColIdx([
+          "situacao",
+          "situação",
+          "status",
+          "estado",
+        ]);
+        const colPlate = findColIdx(["placa", "prefixo", "chassi"]);
+        const colOrigin = findColIdx([
+          "origem",
+          "tipo_propriedade",
+          "propriedade",
+        ]);
+        const colOwnerName = findColIdx([
+          "proprietario",
+          "proprietário",
+          "locador",
+          "empresa_aluguel",
+        ]);
+        const colOwnerCnpj = findColIdx([
+          "cnpj_proprietario",
+          "cnpj_proprietário",
+          "cnpj_locador",
+        ]);
+        const colMeasurementUnit = findColIdx([
+          "medicao_por",
+          "unidade_medicao",
+          "medicao",
+          "unidade",
+        ]);
+        const colContractedPrice = findColIdx([
+          "valor_contratado",
+          "preco_contratado",
+          "valor_hora",
+          "valor_km",
+          "tarifa",
+          "valor_diaria",
+        ]);
+        const colMonthlyPrice = findColIdx([
+          "custo_mensal",
+          "valor_mensal",
+          "mensalidade",
+          "preco_mensal",
+          "mensal",
+        ]);
+        const colEntryDate = findColIdx([
+          "data_entrada",
+          "data_admissao",
+          "admissao",
+          "admissão",
+          "entrada",
+        ]);
+        const colExitDate = findColIdx([
+          "data_saida",
+          "data_demissao",
+          "demissao",
+          "demissão",
+          "saida",
+          "saída",
+        ]);
+        const colChargesPerc = findColIdx([
+          "encargos_percentual",
+          "charges_percentage",
+          "encargos",
+          "percentual_encargos",
+        ]);
+        const colOvertimePerc = findColIdx([
+          "he_percentual",
+          "overtime_percentage",
+          "horas_extras",
+          "percentual_he",
+        ]);
+        const colCurrentReading = findColIdx([
+          "leitura_atual",
+          "current_reading",
+          "leitura",
+          "horimetro_atual",
+          "odometro_atual",
+          "horimetro",
+        ]);
+        const colObs = findColIdx([
+          "observacoes",
+          "observação",
+          "observacao",
+          "obs",
+        ]);
+        const colContract = findColIdx([
+          "contrato_numero",
+          "contrato",
+          "numero_contrato",
+          "obra",
+        ]);
+
+        setEquipmentColumnMappingModal({
+          isOpen: true,
+          rawRows,
+          headerRowIndex,
+          fileName: file.name,
+          selectedCols: {
+            code: colCode,
+            name: colName !== -1 ? colName : 0,
+            type: colType,
+            brand: colBrand,
+            model: colModel,
+            year: colYear,
+            situation: colSituation,
+            plate: colPlate,
+            origin: colOrigin,
+            category: colCategory,
+            ownerName: colOwnerName,
+            ownerCnpj: colOwnerCnpj,
+            measurementUnit: colMeasurementUnit,
+            contractedPrice: colContractedPrice,
+            monthlyPrice: colMonthlyPrice,
+            entryDate: colEntryDate,
+            exitDate: colExitDate,
+            chargesPercentage: colChargesPerc,
+            overtimePercentage: colOvertimePerc,
+            currentReading: colCurrentReading,
+            observations: colObs,
+            contract: colContract,
+          },
+        });
+      } catch (err) {
+        console.error("Equipment import error:", err);
+        alert("❌ Erro ao ler a planilha. Verifique o formato do arquivo.");
+      }
+    };
+    reader.readAsBinaryString(file);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
+  const executeEquipmentImportWithMapping = (
+    state: EquipmentColumnMappingModalState
+  ) => {
+    const { rawRows, headerRowIndex, selectedCols } = state;
+    const rows = rawRows.slice(headerRowIndex + 1);
+
     const parseExcelDate = (val: any) => {
       if (!val) return undefined;
       if (typeof val === "number") {
@@ -775,264 +1025,169 @@ export default function ControlView({
           .toISOString()
           .split("T")[0];
       }
-      return val;
+      const str = String(val).trim();
+      if (str.includes("/")) {
+        const parts = str.split("/");
+        if (parts.length === 3 && parts[2].length === 4) {
+          return `${parts[2]}-${parts[1].padStart(2, "0")}-${parts[0].padStart(2, "0")}`;
+        }
+      }
+      return str || undefined;
     };
 
-    const reader = new FileReader();
-    reader.onload = (evt) => {
-      const data = XLSX.utils.sheet_to_json(
-        XLSX.read(evt.target?.result, { type: "binary" }).Sheets[
-          XLSX.read(evt.target?.result, { type: "binary" }).SheetNames[0]
-        ],
+    const getCellVal = (row: any[], colIdx: number) => {
+      if (colIdx === -1 || !row || colIdx >= row.length) return null;
+      const v = row[colIdx];
+      if (v === undefined || v === null || String(v).trim() === "") return null;
+      return v;
+    };
+
+    const parseNumber = (val: any): number => {
+      if (val === null || val === undefined) return 0;
+      if (typeof val === "number") return val;
+      const str = String(val).trim().replace(/\./g, "").replace(",", ".");
+      const num = parseFloat(str);
+      return isNaN(num) ? 0 : num;
+    };
+
+    const newEquips: ControllerEquipment[] = [];
+    const newMonthly: EquipmentMonthlyData[] = [];
+
+    rows.forEach((row) => {
+      if (
+        !Array.isArray(row) ||
+        !row.some(
+          (cell) => cell !== null && cell !== undefined && String(cell).trim() !== ""
+        )
+      ) {
+        return;
+      }
+
+      const nameVal = getCellVal(row, selectedCols.name);
+      if (!nameVal) return;
+
+      const id = crypto.randomUUID();
+      const codeVal = getCellVal(row, selectedCols.code);
+      const typeVal = getCellVal(row, selectedCols.type);
+      const brandVal = getCellVal(row, selectedCols.brand);
+      const modelVal = getCellVal(row, selectedCols.model);
+      const yearVal = getCellVal(row, selectedCols.year);
+      const situationVal = getCellVal(row, selectedCols.situation);
+      const plateVal = getCellVal(row, selectedCols.plate);
+      const originVal = getCellVal(row, selectedCols.origin);
+      const categoryVal = getCellVal(row, selectedCols.category);
+      const ownerNameVal = getCellVal(row, selectedCols.ownerName);
+      const ownerCnpjVal = getCellVal(row, selectedCols.ownerCnpj);
+
+      let unitVal = String(
+        getCellVal(row, selectedCols.measurementUnit) || "Mensal"
       );
-      const newEquips: ControllerEquipment[] = [];
-      const newMonthly: EquipmentMonthlyData[] = [];
+      if (
+        unitVal.toLowerCase().includes("hor") ||
+        unitVal.toLowerCase().includes("hr")
+      ) {
+        unitVal = "Horímetro";
+      } else if (
+        unitVal.toLowerCase().includes("km") ||
+        unitVal.toLowerCase().includes("quilom")
+      ) {
+        unitVal = "Quilometragem";
+      } else {
+        unitVal = "Mensal";
+      }
 
-      data.forEach((item: any) => {
-        const id = crypto.randomUUID();
-        const keys = Object.keys(item);
-        const getVal = (possibleKeys: string[]) => {
-          const foundKey = keys.find((k) =>
-            possibleKeys.includes(String(k).toLowerCase().trim()),
-          );
-          if (!foundKey) return null;
-          const val = item[foundKey];
-          return val === undefined || val === null || String(val).trim() === ""
-            ? null
-            : val;
-        };
+      const contractedPrice = parseNumber(
+        getCellVal(row, selectedCols.contractedPrice)
+      );
+      const monthlyPrice = parseNumber(
+        getCellVal(row, selectedCols.monthlyPrice)
+      );
 
-        const contratoNo = getVal([
-          "contrato_numero",
-          "contrato",
-          "numero_contrato",
-          "obra",
-        ]);
-        const targetContract = availableContracts.find(
-          (c) => c.contractNumber === contratoNo,
+      const entryDateRaw = getCellVal(row, selectedCols.entryDate);
+      const entryDate =
+        parseExcelDate(entryDateRaw) || new Date().toISOString().split("T")[0];
+
+      const exitDateRaw = getCellVal(row, selectedCols.exitDate);
+      const exitDate = parseExcelDate(exitDateRaw);
+
+      const chargesPercentage = parseNumber(
+        getCellVal(row, selectedCols.chargesPercentage)
+      );
+      const overtimePercentage = parseNumber(
+        getCellVal(row, selectedCols.overtimePercentage)
+      );
+      const currentReading = parseNumber(
+        getCellVal(row, selectedCols.currentReading)
+      );
+      const obsVal = getCellVal(row, selectedCols.observations);
+
+      const contractVal = getCellVal(row, selectedCols.contract);
+      let targetContractId = importContractId || undefined;
+      if (contractVal) {
+        const foundContract = availableContracts.find(
+          (c) =>
+            c.contractNumber?.toLowerCase() === String(contractVal).toLowerCase() ||
+            c.workName?.toLowerCase().includes(String(contractVal).toLowerCase())
         );
-
-        const codeVal = getVal([
-          "codigo",
-          "código",
-          "id_patrimonio",
-          "cod_patrimonial",
-          "cod",
-        ]);
-        const nameVal = getVal(["nome", "equipamento", "descricao"]);
-        const typeVal = getVal(["tipo", "tipo_equipamento", "grupo"]);
-        const categoryVal = getVal(["categoria", "porte", "capacidade"]);
-        const brandVal = getVal(["marca", "fabricante"]);
-        const modelVal = getVal(["modelo"]);
-        const yearVal = getVal(["ano", "ano_fabricacao", "ano_modelo"]);
-        const situationVal = getVal([
-          "situacao",
-          "situação",
-          "status",
-          "estado",
-        ]);
-        const plateVal = getVal(["placa", "prefixo", "chassi"]);
-        const originVal = getVal(["origem", "tipo_propriedade"]);
-        const ownerNameVal = getVal([
-          "proprietario",
-          "proprietário",
-          "locador",
-          "empresa_aluguel",
-        ]);
-        const ownerCnpjVal = getVal([
-          "cnpj_proprietario",
-          "cnpj_proprietário",
-          "cnpj_locador",
-        ]);
-
-        let unitVal = String(
-          getVal(["medicao_por", "unidade_medicao", "medicao", "unidade"]) ||
-            "Mensal",
-        );
-        if (
-          unitVal.toLowerCase().includes("hor") ||
-          unitVal.toLowerCase().includes("hr")
-        )
-          unitVal = "Horímetro";
-        else if (
-          unitVal.toLowerCase().includes("km") ||
-          unitVal.toLowerCase().includes("kmtragem") ||
-          unitVal.toLowerCase().includes("quilom")
-        )
-          unitVal = "Quilometragem";
-        else unitVal = "Mensal";
-
-        const contractedPriceVal = getVal([
-          "valor_contratado",
-          "preco_contratado",
-          "valor_hora",
-          "valor_km",
-          "tarifa",
-          "valor_diaria",
-          "valor_diaria_equip",
-        ]);
-        let contractedPrice = 0;
-        if (contractedPriceVal !== null) {
-          contractedPrice =
-            typeof contractedPriceVal === "number"
-              ? contractedPriceVal
-              : parseFloat(
-                  String(contractedPriceVal)
-                    .replace(/[^0-9,-]+/g, "")
-                    .replace(",", "."),
-                );
+        if (foundContract) {
+          targetContractId = foundContract.id;
         }
-        if (isNaN(contractedPrice)) contractedPrice = 0;
+      }
 
-        const monthlyCostVal = getVal([
-          "custo_mensal",
-          "valor_mensal",
-          "mensalidade",
-          "preco_mensal",
-          "mensal",
-        ]);
-        let monthlyPrice = 0;
-        if (monthlyCostVal !== null) {
-          monthlyPrice =
-            typeof monthlyCostVal === "number"
-              ? monthlyCostVal
-              : parseFloat(
-                  String(monthlyCostVal)
-                    .replace(/[^0-9,-]+/g, "")
-                    .replace(",", "."),
-                );
-        }
-        if (isNaN(monthlyPrice)) monthlyPrice = 0;
-
-        const entryDateRaw = getVal([
-          "data_entrada",
-          "data_admissao",
-          "admissao",
-          "entrada",
-        ]);
-        const entryDate =
-          parseExcelDate(entryDateRaw) ||
-          new Date().toISOString().split("T")[0];
-
-        const exitDateRaw = getVal([
-          "data_saida",
-          "data_demissao",
-          "demissao",
-          "saida",
-        ]);
-        const exitDate = parseExcelDate(exitDateRaw);
-
-        const obsVal = getVal([
-          "observacoes",
-          "observação",
-          "observacao",
-          "obs",
-        ]);
-
-        const chargesPercVal = getVal([
-          "encargos_percentual",
-          "charges_percentage",
-          "encargos",
-          "percentual_encargos",
-        ]);
-        let chargesPercentage = 0;
-        if (chargesPercVal !== null) {
-          chargesPercentage =
-            typeof chargesPercVal === "number"
-              ? chargesPercVal
-              : parseFloat(
-                  String(chargesPercVal)
-                    .replace(/[^0-9,-]+/g, "")
-                    .replace(",", "."),
-                );
-        }
-        if (isNaN(chargesPercentage)) chargesPercentage = 0;
-
-        const otPercVal = getVal([
-          "he_percentual",
-          "overtime_percentage",
-          "horas_extras",
-          "percentual_he",
-        ]);
-        let overtimePercentage = 0;
-        if (otPercVal !== null) {
-          overtimePercentage =
-            typeof otPercVal === "number"
-              ? otPercVal
-              : parseFloat(
-                  String(otPercVal)
-                    .replace(/[^0-9,-]+/g, "")
-                    .replace(",", "."),
-                );
-        }
-        if (isNaN(overtimePercentage)) overtimePercentage = 0;
-
-        const currentReadingVal = getVal([
-          "leitura_atual",
-          "current_reading",
-          "leitura",
-          "horimetro_atual",
-          "odometro_atual",
-        ]);
-        let currentReading = 0;
-        if (currentReadingVal !== null) {
-          currentReading =
-            typeof currentReadingVal === "number"
-              ? currentReadingVal
-              : parseFloat(
-                  String(currentReadingVal)
-                    .replace(/[^0-9,-]+/g, "")
-                    .replace(",", "."),
-                );
-        }
-        if (isNaN(currentReading)) currentReading = 0;
-
-        newEquips.push({
-          id,
-          code: codeVal ? String(codeVal) : "",
-          name: nameVal ? String(nameVal) : "Sem Nome",
-          type: typeVal ? String(typeVal) : "Geral",
-          brand: brandVal ? String(brandVal) : "",
-          model: modelVal ? String(modelVal) : "",
-          year: yearVal ? Number(yearVal) : new Date().getFullYear(),
-          situation: (situationVal ? String(situationVal) : "Ativo") as any,
-          plate: plateVal ? String(plateVal) : "",
-          origin: originVal ? String(originVal) : "Próprio",
-          category: categoryVal ? String(categoryVal) : "",
-          ownerName: ownerNameVal ? String(ownerNameVal) : undefined,
-          ownerCnpj: ownerCnpjVal ? String(ownerCnpjVal) : undefined,
-          measurementUnit: unitVal as any,
-          contractedPrice,
-          monthlyPrice,
-          entryDate,
-          exitDate,
-          chargesPercentage,
-          overtimePercentage,
-          currentReading,
-          observations: obsVal ? String(obsVal) : "",
-          companyId: currentUser?.companyId,
-          contractId: importContractId || targetContract?.id,
-        });
-
-        if (monthlyPrice > 0) {
-          newMonthly.push({
-            id: crypto.randomUUID(),
-            equipmentId: id,
-            month: selectedMonth,
-            cost: monthlyPrice,
-            companyId: currentUser?.companyId,
-            contractId: importContractId || targetContract?.id,
-          });
-        }
+      newEquips.push({
+        id,
+        code: codeVal ? String(codeVal) : "",
+        name: String(nameVal),
+        type: typeVal ? String(typeVal) : "Geral",
+        brand: brandVal ? String(brandVal) : "",
+        model: modelVal ? String(modelVal) : "",
+        year: yearVal ? Number(yearVal) || new Date().getFullYear() : new Date().getFullYear(),
+        situation: (situationVal ? String(situationVal) : "Ativo") as any,
+        plate: plateVal ? String(plateVal) : "",
+        origin: originVal ? String(originVal) : "Próprio",
+        category: categoryVal ? String(categoryVal) : "",
+        ownerName: ownerNameVal ? String(ownerNameVal) : undefined,
+        ownerCnpj: ownerCnpjVal ? String(ownerCnpjVal) : undefined,
+        measurementUnit: unitVal as any,
+        contractedPrice,
+        monthlyPrice,
+        entryDate,
+        exitDate,
+        chargesPercentage,
+        overtimePercentage,
+        currentReading,
+        observations: obsVal ? String(obsVal) : "",
+        companyId: currentUser?.companyId,
+        contractId: targetContractId,
       });
 
-      onUpdateEquipments(prev => [...prev, ...newEquips]);
-      if (newMonthly.length > 0)
-        onUpdateEquipmentMonthly([...equipmentMonthly, ...newMonthly]);
-      if (fileInputRef.current) fileInputRef.current.value = "";
-      setIsImportModalOpen(false);
-    };
-    reader.readAsBinaryString(file);
+      if (monthlyPrice > 0) {
+        newMonthly.push({
+          id: crypto.randomUUID(),
+          equipmentId: id,
+          month: selectedMonth,
+          cost: monthlyPrice,
+          companyId: currentUser?.companyId,
+          contractId: targetContractId,
+        });
+      }
+    });
+
+    if (newEquips.length === 0) {
+      alert(
+        "⚠️ Nenhum equipamento válido encontrado para importar com as colunas selecionadas. Verifique se a coluna de 'Nome do Equipamento' possui dados."
+      );
+      return;
+    }
+
+    onUpdateEquipments((prev) => [...prev, ...newEquips]);
+    if (newMonthly.length > 0) {
+      onUpdateEquipmentMonthly([...equipmentMonthly, ...newMonthly]);
+    }
+
+    alert(`✅ Importação concluída com sucesso! ${newEquips.length} equipamentos foram adicionados.`);
+    setEquipmentColumnMappingModal(null);
+    setIsImportModalOpen(false);
   };
 
   const getContractName = (id?: string) => {
@@ -10669,6 +10824,281 @@ export default function ControlView({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Modal de Mapeamento de Colunas de Equipamentos */}
+      {equipmentColumnMappingModal && equipmentColumnMappingModal.isOpen && (
+        <Dialog
+          open={equipmentColumnMappingModal.isOpen}
+          onOpenChange={(open) => {
+            if (!open) setEquipmentColumnMappingModal(null);
+          }}
+        >
+          <DialogContent className="sm:max-w-[950px] w-full bg-white border border-slate-200 shadow-2xl rounded-2xl p-6 text-left flex flex-col max-h-[90vh] overflow-y-auto">
+            <DialogHeader className="text-left space-y-1 shrink-0">
+              <div className="flex items-center gap-2 text-orange-600 font-semibold text-xs tracking-wider uppercase mb-1">
+                <Settings2 className="w-4 h-4" /> Importação de Equipamentos
+              </div>
+              <DialogTitle className="text-xl font-bold text-slate-900">
+                Mapeamento de Colunas da Planilha
+              </DialogTitle>
+              <DialogDescription className="text-sm text-slate-500">
+                Selecione qual coluna da planilha corresponde a cada dado do equipamento antes de finalizar a importação.
+              </DialogDescription>
+            </DialogHeader>
+
+            {/* Info bar */}
+            <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 flex flex-wrap items-center justify-between gap-3 text-xs my-3 shrink-0">
+              <div>
+                <span className="text-slate-400 font-medium">Arquivo:</span>{" "}
+                <strong className="text-slate-700">{equipmentColumnMappingModal.fileName}</strong>
+              </div>
+              <div>
+                <span className="text-slate-400 font-medium">Total de Linhas:</span>{" "}
+                <strong className="text-orange-700">{equipmentColumnMappingModal.rawRows.length}</strong>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-slate-500 font-medium">Linha do Cabeçalho:</span>
+                <select
+                  className="border border-slate-300 rounded-lg px-2 py-1 text-xs bg-white font-medium text-slate-800"
+                  value={equipmentColumnMappingModal.headerRowIndex}
+                  onChange={(e) => {
+                    const newIdx = parseInt(e.target.value);
+                    setEquipmentColumnMappingModal((prev) => prev ? { ...prev, headerRowIndex: newIdx } : null);
+                  }}
+                >
+                  {equipmentColumnMappingModal.rawRows.slice(0, 15).map((row, idx) => (
+                    <option key={`hr-${idx}`} value={idx}>
+                      Linha {idx + 1}: {Array.isArray(row) ? row.slice(0, 4).filter(Boolean).join(" | ").substring(0, 45) || "Vazia" : "Vazia"}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {/* Grid of Column Selection */}
+            <div className="space-y-4 my-2 shrink-0">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+                <Layers className="w-3.5 h-3.5 text-orange-500" /> Correspondência de Colunas
+              </h4>
+
+              {(() => {
+                const currentHeaderRow = equipmentColumnMappingModal.rawRows[equipmentColumnMappingModal.headerRowIndex] || [];
+                const maxCols = Math.max(...equipmentColumnMappingModal.rawRows.slice(0, 20).map((r) => Array.isArray(r) ? r.length : 0));
+                const colOptions = Array.from({ length: Math.max(maxCols, 1) }, (_, idx) => {
+                  const rawLabel = String(currentHeaderRow[idx] || "").trim();
+                  return {
+                    value: idx,
+                    label: rawLabel ? `Col ${idx + 1} (${rawLabel})` : `Coluna ${idx + 1}`,
+                  };
+                });
+
+                const renderSelect = (
+                  label: string,
+                  fieldName: keyof EquipmentColumnMappingModalState["selectedCols"],
+                  required: boolean = false,
+                  highlight: boolean = false,
+                  noneLabel: string = "-- Ignorar / Não Mapeado --"
+                ) => (
+                  <div>
+                    <Label className={cn("text-xs mb-1.5 block", highlight ? "font-bold text-orange-900" : "font-semibold text-slate-700")}>
+                      {label} {required && <span className="text-red-500">*</span>}
+                    </Label>
+                    <select
+                      className={cn(
+                        "w-full rounded-lg px-3 py-2 text-xs font-medium shadow-sm focus:outline-none focus:ring-1",
+                        highlight
+                          ? "border-2 border-orange-400 bg-orange-50/40 text-orange-950 focus:border-orange-600 focus:ring-orange-600 font-bold"
+                          : "border border-slate-300 bg-white text-slate-800 focus:border-orange-500 focus:ring-orange-500"
+                      )}
+                      value={equipmentColumnMappingModal.selectedCols[fieldName]}
+                      onChange={(e) => {
+                        const val = parseInt(e.target.value);
+                        setEquipmentColumnMappingModal((prev) =>
+                          prev
+                            ? {
+                                ...prev,
+                                selectedCols: { ...prev.selectedCols, [fieldName]: val },
+                              }
+                            : null
+                        );
+                      }}
+                    >
+                      {!required && <option value={-1}>{noneLabel}</option>}
+                      {colOptions.map((opt) => (
+                        <option key={`${fieldName}-${opt.value}`} value={opt.value}>
+                          {opt.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                );
+
+                return (
+                  <div className="space-y-4">
+                    {/* Seção 1: Identificação Básica & Tipo */}
+                    <div className="bg-slate-50/80 p-4 rounded-xl border border-slate-200">
+                      <p className="text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-3 flex items-center gap-1.5">
+                        <Truck className="w-3.5 h-3.5 text-orange-600" /> Identificação do Equipamento & Categoria
+                      </p>
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+                        {renderSelect("Nome do Equipamento", "name", true, true)}
+                        {renderSelect("Código / Patrimônio", "code")}
+                        {renderSelect("Tipo / Grupo", "type")}
+                        {renderSelect("Categoria / Porte", "category")}
+                      </div>
+                    </div>
+
+                    {/* Seção 2: Fabricação, Modelo & Propriedade */}
+                    <div className="bg-slate-50/80 p-4 rounded-xl border border-slate-200">
+                      <p className="text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-3 flex items-center gap-1.5">
+                        <Wrench className="w-3.5 h-3.5 text-blue-600" /> Detalhes do Fabricante & Propriedade
+                      </p>
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+                        {renderSelect("Marca / Fabricante", "brand")}
+                        {renderSelect("Modelo", "model")}
+                        {renderSelect("Ano de Fabricação", "year")}
+                        {renderSelect("Placa / Prefixo / Chassi", "plate")}
+                        {renderSelect("Origem / Propriedade", "origin")}
+                        {renderSelect("Proprietário / Locador", "ownerName")}
+                        {renderSelect("CNPJ do Locador", "ownerCnpj")}
+                        {renderSelect("Situação / Status", "situation")}
+                      </div>
+                    </div>
+
+                    {/* Seção 3: Valores & Unidade de Medição */}
+                    <div className="bg-slate-50/80 p-4 rounded-xl border border-slate-200">
+                      <p className="text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-3 flex items-center gap-1.5">
+                        <DollarSign className="w-3.5 h-3.5 text-emerald-600" /> Valores, Custos & Unidade de Medição
+                      </p>
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                        {renderSelect("Unidade de Medição", "measurementUnit")}
+                        {renderSelect("Tarifa / Valor Contratado (R$)", "contractedPrice")}
+                        {renderSelect("Custo Mensal (R$)", "monthlyPrice")}
+                        {renderSelect("Horímetro / Odômetro Inicial", "currentReading")}
+                        {renderSelect("Encargos (%)", "chargesPercentage")}
+                        {renderSelect("Horas Extras (%)", "overtimePercentage")}
+                      </div>
+                    </div>
+
+                    {/* Seção 4: Datas, Obra & Observações */}
+                    <div className="bg-slate-50/80 p-4 rounded-xl border border-slate-200">
+                      <p className="text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-3 flex items-center gap-1.5">
+                        <Building2 className="w-3.5 h-3.5 text-purple-600" /> Datas, Obra / Contrato & Observações
+                      </p>
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+                        {renderSelect("Data de Entrada / Mobilização", "entryDate")}
+                        {renderSelect("Data de Saída / Desmobilização", "exitDate")}
+                        {renderSelect("Obra / Número do Contrato", "contract")}
+                        {renderSelect("Observações", "observations")}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
+
+            {/* Live Preview Table */}
+            <div className="space-y-2 my-2 shrink-0">
+              <div className="flex items-center justify-between">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-slate-600 flex items-center gap-1.5">
+                  <ClipboardList className="w-3.5 h-3.5 text-emerald-600" /> Prévia dos Dados Mapeados (Primeiras 5 Linhas)
+                </h4>
+                <span className="text-[11px] text-slate-400">
+                  Amostra de leitura
+                </span>
+              </div>
+
+              <div className="border border-slate-200 rounded-xl overflow-hidden bg-white shadow-inner">
+                <Table>
+                  <TableHeader className="bg-slate-100">
+                    <TableRow>
+                      <TableHead className="text-xs font-bold text-orange-900 bg-orange-50/60 py-2">Nome Equipamento</TableHead>
+                      <TableHead className="text-xs font-bold text-slate-700 py-2">Código/Patrimônio</TableHead>
+                      <TableHead className="text-xs font-bold text-slate-700 py-2">Tipo / Categoria</TableHead>
+                      <TableHead className="text-xs font-bold text-slate-700 py-2">Marca / Modelo</TableHead>
+                      <TableHead className="text-xs font-bold text-slate-700 py-2">Unidade</TableHead>
+                      <TableHead className="text-xs font-bold text-slate-700 py-2 text-right">Custo Mensal</TableHead>
+                      <TableHead className="text-xs font-bold text-slate-700 py-2">Obra / Contrato</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {(() => {
+                      const previewRows = equipmentColumnMappingModal.rawRows
+                        .slice(equipmentColumnMappingModal.headerRowIndex + 1)
+                        .filter((r) => Array.isArray(r) && r.some((c) => c !== null && c !== undefined && String(c).trim() !== ""))
+                        .slice(0, 5);
+
+                      if (previewRows.length === 0) {
+                        return (
+                          <TableRow>
+                            <TableCell colSpan={7} className="text-center py-4 text-xs text-slate-400 italic">
+                              Nenhum dado encontrado após a linha de cabeçalho.
+                            </TableCell>
+                          </TableRow>
+                        );
+                      }
+
+                      const { name, code, type, brand, model, measurementUnit, monthlyPrice, contract } = equipmentColumnMappingModal.selectedCols;
+
+                      const getVal = (row: any[], idx: number) => (idx !== -1 && idx < row.length && row[idx] !== undefined && row[idx] !== null) ? String(row[idx]).trim() : "-";
+
+                      return previewRows.map((row, pIdx) => {
+                        const nameVal = getVal(row, name);
+                        const codeVal = getVal(row, code);
+                        const typeVal = getVal(row, type);
+                        const brandVal = getVal(row, brand);
+                        const modelVal = getVal(row, model);
+                        const unitVal = getVal(row, measurementUnit);
+                        const monthlyVal = getVal(row, monthlyPrice);
+                        const contractVal = getVal(row, contract);
+
+                        let parsedMonthly = 0;
+                        if (monthlyVal !== "-") {
+                          const clean = monthlyVal.replace(/\./g, "").replace(",", ".");
+                          parsedMonthly = parseFloat(clean) || 0;
+                        }
+
+                        return (
+                          <TableRow key={`prev-eq-${pIdx}`} className="hover:bg-slate-50/80">
+                            <TableCell className="text-xs font-bold text-orange-950 bg-orange-50/20 max-w-[200px] truncate">{nameVal}</TableCell>
+                            <TableCell className="text-xs font-mono font-semibold text-slate-700">{codeVal}</TableCell>
+                            <TableCell className="text-xs font-medium text-slate-700">{typeVal}</TableCell>
+                            <TableCell className="text-xs text-slate-600">{brandVal !== "-" || modelVal !== "-" ? `${brandVal} ${modelVal}`.trim() : "-"}</TableCell>
+                            <TableCell className="text-xs text-slate-600">{unitVal}</TableCell>
+                            <TableCell className="text-xs text-right text-emerald-700 font-mono font-semibold">
+                              {parsedMonthly > 0 ? `R$ ${parsedMonthly.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}` : monthlyVal}
+                            </TableCell>
+                            <TableCell className="text-xs text-slate-600 max-w-[150px] truncate">{contractVal !== "-" ? contractVal : (importContractId ? getContractName(importContractId) : "-")}</TableCell>
+                          </TableRow>
+                        );
+                      });
+                    })()}
+                  </TableBody>
+                </Table>
+              </div>
+            </div>
+
+            <DialogFooter className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between gap-3 shrink-0">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setEquipmentColumnMappingModal(null)}
+                className="rounded-xl border-slate-200 text-slate-700 font-semibold cursor-pointer"
+              >
+                Cancelar
+              </Button>
+
+              <Button
+                type="button"
+                onClick={() => executeEquipmentImportWithMapping(equipmentColumnMappingModal)}
+                className="rounded-xl bg-orange-600 hover:bg-orange-700 text-white font-bold px-6 shadow-md shadow-orange-500/20 flex items-center gap-2 cursor-pointer"
+              >
+                <Check className="w-4 h-4" /> Confirmar e Importar Equipamentos
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 }
