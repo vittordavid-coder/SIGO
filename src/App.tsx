@@ -528,11 +528,15 @@ export default function App() {
 
   const finalQuotations = (currentUser?.role === 'master' || currentUser?.role === 'admin') 
     ? filteredQuotationsList 
-    : filteredQuotationsList.filter(q => currentUser?.allowedQuotationIds?.includes(q.id));
+    : (currentUser?.allowedQuotationIds && currentUser.allowedQuotationIds.length > 0)
+      ? filteredQuotationsList.filter(q => currentUser?.allowedQuotationIds?.includes(q.id))
+      : filteredQuotationsList;
 
   const finalContracts = (currentUser?.role === 'master' || currentUser?.role === 'admin')
     ? filteredContracts 
-    : filteredContracts.filter(c => currentUser?.allowedContractIds?.includes(c.id));
+    : (currentUser?.allowedContractIds && currentUser.allowedContractIds.length > 0)
+      ? filteredContracts.filter(c => currentUser?.allowedContractIds?.includes(c.id))
+      : filteredContracts;
 
   // Auto-select contract if only one is available
   useEffect(() => {
@@ -628,7 +632,28 @@ export default function App() {
   const finalDailyReports = useMemo(() => filteredDailyReports.filter(r => allowedContractIds.has(r.contractId)), [filteredDailyReports, allowedContractIds]);
   const finalTechnicalSchedules = useMemo(() => technicalSchedules.filter(s => allowedContractIds.has(s.contractId)), [technicalSchedules, allowedContractIds]);
   const finalControllerTeams = useMemo(() => controllerTeams.filter(t => !t.contractId || allowedContractIds.has(t.contractId)), [controllerTeams, allowedContractIds]);
-  const finalControllerEquipments = useMemo(() => controllerEquipments.filter(e => !e.contractId || e.contractId === "all" || allowedContractIds.has(e.contractId)), [controllerEquipments, allowedContractIds]);
+  const companyContractIds = useMemo(() => new Set(filteredContracts.map(c => c.id)), [filteredContracts]);
+
+  const finalControllerEquipments = useMemo(() => {
+    return controllerEquipments.filter(e => {
+      if (currentUser?.role === 'master') return true;
+
+      // Check if equipment belongs to user's company directly or via an assigned contract
+      const belongsToCompany =
+        !e.companyId ||
+        e.companyId === 'default' ||
+        e.companyId === currentUser?.companyId ||
+        (!!e.contractId && companyContractIds.has(e.contractId));
+
+      if (!belongsToCompany) return false;
+
+      if (!e.contractId || e.contractId === 'all' || e.contractId === '_none_' || e.contractId === '') {
+        return true;
+      }
+
+      return allowedContractIds.has(e.contractId);
+    });
+  }, [controllerEquipments, currentUser, companyContractIds, allowedContractIds]);
   const filteredControllerManpower = useMemo(() => {
     const baseManpower = manpowerRecords.filter(m => !m.contractId || allowedContractIds.has(m.contractId));
     

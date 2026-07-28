@@ -860,11 +860,13 @@ export default function ControlView({
       const allowedQuotes = currentUser?.allowedQuotationIds || [];
       const allowedContracts = currentUser?.allowedContractIds || [];
 
-      result = result.filter(
-        (c) =>
-          (c.quotationId && allowedQuotes.includes(c.quotationId)) ||
-          allowedContracts.includes(c.id),
-      );
+      if (allowedContracts.length > 0 || allowedQuotes.length > 0) {
+        result = result.filter(
+          (c) =>
+            (c.quotationId && allowedQuotes.includes(c.quotationId)) ||
+            allowedContracts.includes(c.id),
+        );
+      }
     }
     return result;
   }, [contracts, currentUser]);
@@ -1332,7 +1334,9 @@ export default function ControlView({
       const matchesCompany =
         currentUser?.role === "master" ||
         !e.companyId ||
-        e.companyId === currentUser?.companyId;
+        e.companyId === "default" ||
+        e.companyId === currentUser?.companyId ||
+        (!!e.contractId && contracts.some((c) => c.id === e.contractId));
 
       const normEqContract = (e.contractId === "all" ? "" : (e.contractId || "")).trim();
       const normSelContract = (!selectedContractId || selectedContractId === "all") ? "" : selectedContractId.trim();
