@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion } from 'motion/react';
-import { Plus, Edit, Trash2, FileSpreadsheet, Download, ChevronUp, ChevronDown, TrendingUp, ArrowLeft, Upload, FileText, Users, Truck, Sparkles } from 'lucide-react';
+import { Plus, Edit, Trash2, FileSpreadsheet, Download, ChevronUp, ChevronDown, TrendingUp, ArrowLeft, Upload, FileText, Users, Truck, Sparkles, SlidersHorizontal, ArrowUp, ArrowDown } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 import { Resource, ResourceType, PurchaseOrder, Employee, ControllerEquipment } from '../types';
 import { cn, formatCurrency } from '../lib/utils';
@@ -19,6 +19,83 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts';
 
 import { NumericInput } from '@/components/ui/numeric-input';
+
+function UnitAutoComplete({
+  value,
+  onChange,
+  existingUnits,
+  id,
+  className,
+}: {
+  value: string;
+  onChange: (val: string) => void;
+  existingUnits: string[];
+  id?: string;
+  className?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const defaultUnits = ['h', 'un', 'kg', 'm', 'm2', 'm3', 'mes', 'dia', 'vb', 'l', 't', 'cj', 'sc', 'gl', 'rl', 'pr'];
+  
+  const allUnits = React.useMemo(() => {
+    const set = new Set<string>();
+    defaultUnits.forEach(u => set.add(u));
+    existingUnits.forEach(u => {
+      if (u && u.trim()) set.add(u.trim());
+    });
+    return Array.from(set);
+  }, [existingUnits]);
+
+  const filteredUnits = React.useMemo(() => {
+    const query = (value || '').trim().toLowerCase();
+    if (!query) return allUnits;
+    return allUnits.filter(u => u.toLowerCase().includes(query));
+  }, [value, allUnits]);
+
+  return (
+    <div className="relative col-span-3">
+      <Input
+        id={id}
+        value={value}
+        onChange={(e) => {
+          onChange(e.target.value);
+          setOpen(true);
+        }}
+        onFocus={() => setOpen(true)}
+        onBlur={() => setTimeout(() => setOpen(false), 200)}
+        placeholder="Ex: h, un, kg..."
+        className={cn("h-10 text-sm font-medium", className)}
+        autoComplete="off"
+        required
+      />
+      {open && filteredUnits.length > 0 && (
+        <div className="absolute z-50 mt-1 w-full max-h-48 overflow-y-auto bg-white border border-slate-200 rounded-xl shadow-xl py-1 text-xs">
+          <div className="px-3 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-100 flex items-center justify-between">
+            <span>Unidades Existentes</span>
+            <span className="text-[9px] text-blue-600 font-semibold">{filteredUnits.length} opções</span>
+          </div>
+          {filteredUnits.map((u) => (
+            <button
+              key={u}
+              type="button"
+              onMouseDown={(e) => {
+                e.preventDefault();
+                onChange(u);
+                setOpen(false);
+              }}
+              className={cn(
+                "w-full text-left px-3 py-1.5 hover:bg-blue-50 hover:text-blue-700 flex items-center justify-between font-mono transition-colors",
+                value === u && "bg-blue-50/80 text-blue-700 font-bold"
+              )}
+            >
+              <span>{u}</span>
+              {value === u && <Check className="w-3.5 h-3.5 text-blue-600" />}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 interface ResourceViewProps {
   key?: string;
@@ -68,12 +145,19 @@ export function ResourceView({ resources, onAdd, onDelete, onUpdate, purchaseOrd
 
     // Recalculate Equipment prices based on operator
     aug = aug.map(r => {
-      if (r.type === 'equipment' && r.operatorId) {
-        const op = aug.find(o => o.id === r.operatorId);
-        const opCost = op ? op.basePrice : 0;
+      if (r.type === 'equipment') {
+        const eqCost = r.equipmentBaseCost !== undefined ? r.equipmentBaseCost : (r.basePrice || 0);
+        let opCost = 0;
+        if (r.operatorId) {
+          const op = aug.find(o => o.id === r.operatorId);
+          if (op) {
+            opCost = op.monthlySalary || (op.paymentType === 'month' || op.paymentType === 'pj' ? (op.basePrice > 500 ? op.basePrice : op.basePrice * 220) : op.basePrice * 220) || op.basePrice || 0;
+          }
+        }
         return {
            ...r,
-           basePrice: (r.equipmentBaseCost || 0) + opCost
+           equipmentBaseCost: eqCost,
+           basePrice: eqCost + opCost
         };
       }
       return r;
@@ -394,35 +478,32 @@ export function ResourceView({ resources, onAdd, onDelete, onUpdate, purchaseOrd
       return;
     }
 
-    const typesMap = new Map<string, { originalName: string; totalPrice: number; count: number; unit: string }>();
+    const typesMap = new Map<string, { originalName: string; totalMonthlyCost: number; count: number; unit: string }>();
 
     controllerEquipments.forEach(eq => {
       const eqType = (eq.type || eq.name || '').trim();
       if (!eqType) return;
       const keyLower = eqType.toLowerCase();
 
-      // Calculate equipment rate/price from controller fields
-      const price = eq.productivePrice || eq.contractedPrice || (eq.monthlyPrice ? eq.monthlyPrice / 220 : 0) || eq.equipmentBaseCost || 0;
+      // Monthly cost of equipment (valor mensal)
+      const monthlyCost = eq.monthlyPrice || 
+                          eq.equipmentBaseCost || 
+                          (eq.contractedPrice ? eq.contractedPrice * (eq.measurementUnit === 'Mensal' ? 1 : 220) : 0) || 
+                          (eq.productivePrice ? eq.productivePrice * 220 : 0) || 0;
 
-      // Filter out equipment types without values / zero price
-      if (price <= 0) return;
+      if (monthlyCost <= 0) return;
 
-      const unitMapped = eq.measurementUnit === 'Horímetro' ? 'h' : 
-                         eq.measurementUnit === 'Quilometragem' ? 'km' : 
-                         eq.measurementUnit === 'Mensal' ? 'mes' : 
-                         eq.measurementUnit === 'Diária' ? 'dia' : 'h';
-
-      const current = typesMap.get(keyLower) || { originalName: eqType, totalPrice: 0, count: 0, unit: unitMapped };
+      const current = typesMap.get(keyLower) || { originalName: eqType, totalMonthlyCost: 0, count: 0, unit: 'h' };
       typesMap.set(keyLower, {
         originalName: current.originalName,
-        totalPrice: current.totalPrice + price,
+        totalMonthlyCost: current.totalMonthlyCost + monthlyCost,
         count: current.count + 1,
-        unit: current.unit
+        unit: 'h' // Default unit is 'h'
       });
     });
 
     if (typesMap.size === 0) {
-      alert("⚠️ Nenhum equipamento com preço/valor de locação maior que zero encontrado no Controlador.");
+      alert("⚠️ Nenhum equipamento com valor mensal/locação maior que zero encontrado no Controlador.");
       return;
     }
 
@@ -431,17 +512,29 @@ export function ResourceView({ resources, onAdd, onDelete, onUpdate, purchaseOrd
     let tempResources = [...resources];
 
     typesMap.forEach((data, keyLower) => {
-      const avgPrice = data.count > 0 ? data.totalPrice / data.count : 0;
-      if (avgPrice <= 0) return;
+      const avgMonthlyCost = data.count > 0 ? data.totalMonthlyCost / data.count : 0;
+      if (avgMonthlyCost <= 0) return;
 
       const existing = tempResources.find(r => r.type === 'equipment' && r.name.trim().toLowerCase() === keyLower);
+
+      // Check if existing item has an allocated operator
+      let opSalary = 0;
+      if (existing && existing.operatorId) {
+        const op = tempResources.find(o => o.id === existing.operatorId);
+        if (op) {
+          opSalary = op.monthlySalary || (op.paymentType === 'month' || op.paymentType === 'pj' ? (op.basePrice > 500 ? op.basePrice : op.basePrice * 220) : op.basePrice * 220) || op.basePrice || 0;
+        }
+      }
+
+      const finalPrice = avgMonthlyCost + opSalary;
 
       if (existing) {
         onUpdate({
           ...existing,
-          basePrice: avgPrice,
-          productivePrice: avgPrice,
-          unit: data.unit || existing.unit,
+          equipmentBaseCost: avgMonthlyCost, // Permanecer valor mensal no custo
+          basePrice: finalPrice, // Preço final = valor mensal + salario do operador (se houver)
+          productivePrice: avgMonthlyCost / 220,
+          unit: existing.unit || 'h', // Default unit 'h'
         });
         updatedCount++;
       } else {
@@ -449,10 +542,11 @@ export function ResourceView({ resources, onAdd, onDelete, onUpdate, purchaseOrd
         const newRes: Omit<Resource, 'id'> = {
           code: newCode,
           name: data.originalName,
-          unit: data.unit || 'h',
+          unit: 'h', // Default unit 'h'
           type: 'equipment',
-          basePrice: avgPrice,
-          productivePrice: avgPrice,
+          equipmentBaseCost: avgMonthlyCost,
+          basePrice: finalPrice,
+          productivePrice: avgMonthlyCost / 220,
         };
         itemsToAdd.push(newRes);
         tempResources.push({ ...newRes, id: uuidv4() });
@@ -464,7 +558,7 @@ export function ResourceView({ resources, onAdd, onDelete, onUpdate, purchaseOrd
     }
 
     setIsExportSelectorOpen(false);
-    alert(`✅ Importação do Controlador concluída!\n\n• ${itemsToAdd.length} novo(s) tipo(s) de Equipamento com valor de locação importados com códigos no padrão de cotação (ex: EP-0001).\n• ${updatedCount} tipo(s) existente(s) atualizados com valores do Controlador.\n• Equipamentos sem preço/valor definido foram ignorados conforme regra.`);
+    alert(`✅ Importação do Controlador concluída!\n\n• ${itemsToAdd.length} novo(s) tipo(s) de Equipamento importados com código no padrão de cotação (ex: EP-0001) e unidade 'h'.\n• ${updatedCount} tipo(s) existente(s) atualizados (Custo mensal + Salário do Operador se houver).\n• Equipamentos sem valor definido foram ignorados conforme regra.`);
   };
 
   const handleStandardizeCodes = () => {
@@ -676,10 +770,46 @@ export function ResourceView({ resources, onAdd, onDelete, onUpdate, purchaseOrd
 
   const handleSort = (field: typeof sortField) => {
     if (sortField === field) {
-      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+      setSortOrder(prev => (prev === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortField(field);
       setSortOrder('asc');
     }
   };
+
+  const [columnOrder, setColumnOrder] = useState<string[]>([
+    'code',
+    'name',
+    'type',
+    'unit',
+    'basePrice',
+    'history',
+    'actions',
+  ]);
+
+  const moveColumn = (index: number, direction: 'up' | 'down') => {
+    const newOrder = [...columnOrder];
+    const targetIndex = direction === 'up' ? index - 1 : index + 1;
+    if (targetIndex < 0 || targetIndex >= newOrder.length) return;
+    const temp = newOrder[index];
+    newOrder[index] = newOrder[targetIndex];
+    newOrder[targetIndex] = temp;
+    setColumnOrder(newOrder);
+  };
+
+  const columnLabels: Record<string, string> = {
+    code: 'Código',
+    name: 'Nome',
+    type: 'Tipo',
+    unit: 'Unidade',
+    basePrice: 'Preço Base / Médio',
+    history: 'Histórico',
+    actions: 'Ações',
+  };
+
+  const existingUnits = React.useMemo(() => {
+    return Array.from(new Set(resources.map(r => r.unit).filter(Boolean)));
+  }, [resources]);
 
   const sortedResources = React.useMemo(() => {
     const filtered = augmentedResources.filter(r => 
@@ -899,6 +1029,58 @@ export function ResourceView({ resources, onAdd, onDelete, onUpdate, purchaseOrd
             />
           </div>
           <div className="flex gap-2">
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  className="h-10 px-3.5 rounded-xl border-slate-200 hover:bg-slate-100 text-slate-700 font-bold flex items-center gap-1.5 text-xs shadow-sm cursor-pointer bg-white"
+                  title="Organizar ordem das colunas da tabela"
+                >
+                  <SlidersHorizontal className="w-4 h-4 text-purple-600" />
+                  Organizar Colunas
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-64 p-3 bg-white border border-slate-200 shadow-xl rounded-xl text-xs space-y-2">
+                <div className="font-bold text-slate-800 pb-1.5 border-b border-slate-100 flex items-center justify-between">
+                  <span>Ordem das Colunas</span>
+                  <button
+                    type="button"
+                    onClick={() => setColumnOrder(['code', 'name', 'type', 'unit', 'basePrice', 'history', 'actions'])}
+                    className="text-[10px] text-blue-600 hover:underline font-normal cursor-pointer"
+                  >
+                    Restaurar
+                  </button>
+                </div>
+                <div className="space-y-1 max-h-60 overflow-y-auto">
+                  {columnOrder.map((colKey, idx) => (
+                    <div key={colKey} className="flex items-center justify-between p-1.5 rounded-lg bg-slate-50 border border-slate-100 font-medium text-slate-700">
+                      <span>{columnLabels[colKey] || colKey}</span>
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          disabled={idx === 0}
+                          onClick={() => moveColumn(idx, 'up')}
+                          className="p-1 rounded hover:bg-slate-200 text-slate-600 disabled:opacity-20 cursor-pointer"
+                          title="Mover para esquerda/cima"
+                        >
+                          <ArrowUp className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          disabled={idx === columnOrder.length - 1}
+                          onClick={() => moveColumn(idx, 'down')}
+                          className="p-1 rounded hover:bg-slate-200 text-slate-600 disabled:opacity-20 cursor-pointer"
+                          title="Mover para direita/baixo"
+                        >
+                          <ArrowDown className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </PopoverContent>
+            </Popover>
+
             {!readonly && (
               <>
                 <Button
@@ -1138,12 +1320,11 @@ export function ResourceView({ resources, onAdd, onDelete, onUpdate, purchaseOrd
                   </div>
                   <div className="grid grid-cols-4 items-center gap-4">
                     <Label htmlFor="unit" className="text-right">Unidade</Label>
-                    <Input 
+                    <UnitAutoComplete 
                       id="unit" 
-                      className="col-span-3" 
                       value={newResource.unit} 
-                      onChange={e => setNewResource({...newResource, unit: e.target.value})} 
-                      required
+                      onChange={val => setNewResource({...newResource, unit: val})} 
+                      existingUnits={existingUnits}
                     />
                   </div>
                   <div className="grid grid-cols-4 items-center gap-4">
@@ -1461,12 +1642,11 @@ export function ResourceView({ resources, onAdd, onDelete, onUpdate, purchaseOrd
                   </div>
                   <div className="grid grid-cols-4 items-center gap-4">
                     <Label htmlFor="edit-unit" className="text-right">Unidade</Label>
-                    <Input 
+                    <UnitAutoComplete 
                       id="edit-unit" 
-                      className="col-span-3" 
                       value={editingResource.unit} 
-                      onChange={e => setEditingResource({...editingResource, unit: e.target.value})} 
-                      required
+                      onChange={val => setEditingResource({...editingResource, unit: val})} 
+                      existingUnits={existingUnits}
                     />
                   </div>
                   <div className="grid grid-cols-4 items-center gap-4">
@@ -1743,69 +1923,101 @@ export function ResourceView({ resources, onAdd, onDelete, onUpdate, purchaseOrd
         <Table>
           <TableHeader className="bg-gray-50">
             <TableRow>
-              <TableHead 
-                className="w-[100px] cursor-pointer hover:text-blue-600 transition-colors"
-                onClick={() => handleSort('code')}
-              >
-                <div className="flex items-center gap-1">
-                  Código
-                  {sortField === 'code' && (
-                    sortOrder === 'asc' ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />
-                  )}
-                </div>
-              </TableHead>
-              <TableHead 
-                className="cursor-pointer hover:text-blue-600 transition-colors"
-                onClick={() => handleSort('name')}
-              >
-                <div className="flex items-center gap-1">
-                  Nome
-                  {sortField === 'name' && (
-                    sortOrder === 'asc' ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />
-                  )}
-                </div>
-              </TableHead>
-              <TableHead 
-                className="w-[120px] cursor-pointer hover:text-blue-600 transition-colors"
-                onClick={() => handleSort('type')}
-              >
-                <div className="flex items-center gap-1">
-                  Tipo
-                  {sortField === 'type' && (
-                    sortOrder === 'asc' ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />
-                  )}
-                </div>
-              </TableHead>
-              <TableHead 
-                className="cursor-pointer hover:text-blue-600 transition-colors"
-                onClick={() => handleSort('unit')}
-              >
-                <div className="flex items-center gap-1">
-                  Unid.
-                  {sortField === 'unit' && (
-                    sortOrder === 'asc' ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />
-                  )}
-                </div>
-              </TableHead>
-              <TableHead 
-                className="text-right cursor-pointer hover:text-blue-600 transition-colors"
-                onClick={() => handleSort('basePrice')}
-              >
-                <div className="flex items-center justify-end gap-1">
-                  Preço Base / Médio
-                  {sortField === 'basePrice' && (
-                    sortOrder === 'asc' ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />
-                  )}
-                </div>
-              </TableHead>
-              <TableHead className="w-[125px] text-center">Histórico</TableHead>
-              <TableHead className="w-[100px]"></TableHead>
+              {columnOrder.map((colKey) => {
+                if (colKey === 'code') {
+                  return (
+                    <TableHead 
+                      key="code"
+                      className="w-[100px] cursor-pointer hover:text-blue-600 transition-colors"
+                      onClick={() => handleSort('code')}
+                    >
+                      <div className="flex items-center gap-1 font-bold">
+                        Código
+                        {sortField === 'code' && (
+                          sortOrder === 'asc' ? <ChevronUp className="w-3 h-3 text-blue-600" /> : <ChevronDown className="w-3 h-3 text-blue-600" />
+                        )}
+                      </div>
+                    </TableHead>
+                  );
+                }
+                if (colKey === 'name') {
+                  return (
+                    <TableHead 
+                      key="name"
+                      className="cursor-pointer hover:text-blue-600 transition-colors"
+                      onClick={() => handleSort('name')}
+                    >
+                      <div className="flex items-center gap-1 font-bold">
+                        Nome
+                        {sortField === 'name' && (
+                          sortOrder === 'asc' ? <ChevronUp className="w-3 h-3 text-blue-600" /> : <ChevronDown className="w-3 h-3 text-blue-600" />
+                        )}
+                      </div>
+                    </TableHead>
+                  );
+                }
+                if (colKey === 'type') {
+                  return (
+                    <TableHead 
+                      key="type"
+                      className="w-[120px] cursor-pointer hover:text-blue-600 transition-colors"
+                      onClick={() => handleSort('type')}
+                    >
+                      <div className="flex items-center gap-1 font-bold">
+                        Tipo
+                        {sortField === 'type' && (
+                          sortOrder === 'asc' ? <ChevronUp className="w-3 h-3 text-blue-600" /> : <ChevronDown className="w-3 h-3 text-blue-600" />
+                        )}
+                      </div>
+                    </TableHead>
+                  );
+                }
+                if (colKey === 'unit') {
+                  return (
+                    <TableHead 
+                      key="unit"
+                      className="w-[90px] cursor-pointer hover:text-blue-600 transition-colors"
+                      onClick={() => handleSort('unit')}
+                    >
+                      <div className="flex items-center gap-1 font-bold">
+                        Unid.
+                        {sortField === 'unit' && (
+                          sortOrder === 'asc' ? <ChevronUp className="w-3 h-3 text-blue-600" /> : <ChevronDown className="w-3 h-3 text-blue-600" />
+                        )}
+                      </div>
+                    </TableHead>
+                  );
+                }
+                if (colKey === 'basePrice') {
+                  return (
+                    <TableHead 
+                      key="basePrice"
+                      className="text-right cursor-pointer hover:text-blue-600 transition-colors"
+                      onClick={() => handleSort('basePrice')}
+                    >
+                      <div className="flex items-center justify-end gap-1 font-bold">
+                        Preço Base / Médio
+                        {sortField === 'basePrice' && (
+                          sortOrder === 'asc' ? <ChevronUp className="w-3 h-3 text-blue-600" /> : <ChevronDown className="w-3 h-3 text-blue-600" />
+                        )}
+                      </div>
+                    </TableHead>
+                  );
+                }
+                if (colKey === 'history') {
+                  return <TableHead key="history" className="w-[125px] text-center font-bold">Histórico</TableHead>;
+                }
+                if (colKey === 'actions') {
+                  return <TableHead key="actions" className="w-[100px]"></TableHead>;
+                }
+                return null;
+              })}
             </TableRow>
           </TableHeader>
           <TableBody>
             {sortedResources.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="text-center py-12 text-gray-500">
+                <TableCell colSpan={columnOrder.length} className="text-center py-12 text-gray-500">
                   {searchTerm ? 'Nenhum insumo encontrado para esta pesquisa.' : 'Nenhum insumo cadastrado.'}
                 </TableCell>
               </TableRow>
@@ -1814,62 +2026,87 @@ export function ResourceView({ resources, onAdd, onDelete, onUpdate, purchaseOrd
                 const rStats = getResourceStats(r);
                 return (
                   <TableRow key={r.id} className="group">
-                    <TableCell className="font-mono text-sm">{r.code}</TableCell>
-                    <TableCell className="font-medium">{r.name}</TableCell>
-                    <TableCell>
-                      <Badge variant="outline" className={cn(
-                        r.type === 'labor' && "bg-blue-50 text-blue-700 border-blue-200",
-                        r.type === 'material' && "bg-green-50 text-green-700 border-green-200",
-                        r.type === 'equipment' && "bg-purple-50 text-purple-700 border-purple-200",
-                      )}>
-                        {r.type === 'labor' ? 'Mão-de-obra' : r.type === 'material' ? 'Material' : 'Equipamento'}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>{r.unit}</TableCell>
-                    <TableCell className="text-right font-mono">
-                      <div className="flex flex-col items-end">
-                        <span>{formatCurrency(rStats.averagePrice)}</span>
-                        {rStats.purchaseCount > 0 && (
-                          <span className="text-[9px] text-emerald-600 font-bold uppercase tracking-tight">Médio (Compras)</span>
-                        )}
-                      </div>
-                    </TableCell>
-                  <TableCell className="text-center">
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      onClick={() => setSelectedHistoryResource(r)}
-                      className="h-7 px-2.5 rounded-lg border-blue-200 text-blue-600 hover:bg-blue-50/50 hover:text-blue-700 transition"
-                    >
-                      <TrendingUp className="w-3.5 h-3.5 mr-1" /> Histórico
-                    </Button>
-                  </TableCell>
-                  {!readonly && (
-                    <TableCell>
-                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <Button 
-                          variant="ghost" 
-                          size="icon" 
-                          className="text-gray-400 hover:text-blue-600"
-                          onClick={() => startEdit(r)}
-                        >
-                          <Edit className="w-4 h-4" />
-                        </Button>
-                        <Button 
-                          variant="ghost" 
-                          size="icon" 
-                          className="text-gray-400 hover:text-red-600"
-                          onClick={() => onDelete(r.id)}
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  )}
-                </TableRow>
-              );
-            })
-          )}
+                    {columnOrder.map((colKey) => {
+                      if (colKey === 'code') {
+                        return <TableCell key="code" className="font-mono text-sm">{r.code}</TableCell>;
+                      }
+                      if (colKey === 'name') {
+                        return <TableCell key="name" className="font-medium">{r.name}</TableCell>;
+                      }
+                      if (colKey === 'type') {
+                        return (
+                          <TableCell key="type">
+                            <Badge variant="outline" className={cn(
+                              r.type === 'labor' && "bg-blue-50 text-blue-700 border-blue-200",
+                              r.type === 'material' && "bg-green-50 text-green-700 border-green-200",
+                              r.type === 'equipment' && "bg-purple-50 text-purple-700 border-purple-200",
+                            )}>
+                              {r.type === 'labor' ? 'Mão-de-obra' : r.type === 'material' ? 'Material' : 'Equipamento'}
+                            </Badge>
+                          </TableCell>
+                        );
+                      }
+                      if (colKey === 'unit') {
+                        return <TableCell key="unit" className="font-mono font-semibold">{r.unit}</TableCell>;
+                      }
+                      if (colKey === 'basePrice') {
+                        return (
+                          <TableCell key="basePrice" className="text-right font-mono">
+                            <div className="flex flex-col items-end">
+                              <span>{formatCurrency(rStats.averagePrice)}</span>
+                              {rStats.purchaseCount > 0 && (
+                                <span className="text-[9px] text-emerald-600 font-bold uppercase tracking-tight">Médio (Compras)</span>
+                              )}
+                            </div>
+                          </TableCell>
+                        );
+                      }
+                      if (colKey === 'history') {
+                        return (
+                          <TableCell key="history" className="text-center">
+                            <Button 
+                              variant="outline" 
+                              size="sm" 
+                              onClick={() => setSelectedHistoryResource(r)}
+                              className="h-7 px-2.5 rounded-lg border-blue-200 text-blue-600 hover:bg-blue-50/50 hover:text-blue-700 transition"
+                            >
+                              <TrendingUp className="w-3.5 h-3.5 mr-1" /> Histórico
+                            </Button>
+                          </TableCell>
+                        );
+                      }
+                      if (colKey === 'actions') {
+                        return (
+                          <TableCell key="actions">
+                            {!readonly && (
+                              <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <Button 
+                                  variant="ghost" 
+                                  size="icon" 
+                                  className="text-gray-400 hover:text-blue-600"
+                                  onClick={() => startEdit(r)}
+                                >
+                                  <Edit className="w-4 h-4" />
+                                </Button>
+                                <Button 
+                                  variant="ghost" 
+                                  size="icon" 
+                                  className="text-gray-400 hover:text-red-600"
+                                  onClick={() => onDelete(r.id)}
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </Button>
+                              </div>
+                            )}
+                          </TableCell>
+                        );
+                      }
+                      return null;
+                    })}
+                  </TableRow>
+                );
+              })
+            )}
           </TableBody>
         </Table>
       </Card>
