@@ -2,7 +2,7 @@ import React, { useState, useRef, useMemo } from 'react';
 import { motion } from 'motion/react';
 import { 
   Plus, Edit, Trash2, FileSpreadsheet, Briefcase, Download, Upload, HelpCircle, 
-  ChevronDown, Tag, RefreshCw, AlertCircle, FileText, ArrowLeft, Check, Search, 
+  ChevronDown, ChevronRight, Tag, RefreshCw, AlertCircle, FileText, ArrowLeft, Check, Search, 
   Layers, Calculator, X, Sparkles, Filter 
 } from 'lucide-react';
 import { saveAs } from 'file-saver';
@@ -83,20 +83,19 @@ export function ServiceView({
   const [isExportImportModalOpen, setIsExportImportModalOpen] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
 
-  interface ServiceColumnMappingModalState {
-    isOpen: boolean;
-    rawRows: any[][];
-    headerRowIndex: number;
-    fileName: string;
-    selectedCols: {
-      code: number;
-      name: number;
-      unit: number;
-      price: number;
-    };
-  }
+  const [isImportFromContractModalOpen, setIsImportFromContractModalOpen] = useState(false);
+  const [selectedImportContractId, setSelectedImportContractId] = useState<string | null>(null);
+  const [selectedImportServiceCodes, setSelectedImportServiceCodes] = useState<Set<string>>(new Set());
 
-  const [serviceColumnMappingModal, setServiceColumnMappingModal] = useState<ServiceColumnMappingModalState | null>(null);
+
+
+  // Collapsible state for service groups
+  const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
+
+  const activeContract = useMemo(() => {
+    if (!selectedContractId || !contracts) return null;
+    return contracts.find(c => c.id === selectedContractId);
+  }, [selectedContractId, contracts]);
 
   const contractServiceIds = useMemo(() => {
     if (!selectedContractId || !contracts) return null;
@@ -104,24 +103,25 @@ export function ServiceView({
     if (!contract) return null;
 
     const serviceIds = new Set<string>();
+    const serviceCodes = new Set<string>();
 
     const hasDirectServices = contract.services && contract.services.length > 0;
     const hasDirectGroups = contract.groups && contract.groups.length > 0;
 
-    if (hasDirectServices || hasDirectGroups) {
-      if (hasDirectServices) {
-        contract.services.forEach((s: any) => {
+    if (hasDirectServices) {
+      contract.services.forEach((s: any) => {
+        if (s.serviceId) serviceIds.add(s.serviceId);
+        if (s.code) serviceCodes.add(s.code.trim().toLowerCase());
+      });
+    }
+
+    if (hasDirectGroups) {
+      contract.groups.forEach((g: any) => {
+        g.services?.forEach((s: any) => {
           if (s.serviceId) serviceIds.add(s.serviceId);
+          if (s.code) serviceCodes.add(s.code.trim().toLowerCase());
         });
-      }
-      if (hasDirectGroups) {
-        contract.groups.forEach((g: any) => {
-          g.services?.forEach((s: any) => {
-            if (s.serviceId) serviceIds.add(s.serviceId);
-          });
-        });
-      }
-      return serviceIds;
+      });
     }
 
     if (contract.quotationId && contract.quotationId !== 'none' && quotations) {
@@ -133,20 +133,107 @@ export function ServiceView({
         ];
         qServices.forEach((s: any) => {
           if (s.serviceId) serviceIds.add(s.serviceId);
+          if (s.code) serviceCodes.add(s.code.trim().toLowerCase());
         });
-        return serviceIds;
       }
     }
 
-    return serviceIds;
+    return { ids: serviceIds, codes: serviceCodes };
   }, [selectedContractId, contracts, quotations]);
 
   const displayedServices = useMemo(() => {
     if (selectedContractId && contractServiceIds && !showAllServices) {
-      return services.filter(s => contractServiceIds.has(s.id));
+      return services.filter(s => 
+        contractServiceIds.ids.has(s.id) || 
+        (s.code && contractServiceIds.codes.has(s.code.trim().toLowerCase()))
+      );
     }
     return services;
   }, [services, selectedContractId, contractServiceIds, showAllServices]);
+
+  const groupedServices = useMemo(() => {
+    const term = searchTerm.toLowerCase();
+    const filtered = displayedServices.filter(s => 
+      s.name.toLowerCase().includes(term) || 
+      s.code.toLowerCase().includes(term)
+    );
+
+    // If no contract is active or we are showing all services, we can just group them into a default group or by contract if possible.
+    if (!activeContract || showAllServices) {
+      return [
+        {
+          id: 'all-compositions',
+          name: 'Todas as Composições de Serviços',
+          services: filtered
+        }
+      ];
+    }
+
+    const groupsList: { id: string; name: string; services: ServiceComposition[] }[] = [];
+    const matchedServiceIds = new Set<string>();
+
+    // 1. Process contract groups
+    if (activeContract.groups && activeContract.groups.length > 0) {
+      activeContract.groups.forEach((g: any) => {
+        const groupServices: ServiceComposition[] = [];
+        
+        g.services?.forEach((gs: any) => {
+          const match = filtered.find(fs => 
+            fs.id === gs.serviceId || 
+            (gs.code && fs.code.trim().toLowerCase() === gs.code.trim().toLowerCase())
+          );
+          if (match && !groupServices.some(x => x.id === match.id)) {
+            groupServices.push(match);
+            matchedServiceIds.add(match.id);
+          }
+        });
+
+        // Only include group if it has services
+        if (groupServices.length > 0) {
+          groupsList.push({
+            id: g.id || `group-${g.name}`,
+            name: g.name,
+            services: groupServices
+          });
+        }
+      });
+    }
+
+    // 2. Process contract direct services (not in any group)
+    const directServices: ServiceComposition[] = [];
+    if (activeContract.services && activeContract.services.length > 0) {
+      activeContract.services.forEach((gs: any) => {
+        const match = filtered.find(fs => 
+          fs.id === gs.serviceId || 
+          (gs.code && fs.code.trim().toLowerCase() === gs.code.trim().toLowerCase())
+        );
+        if (match && !matchedServiceIds.has(match.id) && !directServices.some(x => x.id === match.id)) {
+          directServices.push(match);
+          matchedServiceIds.add(match.id);
+        }
+      });
+    }
+
+    if (directServices.length > 0) {
+      groupsList.push({
+        id: 'direct-services',
+        name: 'Serviços do Contrato (Sem Grupo)',
+        services: directServices
+      });
+    }
+
+    // 3. Process remaining filtered services that are not matched in the contract
+    const otherServices = filtered.filter(fs => !matchedServiceIds.has(fs.id));
+    if (otherServices.length > 0) {
+      groupsList.push({
+        id: 'other-services',
+        name: 'Outros Serviços Cadastrados',
+        services: otherServices
+      });
+    }
+
+    return groupsList;
+  }, [displayedServices, activeContract, searchTerm, showAllServices]);
 
   // Start adding new composition
   const startAdd = () => {
@@ -452,97 +539,69 @@ export function ServiceView({
     };
   };
 
-  const handleSalaTecnicaImport = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  const getContractServices = (contract: any) => {
+    const list: { code: string; name: string; unit: string; price: number }[] = [];
+    const seenCodes = new Set<string>();
 
-    setIsImporting(true);
-    const reader = new FileReader();
-    reader.readAsArrayBuffer(file);
-    reader.onload = async (event) => {
-      try {
-        const buffer = event.target?.result as ArrayBuffer;
-        const XLSX = await import("xlsx");
-        const wb = XLSX.read(buffer, { type: "array" });
-
-        const worksheetName = wb.SheetNames[0];
-        const worksheet = wb.Sheets[worksheetName];
-        if (!worksheet) {
-          alert("❌ Planilha não encontrada no arquivo.");
-          setIsImporting(false);
-          return;
-        }
-
-        const rawRows = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: "" }) as any[][];
-        if (!rawRows || rawRows.length === 0) {
-          alert("❌ Planilha vazia ou formato incompatível.");
-          setIsImporting(false);
-          return;
-        }
-
-        // Auto-detect header row index
-        let headerRowIndex = 0;
-        for (let i = 0; i < Math.min(15, rawRows.length); i++) {
-          const rowStr = (rawRows[i] || []).map((c: any) => String(c).toLowerCase()).join(" ");
-          if (
-            rowStr.includes("nome") ||
-            rowStr.includes("descrição") ||
-            rowStr.includes("descricao") ||
-            rowStr.includes("serviço") ||
-            rowStr.includes("servico") ||
-            rowStr.includes("código") ||
-            rowStr.includes("codigo") ||
-            rowStr.includes("unidade") ||
-            rowStr.includes("preço") ||
-            rowStr.includes("preco")
-          ) {
-            headerRowIndex = i;
-            break;
+    if (contract.services) {
+      contract.services.forEach((s: any) => {
+        if (s.code && s.name) {
+          const cleanCode = s.code.trim();
+          if (!seenCodes.has(cleanCode)) {
+            seenCodes.add(cleanCode);
+            list.push({
+              code: cleanCode,
+              name: s.name.trim(),
+              unit: s.unit || 'un',
+              price: s.price || 0
+            });
           }
         }
+      });
+    }
 
-        const headerRow = rawRows[headerRowIndex] || [];
-
-        const findColIdx = (candidates: string[]): number => {
-          for (let c = 0; c < headerRow.length; c++) {
-            const headerStr = String(headerRow[c] || "").toLowerCase().trim();
-            if (candidates.some((cand) => headerStr.includes(cand.toLowerCase()))) {
-              return c;
+    if (contract.groups) {
+      contract.groups.forEach((g: any) => {
+        if (g.services) {
+          g.services.forEach((s: any) => {
+            if (s.code && s.name) {
+              const cleanCode = s.code.trim();
+              if (!seenCodes.has(cleanCode)) {
+                seenCodes.add(cleanCode);
+                list.push({
+                  code: cleanCode,
+                  name: s.name.trim(),
+                  unit: s.unit || 'un',
+                  price: s.price || 0
+                });
+              }
             }
-          }
-          return -1;
-        };
+          });
+        }
+      });
+    }
 
-        const codeIdx = findColIdx(["código", "codigo", "code", "cod"]);
-        const nameIdx = findColIdx(["descrição", "descricao", "desc", "nome", "especificação", "especificacao", "serviço", "servico"]);
-        const unitIdx = findColIdx(["unidade", "unid", "und", "um", "unit"]);
-        const priceIdx = findColIdx(["preço", "preco", "valor", "unitário", "unitario", "price"]);
-
-        setServiceColumnMappingModal({
-          isOpen: true,
-          rawRows,
-          headerRowIndex,
-          fileName: file.name,
-          selectedCols: {
-            code: codeIdx !== -1 ? codeIdx : 0,
-            name: nameIdx !== -1 ? nameIdx : 1,
-            unit: unitIdx !== -1 ? unitIdx : 2,
-            price: priceIdx !== -1 ? priceIdx : 3,
-          }
-        });
-      } catch (err) {
-        console.error("[Sala Tecnica Import Error]", err);
-        alert("❌ Erro ao processar arquivo para importação.");
-      } finally {
-        setIsImporting(false);
-        if (e.target) e.target.value = '';
-      }
-    };
+    return list;
   };
 
-  const executeServiceImportWithMapping = (data: ServiceColumnMappingModalState) => {
-    const { rawRows, headerRowIndex, selectedCols } = data;
-    const { code: colCode, name: colName, unit: colUnit, price: colPrice } = selectedCols;
+  const handleImportFromContract = () => {
+    const targetContract = contracts?.find(c => c.id === selectedImportContractId);
+    if (!targetContract) {
+      alert("❌ Por favor, selecione um contrato válido.");
+      return;
+    }
+
+    const contractServices = getContractServices(targetContract);
+    if (contractServices.length === 0) {
+      alert("❌ Nenhum serviço encontrado no contrato selecionado.");
+      return;
+    }
+
+    const servicesToProcess = contractServices.filter(s => selectedImportServiceCodes.has(s.code));
+    if (servicesToProcess.length === 0) {
+      alert("⚠️ Nenhum serviço selecionado para importação.");
+      return;
+    }
 
     try {
       const servicesToAdd: Omit<ServiceComposition, 'id'>[] = [];
@@ -551,44 +610,16 @@ export function ServiceView({
       let importedCount = 0;
       let updatedCount = 0;
 
-      for (let i = headerRowIndex + 1; i < rawRows.length; i++) {
-        const row = rawRows[i];
-        if (!row || !Array.isArray(row)) continue;
-
-        if (row.every(cell => cell === null || cell === undefined || String(cell).trim() === "")) {
-          continue;
-        }
-
-        const rawCode = colCode !== -1 && colCode < row.length ? row[colCode] : null;
-        const rawName = colName !== -1 && colName < row.length ? row[colName] : null;
-        const rawUnit = colUnit !== -1 && colUnit < row.length ? row[colUnit] : null;
-        const rawPriceVal = colPrice !== -1 && colPrice < row.length ? row[colPrice] : null;
-
-        const codeVal = rawCode ? String(rawCode).trim() : "";
-        const nameVal = rawName ? String(rawName).trim() : "";
-        const unitVal = rawUnit ? String(rawUnit).trim() : "un";
-
-        if (!codeVal || !nameVal) continue;
-
-        let parsedPrice = 0;
-        if (typeof rawPriceVal === 'number') {
-          parsedPrice = rawPriceVal;
-        } else if (rawPriceVal !== null && rawPriceVal !== undefined) {
-          const str = String(rawPriceVal).trim();
-          if (str) {
-            let clean = str.replace(/\s/g, '').replace('R$', '');
-            if (clean.includes(',')) {
-              clean = clean.replace(/\./g, '').replace(',', '.');
-            }
-            parsedPrice = parseFloat(clean) || 0;
-          }
-        }
+      servicesToProcess.forEach(item => {
+        const codeVal = item.code.trim();
+        const nameVal = item.name.trim();
+        const unitVal = (item.unit || "un").trim();
+        const parsedPrice = item.price || 0;
 
         // Check if service composition already exists
         const existingService = services.find(s => s.code.trim().toLowerCase() === codeVal.toLowerCase());
 
-        // Generate IDs for mapping
-        const compositionId = existingService ? existingService.id : `srv-${Math.random().toString(36).substring(2, 9)}`;
+        // Generate IDs
         const insumoCode = `INS-${codeVal}`;
         const existingResource = resources.find(r => r.code.trim().toLowerCase() === insumoCode.toLowerCase() || r.code.trim().toLowerCase() === codeVal.toLowerCase());
         const resourceId = existingResource ? existingResource.id : `res-${Math.random().toString(36).substring(2, 9)}`;
@@ -634,7 +665,7 @@ export function ServiceView({
           });
           importedCount++;
         }
-      }
+      });
 
       // Save via batch functions
       if (resourcesToAdd.length > 0 && onAddResource) {
@@ -650,17 +681,17 @@ export function ServiceView({
       }
 
       alert(
-        `✅ Importação de serviços e insumos concluída com sucesso!\n\n` +
+        `✅ Importação de serviços da Sala Técnica concluída com sucesso!\n\n` +
         `• Novos serviços adicionados: ${importedCount}\n` +
         `• Serviços existentes atualizados: ${updatedCount}\n` +
         `• Novos insumos criados para composição: ${resourcesToAdd.length}`
       );
 
-      setServiceColumnMappingModal(null);
+      setIsImportFromContractModalOpen(false);
       setIsExportImportModalOpen(false);
     } catch (err) {
-      console.error("Service mapping import error:", err);
-      alert("❌ Erro ao processar a importação de serviços.");
+      console.error("[Contract Import Error]", err);
+      alert("❌ Erro ao processar a importação de serviços do contrato.");
     }
   };
 
@@ -1417,11 +1448,8 @@ export function ServiceView({
       )}
 
       {/* Services List Grid */}
-      <div className="grid grid-cols-1 gap-4">
-        {displayedServices.filter(s => 
-          s.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-          s.code.toLowerCase().includes(searchTerm.toLowerCase())
-        ).length === 0 ? (
+      <div className="grid grid-cols-1 gap-6">
+        {groupedServices.reduce((acc, g) => acc + g.services.length, 0) === 0 ? (
           <Card className="border-slate-200 shadow-sm bg-white">
             <CardContent className="py-16 text-center text-slate-500 space-y-3">
               <Briefcase className="w-10 h-10 text-slate-300 mx-auto" />
@@ -1436,88 +1464,137 @@ export function ServiceView({
             </CardContent>
           </Card>
         ) : (
-          displayedServices
-            .filter(s => 
-              s.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-              s.code.toLowerCase().includes(searchTerm.toLowerCase())
-            )
-            .map(s => {
-              const directCost = calculateServiceUnitCost(s, resources, services);
-              const saleCost = calculateServiceUnitCost(s, resources, services, bdi);
-
-              return (
-                <Card key={s.id} className="border-slate-200 shadow-sm hover:shadow-md transition-all group bg-white rounded-2xl overflow-hidden">
-                  <CardContent className="p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                    <div className="flex items-center gap-4">
-                      <div className="bg-purple-100/80 p-3.5 rounded-2xl text-purple-700 border border-purple-200/50">
-                        <Briefcase className="w-6 h-6" />
-                      </div>
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs font-mono font-bold px-2 py-0.5 rounded bg-slate-100 text-slate-600">{s.code}</span>
-                          <h4 className="font-black text-lg text-slate-900 group-hover:text-blue-600 transition-colors">{s.name}</h4>
-                        </div>
-                        <div className="flex items-center gap-4 mt-1.5 text-xs text-slate-500 font-medium">
-                          <span>Unidade: <strong className="text-slate-900">{s.unit}</strong></span>
-                          <span>•</span>
-                          <span>Insumos: <strong className="text-slate-900">{s.items.length} item(ns)</strong></span>
-                          {s.production > 1 && (
-                            <>
-                              <span>•</span>
-                              <span>Produção: <strong className="text-slate-900">{s.production}</strong></span>
-                            </>
-                          )}
-                        </div>
-                      </div>
+          groupedServices.map(g => {
+            const isCollapsed = !!collapsedGroups[g.id];
+            
+            return (
+              <div key={g.id} className="space-y-3 bg-slate-50/40 p-3 rounded-2xl border border-slate-100 shadow-[0_1px_3px_rgba(0,0,0,0.02)]">
+                {/* Group Header */}
+                <div 
+                  onClick={() => {
+                    setCollapsedGroups(prev => ({
+                      ...prev,
+                      [g.id]: !prev[g.id]
+                    }));
+                  }}
+                  className="bg-white border border-slate-200/80 p-3 px-4 rounded-xl flex items-center justify-between cursor-pointer select-none hover:bg-slate-50/80 transition-colors shadow-sm"
+                >
+                  <div className="flex items-center gap-2.5">
+                    <div className="bg-slate-100 p-1.5 rounded-lg text-slate-600">
+                      <Layers className="w-4 h-4" />
                     </div>
-
-                    <div className="flex items-center gap-6 self-end sm:self-auto">
-                      <div className="text-right">
-                        <p className="text-[10px] text-slate-400 uppercase font-black tracking-wider">Custo Unitário Direto</p>
-                        <p className="text-xl font-black text-blue-600 font-mono">{formatCurrency(directCost)}</p>
-                        {bdi > 0 && (
-                          <p className="text-xs text-emerald-600 font-bold font-mono">
-                            Venda (BDI): {formatCurrency(saleCost)}
-                          </p>
-                        )}
-                      </div>
-
-                      <div className="flex items-center gap-1">
-                        <Button 
-                          variant="ghost" 
-                          size="icon" 
-                          className="text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl"
-                          onClick={() => startEdit(s)}
-                          title="Abrir / Editar Composição"
-                        >
-                          <Edit className="w-4 h-4" />
-                        </Button>
-                        <Button 
-                          variant="ghost" 
-                          size="icon" 
-                          className="text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-xl"
-                          onClick={() => exportCompositionToPDF(s, resources, services, companyLogo, bdi)}
-                          title="Exportar PDF"
-                        >
-                          <Download className="w-4 h-4" />
-                        </Button>
-                        {!readonly && (
-                          <Button 
-                            variant="ghost" 
-                            size="icon" 
-                            className="text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl"
-                            onClick={() => onDelete(s.id)}
-                            title="Excluir Composição"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
-                        )}
-                      </div>
+                    <div className="flex flex-wrap items-baseline gap-x-2">
+                      <h3 className="font-extrabold text-sm text-slate-800 tracking-tight uppercase">
+                        {g.name}
+                      </h3>
+                      <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 font-mono">
+                        {g.services.length} {g.services.length === 1 ? 'item' : 'itens'}
+                      </span>
                     </div>
-                  </CardContent>
-                </Card>
-              );
-            })
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider hidden sm:inline">
+                      {isCollapsed ? 'Expandir' : 'Minimizar'}
+                    </span>
+                    <Button 
+                      variant="ghost" 
+                      size="icon" 
+                      className="w-8 h-8 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100"
+                    >
+                      {isCollapsed ? (
+                        <ChevronRight className="w-4 h-4" />
+                      ) : (
+                        <ChevronDown className="w-4 h-4" />
+                      )}
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Group Content */}
+                {!isCollapsed && (
+                  <div className="grid grid-cols-1 gap-3.5 pt-1">
+                    {g.services.map(s => {
+                      const directCost = calculateServiceUnitCost(s, resources, services);
+                      const saleCost = calculateServiceUnitCost(s, resources, services, bdi);
+
+                      return (
+                        <Card key={s.id} className="border-slate-200 shadow-[0_2px_4px_rgba(0,0,0,0.02)] hover:shadow-md transition-all group bg-white rounded-xl overflow-hidden">
+                          <CardContent className="p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                            <div className="flex items-center gap-4">
+                              <div className="bg-purple-50 p-2.5 rounded-xl text-purple-600 border border-purple-100 shrink-0">
+                                <Briefcase className="w-5 h-5" />
+                              </div>
+                              <div>
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <span className="text-[10px] font-mono font-black px-2 py-0.5 rounded bg-slate-100 text-slate-600 tracking-wider">{s.code}</span>
+                                  <h4 className="font-extrabold text-base text-slate-900 group-hover:text-blue-600 transition-colors">{s.name}</h4>
+                                </div>
+                                <div className="flex items-center gap-4 mt-1 text-xs text-slate-500 font-medium">
+                                  <span>Unidade: <strong className="text-slate-800">{s.unit}</strong></span>
+                                  <span>•</span>
+                                  <span>Insumos: <strong className="text-slate-800">{s.items.length} item(ns)</strong></span>
+                                  {s.production > 1 && (
+                                    <>
+                                      <span>•</span>
+                                      <span>Produção: <strong className="text-slate-800">{s.production}</strong></span>
+                                    </>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-5 self-end sm:self-auto shrink-0">
+                              <div className="text-right">
+                                <p className="text-[9px] text-slate-400 uppercase font-black tracking-wider">Custo Unitário Direto</p>
+                                <p className="text-lg font-black text-blue-600 font-mono">{formatCurrency(directCost)}</p>
+                                {bdi > 0 && (
+                                  <p className="text-xs text-emerald-600 font-bold font-mono">
+                                    Venda (BDI): {formatCurrency(saleCost)}
+                                  </p>
+                                )}
+                              </div>
+
+                              <div className="flex items-center gap-1 border-l border-slate-100 pl-3">
+                                <Button 
+                                  variant="ghost" 
+                                  size="icon" 
+                                  className="w-8 h-8 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg"
+                                  onClick={() => startEdit(s)}
+                                  title="Abrir / Editar Composição"
+                                >
+                                  <Edit className="w-4 h-4" />
+                                </Button>
+                                <Button 
+                                  variant="ghost" 
+                                  size="icon" 
+                                  className="w-8 h-8 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg"
+                                  onClick={() => exportCompositionToPDF(s, resources, services, companyLogo, bdi)}
+                                  title="Exportar PDF"
+                                >
+                                  <Download className="w-4 h-4" />
+                                </Button>
+                                {!readonly && (
+                                  <Button 
+                                    variant="ghost" 
+                                    size="icon" 
+                                    className="w-8 h-8 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg"
+                                    onClick={() => onDelete(s.id)}
+                                    title="Excluir Composição"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </Button>
+                                )}
+                              </div>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          })
         )}
       </div>
 
@@ -1554,16 +1631,32 @@ export function ServiceView({
 
             <div className="p-4 rounded-xl bg-emerald-50/50 border border-emerald-100 space-y-2">
               <h4 className="font-bold text-slate-900 text-sm flex items-center gap-1.5 text-emerald-800">
-                <Sparkles className="w-4 h-4 text-emerald-600" /> Importar Planilha Sala Técnica
+                <Briefcase className="w-4 h-4 text-emerald-600" /> Importar da Sala Técnica (Contrato)
               </h4>
-              <p className="text-xs text-slate-500">Selecione uma planilha de serviços da Sala Técnica (.xlsx, .xls) para importar como composições.</p>
-              <Input 
-                type="file" 
-                accept=".xlsx, .xls" 
-                onChange={handleSalaTecnicaImport}
-                disabled={isImporting}
-                className="cursor-pointer text-xs border-emerald-200 bg-white"
-              />
+              <p className="text-xs text-slate-500">
+                Selecione serviços que já estão cadastrados nas planilhas e contratos de Sala Técnica para gerar composições locais de forma direta.
+              </p>
+              <Button 
+                onClick={() => {
+                  const defaultId = selectedContractId || (contracts && contracts.length > 0 ? contracts[0].id : null);
+                  setSelectedImportContractId(defaultId);
+                  
+                  if (defaultId) {
+                    const defaultContract = contracts?.find(c => c.id === defaultId);
+                    if (defaultContract) {
+                      const list = getContractServices(defaultContract);
+                      setSelectedImportServiceCodes(new Set(list.map(s => s.code)));
+                    }
+                  } else {
+                    setSelectedImportServiceCodes(new Set());
+                  }
+
+                  setIsImportFromContractModalOpen(true);
+                }}
+                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs"
+              >
+                <Sparkles className="w-4 h-4 mr-1.5 text-emerald-100" /> Abrir Importador da Sala Técnica
+              </Button>
             </div>
 
             <Separator />
@@ -1594,114 +1687,148 @@ export function ServiceView({
         </DialogContent>
       </Dialog>
 
-      {/* Modal de Mapeamento de Colunas de Serviços */}
-      {serviceColumnMappingModal && serviceColumnMappingModal.isOpen && (
+      {/* Modal de Importação de Serviços da Sala Técnica */}
+      {isImportFromContractModalOpen && (
         <Dialog
-          open={serviceColumnMappingModal.isOpen}
+          open={isImportFromContractModalOpen}
           onOpenChange={(open) => {
-            if (!open) setServiceColumnMappingModal(null);
+            if (!open) setIsImportFromContractModalOpen(false);
           }}
         >
-          <DialogContent className="sm:max-w-[700px] w-full bg-white border border-slate-200 shadow-2xl rounded-2xl p-6 text-left flex flex-col max-h-[90vh] overflow-y-auto">
+          <DialogContent className="sm:max-w-[650px] w-full bg-white border border-slate-200 shadow-2xl rounded-2xl p-6 text-left flex flex-col max-h-[90vh]">
             <DialogHeader className="text-left space-y-1 shrink-0">
-              <div className="flex items-center gap-2 text-blue-600 font-semibold text-xs tracking-wider uppercase mb-1">
-                <Sparkles className="w-4 h-4" /> Importação de Serviços (Sala Técnica)
+              <div className="flex items-center gap-2 text-emerald-600 font-semibold text-xs tracking-wider uppercase mb-1">
+                <Sparkles className="w-4 h-4" /> Importador da Sala Técnica
               </div>
               <DialogTitle className="text-lg font-bold text-slate-900">
-                Mapeamento de Colunas da Planilha
+                Importar Serviços de Planilha Ativa
               </DialogTitle>
               <DialogDescription className="text-xs text-slate-500">
-                Associe as colunas detectadas na sua planilha de Sala Técnica com os campos necessários de Serviços.
+                Selecione o contrato/obra abaixo e marque os serviços que deseja importar para sua lista de Composições.
               </DialogDescription>
             </DialogHeader>
 
-            {/* Info bar */}
-            <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 flex flex-wrap items-center justify-between gap-3 text-xs my-3 shrink-0">
-              <div>
-                <span className="text-slate-400 font-medium">Arquivo:</span>{" "}
-                <strong className="text-slate-700">{serviceColumnMappingModal.fileName}</strong>
-              </div>
-              <div>
-                <span className="text-slate-400 font-medium">Total de Linhas:</span>{" "}
-                <strong className="text-blue-700">{serviceColumnMappingModal.rawRows.length}</strong>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="text-slate-500 font-medium">Linha do Cabeçalho:</span>
-                <select
-                  className="border border-slate-300 rounded-lg px-2 py-1 text-xs bg-white font-medium text-slate-800"
-                  value={serviceColumnMappingModal.headerRowIndex}
-                  onChange={(e) => {
-                    const newIdx = parseInt(e.target.value);
-                    setServiceColumnMappingModal((prev) => prev ? { ...prev, headerRowIndex: newIdx } : null);
+            {/* Selector & Actions */}
+            <div className="space-y-4 my-3 shrink-0">
+              <div className="space-y-1.5">
+                <Label className="text-xs font-bold text-slate-700">Selecione o Contrato/Obra:</Label>
+                <Select 
+                  value={selectedImportContractId || ""} 
+                  onValueChange={(val) => {
+                    setSelectedImportContractId(val);
+                    const targetContract = contracts?.find(c => c.id === val);
+                    if (targetContract) {
+                      const list = getContractServices(targetContract);
+                      setSelectedImportServiceCodes(new Set(list.map(s => s.code)));
+                    } else {
+                      setSelectedImportServiceCodes(new Set());
+                    }
                   }}
                 >
-                  {serviceColumnMappingModal.rawRows.slice(0, 15).map((row, idx) => (
-                    <option key={`hr-${idx}`} value={idx}>
-                      Linha {idx + 1}: {Array.isArray(row) ? row.slice(0, 4).filter(Boolean).join(" | ").substring(0, 45) || "Vazia" : "Vazia"}
-                    </option>
-                  ))}
-                </select>
+                  <SelectTrigger className="w-full text-xs font-semibold h-10 border-slate-200 bg-white">
+                    <SelectValue placeholder="Selecione um contrato..." />
+                  </SelectTrigger>
+                  <SelectContent className="bg-white border border-slate-200">
+                    {contracts && contracts.map(c => (
+                      <SelectItem key={c.id} value={c.id} className="text-xs">
+                        {c.contractNumber} - {c.workName || c.client || "Contrato Sem Nome"}
+                      </SelectItem>
+                    ))}
+                    {(!contracts || contracts.length === 0) && (
+                      <div className="p-2 text-xs text-slate-400 text-center">Nenhum contrato cadastrado.</div>
+                    )}
+                  </SelectContent>
+                </Select>
               </div>
             </div>
 
-            <div className="space-y-4 my-2 overflow-y-auto pr-1">
-              <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
-                <Layers className="w-3.5 h-3.5 text-blue-500" /> Correspondência de Colunas
-              </h4>
-
+            {/* Services List Table */}
+            <div className="flex-1 overflow-y-auto border border-slate-100 rounded-xl min-h-[200px] max-h-[40vh] my-1">
               {(() => {
-                const currentHeaderRow = serviceColumnMappingModal.rawRows[serviceColumnMappingModal.headerRowIndex] || [];
-                const maxCols = Math.max(...serviceColumnMappingModal.rawRows.slice(0, 20).map((r) => Array.isArray(r) ? r.length : 0));
-                const colOptions = Array.from({ length: Math.max(maxCols, 1) }, (_, idx) => {
-                  const rawLabel = String(currentHeaderRow[idx] || "").trim();
-                  return {
-                    value: idx,
-                    label: rawLabel ? `Col ${idx + 1} (${rawLabel})` : `Coluna ${idx + 1}`,
-                  };
-                });
+                const currentContract = contracts?.find(c => c.id === selectedImportContractId);
+                const availableServices = currentContract ? getContractServices(currentContract) : [];
 
-                const renderSelect = (
-                  label: string,
-                  fieldName: keyof typeof serviceColumnMappingModal.selectedCols,
-                  required: boolean = false,
-                  noneLabel: string = "-- Ignorar / Não Mapeado --"
-                ) => (
-                  <div>
-                    <Label className="text-xs font-bold text-slate-700 mb-1.5 flex items-center gap-1">
-                      {label} {required && <span className="text-red-500">*</span>}
-                    </Label>
-                    <select
-                      className="w-full rounded-lg px-3 py-2 text-xs font-medium border border-slate-300 bg-white text-slate-800 focus:border-blue-500 focus:ring-blue-500"
-                      value={serviceColumnMappingModal.selectedCols[fieldName]}
-                      onChange={(e) => {
-                        const val = parseInt(e.target.value);
-                        setServiceColumnMappingModal((prev) =>
-                          prev
-                            ? {
-                                ...prev,
-                                selectedCols: { ...prev.selectedCols, [fieldName]: val },
-                              }
-                            : null
-                        );
-                      }}
-                    >
-                      {!required && <option value={-1}>{noneLabel}</option>}
-                      {colOptions.map((opt) => (
-                        <option key={opt.value} value={opt.value}>
-                          {opt.label}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                );
+                if (availableServices.length === 0) {
+                  return (
+                    <div className="p-8 text-center text-xs text-slate-400 flex flex-col items-center justify-center gap-2">
+                      <AlertCircle className="w-5 h-5 text-slate-300" />
+                      <span>Nenhum serviço disponível neste contrato ou nenhum contrato selecionado.</span>
+                    </div>
+                  );
+                }
 
                 return (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    {renderSelect("Coluna do Código do Serviço", "code", true)}
-                    {renderSelect("Coluna de Nome/Descrição do Serviço", "name", true)}
-                    {renderSelect("Coluna da Unidade", "unit", false)}
-                    {renderSelect("Coluna do Preço Unitário (Sala Técnica)", "price", false)}
-                  </div>
+                  <Table>
+                    <TableHeader className="bg-slate-50/70 sticky top-0 z-10">
+                      <TableRow>
+                        <TableHead className="w-12 text-center">
+                          <input 
+                            type="checkbox" 
+                            className="rounded text-emerald-600 focus:ring-emerald-500 w-3.5 h-3.5 cursor-pointer"
+                            checked={availableServices.length > 0 && selectedImportServiceCodes.size === availableServices.length}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setSelectedImportServiceCodes(new Set(availableServices.map(s => s.code)));
+                              } else {
+                                setSelectedImportServiceCodes(new Set());
+                              }
+                            }}
+                          />
+                        </TableHead>
+                        <TableHead className="text-xs font-bold text-slate-600">Código</TableHead>
+                        <TableHead className="text-xs font-bold text-slate-600">Descrição do Serviço</TableHead>
+                        <TableHead className="text-xs font-bold text-slate-600 text-center">Unid</TableHead>
+                        <TableHead className="text-xs font-bold text-slate-600 text-right">Preço Unit.</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {availableServices.map((s) => {
+                        const isSelected = selectedImportServiceCodes.has(s.code);
+                        const alreadyExists = services.some(es => es.code.trim().toLowerCase() === s.code.trim().toLowerCase());
+                        
+                        return (
+                          <TableRow 
+                            key={s.code} 
+                            className={`hover:bg-slate-50/55 transition-colors ${isSelected ? 'bg-emerald-50/10' : ''}`}
+                          >
+                            <TableCell className="text-center py-2.5">
+                              <input 
+                                type="checkbox" 
+                                className="rounded text-emerald-600 focus:ring-emerald-500 w-3.5 h-3.5 cursor-pointer"
+                                checked={isSelected}
+                                onChange={() => {
+                                  const next = new Set(selectedImportServiceCodes);
+                                  if (next.has(s.code)) {
+                                    next.delete(s.code);
+                                  } else {
+                                    next.add(s.code);
+                                  }
+                                  setSelectedImportServiceCodes(next);
+                                }}
+                              />
+                            </TableCell>
+                            <TableCell className="py-2.5 font-mono text-xs font-bold text-slate-700">
+                              {s.code}
+                            </TableCell>
+                            <TableCell className="py-2.5 text-xs text-slate-800">
+                              <div className="flex flex-col">
+                                <span className="font-semibold">{s.name}</span>
+                                {alreadyExists && (
+                                  <span className="text-[9px] text-amber-600 font-bold mt-0.5">⚠️ Já possui composição (será atualizada)</span>
+                                )}
+                              </div>
+                            </TableCell>
+                            <TableCell className="py-2.5 text-xs text-center text-slate-500 font-medium">
+                              {s.unit}
+                            </TableCell>
+                            <TableCell className="py-2.5 text-xs text-right font-mono text-emerald-700 font-bold">
+                              {formatCurrency(s.price)}
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
                 );
               })()}
             </div>
@@ -1710,18 +1837,19 @@ export function ServiceView({
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => setServiceColumnMappingModal(null)}
-                className="rounded-xl border-slate-200 text-slate-700 font-semibold cursor-pointer"
+                onClick={() => setIsImportFromContractModalOpen(false)}
+                className="rounded-xl border-slate-200 text-slate-700 font-semibold cursor-pointer text-xs"
               >
                 Cancelar
               </Button>
 
               <Button
                 type="button"
-                onClick={() => executeServiceImportWithMapping(serviceColumnMappingModal)}
-                className="rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold px-6 shadow-md shadow-blue-500/20 flex items-center gap-2 cursor-pointer"
+                disabled={selectedImportServiceCodes.size === 0}
+                onClick={handleImportFromContract}
+                className="rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-6 shadow-md shadow-emerald-500/20 flex items-center gap-2 cursor-pointer text-xs"
               >
-                <Check className="w-4 h-4" /> Confirmar e Importar Serviços
+                <Check className="w-4 h-4" /> Confirmar e Importar {selectedImportServiceCodes.size} Serviço(s)
               </Button>
             </DialogFooter>
           </DialogContent>
