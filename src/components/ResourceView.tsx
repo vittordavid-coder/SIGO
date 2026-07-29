@@ -143,7 +143,7 @@ export function ResourceView({ resources, onAdd, onDelete, onUpdate, purchaseOrd
   const augmentedResources = React.useMemo(() => {
     let aug = [...resources];
 
-    // Recalculate Equipment prices based on operator
+    // Recalculate Equipment prices based on operator and calculate productive price
     aug = aug.map(r => {
       if (r.type === 'equipment') {
         const eqCost = r.equipmentBaseCost !== undefined ? r.equipmentBaseCost : (r.basePrice || 0);
@@ -154,10 +154,13 @@ export function ResourceView({ resources, onAdd, onDelete, onUpdate, purchaseOrd
             opCost = op.monthlySalary || (op.paymentType === 'month' || op.paymentType === 'pj' ? (op.basePrice > 500 ? op.basePrice : op.basePrice * 220) : op.basePrice * 220) || op.basePrice || 0;
           }
         }
+        const finalPrice = eqCost + opCost;
+        const workHours = r.hoursPerMonth || 220;
         return {
            ...r,
            equipmentBaseCost: eqCost,
-           basePrice: eqCost + opCost
+           basePrice: finalPrice,
+           productivePrice: finalPrice / workHours
         };
       }
       return r;
@@ -487,14 +490,24 @@ export function ResourceView({ resources, onAdd, onDelete, onUpdate, purchaseOrd
 
       // Calculate monthly cost of equipment (valor mensal do equipamento)
       let monthlyCost = 0;
+      const hours = eq.hoursPerMonth || 220;
       if (eq.monthlyPrice && Number(eq.monthlyPrice) > 0) {
         monthlyCost = Number(eq.monthlyPrice);
       } else if (eq.equipmentBaseCost && Number(eq.equipmentBaseCost) > 0) {
-        monthlyCost = Number(eq.equipmentBaseCost);
+        const val = Number(eq.equipmentBaseCost);
+        monthlyCost = (val >= 500 || eq.measurementUnit === 'Mensal') ? val : val * hours;
       } else if (eq.contractedPrice && Number(eq.contractedPrice) > 0) {
-        monthlyCost = eq.measurementUnit === 'Mensal' ? Number(eq.contractedPrice) : Number(eq.contractedPrice) * (eq.hoursPerMonth || 220);
+        const val = Number(eq.contractedPrice);
+        if (eq.measurementUnit === 'Mensal' || val >= 500) {
+          monthlyCost = val;
+        } else if (eq.measurementUnit === 'Diária') {
+          monthlyCost = val * 30;
+        } else {
+          monthlyCost = val * hours;
+        }
       } else if (eq.productivePrice && Number(eq.productivePrice) > 0) {
-        monthlyCost = Number(eq.productivePrice) * (eq.hoursPerMonth || 220);
+        const val = Number(eq.productivePrice);
+        monthlyCost = val >= 500 ? val : val * hours;
       }
 
       if (monthlyCost <= 0) return;
@@ -532,14 +545,16 @@ export function ResourceView({ resources, onAdd, onDelete, onUpdate, purchaseOrd
         }
       }
 
+      const hours = existing?.hoursPerMonth || 220;
       const finalPrice = avgMonthlyCost + opSalary;
+      const prodPrice = finalPrice / hours;
 
       if (existing) {
         onUpdate({
           ...existing,
           equipmentBaseCost: avgMonthlyCost, // Permanecer valor mensal no custo
           basePrice: finalPrice, // Preço final = valor mensal + salario do operador (se houver)
-          productivePrice: avgMonthlyCost / 220,
+          productivePrice: prodPrice, // Hora produtiva = Preço final / jornada de trabalho
           unit: existing.unit || 'h', // Default unit 'h'
         });
         updatedCount++;
@@ -552,7 +567,7 @@ export function ResourceView({ resources, onAdd, onDelete, onUpdate, purchaseOrd
           type: 'equipment',
           equipmentBaseCost: avgMonthlyCost,
           basePrice: finalPrice,
-          productivePrice: avgMonthlyCost / 220,
+          productivePrice: prodPrice,
         };
         itemsToAdd.push(newRes);
         tempResources.push({ ...newRes, id: uuidv4() });
