@@ -38,6 +38,8 @@ const ALL_MODULE_OPTIONS: { id: AppModule, label: string }[] = [
   { id: 'control', label: 'Controlador' },
   { id: 'purchases', label: 'Compras' },
   { id: 'project_admin', label: 'Administrador da Obra' },
+  { id: 'gerencia', label: 'Gerência' },
+  { id: 'financeiro', label: 'Financeiro' },
   { id: 'almoxarife', label: 'Almoxarife' },
   { id: 'settings', label: 'Administrador do Sistema' },
 ];

@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { Quotation, Resource, ServiceComposition, Contract, Measurement, DailyReport, Employee, TimeRecord, DashboardConfig, User, ControllerTeam, ControllerEquipment, ControllerManpower, Supplier, PurchaseOrder, EquipmentTransfer, PurchaseRequest, Aporte, Asset, WarehouseItem, Warehouse } from '../types';
 import { cn } from '../lib/utils';
-import { HardHat, Truck, Users2, Activity, CreditCard, ShoppingBasket, ShoppingBag, History, ShoppingCart } from 'lucide-react';
+import { HardHat, Truck, Users2, Activity, CreditCard, ShoppingBasket, ShoppingBag, History, ShoppingCart, Lock } from 'lucide-react';
 
 interface DashboardProps {
   key?: string;
@@ -45,6 +45,14 @@ export function Dashboard({
   aportes = [], warehouseItems = [], assets = [], warehouses = []
 }: DashboardProps) {
   
+  const hasAccess = (modId: string) => {
+    if (!currentUser) return false;
+    if (currentUser.role === 'master' || currentUser.role === 'admin') return true;
+    if (modId === 'almoxarife' && currentUser.role === 'almoxarife') return true;
+    if (modId === 'project_admin' && currentUser.role === 'project_admin') return true;
+    return !!currentUser.allowedModules?.includes(modId);
+  };
+
   // -- Calculations --
   const contract = selectedContractId ? (contracts || []).find(c => c.id === selectedContractId) : null;
   
@@ -144,17 +152,23 @@ export function Dashboard({
     return filteredAssets.reduce((sum, a) => sum + (Number(a.value) || 0), 0);
   }, [filteredAssets]);
 
-  const MetricCard = ({ title, icon: Icon, color, metrics, onClick }: any) => (
+  const MetricCard = ({ title, icon: Icon, color, metrics, onClick, isLocked }: any) => (
     <Card 
-      className="border-none shadow-xl rounded-3xl overflow-hidden bg-white hover:shadow-2xl transition-all duration-300 cursor-pointer group w-full"
+      className={cn(
+        "border-none shadow-xl rounded-3xl overflow-hidden bg-white hover:shadow-2xl transition-all duration-300 cursor-pointer group w-full relative",
+        isLocked && "opacity-60 saturate-50 hover:shadow-xl cursor-not-allowed"
+      )}
       onClick={onClick}
     >
-      <CardHeader className={cn("p-4 sm:p-5 pb-3 flex flex-row items-center gap-3 text-white", color)}>
+      <CardHeader className={cn("p-4 sm:p-5 pb-3 flex flex-row items-center gap-3 text-white relative", isLocked ? "bg-slate-700" : color)}>
         <div className="bg-white/20 p-2.5 rounded-2xl backdrop-blur-sm group-hover:scale-110 transition-transform duration-500 shrink-0">
-          <Icon className="w-7 h-7" />
+          {isLocked ? <Lock className="w-7 h-7 text-slate-300" /> : <Icon className="w-7 h-7" />}
         </div>
-        <div className="min-w-0">
-          <CardTitle className="text-lg font-black tracking-tight truncate">{title}</CardTitle>
+        <div className="min-w-0 flex-1">
+          <CardTitle className="text-lg font-black tracking-tight truncate flex items-center justify-between gap-1">
+            <span>{title}</span>
+            {isLocked && <span className="text-[10px] bg-slate-800/80 text-slate-300 px-2 py-0.5 rounded-full border border-slate-600/50 uppercase font-black tracking-wider">Bloqueado</span>}
+          </CardTitle>
           <CardDescription className="text-white/70 text-[10px] uppercase font-bold tracking-widest truncate">Resumo do Setor</CardDescription>
         </div>
       </CardHeader>
@@ -165,12 +179,16 @@ export function Dashboard({
               key={i} 
               className={cn(
                 "flex items-center justify-between gap-2 group/item p-1.5 sm:p-2 -mx-2 rounded-xl transition-all min-w-0",
-                m.onClick && "hover:bg-gray-50 cursor-pointer"
+                m.onClick && !isLocked && "hover:bg-gray-50 cursor-pointer"
               )}
               onClick={(e) => {
                 if (m.onClick) {
                   e.stopPropagation();
-                  m.onClick();
+                  if (isLocked) {
+                    onClick();
+                  } else {
+                    m.onClick();
+                  }
                 }
               }}
             >
@@ -179,7 +197,7 @@ export function Dashboard({
               </span>
               <span className={cn(
                 "text-xs sm:text-sm font-black text-gray-900 bg-gray-50 px-3 py-1.5 rounded-2xl border border-gray-100 transition-all duration-300 whitespace-nowrap shrink-0",
-                m.onClick ? "group-hover/item:border-blue-200 group-hover/item:bg-blue-50/50 group-hover/item:text-blue-600" : "group-hover/item:border-blue-100"
+                m.onClick && !isLocked ? "group-hover/item:border-blue-200 group-hover/item:bg-blue-50/50 group-hover/item:text-blue-600" : "group-hover/item:border-blue-100"
               )}>
                 {m.value}
               </span>
@@ -187,7 +205,7 @@ export function Dashboard({
           ))}
         </div>
         <div className="mt-6 pt-3 border-t border-gray-50 flex items-center justify-between text-xs font-bold text-gray-400 uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-all duration-500 transform translate-y-2 group-hover:translate-y-0 text-blue-600">
-          Ver detalhes <ChevronRight className="w-3.5 h-3.5" />
+          {isLocked ? "Solicitar acesso" : "Ver detalhes"} <ChevronRight className="w-3.5 h-3.5" />
         </div>
       </CardContent>
     </Card>
@@ -217,22 +235,47 @@ export function Dashboard({
           title="Sala Técnica"
           icon={ClipboardList}
           color="bg-gradient-to-br from-blue-950 to-indigo-900"
-          onClick={() => onNavigate('measurements')}
+          isLocked={!hasAccess('measurements')}
+          onClick={() => {
+            if (hasAccess('measurements')) {
+              onNavigate('measurements');
+            } else {
+              alert('❌ Acesso Negado: Você não possui autorização para acessar o módulo Sala Técnica.');
+            }
+          }}
           metrics={[
             { 
               label: 'Vlr. Medição Atual', 
               value: `R$ ${measurementValue.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
-              onClick: () => onNavigate({ tab: 'measurements', measureTab: 'measure' })
+              onClick: () => {
+                if (hasAccess('measurements')) {
+                  onNavigate({ tab: 'measurements', measureTab: 'measure' });
+                } else {
+                  alert('❌ Acesso Negado: Você não possui autorização para acessar o módulo Sala Técnica.');
+                }
+              }
             },
             { 
               label: 'Nº Equipes', 
               value: teamsCount,
-              onClick: () => onNavigate({ tab: 'measurements', measureTab: 'teams' })
+              onClick: () => {
+                if (hasAccess('measurements')) {
+                  onNavigate({ tab: 'measurements', measureTab: 'teams' });
+                } else {
+                  alert('❌ Acesso Negado: Você não possui autorização para acessar o módulo Sala Técnica.');
+                }
+              }
             },
             { 
               label: 'Nº de Controles', 
               value: controlsCount,
-              onClick: () => onNavigate({ tab: 'measurements', measureTab: 'controls' })
+              onClick: () => {
+                if (hasAccess('measurements')) {
+                  onNavigate({ tab: 'measurements', measureTab: 'controls' });
+                } else {
+                  alert('❌ Acesso Negado: Você não possui autorização para acessar o módulo Sala Técnica.');
+                }
+              }
             }
           ]}
         />
@@ -241,22 +284,47 @@ export function Dashboard({
           title="RH"
           icon={Users}
           color="bg-gradient-to-br from-orange-950 to-orange-800"
-          onClick={() => onNavigate('rh')}
+          isLocked={!hasAccess('rh')}
+          onClick={() => {
+            if (hasAccess('rh')) {
+              onNavigate('rh');
+            } else {
+              alert('❌ Acesso Negado: Você não possui autorização para acessar o módulo RH.');
+            }
+          }}
           metrics={[
             { 
               label: 'Colaboradores', 
               value: activeEmployees.length,
-              onClick: () => onNavigate({ tab: 'rh', rhTab: 'employees' })
+              onClick: () => {
+                if (hasAccess('rh')) {
+                  onNavigate({ tab: 'rh', rhTab: 'employees' });
+                } else {
+                  alert('❌ Acesso Negado: Você não possui autorização para acessar o módulo RH.');
+                }
+              }
             },
             { 
               label: 'Afastados', 
               value: awayEmployeesCount,
-              onClick: () => onNavigate({ tab: 'rh', rhTab: 'employees' })
+              onClick: () => {
+                if (hasAccess('rh')) {
+                  onNavigate({ tab: 'rh', rhTab: 'employees' });
+                } else {
+                  alert('❌ Acesso Negado: Você não possui autorização para acessar o módulo RH.');
+                }
+              }
             },
             { 
               label: 'Dispensados', 
               value: dismissedEmployees.length,
-              onClick: () => onNavigate({ tab: 'rh', rhTab: 'employees' })
+              onClick: () => {
+                if (hasAccess('rh')) {
+                  onNavigate({ tab: 'rh', rhTab: 'employees' });
+                } else {
+                  alert('❌ Acesso Negado: Você não possui autorização para acessar o módulo RH.');
+                }
+              }
             }
           ]}
         />
@@ -265,22 +333,47 @@ export function Dashboard({
           title="Controlador"
           icon={Activity}
           color="bg-gradient-to-br from-blue-950 to-blue-800"
-          onClick={() => onNavigate('control')}
+          isLocked={!hasAccess('control')}
+          onClick={() => {
+            if (hasAccess('control')) {
+              onNavigate('control');
+            } else {
+              alert('❌ Acesso Negado: Você não possui autorização para acessar o módulo Controlador.');
+            }
+          }}
           metrics={[
             { 
               label: 'Total Equipamentos', 
               value: equipmentCount,
-              onClick: () => onNavigate({ tab: 'control', controlTab: 'list' })
+              onClick: () => {
+                if (hasAccess('control')) {
+                  onNavigate({ tab: 'control', controlTab: 'list' });
+                } else {
+                  alert('❌ Acesso Negado: Você não possui autorização para acessar o módulo Controlador.');
+                }
+              }
             },
             { 
               label: 'Em Manutenção', 
               value: maintenanceCount,
-              onClick: () => onNavigate({ tab: 'control', controlTab: 'maintenance' })
+              onClick: () => {
+                if (hasAccess('control')) {
+                  onNavigate({ tab: 'control', controlTab: 'maintenance' });
+                } else {
+                  alert('❌ Acesso Negado: Você não possui autorização para acessar o módulo Controlador.');
+                }
+              }
             },
             { 
               label: 'Transf. Pendentes', 
               value: pendingTransfersCount,
-              onClick: () => onNavigate({ tab: 'control', controlTab: 'transfers' })
+              onClick: () => {
+                if (hasAccess('control')) {
+                  onNavigate({ tab: 'control', controlTab: 'transfers' });
+                } else {
+                  alert('❌ Acesso Negado: Você não possui autorização para acessar o módulo Controlador.');
+                }
+              }
             }
           ]}
         />
@@ -289,22 +382,47 @@ export function Dashboard({
           title="Compras"
           icon={ShoppingCart}
           color="bg-gradient-to-br from-emerald-950 to-emerald-800"
-          onClick={() => onNavigate('purchases')}
+          isLocked={!hasAccess('purchases')}
+          onClick={() => {
+            if (hasAccess('purchases')) {
+              onNavigate('purchases');
+            } else {
+              alert('❌ Acesso Negado: Você não possui autorização para acessar o módulo Compras.');
+            }
+          }}
           metrics={[
             { 
               label: 'Nº Solicitações', 
               value: requestsCount,
-              onClick: () => onNavigate({ tab: 'purchases', purchasesTab: 'requests' })
+              onClick: () => {
+                if (hasAccess('purchases')) {
+                  onNavigate({ tab: 'purchases', purchasesTab: 'requests' });
+                } else {
+                  alert('❌ Acesso Negado: Você não possui autorização para acessar o módulo Compras.');
+                }
+              }
             },
             { 
               label: 'Ordens de Compra', 
               value: ordersCount,
-              onClick: () => onNavigate({ tab: 'purchases', purchasesTab: 'orders' })
+              onClick: () => {
+                if (hasAccess('purchases')) {
+                  onNavigate({ tab: 'purchases', purchasesTab: 'orders' });
+                } else {
+                  alert('❌ Acesso Negado: Você não possui autorização para acessar o módulo Compras.');
+                }
+              }
             },
             { 
               label: 'Acompanhamento', 
               value: trackingCount,
-              onClick: () => onNavigate({ tab: 'purchases', purchasesTab: 'tracking' })
+              onClick: () => {
+                if (hasAccess('purchases')) {
+                  onNavigate({ tab: 'purchases', purchasesTab: 'tracking' });
+                } else {
+                  alert('❌ Acesso Negado: Você não possui autorização para acessar o módulo Compras.');
+                }
+              }
             }
           ]}
         />
@@ -313,22 +431,47 @@ export function Dashboard({
           title="Financeiro"
           icon={Landmark}
           color="bg-gradient-to-br from-emerald-950 to-indigo-900"
-          onClick={() => onNavigate('financeiro')}
+          isLocked={!hasAccess('financeiro')}
+          onClick={() => {
+            if (hasAccess('financeiro')) {
+              onNavigate('financeiro');
+            } else {
+              alert('❌ Acesso Negado: Você não possui autorização para acessar o módulo Financeiro.');
+            }
+          }}
           metrics={[
             { 
               label: 'Número de Aportes', 
               value: filteredAportes.length,
-              onClick: () => onNavigate('financeiro')
+              onClick: () => {
+                if (hasAccess('financeiro')) {
+                  onNavigate('financeiro');
+                } else {
+                  alert('❌ Acesso Negado: Você não possui autorização para acessar o módulo Financeiro.');
+                }
+              }
             },
             { 
               label: 'Total de Aportes', 
               value: `R$ ${totalAportesValue.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
-              onClick: () => onNavigate('financeiro')
+              onClick: () => {
+                if (hasAccess('financeiro')) {
+                  onNavigate('financeiro');
+                } else {
+                  alert('❌ Acesso Negado: Você não possui autorização para acessar o módulo Financeiro.');
+                }
+              }
             },
             { 
               label: currentAporte ? `Aporte Atual (${currentAporte.numero})` : 'Aporte Atual', 
               value: currentAporte ? `R$ ${currentAporteValue.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : 'R$ 0,00',
-              onClick: () => onNavigate('financeiro')
+              onClick: () => {
+                if (hasAccess('financeiro')) {
+                  onNavigate('financeiro');
+                } else {
+                  alert('❌ Acesso Negado: Você não possui autorização para acessar o módulo Financeiro.');
+                }
+              }
             }
           ]}
         />
@@ -337,22 +480,47 @@ export function Dashboard({
           title="Almoxarifado"
           icon={Package}
           color="bg-gradient-to-br from-emerald-950 to-emerald-800"
-          onClick={() => onNavigate('almoxarife')}
+          isLocked={!hasAccess('almoxarife')}
+          onClick={() => {
+            if (hasAccess('almoxarife')) {
+              onNavigate('almoxarife');
+            } else {
+              alert('❌ Acesso Negado: Você não possui autorização para acessar o módulo Almoxarifado.');
+            }
+          }}
           metrics={[
             { 
               label: 'Valor Total do Estoque', 
               value: `R$ ${totalStockValue.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
-              onClick: () => onNavigate('almoxarife')
+              onClick: () => {
+                if (hasAccess('almoxarife')) {
+                  onNavigate('almoxarife');
+                } else {
+                  alert('❌ Acesso Negado: Você não possui autorização para acessar o módulo Almoxarifado.');
+                }
+              }
             },
             { 
               label: 'Valor Total Patrimônio', 
               value: `R$ ${totalAssetValue.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
-              onClick: () => onNavigate('almoxarife')
+              onClick: () => {
+                if (hasAccess('almoxarife')) {
+                  onNavigate('almoxarife');
+                } else {
+                  alert('❌ Acesso Negado: Você não possui autorização para acessar o módulo Almoxarifado.');
+                }
+              }
             },
             { 
               label: 'Solicitações', 
               value: requestsCount,
-              onClick: () => onNavigate({ tab: 'purchases', purchasesTab: 'requests' })
+              onClick: () => {
+                if (hasAccess('purchases')) {
+                  onNavigate({ tab: 'purchases', purchasesTab: 'requests' });
+                } else {
+                  alert('❌ Acesso Negado: Você não possui autorização para acessar o módulo Compras.');
+                }
+              }
             }
           ]}
         />

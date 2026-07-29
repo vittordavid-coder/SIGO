@@ -609,7 +609,12 @@ export default function App() {
         icon: <Layers className="w-4 h-4" />, 
         visible: currentUser.role === 'master' || currentUser.role === 'admin' || currentUser.role === 'almoxarife' || currentUser.allowedModules?.includes('almoxarife') 
       },
-      { id: 'gerencia', label: 'Gerência', icon: <Landmark className="w-4 h-4" />, visible: true },
+      { 
+        id: 'gerencia', 
+        label: 'Gerência', 
+        icon: <Landmark className="w-4 h-4" />, 
+        visible: currentUser.role === 'master' || currentUser.role === 'admin' || currentUser.allowedModules?.includes('gerencia') 
+      },
       { 
         id: 'settings', 
         label: 'Administrador do Sistema', 

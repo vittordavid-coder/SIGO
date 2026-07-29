@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion } from 'motion/react';
-import { Plus, Edit, Trash2, FileSpreadsheet, Download, ChevronUp, ChevronDown, TrendingUp, ArrowLeft, Upload, FileText, Users, Truck, Sparkles, SlidersHorizontal, ArrowUp, ArrowDown } from 'lucide-react';
+import { Plus, Edit, Trash2, FileSpreadsheet, Download, ChevronUp, ChevronDown, TrendingUp, ArrowLeft, Upload, FileText, Users, Truck, Sparkles, SlidersHorizontal, ArrowUp, ArrowDown, Settings2, Layers } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 import { Resource, ResourceType, PurchaseOrder, Employee, ControllerEquipment } from '../types';
 import { cn, formatCurrency } from '../lib/utils';
@@ -109,7 +109,22 @@ interface ResourceViewProps {
   controllerEquipments?: ControllerEquipment[];
 }
 
+interface ResourceColumnMappingModalState {
+  isOpen: boolean;
+  rawRows: any[][];
+  headerRowIndex: number;
+  fileName: string;
+  selectedCols: {
+    code: number;
+    name: number;
+    unit: number;
+    type: number;
+    basePrice: number;
+  };
+}
+
 export function ResourceView({ resources, onAdd, onDelete, onUpdate, purchaseOrders = [], readonly, employees = [], controllerEquipments = [] }: ResourceViewProps) {
+  const [resourceColumnMappingModal, setResourceColumnMappingModal] = useState<ResourceColumnMappingModalState | null>(null);
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isExportSelectorOpen, setIsExportSelectorOpen] = useState(false);
@@ -762,51 +777,175 @@ export function ResourceView({ resources, onAdd, onDelete, onUpdate, purchaseOrd
 
         const XLSX = await import("xlsx");
         const wb = XLSX.read(buildData, { type: "array" });
-        const ws = wb.Sheets[wb.SheetNames[0]];
-        const data = XLSX.utils.sheet_to_json(ws) as any[];
+        const wsname = wb.SheetNames[0];
+        const ws = wb.Sheets[wsname];
 
-        let importedCount = 0;
-        data.forEach((row, i) => {
-          // Identify keys using tags or exact names
-          const typeKey = Object.keys(row).find(k => k.toLowerCase().includes('#tipo') || k.toLowerCase() === 'tipo');
-          const nameKey = Object.keys(row).find(k => k.toLowerCase().includes('#nome') || k.toLowerCase() === 'nome');
-          const unitKey = Object.keys(row).find(k => k.toLowerCase().includes('#unidade') || k.toLowerCase() === 'unidade');
-          const priceKey = Object.keys(row).find(k => k.toLowerCase().includes('#preco') || k.toLowerCase().includes('preço'));
+        const rawRows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "" }) as any[][];
 
-          if (nameKey && unitKey) {
-            const rowType = typeKey ? row[typeKey]?.toString().toLowerCase() : 'material';
-            let parsedType: ResourceType = 'material';
-            if (rowType.includes('obra') || rowType === 'labor') parsedType = 'labor';
-            else if (rowType.includes('equip') || rowType === 'equipment') parsedType = 'equipment';
+        if (!rawRows || rawRows.length === 0) {
+          alert("❌ Arquivo vazio ou formato incompatível.");
+          setIsImporting(false);
+          return;
+        }
 
-            const parsedPrice = priceKey ? Number(row[priceKey]) || 0 : 0;
-            
-            // For import, we'll let it use the next code for the type
-            onAdd({
-              code: getNextCode(parsedType), // This might reuse codes if called rapidly in a loop if state hasn't updated. 
-              // Wait, getNextCode depends on resources state which won't update during this loop.
-              // To fix this we can generate UUID for code, or let the server/App.tsx handle the code generation.
-              // Since `getNextCode` logic is here, I'll use it but append index `+ i` to the sequence temporarily to prevent duplicates.
-              // For simplicity, we can pass uuid if it fails, but let's do our best.
-              name: row[nameKey],
-              unit: row[unitKey],
-              type: parsedType,
-              basePrice: parsedPrice
-            });
-            importedCount++;
+        // Auto-detect header row index
+        let headerRowIndex = 0;
+        for (let i = 0; i < Math.min(15, rawRows.length); i++) {
+          const rowStr = (rawRows[i] || []).map((c: any) => String(c).toLowerCase()).join(" ");
+          if (
+            rowStr.includes("nome") ||
+            rowStr.includes("descrição") ||
+            rowStr.includes("descricao") ||
+            rowStr.includes("insumo") ||
+            rowStr.includes("código") ||
+            rowStr.includes("codigo") ||
+            rowStr.includes("unidade") ||
+            rowStr.includes("preço") ||
+            rowStr.includes("preco")
+          ) {
+            headerRowIndex = i;
+            break;
           }
-        });
+        }
 
-        alert(`✅ Importação concluída! ${importedCount} insumos foram adicionados com sucesso na tabela resources.`);
+        const headerRow = rawRows[headerRowIndex] || [];
+
+        const findColIdx = (candidates: string[]): number => {
+          for (let c = 0; c < headerRow.length; c++) {
+            const headerStr = String(headerRow[c] || "").replace(/^#/, "").toLowerCase().trim();
+            if (candidates.some((cand) => headerStr.includes(cand.toLowerCase()))) {
+              return c;
+            }
+          }
+          return -1;
+        };
+
+        const colCode = findColIdx(["código", "codigo", "code", "cod"]);
+        const colName = findColIdx(["nome", "descrição", "descricao", "insumo", "description", "item"]);
+        const colUnit = findColIdx(["unidade", "unid", "un", "unit", "u.m", "um"]);
+        const colType = findColIdx(["tipo", "type", "categoria", "category"]);
+        const colPrice = findColIdx(["preço", "preco", "valor", "custo", "baseprice", "base_price", "preco_base", "preço_base", "price"]);
+
+        setResourceColumnMappingModal({
+          isOpen: true,
+          rawRows,
+          headerRowIndex,
+          fileName: file.name,
+          selectedCols: {
+            code: colCode,
+            name: colName !== -1 ? colName : 0,
+            unit: colUnit !== -1 ? colUnit : (headerRow.length > 1 ? 1 : -1),
+            type: colType,
+            basePrice: colPrice !== -1 ? colPrice : (headerRow.length > 2 ? 2 : -1),
+          },
+        });
       } catch (err) {
-        console.error(err);
-        alert("❌ Erro ao processar arquivo: " + err);
+        console.error("Import error:", err);
+        alert("❌ Erro inesperado ao ler o arquivo. Verifique se o arquivo não está corrompido.");
       } finally {
         setIsImporting(false);
       }
     };
     reader.readAsArrayBuffer(file);
-    event.target.value = '';
+    if (event.target) {
+      event.target.value = "";
+    }
+  };
+
+  const executeResourceImportWithMapping = (data: ResourceColumnMappingModalState) => {
+    const { rawRows, headerRowIndex, selectedCols } = data;
+    const {
+      code: colCode,
+      name: colName,
+      unit: colUnit,
+      type: colType,
+      basePrice: colPrice,
+    } = selectedCols;
+
+    setIsImporting(true);
+    try {
+      let importedCount = 0;
+      let updatedCount = 0;
+      const itemsToAdd: (Omit<Resource, 'id'> & { id?: string })[] = [];
+      let tempResources = [...resources];
+
+      const dataRows = rawRows.slice(headerRowIndex + 1);
+
+      dataRows.forEach((row) => {
+        if (!Array.isArray(row) || row.every((c) => c === null || c === undefined || String(c).trim() === "")) {
+          return;
+        }
+
+        const getVal = (idx: number) => (idx !== -1 && idx < row.length && row[idx] !== undefined && row[idx] !== null) ? String(row[idx]).trim() : "";
+
+        const nameVal = getVal(colName);
+        if (!nameVal) return;
+
+        const codeVal = getVal(colCode);
+        const unitVal = getVal(colUnit) || 'UN';
+        const typeStr = getVal(colType).toLowerCase();
+        const priceStr = getVal(colPrice);
+
+        let parsedType: ResourceType = 'material';
+        if (typeStr.includes('obra') || typeStr.includes('mão') || typeStr.includes('mao') || typeStr === 'labor') {
+          parsedType = 'labor';
+        } else if (typeStr.includes('equip') || typeStr === 'equipment') {
+          parsedType = 'equipment';
+        }
+
+        let parsedPrice = 0;
+        if (priceStr) {
+          const clean = priceStr.replace(/\s/g, '').replace('R$', '').replace(/\./g, '').replace(',', '.');
+          parsedPrice = parseFloat(clean) || 0;
+        }
+
+        let existing = null;
+        if (codeVal) {
+          existing = tempResources.find(r => r.code.trim().toLowerCase() === codeVal.trim().toLowerCase());
+        } else {
+          existing = tempResources.find(r => r.type === parsedType && r.name.trim().toLowerCase() === nameVal.toLowerCase());
+        }
+
+        if (existing) {
+          onUpdate({
+            ...existing,
+            name: nameVal,
+            unit: unitVal,
+            basePrice: parsedPrice,
+          });
+          updatedCount++;
+        } else {
+          const newCode = codeVal || getNextCode(parsedType, tempResources);
+          const newRes: Omit<Resource, 'id'> = {
+            code: newCode,
+            name: nameVal,
+            unit: unitVal,
+            type: parsedType,
+            basePrice: parsedPrice,
+          };
+          itemsToAdd.push(newRes);
+          tempResources.push({ ...newRes, id: uuidv4() });
+          importedCount++;
+        }
+      });
+
+      if (itemsToAdd.length > 0) {
+        onAdd(itemsToAdd);
+      }
+
+      alert(
+        `✅ Importação de insumos concluída com sucesso!\n\n` +
+        `• Novos insumos adicionados: ${importedCount}\n` +
+        `• Insumos existentes atualizados: ${updatedCount}`
+      );
+
+      setResourceColumnMappingModal(null);
+    } catch (err) {
+      console.error("Resource mapping import error:", err);
+      alert("❌ Erro ao processar a importação dos insumos.");
+    } finally {
+      setIsImporting(false);
+    }
   };
 
   const startEdit = (resource: Resource) => {
@@ -2156,6 +2295,227 @@ export function ResourceView({ resources, onAdd, onDelete, onUpdate, purchaseOrd
           </TableBody>
         </Table>
       </Card>
+
+      {/* Modal de Mapeamento de Colunas de Insumos */}
+      {resourceColumnMappingModal && resourceColumnMappingModal.isOpen && (
+        <Dialog
+          open={resourceColumnMappingModal.isOpen}
+          onOpenChange={(open) => {
+            if (!open) setResourceColumnMappingModal(null);
+          }}
+        >
+          <DialogContent className="sm:max-w-[950px] w-full bg-white border border-slate-200 shadow-2xl rounded-2xl p-6 text-left flex flex-col max-h-[90vh] overflow-y-auto">
+            <DialogHeader className="text-left space-y-1 shrink-0">
+              <div className="flex items-center gap-2 text-blue-600 font-semibold text-xs tracking-wider uppercase mb-1">
+                <Settings2 className="w-4 h-4" /> Importação de Insumos (Cotações)
+              </div>
+              <DialogTitle className="text-xl font-bold text-slate-900">
+                Mapeamento de Colunas da Planilha
+              </DialogTitle>
+              <DialogDescription className="text-sm text-slate-500">
+                Selecione qual coluna da planilha corresponde a cada campo do insumo antes de finalizar a importação.
+              </DialogDescription>
+            </DialogHeader>
+
+            {/* Info bar */}
+            <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 flex flex-wrap items-center justify-between gap-3 text-xs my-3 shrink-0">
+              <div>
+                <span className="text-slate-400 font-medium">Arquivo:</span>{" "}
+                <strong className="text-slate-700">{resourceColumnMappingModal.fileName}</strong>
+              </div>
+              <div>
+                <span className="text-slate-400 font-medium">Total de Linhas:</span>{" "}
+                <strong className="text-blue-700">{resourceColumnMappingModal.rawRows.length}</strong>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-slate-500 font-medium">Linha do Cabeçalho:</span>
+                <select
+                  className="border border-slate-300 rounded-lg px-2 py-1 text-xs bg-white font-medium text-slate-800"
+                  value={resourceColumnMappingModal.headerRowIndex}
+                  onChange={(e) => {
+                    const newIdx = parseInt(e.target.value);
+                    setResourceColumnMappingModal((prev) => prev ? { ...prev, headerRowIndex: newIdx } : null);
+                  }}
+                >
+                  {resourceColumnMappingModal.rawRows.slice(0, 15).map((row, idx) => (
+                    <option key={`hr-${idx}`} value={idx}>
+                      Linha {idx + 1}: {Array.isArray(row) ? row.slice(0, 4).filter(Boolean).join(" | ").substring(0, 45) || "Vazia" : "Vazia"}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {/* Grid of Column Selection */}
+            <div className="space-y-4 my-2 shrink-0">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+                <Layers className="w-3.5 h-3.5 text-blue-500" /> Correspondência de Colunas
+              </h4>
+
+              {(() => {
+                const currentHeaderRow = resourceColumnMappingModal.rawRows[resourceColumnMappingModal.headerRowIndex] || [];
+                const maxCols = Math.max(...resourceColumnMappingModal.rawRows.slice(0, 20).map((r) => Array.isArray(r) ? r.length : 0));
+                const colOptions = Array.from({ length: Math.max(maxCols, 1) }, (_, idx) => {
+                  const rawLabel = String(currentHeaderRow[idx] || "").trim();
+                  return {
+                    value: idx,
+                    label: rawLabel ? `Col ${idx + 1} (${rawLabel})` : `Coluna ${idx + 1}`,
+                  };
+                });
+
+                const renderSelect = (
+                  label: string,
+                  fieldName: keyof typeof resourceColumnMappingModal.selectedCols,
+                  required: boolean = false,
+                  highlight: boolean = false,
+                  noneLabel: string = "-- Ignorar / Não Mapeado --"
+                ) => (
+                  <div>
+                    <Label className={cn("text-xs mb-1.5 block", highlight ? "font-bold text-blue-900" : "font-semibold text-slate-700")}>
+                      {label} {required && <span className="text-red-500">*</span>}
+                    </Label>
+                    <select
+                      className={cn(
+                        "w-full rounded-lg px-3 py-2 text-xs font-medium shadow-sm focus:outline-none focus:ring-1",
+                        highlight
+                          ? "border-2 border-blue-400 bg-blue-50/40 text-blue-950 focus:border-blue-600 focus:ring-blue-600 font-bold"
+                          : "border border-slate-300 bg-white text-slate-800 focus:border-blue-500 focus:ring-blue-500"
+                      )}
+                      value={resourceColumnMappingModal.selectedCols[fieldName]}
+                      onChange={(e) => {
+                        const val = parseInt(e.target.value);
+                        setResourceColumnMappingModal((prev) =>
+                          prev
+                            ? {
+                                ...prev,
+                                selectedCols: { ...prev.selectedCols, [fieldName]: val },
+                              }
+                            : null
+                        );
+                      }}
+                    >
+                      {!required && <option value={-1}>{noneLabel}</option>}
+                      {colOptions.map((opt) => (
+                        <option key={`${fieldName}-${opt.value}`} value={opt.value}>
+                          {opt.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                );
+
+                return (
+                  <div className="space-y-4">
+                    <div className="bg-slate-50/80 p-4 rounded-xl border border-slate-200">
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-3">
+                        {renderSelect("Código do Insumo", "code")}
+                        {renderSelect("Nome do Insumo", "name", true, true)}
+                        {renderSelect("Unidade de Medida", "unit")}
+                        {renderSelect("Tipo de Insumo", "type")}
+                        {renderSelect("Preço / Custo Base", "basePrice")}
+                      </div>
+                    </div>
+
+                    {/* Preview Table */}
+                    <div className="border border-slate-200 rounded-xl overflow-hidden shrink-0">
+                      <div className="bg-slate-50 px-4 py-2.5 border-b border-slate-200 flex items-center justify-between">
+                        <span className="text-xs font-bold text-slate-700 uppercase">Pré-visualização dos Dados (Primeiras 5 linhas)</span>
+                        <span className="text-[10px] text-slate-400 font-medium">Linhas com nome em branco serão ignoradas</span>
+                      </div>
+                      <Table>
+                        <TableHeader className="bg-slate-50/50">
+                          <TableRow>
+                            <TableHead className="text-xs font-bold text-slate-700 py-2">Código</TableHead>
+                            <TableHead className="text-xs font-bold text-slate-700 py-2">Nome do Insumo</TableHead>
+                            <TableHead className="text-xs font-bold text-slate-700 py-2">Unidade</TableHead>
+                            <TableHead className="text-xs font-bold text-slate-700 py-2">Tipo</TableHead>
+                            <TableHead className="text-xs font-bold text-slate-700 py-2 text-right">Preço Base</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {(() => {
+                            const previewRows = resourceColumnMappingModal.rawRows
+                              .slice(resourceColumnMappingModal.headerRowIndex + 1)
+                              .filter((r) => Array.isArray(r) && r.some((c) => c !== null && c !== undefined && String(c).trim() !== ""))
+                              .slice(0, 5);
+
+                            if (previewRows.length === 0) {
+                              return (
+                                <TableRow>
+                                  <TableCell colSpan={5} className="text-center text-slate-400 py-8 text-xs">
+                                    Nenhum dado legível nas linhas abaixo do cabeçalho.
+                                  </TableCell>
+                                </TableRow>
+                              );
+                            }
+
+                            const { code, name, unit, type, basePrice } = resourceColumnMappingModal.selectedCols;
+                            const getVal = (row: any[], idx: number) => (idx !== -1 && idx < row.length && row[idx] !== undefined && row[idx] !== null) ? String(row[idx]).trim() : "-";
+
+                            return previewRows.map((row, pIdx) => {
+                              const codeVal = getVal(row, code);
+                              const nameVal = getVal(row, name);
+                              const unitVal = getVal(row, unit);
+                              const typeVal = getVal(row, type).toLowerCase();
+                              const priceVal = getVal(row, basePrice);
+
+                              let parsedType = 'material';
+                              if (typeVal.includes('obra') || typeVal.includes('mão') || typeVal.includes('mao') || typeVal === 'labor') {
+                                parsedType = 'Mão-de-obra';
+                              } else if (typeVal.includes('equip') || typeVal === 'equipment') {
+                                parsedType = 'Equipamento';
+                              } else {
+                                parsedType = 'Material';
+                              }
+
+                              let parsedPrice = 0;
+                              if (priceVal !== "-") {
+                                const clean = priceVal.replace(/\s/g, '').replace('R$', '').replace(/\./g, '').replace(',', '.');
+                                parsedPrice = parseFloat(clean) || 0;
+                              }
+
+                              return (
+                                <TableRow key={`prev-res-${pIdx}`} className="hover:bg-slate-50/80">
+                                  <TableCell className="text-xs font-mono font-semibold text-slate-700">{codeVal !== "-" ? codeVal : "(Auto-gerado)"}</TableCell>
+                                  <TableCell className="text-xs font-bold text-blue-950 bg-blue-50/10 max-w-[200px] truncate">{nameVal}</TableCell>
+                                  <TableCell className="text-xs font-mono text-slate-600">{unitVal !== "-" ? unitVal : "UN"}</TableCell>
+                                  <TableCell className="text-xs font-medium text-slate-700">{parsedType}</TableCell>
+                                  <TableCell className="text-xs text-right text-emerald-700 font-mono font-semibold">
+                                    {parsedPrice > 0 ? `R$ ${parsedPrice.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}` : priceVal}
+                                  </TableCell>
+                                </TableRow>
+                              );
+                            });
+                          })()}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
+
+            <DialogFooter className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between gap-3 shrink-0">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setResourceColumnMappingModal(null)}
+                className="rounded-xl border-slate-200 text-slate-700 font-semibold cursor-pointer"
+              >
+                Cancelar
+              </Button>
+
+              <Button
+                type="button"
+                onClick={() => executeResourceImportWithMapping(resourceColumnMappingModal)}
+                className="rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold px-6 shadow-md shadow-blue-500/20 flex items-center gap-2 cursor-pointer"
+              >
+                <Check className="w-4 h-4" /> Confirmar e Importar Insumos
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
     </motion.div>
   );
 }
