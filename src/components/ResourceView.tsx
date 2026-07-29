@@ -485,11 +485,17 @@ export function ResourceView({ resources, onAdd, onDelete, onUpdate, purchaseOrd
       if (!eqType) return;
       const keyLower = eqType.toLowerCase();
 
-      // Monthly cost of equipment (valor mensal)
-      const monthlyCost = eq.monthlyPrice || 
-                          eq.equipmentBaseCost || 
-                          (eq.contractedPrice ? eq.contractedPrice * (eq.measurementUnit === 'Mensal' ? 1 : 220) : 0) || 
-                          (eq.productivePrice ? eq.productivePrice * 220 : 0) || 0;
+      // Calculate monthly cost of equipment (valor mensal do equipamento)
+      let monthlyCost = 0;
+      if (eq.monthlyPrice && Number(eq.monthlyPrice) > 0) {
+        monthlyCost = Number(eq.monthlyPrice);
+      } else if (eq.equipmentBaseCost && Number(eq.equipmentBaseCost) > 0) {
+        monthlyCost = Number(eq.equipmentBaseCost);
+      } else if (eq.contractedPrice && Number(eq.contractedPrice) > 0) {
+        monthlyCost = eq.measurementUnit === 'Mensal' ? Number(eq.contractedPrice) : Number(eq.contractedPrice) * (eq.hoursPerMonth || 220);
+      } else if (eq.productivePrice && Number(eq.productivePrice) > 0) {
+        monthlyCost = Number(eq.productivePrice) * (eq.hoursPerMonth || 220);
+      }
 
       if (monthlyCost <= 0) return;
 

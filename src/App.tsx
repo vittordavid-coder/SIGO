@@ -3400,14 +3400,37 @@ export default function App() {
         const activeEquipCodes = new Set(newEquips.map(e => e.code?.toLowerCase()).filter(Boolean));
 
         newEquips.forEach(eq => {
+          let monthlyVal = 0;
+          if (eq.monthlyPrice && Number(eq.monthlyPrice) > 0) {
+            monthlyVal = Number(eq.monthlyPrice);
+          } else if (eq.equipmentBaseCost && Number(eq.equipmentBaseCost) > 0) {
+            monthlyVal = Number(eq.equipmentBaseCost);
+          } else if (eq.contractedPrice && Number(eq.contractedPrice) > 0) {
+            monthlyVal = eq.measurementUnit === 'Mensal' ? Number(eq.contractedPrice) : Number(eq.contractedPrice) * (eq.hoursPerMonth || 220);
+          } else if (eq.productivePrice && Number(eq.productivePrice) > 0) {
+            monthlyVal = Number(eq.productivePrice) * (eq.hoursPerMonth || 220);
+          }
+
+          // Ignore equipment if value is 0
+          if (monthlyVal <= 0) return;
+
           const index = updatedResources.findIndex(r => r.type === 'equipment' && (r.id === eq.id || (eq.code && r.code?.toLowerCase() === eq.code.toLowerCase())));
           
           const unitMapped = eq.measurementUnit === 'Horímetro' ? 'h' : 
                              eq.measurementUnit === 'Quilometragem' ? 'km' : 
                              eq.measurementUnit === 'Mensal' ? 'mes' : 
                              eq.measurementUnit === 'Diária' ? 'dia' : 'h';
-                             
-          const basePriceMapped = eq.productivePrice || eq.contractedPrice || eq.monthlyPrice || 0;
+
+          const existing = index !== -1 ? updatedResources[index] : null;
+          let opSalary = 0;
+          if (existing && existing.operatorId) {
+            const op = updatedResources.find(o => o.id === existing.operatorId);
+            if (op) {
+              opSalary = op.monthlySalary || (op.paymentType === 'month' || op.paymentType === 'pj' ? (op.basePrice > 500 ? op.basePrice : op.basePrice * 220) : op.basePrice * 220) || op.basePrice || 0;
+            }
+          }
+
+          const finalPrice = monthlyVal + opSalary;
           
           if (index !== -1) {
             updatedResources[index] = {
@@ -3415,8 +3438,9 @@ export default function App() {
               code: eq.code || updatedResources[index].code,
               name: eq.type || eq.name,
               unit: unitMapped,
-              basePrice: basePriceMapped,
-              productivePrice: eq.productivePrice || 0,
+              equipmentBaseCost: monthlyVal,
+              basePrice: finalPrice,
+              productivePrice: eq.productivePrice || (monthlyVal / 220),
               unproductivePrice: eq.unproductivePrice || 0,
             };
           } else {
@@ -3426,8 +3450,9 @@ export default function App() {
               name: eq.type || eq.name,
               unit: unitMapped,
               type: 'equipment',
-              basePrice: basePriceMapped,
-              productivePrice: eq.productivePrice || 0,
+              equipmentBaseCost: monthlyVal,
+              basePrice: finalPrice,
+              productivePrice: eq.productivePrice || (monthlyVal / 220),
               unproductivePrice: eq.unproductivePrice || 0,
             });
           }
