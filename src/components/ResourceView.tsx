@@ -487,6 +487,14 @@ export function ResourceView({ resources, onAdd, onDelete, onUpdate, purchaseOrd
       return;
     }
 
+    let monthlyData: any[] = [];
+    try {
+      const stored = localStorage.getItem('sigo_equipments_monthly') || localStorage.getItem('sigo_equipment_monthly');
+      if (stored) monthlyData = JSON.parse(stored);
+    } catch (e) {
+      console.warn("Could not load equipment monthly data from localStorage", e);
+    }
+
     const typesMap = new Map<string, { originalName: string; totalMonthlyCost: number; count: number; unit: string }>();
 
     controllerEquipments.forEach(eq => {
@@ -514,6 +522,15 @@ export function ResourceView({ resources, onAdd, onDelete, onUpdate, purchaseOrd
       } else if (eq.productivePrice && Number(eq.productivePrice) > 0) {
         const val = Number(eq.productivePrice);
         monthlyCost = val >= 500 ? val : val * hours;
+      }
+
+      // Check equipmentMonthlyData as fallback
+      if (monthlyCost <= 0 && monthlyData.length > 0) {
+        const mData = monthlyData.find((m: any) => m.equipmentId === eq.id && m.cost && Number(m.cost) > 0);
+        if (mData) {
+          const val = Number(mData.cost);
+          monthlyCost = (val >= 500 || eq.measurementUnit === 'Mensal') ? val : val * hours;
+        }
       }
 
       if (monthlyCost <= 0) return;

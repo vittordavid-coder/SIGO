@@ -3398,7 +3398,7 @@ export default function App() {
 
     // Sync to resources (Insumos) of type 'equipment'
     try {
-      const syncEquipmentsToResources = (currentResources: Resource[], newEquips: ControllerEquipment[]): Resource[] => {
+      const syncEquipmentsToResources = (currentResources: Resource[], newEquips: ControllerEquipment[], monthlyData: EquipmentMonthlyData[] = []): Resource[] => {
         let updatedResources = [...currentResources];
         const typesMap = new Map<string, { originalName: string; totalMonthlyCost: number; count: number; hoursPerMonth: number; sampleCode?: string }>();
 
@@ -3426,6 +3426,15 @@ export default function App() {
           } else if (eq.productivePrice && Number(eq.productivePrice) > 0) {
             const val = Number(eq.productivePrice);
             monthlyCost = val >= 500 ? val : val * hours;
+          }
+
+          // Check monthlyData as fallback
+          if (monthlyCost <= 0 && monthlyData.length > 0) {
+            const mData = monthlyData.find(m => m.equipmentId === eq.id && m.cost && Number(m.cost) > 0);
+            if (mData) {
+              const val = Number(mData.cost);
+              monthlyCost = (val >= 500 || eq.measurementUnit === 'Mensal') ? val : val * hours;
+            }
           }
 
           if (monthlyCost <= 0) return;
@@ -3482,10 +3491,13 @@ export default function App() {
           }
         });
 
+        // Clean up any zero-value equipment resources
+        updatedResources = updatedResources.filter(r => !(r.type === 'equipment' && (!r.basePrice || r.basePrice <= 0) && (!r.equipmentBaseCost || r.equipmentBaseCost <= 0)));
+
         return updatedResources;
       };
 
-      const syncedResources = syncEquipmentsToResources(resources, equips);
+      const syncedResources = syncEquipmentsToResources(resources, equips, equipmentMonthlyData);
       updateResources(syncedResources);
     } catch (err) {
       console.error('[Sync] Error syncing equipments to resources:', err);
