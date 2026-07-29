@@ -552,7 +552,10 @@ export function ServiceView({
 
         codes.forEach(code => {
           const imported = importedCompositions[code];
-          const existing = services.find(s => s.code.trim().toLowerCase() === code.toLowerCase());
+          const existing = services.find(s => 
+            s.code.trim().toLowerCase() === code.toLowerCase() &&
+            (selectedContractId ? s.contractId === selectedContractId : !s.contractId)
+          );
 
           if (existing) {
             onUpdate({
@@ -651,7 +654,6 @@ export function ServiceView({
 
     try {
       const servicesToAdd: Omit<ServiceComposition, 'id'>[] = [];
-      const resourcesToAdd: (Omit<Resource, 'id'> & { id?: string })[] = [];
 
       let importedCount = 0;
       let updatedCount = 0;
@@ -660,35 +662,14 @@ export function ServiceView({
         const codeVal = item.code.trim();
         const nameVal = item.name.trim();
         const unitVal = (item.unit || "un").trim();
-        const parsedPrice = item.price || 0;
 
-        // Check if service composition already exists
-        const existingService = services.find(s => s.code.trim().toLowerCase() === codeVal.toLowerCase());
+        // Check if service composition already exists for the CURRENT contract
+        const existingService = services.find(s => 
+          s.code.trim().toLowerCase() === codeVal.toLowerCase() &&
+          (selectedContractId ? s.contractId === selectedContractId : !s.contractId)
+        );
 
-        // Generate IDs
-        const insumoCode = `INS-${codeVal}`;
-        const existingResource = resources.find(r => r.code.trim().toLowerCase() === insumoCode.toLowerCase() || r.code.trim().toLowerCase() === codeVal.toLowerCase());
-        const resourceId = existingResource ? existingResource.id : `res-${Math.random().toString(36).substring(2, 9)}`;
-
-        if (!existingResource && parsedPrice > 0) {
-          resourcesToAdd.push({
-            id: resourceId,
-            code: insumoCode,
-            name: nameVal,
-            unit: unitVal,
-            type: 'material',
-            basePrice: parsedPrice,
-            encargos: 0,
-            productivePrice: 0,
-            unproductivePrice: 0,
-            operatorId: '',
-            equipmentBaseCost: 0,
-            hoursPerMonth: 220,
-            monthlySalary: 0
-          });
-        }
-
-        const items = parsedPrice > 0 ? [{ resourceId, consumption: 1 }] : [];
+        const items: CompositionItem[] = []; // empty, imported without price to allow composition
 
         if (existingService) {
           onUpdate({
@@ -697,7 +678,7 @@ export function ServiceView({
             unit: unitVal || existingService.unit,
             production: existingService.production || 1,
             fit: existingService.fit || 0,
-            items: items.length > 0 ? items : existingService.items
+            items: existingService.items.length > 0 ? existingService.items : items
           });
           updatedCount++;
         } else {
@@ -714,11 +695,6 @@ export function ServiceView({
         }
       });
 
-      // Save via batch functions
-      if (resourcesToAdd.length > 0 && onAddResource) {
-        onAddResource(resourcesToAdd);
-      }
-
       if (servicesToAdd.length > 0) {
         if (onAddServices) {
           onAddServices(servicesToAdd);
@@ -728,10 +704,9 @@ export function ServiceView({
       }
 
       alert(
-        `✅ Importação de serviços da Sala Técnica concluída com sucesso!\n\n` +
-        `• Novos serviços adicionados: ${importedCount}\n` +
-        `• Serviços existentes atualizados: ${updatedCount}\n` +
-        `• Novos insumos criados para composição: ${resourcesToAdd.length}`
+        `✅ Importação de serviços do contrato concluída com sucesso!\n\n` +
+        `• Novos serviços adicionados (sem preço, prontos para composição): ${importedCount}\n` +
+        `• Serviços existentes atualizados: ${updatedCount}`
       );
 
       setIsImportFromContractModalOpen(false);

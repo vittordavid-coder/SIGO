@@ -28,6 +28,7 @@ export interface CompositionItem {
 export interface ServiceComposition {
   id: string;
   companyId?: string;
+  contractId?: string;
   code: string;
   name: string;
   unit: string;
