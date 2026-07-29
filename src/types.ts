@@ -89,7 +89,7 @@ export interface Employee {
   role: string;
   admissionDate: string;
   salary: number;
-  paymentType: 'hour' | 'day' | 'month';
+  paymentType: 'hour' | 'day' | 'month' | 'pj';
   
   // Personal & Documents
   cpf: string;

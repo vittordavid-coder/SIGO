@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion } from 'motion/react';
-import { Plus, Edit, Trash2, FileSpreadsheet, Download, ChevronUp, ChevronDown, TrendingUp, ArrowLeft, Upload, FileText } from 'lucide-react';
+import { Plus, Edit, Trash2, FileSpreadsheet, Download, ChevronUp, ChevronDown, TrendingUp, ArrowLeft, Upload, FileText, Users, Truck, Sparkles } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 import { Resource, ResourceType, PurchaseOrder, Employee, ControllerEquipment } from '../types';
 import { cn, formatCurrency } from '../lib/utils';
@@ -23,7 +23,7 @@ import { NumericInput } from '@/components/ui/numeric-input';
 interface ResourceViewProps {
   key?: string;
   resources: Resource[];
-  onAdd: (r: Omit<Resource, 'id'> & { id?: string }) => string | void;
+  onAdd: (r: (Omit<Resource, 'id'> & { id?: string }) | (Omit<Resource, 'id'> & { id?: string })[]) => string | void;
   onDelete: (id: string) => void;
   onUpdate: (r: Resource) => void;
   purchaseOrders?: PurchaseOrder[];
@@ -66,62 +66,6 @@ export function ResourceView({ resources, onAdd, onDelete, onUpdate, purchaseOrd
   const augmentedResources = React.useMemo(() => {
     let aug = [...resources];
 
-    // Equipment from Controller
-    const existingEqTypes = new Set(aug.filter(r => r.type === 'equipment').map(r => r.name.toLowerCase()));
-    controllerEquipments.forEach(eq => {
-      if (eq.type && !existingEqTypes.has(eq.type.toLowerCase())) {
-        existingEqTypes.add(eq.type.toLowerCase());
-        aug.push({
-          id: `eq-auto-${eq.type}`,
-          code: `EQ-${eq.type.substring(0, 3).toUpperCase()}`,
-          name: eq.type,
-          unit: 'un',
-          type: 'equipment',
-          basePrice: 0,
-        });
-      }
-    });
-
-    // Labor from RH
-    const roles = new Map<string, { totalSalary: number, count: number }>();
-    employees.forEach(emp => {
-      if (!emp.role) return;
-      const roleKey = emp.role.toLowerCase();
-      const current = roles.get(roleKey) || { totalSalary: 0, count: 0 };
-      let hourlyRate = emp.salary;
-      if (emp.paymentType === 'month') hourlyRate = emp.salary / 220;
-      if (emp.paymentType === 'day') hourlyRate = emp.salary / 8;
-      
-      roles.set(roleKey, {
-        totalSalary: current.totalSalary + hourlyRate,
-        count: current.count + 1
-      });
-    });
-
-    const existingLaborTypes = new Set(aug.filter(r => r.type === 'labor').map(r => r.name.toLowerCase()));
-    
-    roles.forEach((data, roleKey) => {
-      if (!existingLaborTypes.has(roleKey)) {
-        existingLaborTypes.add(roleKey);
-        // Find original role name
-        const originalRole = employees.find(e => e.role?.toLowerCase() === roleKey)?.role || roleKey;
-        aug.push({
-          id: `mo-auto-${roleKey}`,
-          code: `MO-${originalRole.substring(0, 3).toUpperCase()}`,
-          name: originalRole,
-          unit: 'h',
-          type: 'labor',
-          basePrice: data.totalSalary / data.count,
-        });
-      } else {
-        // Override base price of existing labor resources with RH average
-        const existing = aug.find(r => r.type === 'labor' && r.name.toLowerCase() === roleKey);
-        if (existing) {
-          existing.basePrice = data.totalSalary / data.count;
-        }
-      }
-    });
-    
     // Recalculate Equipment prices based on operator
     aug = aug.map(r => {
       if (r.type === 'equipment' && r.operatorId) {
@@ -136,7 +80,7 @@ export function ResourceView({ resources, onAdd, onDelete, onUpdate, purchaseOrd
     });
 
     return aug;
-  }, [resources, employees, controllerEquipments]);
+  }, [resources]);
 
   const getResourceStats = React.useCallback((r: Resource) => {
     const codeToMatch = r.code.trim().toLowerCase();
@@ -342,11 +286,12 @@ export function ResourceView({ resources, onAdd, onDelete, onUpdate, purchaseOrd
     return combined.slice(-10);
   }, [selectedHistoryResource, purchaseOrders]);
 
-  const getNextCode = (type: ResourceType) => {
+  const getNextCode = (type: ResourceType, currentList?: Resource[]) => {
     const prefix = type === 'labor' ? 'MO-' : type === 'equipment' ? 'EP-' : 'MAT-';
-    const typeResources = augmentedResources.filter(r => r.type === type);
+    const list = currentList || augmentedResources;
+    const typeResources = list.filter(r => r.type === type);
     
-    // Extract numbers from codes like "MO-0001"
+    // Extract numbers from codes like "MO-0001" or "EP-0001"
     const existingNumbers = typeResources
       .map(r => {
         const match = r.code.match(new RegExp(`${prefix}(\\d+)`));
@@ -366,6 +311,187 @@ export function ResourceView({ resources, onAdd, onDelete, onUpdate, purchaseOrd
     }
 
     return `${prefix}${nextNum.toString().padStart(4, '0')}`;
+  };
+
+  const handleImportRH = () => {
+    if (!employees || employees.length === 0) {
+      alert("⚠️ Nenhum funcionário ou cargo encontrado no cadastro do RH.");
+      return;
+    }
+
+    const rolesMap = new Map<string, { originalRole: string; totalSalary: number; count: number }>();
+    
+    employees.forEach(emp => {
+      if (!emp.role || !emp.role.trim()) return;
+      const roleTrimmed = emp.role.trim();
+      const roleKey = roleTrimmed.toLowerCase();
+
+      let hourlyRate = emp.salary || 0;
+      if (emp.paymentType === 'month' || emp.paymentType === 'pj') hourlyRate = (emp.salary || 0) / 220;
+      if (emp.paymentType === 'day') hourlyRate = (emp.salary || 0) / 8;
+
+      // Filter out functions without values / zero salary
+      if (hourlyRate <= 0) return;
+
+      const current = rolesMap.get(roleKey) || { originalRole: roleTrimmed, totalSalary: 0, count: 0 };
+      rolesMap.set(roleKey, {
+        originalRole: current.originalRole,
+        totalSalary: current.totalSalary + hourlyRate,
+        count: current.count + 1
+      });
+    });
+
+    if (rolesMap.size === 0) {
+      alert("⚠️ Nenhum cargo com salário/valor maior que zero encontrado no RH.");
+      return;
+    }
+
+    let updatedCount = 0;
+    const itemsToAdd: (Omit<Resource, 'id'> & { id?: string })[] = [];
+    let tempResources = [...resources];
+
+    rolesMap.forEach((data, roleKey) => {
+      const avgHourly = data.count > 0 ? data.totalSalary / data.count : 0;
+      if (avgHourly <= 0) return;
+
+      const existing = tempResources.find(r => r.type === 'labor' && r.name.trim().toLowerCase() === roleKey);
+
+      if (existing) {
+        onUpdate({
+          ...existing,
+          basePrice: avgHourly,
+          monthlySalary: avgHourly * 220,
+          hoursPerMonth: 220,
+        });
+        updatedCount++;
+      } else {
+        const newCode = getNextCode('labor', tempResources);
+        const newRes: Omit<Resource, 'id'> = {
+          code: newCode,
+          name: data.originalRole,
+          unit: 'h',
+          type: 'labor',
+          basePrice: avgHourly,
+          monthlySalary: avgHourly * 220,
+          hoursPerMonth: 220,
+        };
+        itemsToAdd.push(newRes);
+        tempResources.push({ ...newRes, id: uuidv4() });
+      }
+    });
+
+    if (itemsToAdd.length > 0) {
+      onAdd(itemsToAdd);
+    }
+
+    setIsExportSelectorOpen(false);
+    alert(`✅ Importação do RH concluída!\n\n• ${itemsToAdd.length} novo(s) cargo(s) com valor de Mão de Obra importados com códigos no padrão de cotação (ex: MO-0001).\n• ${updatedCount} cargo(s) existente(s) atualizados com médias salariais do RH.\n• Cargos sem salário/valor definido foram ignorados conforme regra.`);
+  };
+
+  const handleImportController = () => {
+    if (!controllerEquipments || controllerEquipments.length === 0) {
+      alert("⚠️ Nenhum equipamento encontrado no cadastro do Controlador.");
+      return;
+    }
+
+    const typesMap = new Map<string, { originalName: string; totalPrice: number; count: number; unit: string }>();
+
+    controllerEquipments.forEach(eq => {
+      const eqType = (eq.type || eq.name || '').trim();
+      if (!eqType) return;
+      const keyLower = eqType.toLowerCase();
+
+      // Calculate equipment rate/price from controller fields
+      const price = eq.productivePrice || eq.contractedPrice || (eq.monthlyPrice ? eq.monthlyPrice / 220 : 0) || eq.equipmentBaseCost || 0;
+
+      // Filter out equipment types without values / zero price
+      if (price <= 0) return;
+
+      const unitMapped = eq.measurementUnit === 'Horímetro' ? 'h' : 
+                         eq.measurementUnit === 'Quilometragem' ? 'km' : 
+                         eq.measurementUnit === 'Mensal' ? 'mes' : 
+                         eq.measurementUnit === 'Diária' ? 'dia' : 'h';
+
+      const current = typesMap.get(keyLower) || { originalName: eqType, totalPrice: 0, count: 0, unit: unitMapped };
+      typesMap.set(keyLower, {
+        originalName: current.originalName,
+        totalPrice: current.totalPrice + price,
+        count: current.count + 1,
+        unit: current.unit
+      });
+    });
+
+    if (typesMap.size === 0) {
+      alert("⚠️ Nenhum equipamento com preço/valor de locação maior que zero encontrado no Controlador.");
+      return;
+    }
+
+    let updatedCount = 0;
+    const itemsToAdd: (Omit<Resource, 'id'> & { id?: string })[] = [];
+    let tempResources = [...resources];
+
+    typesMap.forEach((data, keyLower) => {
+      const avgPrice = data.count > 0 ? data.totalPrice / data.count : 0;
+      if (avgPrice <= 0) return;
+
+      const existing = tempResources.find(r => r.type === 'equipment' && r.name.trim().toLowerCase() === keyLower);
+
+      if (existing) {
+        onUpdate({
+          ...existing,
+          basePrice: avgPrice,
+          productivePrice: avgPrice,
+          unit: data.unit || existing.unit,
+        });
+        updatedCount++;
+      } else {
+        const newCode = getNextCode('equipment', tempResources);
+        const newRes: Omit<Resource, 'id'> = {
+          code: newCode,
+          name: data.originalName,
+          unit: data.unit || 'h',
+          type: 'equipment',
+          basePrice: avgPrice,
+          productivePrice: avgPrice,
+        };
+        itemsToAdd.push(newRes);
+        tempResources.push({ ...newRes, id: uuidv4() });
+      }
+    });
+
+    if (itemsToAdd.length > 0) {
+      onAdd(itemsToAdd);
+    }
+
+    setIsExportSelectorOpen(false);
+    alert(`✅ Importação do Controlador concluída!\n\n• ${itemsToAdd.length} novo(s) tipo(s) de Equipamento com valor de locação importados com códigos no padrão de cotação (ex: EP-0001).\n• ${updatedCount} tipo(s) existente(s) atualizados com valores do Controlador.\n• Equipamentos sem preço/valor definido foram ignorados conforme regra.`);
+  };
+
+  const handleStandardizeCodes = () => {
+    let modifiedCount = 0;
+    const tempResources = [...resources];
+
+    tempResources.forEach(res => {
+      const isEqNonStandard = res.type === 'equipment' && (!res.code.startsWith('EP-') || !/^EP-\d{4}$/.test(res.code));
+      const isLaborNonStandard = res.type === 'labor' && (!res.code.startsWith('MO-') || !/^MO-\d{4}$/.test(res.code));
+      const isMaterialNonStandard = res.type === 'material' && (!res.code.startsWith('MAT-') || !/^MAT-\d{4}$/.test(res.code));
+
+      if (isEqNonStandard || isLaborNonStandard || isMaterialNonStandard) {
+        const newCode = getNextCode(res.type, tempResources.filter(r => r.id !== res.id));
+        onUpdate({
+          ...res,
+          code: newCode,
+        });
+        res.code = newCode;
+        modifiedCount++;
+      }
+    });
+
+    if (modifiedCount > 0) {
+      alert(`✅ Padronização de códigos concluída!\n\n${modifiedCount} insumo(s) tiveram seus códigos atualizados para o padrão oficial de Cotações (MO-XXXX, EP-XXXX, MAT-XXXX).`);
+    } else {
+      alert("ℹ️ Todos os códigos de insumos já estão no padrão oficial de Cotações.");
+    }
   };
 
   const handleOpenAdd = () => {
@@ -870,7 +996,78 @@ export function ResourceView({ resources, onAdd, onDelete, onUpdate, purchaseOrd
                       </div>
                     </div>
 
-                    <div className="bg-slate-50 p-4 rounded-xl text-xs space-y-2 text-slate-600 border border-slate-100">
+                    <div className="border-t border-slate-100 pt-4 mt-2 shrink-0">
+                      <div className="flex items-center justify-between mb-3">
+                        <span className="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+                          <Sparkles className="w-3.5 h-3.5 text-purple-600" /> Importar das Integrações Internas (Setores)
+                        </span>
+                        <span className="text-[10px] text-slate-400 font-medium">Codificação padrão Cotações (MO-XXXX, EP-XXXX)</span>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        {/* Importar Dados do RH */}
+                        <button
+                          type="button"
+                          onClick={handleImportRH}
+                          className="flex flex-col items-start p-3.5 border-2 border-purple-100 hover:border-purple-600 hover:bg-purple-50/40 rounded-xl transition group text-left cursor-pointer bg-white"
+                        >
+                          <div className="flex items-center gap-2.5 mb-2 w-full">
+                            <div className="w-8 h-8 rounded-lg bg-purple-100 text-purple-700 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                              <Users className="w-4 h-4" />
+                            </div>
+                            <span className="font-extrabold text-slate-900 text-xs">Importar Dados do RH</span>
+                          </div>
+                          <p className="text-slate-500 text-[11px] leading-snug">
+                            Trás cargos e médias salariais do RH como Mão de Obra com código padrão (<strong className="text-purple-700">MO-0001</strong>...).
+                          </p>
+                          <div className="mt-2.5 text-[10px] bg-purple-100/70 text-purple-800 px-2 py-0.5 rounded-full font-bold">
+                            {employees.length} cadastrados no RH
+                          </div>
+                        </button>
+
+                        {/* Importar Dados do Controlador */}
+                        <button
+                          type="button"
+                          onClick={handleImportController}
+                          className="flex flex-col items-start p-3.5 border-2 border-amber-100 hover:border-amber-600 hover:bg-amber-50/40 rounded-xl transition group text-left cursor-pointer bg-white"
+                        >
+                          <div className="flex items-center gap-2.5 mb-2 w-full">
+                            <div className="w-8 h-8 rounded-lg bg-amber-100 text-amber-700 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                              <Truck className="w-4 h-4" />
+                            </div>
+                            <span className="font-extrabold text-slate-900 text-xs">Importar do Controlador</span>
+                          </div>
+                          <p className="text-slate-500 text-[11px] leading-snug">
+                            Trás frota e tipos do Controlador como Equipamento com código padrão (<strong className="text-amber-700">EP-0001</strong>...).
+                          </p>
+                          <div className="mt-2.5 text-[10px] bg-amber-100/70 text-amber-800 px-2 py-0.5 rounded-full font-bold">
+                            {controllerEquipments.length} cadastrados no Controlador
+                          </div>
+                        </button>
+
+                        {/* Padronizar Códigos */}
+                        <button
+                          type="button"
+                          onClick={handleStandardizeCodes}
+                          className="flex flex-col items-start p-3.5 border-2 border-slate-100 hover:border-blue-600 hover:bg-blue-50/40 rounded-xl transition group text-left cursor-pointer bg-white"
+                        >
+                          <div className="flex items-center gap-2.5 mb-2 w-full">
+                            <div className="w-8 h-8 rounded-lg bg-blue-100 text-blue-700 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                              <Sparkles className="w-4 h-4" />
+                            </div>
+                            <span className="font-extrabold text-slate-900 text-xs">Padronizar Códigos</span>
+                          </div>
+                          <p className="text-slate-500 text-[11px] leading-snug">
+                            Converte códigos antigos (ex: <span className="line-through text-slate-400">EQ-xxx</span>) para a padronização oficial.
+                          </p>
+                          <div className="mt-2.5 text-[10px] bg-blue-100/70 text-blue-800 px-2 py-0.5 rounded-full font-bold">
+                            Atualizar cadastro de insumos
+                          </div>
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="bg-slate-50 p-4 rounded-xl text-xs space-y-2 text-slate-600 border border-slate-100 mt-3">
                       <p className="font-bold text-slate-800">Dica sobre a Importação e Tags de Insumos:</p>
                       <p>Ao realizar a importação de dados por planilha Excel, certifique-se de usar os cabeçalhos das colunas exatamente como definidos no modelo, ou utilize as tags (#) opcionais para mapeamento automático das colunas:</p>
                       

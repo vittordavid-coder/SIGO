@@ -2504,13 +2504,31 @@ export default function App() {
   };
 
   // --- Resource Management ---
-  const addResource = (resource: Omit<Resource, 'id'> & { id?: string }) => {
+  const addResource = (resource: (Omit<Resource, 'id'> & { id?: string }) | (Omit<Resource, 'id'> & { id?: string })[]) => {
+    if (Array.isArray(resource)) {
+      let createdFirstId = '';
+      updateResources((prevResources: Resource[]) => {
+        const newItems: Resource[] = [];
+        resource.forEach(item => {
+          if (prevResources.some(r => r.code === item.code) || services.some(s => s.code === item.code)) {
+            return;
+          }
+          const newId = item.id || uuidv4();
+          if (!createdFirstId) createdFirstId = newId;
+          newItems.push({ ...item, id: newId, companyId: currentUser?.companyId });
+        });
+        return [...prevResources, ...newItems];
+      });
+      addAuditLog('Adição', 'Insumos', `${resource.length} insumos adicionados em lote`);
+      return createdFirstId;
+    }
+
     if (resources.some(r => r.code === resource.code) || services.some(s => s.code === resource.code)) {
       alert(`O código ${resource.code} já está em uso.`);
       return '';
     }
     const newId = resource.id || uuidv4();
-    updateResources([...resources, { ...resource, id: newId, companyId: currentUser?.companyId }]);
+    updateResources((prevResources: Resource[]) => [...prevResources, { ...resource, id: newId, companyId: currentUser?.companyId }]);
     addAuditLog('Adição', 'Insumos', `Insumo adicionado: ${resource.code} - ${resource.name}`);
     return newId;
   };

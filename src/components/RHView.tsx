@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { motion } from "motion/react";
-import { cn, applyCPFMask, applyPhoneMask, applyCEPMask } from "../lib/utils";
+import { cn, applyCPFMask, applyCpfCnpjMask, validateCPF, validateCNPJ, validateCpfOrCnpj, applyPhoneMask, applyCEPMask } from "../lib/utils";
 import {
   Users,
   Calendar,
@@ -1144,7 +1144,7 @@ export default function RHView({
             { label: "Cargo / Função", value: e.role || "-", highlightColor: "blue" },
             { label: "Data de Admissão", value: formatDateForDisplay(e.admissionDate) },
             { label: "Salário Base", value: formattedSalary, highlightColor: "green" },
-            { label: "Tipo de Pagamento", value: e.paymentType === "month" ? "Mensalista" : e.paymentType === "hour" ? "Horista" : "Diarista" },
+            { label: "Tipo de Pagamento", value: e.paymentType === "pj" ? "PJ / Prestador de Serviço" : e.paymentType === "month" ? "Mensalista" : e.paymentType === "hour" ? "Horista" : "Diarista" },
             { label: "Contrato / Obra", value: contract ? `${contract.contractNumber} - ${contract.object || ""}` : "Sem Contrato Atribuído" },
             { label: "Equipe / Frente", value: team?.name || e.team || "Sem Equipe" },
           ],
@@ -1603,7 +1603,7 @@ export default function RHView({
             e.registrationNumber || "",
             e.role || "",
             getEmployeeTeamName(e) || "",
-            e.paymentType === "hour" ? "Horista" : e.paymentType === "day" ? "Diarista" : "Mensalista",
+            e.paymentType === "pj" ? "PJ (Prestador)" : e.paymentType === "hour" ? "Horista" : e.paymentType === "day" ? "Diarista" : "Mensalista",
             e.salary || 0,
             e.admissionDate || "",
             e.rgNumber || "",
@@ -1916,9 +1916,10 @@ export default function RHView({
         const role = String(getCellVal(colRole) || "Ajudante").trim();
 
         let paymentTypeStr = String(getCellVal(colPayment) || "Mensalista").toLowerCase();
-        let paymentType: "hour" | "day" | "month" = "month";
+        let paymentType: "hour" | "day" | "month" | "pj" = "month";
         if (paymentTypeStr.includes("hora") || paymentTypeStr.includes("horista")) paymentType = "hour";
         if (paymentTypeStr.includes("dia") || paymentTypeStr.includes("diarista")) paymentType = "day";
+        if (paymentTypeStr.includes("pj") || paymentTypeStr.includes("prestador") || paymentTypeStr.includes("cnpj")) paymentType = "pj";
 
         const salary = parseNumericValue(getCellVal(colSalary));
         const admissionDateRaw = getCellVal(colAdmission);
@@ -2151,11 +2152,13 @@ export default function RHView({
           ? new Date(e.admissionDate).toLocaleDateString("pt-BR")
           : "",
         finalSalary,
-        e.paymentType === "month"
-          ? "Mensalista"
-          : e.paymentType === "hour"
-            ? "Horista"
-            : "Diarista",
+        e.paymentType === "pj"
+          ? "PJ (Prestador)"
+          : e.paymentType === "month"
+            ? "Mensalista"
+            : e.paymentType === "hour"
+              ? "Horista"
+              : "Diarista",
       ]);
     });
 
@@ -2567,7 +2570,23 @@ export default function RHView({
 
   const handleAddEmployee = async () => {
     if (!newEmployee.name || !newEmployee.cpf || !newEmployee.admissionDate || !newEmployee.contractId || !newEmployee.role) {
-      alert("Nome, CPF, Função, Data de Admissão e Contrato são campos obrigatórios.");
+      alert("Nome, CPF/CNPJ, Função, Data de Admissão e Contrato são campos obrigatórios.");
+      return;
+    }
+
+    const cleanDoc = (newEmployee.cpf || "").replace(/\D/g, "");
+    if (cleanDoc.length === 11) {
+      if (!validateCPF(cleanDoc)) {
+        alert("❌ O CPF informado é inválido. Por favor, verifique os dígitos digitados.");
+        return;
+      }
+    } else if (cleanDoc.length === 14) {
+      if (!validateCNPJ(cleanDoc)) {
+        alert("❌ O CNPJ informado é inválido. Por favor, verifique os dígitos digitados.");
+        return;
+      }
+    } else {
+      alert("❌ O documento informado deve ser um CPF válido (11 dígitos) ou CNPJ válido (14 dígitos).");
       return;
     }
 
@@ -6011,20 +6030,61 @@ export default function RHView({
                                     />
                                   </div>
                                   <div className="space-y-2">
-                                    <Label className="text-sm font-bold text-gray-500 uppercase">
-                                      CPF (Apenas Números) <span className="text-red-500">*</span>
-                                    </Label>
+                                    <div className="flex items-center justify-between">
+                                      <Label className="text-sm font-bold text-gray-500 uppercase">
+                                        CPF / CNPJ <span className="text-red-500">*</span>
+                                      </Label>
+                                      {(() => {
+                                        const clean = (newEmployee.cpf || "").replace(/\D/g, "");
+                                        if (clean.length === 11) {
+                                          return validateCPF(clean) ? (
+                                            <span className="text-[11px] text-emerald-600 font-bold flex items-center gap-1">
+                                              ✓ CPF Válido
+                                            </span>
+                                          ) : (
+                                            <span className="text-[11px] text-red-500 font-bold flex items-center gap-1">
+                                              ✕ CPF Inválido
+                                            </span>
+                                          );
+                                        }
+                                        if (clean.length === 14) {
+                                          return validateCNPJ(clean) ? (
+                                            <span className="text-[11px] text-purple-600 font-bold flex items-center gap-1">
+                                              ✓ CNPJ Válido (PJ)
+                                            </span>
+                                          ) : (
+                                            <span className="text-[11px] text-red-500 font-bold flex items-center gap-1">
+                                              ✕ CNPJ Inválido
+                                            </span>
+                                          );
+                                        }
+                                        return clean.length > 0 ? (
+                                          <span className="text-[10px] text-amber-600 font-medium">
+                                            {clean.length}/11 (CPF) ou {clean.length}/14 (CNPJ)
+                                          </span>
+                                        ) : null;
+                                      })()}
+                                    </div>
                                     <Input
                                       value={newEmployee.cpf || ""}
-                                      onChange={(e) =>
-                                        setNewEmployee({
-                                          ...newEmployee,
-                                          cpf: applyCPFMask(e.target.value),
-                                        })
-                                      }
-                                      placeholder="000.000.000-00"
+                                      onChange={(e) => {
+                                        const masked = applyCpfCnpjMask(e.target.value);
+                                        const clean = masked.replace(/\D/g, "");
+                                        const isCnpj = clean.length > 11;
+                                        setNewEmployee((prev) => ({
+                                          ...prev,
+                                          cpf: masked,
+                                          paymentType: isCnpj ? "pj" : (prev.paymentType === "pj" ? "month" : prev.paymentType || "month"),
+                                        }));
+                                      }}
+                                      placeholder="CPF (000.000.000-00) ou CNPJ (00.000.000/0000-00)"
                                       className="h-11 font-mono shadow-sm"
                                     />
+                                    {(newEmployee.cpf || "").replace(/\D/g, "").length === 14 && (
+                                      <p className="text-[11px] text-purple-700 bg-purple-50 p-1.5 rounded-lg border border-purple-100 font-medium">
+                                        💡 <strong>CNPJ Detectado:</strong> Modalidade de contratação ajustada para <strong>PJ (Prestador de Serviço)</strong>.
+                                      </p>
+                                    )}
                                   </div>
                                   <div className="space-y-2">
                                     <Label className="text-sm font-bold text-gray-500 uppercase">
@@ -6813,6 +6873,9 @@ export default function RHView({
                                         </SelectItem>
                                         <SelectItem value="month">
                                           Contrato Mensal (Mensalista)
+                                        </SelectItem>
+                                        <SelectItem value="pj">
+                                          Prestador de Serviço (PJ / CNPJ)
                                         </SelectItem>
                                       </SelectContent>
                                     </Select>
