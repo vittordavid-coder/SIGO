@@ -11,6 +11,10 @@ export interface Resource {
   encargos?: number;
   productivePrice?: number;
   unproductivePrice?: number;
+  operatorId?: string;
+  equipmentBaseCost?: number;
+  hoursPerMonth?: number;
+  monthlySalary?: number;
 }
 
 export interface CompositionItem {
@@ -831,6 +835,10 @@ export interface ControllerEquipment {
   monthlyPrice?: number; // Preço Mensal
   productivePrice?: number; // Preço Produtivo
   unproductivePrice?: number; // Preço Improdutivo
+  operatorId?: string;
+  equipmentBaseCost?: number;
+  hoursPerMonth?: number;
+  monthlySalary?: number;
   observations?: string;
   customFields?: Record<string, EquipmentAttribute>; // JSONB Data
   photos?: string[]; // URLs das fotos (Supabase Storage)

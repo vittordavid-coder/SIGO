@@ -2504,14 +2504,15 @@ export default function App() {
   };
 
   // --- Resource Management ---
-  const addResource = (resource: Omit<Resource, 'id'>) => {
+  const addResource = (resource: Omit<Resource, 'id'> & { id?: string }) => {
     if (resources.some(r => r.code === resource.code) || services.some(s => s.code === resource.code)) {
       alert(`O código ${resource.code} já está em uso.`);
-      return;
+      return '';
     }
-    const newId = uuidv4();
+    const newId = resource.id || uuidv4();
     updateResources([...resources, { ...resource, id: newId, companyId: currentUser?.companyId }]);
     addAuditLog('Adição', 'Insumos', `Insumo adicionado: ${resource.code} - ${resource.name}`);
+    return newId;
   };
 
   const deleteResource = (id: string) => {
@@ -2527,7 +2528,20 @@ export default function App() {
       alert(`O código ${updatedResource.code} já está em uso.`);
       return;
     }
-    updateResources(resources.map(r => r.id === updatedResource.id ? updatedResource : r));
+    
+    updateResources(resources.map(r => {
+      if (r.id === updatedResource.id) return updatedResource;
+      
+      // Cascade operator changes to equipments
+      if (r.type === 'equipment' && r.operatorId === updatedResource.id) {
+         return {
+           ...r,
+           basePrice: (r.equipmentBaseCost || 0) + updatedResource.basePrice
+         };
+      }
+      return r;
+    }));
+    
     addAuditLog('Edição', 'Insumos', `Insumo editado: ${updatedResource.code}`);
   };
 
@@ -4613,6 +4627,8 @@ export default function App() {
                   onDelete={deleteResource} 
                   onUpdate={updateResource}
                   purchaseOrders={purchaseOrders}
+                  employees={filteredEmployees}
+                  controllerEquipments={finalControllerEquipments}
                   readonly={currentUser?.role === 'reader'}
                 />
               )}

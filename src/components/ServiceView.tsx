@@ -175,6 +175,8 @@ export function ServiceView({
     const item = isEdit && editingService ? editingService.items[index] : newService.items[index];
     setCurrentItem(item);
     setEditingItemIndex(index);
+    const res = resources.find(r => r.id === item.resourceId) || services.find(s => s.id === item.resourceId);
+    if (res) setResourceSearch(res.name);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -689,7 +691,14 @@ export function ServiceView({
             </Dialog>
             
             {!readonly && (
-              <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
+              <Dialog open={isAddOpen} onOpenChange={(open) => {
+                setIsAddOpen(open);
+                if (open) {
+                  setResourceSearch('');
+                  setCurrentItem({ resourceId: '', consumption: 0 });
+                  setEditingItemIndex(null);
+                }
+              }}>
                 <DialogTrigger asChild>
                   <Button className="bg-blue-600 hover:bg-blue-700">
                     <Plus className="w-4 h-4 mr-2" /> Nova Composição
@@ -793,17 +802,20 @@ export function ServiceView({
                                   onClick={() => setIsDropdownOpenAdd(false)} 
                                 />
                                 <div className="absolute z-20 left-0 right-0 mt-1 max-h-60 overflow-y-auto bg-white border border-gray-200 rounded-xl shadow-lg p-2 space-y-1">
-                                  {/* Insumos */}
-                                  <div className="px-2 py-1 flex items-center justify-between">
-                                    <span className="text-xs font-black text-gray-400 uppercase tracking-wider">Insumos</span>
-                                    <span className="text-[10px] bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded-full font-bold">Total: {resources.length}</span>
-                                  </div>
                                   {(() => {
+                                    const searchLower = (resourceSearch || '').trim().toLowerCase();
+                                    const selectedRes = resources.find(r => r.id === currentItem.resourceId) || services.find(s => s.id === currentItem.resourceId);
+                                    const isSelectedMatch = selectedRes && (
+                                      (selectedRes.name || '').toLowerCase() === searchLower ||
+                                      `${selectedRes.code || ''} - ${selectedRes.name || ''}`.toLowerCase() === searchLower
+                                    );
+                                    const effectiveSearch = isSelectedMatch ? '' : searchLower;
+
                                     const seenEquipment = new Set<string>();
-                                    return resources
+                                    const filteredResources = resources
                                       .filter(r => 
-                                        r.name.toLowerCase().includes(resourceSearch.toLowerCase()) || 
-                                        r.code.toLowerCase().includes(resourceSearch.toLowerCase())
+                                        (r.name || '').toLowerCase().includes(effectiveSearch) || 
+                                        (r.code || '').toLowerCase().includes(effectiveSearch)
                                       )
                                       .filter(r => {
                                         if (r.type === 'equipment') {
@@ -813,68 +825,67 @@ export function ServiceView({
                                         }
                                         return true;
                                       });
-                                  })()
-                                    .map(r => (
-                                      <button
-                                        type="button"
-                                        key={r.id}
-                                        onClick={() => {
-                                          setCurrentItem({ ...currentItem, resourceId: r.id });
-                                          setResourceSearch(r.name);
-                                          setIsDropdownOpenAdd(false);
-                                        }}
-                                        className="w-full text-left px-3 py-2 text-sm rounded-lg hover:bg-gray-50 flex items-center justify-between group transition-colors"
-                                      >
-                                        <div className="flex flex-col">
-                                          <span className="font-semibold text-gray-950">{r.name}</span>
-                                          <span className="text-xs font-mono text-gray-500">{r.code} • {r.unit}</span>
-                                        </div>
-                                        <span className="text-xs font-bold text-gray-400 group-hover:text-blue-600">Selecionar</span>
-                                      </button>
-                                    ))}
 
-                                  {/* Serviços */}
-                                  <div className="px-2 py-1 mt-2 flex items-center justify-between border-t border-gray-100 pt-2">
-                                    <span className="text-xs font-black text-gray-400 uppercase tracking-wider">Serviços</span>
-                                    <span className="text-[10px] bg-purple-50 text-purple-600 px-1.5 py-0.5 rounded-full font-bold">Total: {services.length}</span>
-                                  </div>
-                                  {services
-                                    .filter(s => 
-                                      s.name.toLowerCase().includes(resourceSearch.toLowerCase()) || 
-                                      s.code.toLowerCase().includes(resourceSearch.toLowerCase())
-                                    )
-                                    .map(s => (
-                                      <button
-                                        type="button"
-                                        key={s.id}
-                                        onClick={() => {
-                                          setCurrentItem({ ...currentItem, resourceId: s.id });
-                                          setResourceSearch(s.name);
-                                          setIsDropdownOpenAdd(false);
-                                        }}
-                                        className="w-full text-left px-3 py-2 text-sm rounded-lg hover:bg-gray-50 flex items-center justify-between group transition-colors"
-                                      >
-                                        <div className="flex flex-col">
-                                          <span className="font-semibold text-gray-950">{s.name}</span>
-                                          <span className="text-xs font-mono text-gray-500">{s.code} • {s.unit}</span>
-                                        </div>
-                                        <span className="text-xs font-bold text-gray-400 group-hover:text-purple-600">Selecionar</span>
-                                      </button>
-                                    ))}
-
-                                  {(() => {
-                                    const filteredResources = resources.filter(r => 
-                                      r.name.toLowerCase().includes(resourceSearch.toLowerCase()) || 
-                                      r.code.toLowerCase().includes(resourceSearch.toLowerCase())
-                                    );
                                     const filteredServices = services.filter(s => 
-                                      s.name.toLowerCase().includes(resourceSearch.toLowerCase()) || 
-                                      s.code.toLowerCase().includes(resourceSearch.toLowerCase())
+                                      (s.name || '').toLowerCase().includes(effectiveSearch) || 
+                                      (s.code || '').toLowerCase().includes(effectiveSearch)
                                     );
-                                    if (filteredResources.length === 0 && filteredServices.length === 0) {
-                                      return <p className="text-center text-xs text-gray-400 py-4 font-medium animate-pulse">Nenhum insumo ou serviço encontrado.</p>;
-                                    }
-                                    return null;
+
+                                    return (
+                                      <>
+                                        {/* Insumos */}
+                                        <div className="px-2 py-1 flex items-center justify-between">
+                                          <span className="text-xs font-black text-gray-400 uppercase tracking-wider">Insumos</span>
+                                          <span className="text-[10px] bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded-full font-bold">Total: {filteredResources.length}</span>
+                                        </div>
+                                        {filteredResources.map(r => (
+                                          <button
+                                            type="button"
+                                            key={r.id}
+                                            onClick={() => {
+                                              setCurrentItem({ ...currentItem, resourceId: r.id });
+                                              setResourceSearch(r.name);
+                                              setIsDropdownOpenAdd(false);
+                                            }}
+                                            className="w-full text-left px-3 py-2 text-sm rounded-lg hover:bg-gray-50 flex items-center justify-between group transition-colors"
+                                          >
+                                            <div className="flex flex-col">
+                                              <span className="font-semibold text-gray-950">{r.name}</span>
+                                              <span className="text-xs font-mono text-gray-500">{r.code} • {r.unit}</span>
+                                            </div>
+                                            <span className="text-xs font-bold text-gray-400 group-hover:text-blue-600">Selecionar</span>
+                                          </button>
+                                        ))}
+
+                                        {/* Serviços */}
+                                        <div className="px-2 py-1 mt-2 flex items-center justify-between border-t border-gray-100 pt-2">
+                                          <span className="text-xs font-black text-gray-400 uppercase tracking-wider">Serviços</span>
+                                          <span className="text-[10px] bg-purple-50 text-purple-600 px-1.5 py-0.5 rounded-full font-bold">Total: {filteredServices.length}</span>
+                                        </div>
+                                        {filteredServices.map(s => (
+                                          <button
+                                            type="button"
+                                            key={s.id}
+                                            onClick={() => {
+                                              setCurrentItem({ ...currentItem, resourceId: s.id });
+                                              setResourceSearch(s.name);
+                                              setIsDropdownOpenAdd(false);
+                                            }}
+                                            className="w-full text-left px-3 py-2 text-sm rounded-lg hover:bg-gray-50 flex items-center justify-between group transition-colors"
+                                          >
+                                            <div className="flex flex-col">
+                                              <span className="font-semibold text-gray-950">{s.name}</span>
+                                              <span className="text-xs font-mono text-gray-500">{s.code} • {s.unit}</span>
+                                            </div>
+                                            <span className="text-xs font-bold text-gray-400 group-hover:text-purple-600">Selecionar</span>
+                                          </button>
+                                        ))}
+
+                                        {filteredResources.length === 0 && filteredServices.length === 0 && (
+                                          <p className="text-center text-xs text-gray-400 py-4 font-medium animate-pulse">Nenhum insumo ou serviço encontrado.</p>
+                                        )}
+                                      </>
+                                    );
                                   })()}
                                 </div>
                               </>
@@ -1089,17 +1100,20 @@ export function ServiceView({
                                 onClick={() => setIsDropdownOpenEdit(false)} 
                               />
                               <div className="absolute z-20 left-0 right-0 mt-1 max-h-60 overflow-y-auto bg-white border border-gray-200 rounded-xl shadow-lg p-2 space-y-1">
-                                {/* Insumos */}
-                                <div className="px-2 py-1 flex items-center justify-between">
-                                  <span className="text-xs font-black text-gray-400 uppercase tracking-wider">Insumos</span>
-                                  <span className="text-[10px] bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded-full font-bold">Total: {resources.length}</span>
-                                </div>
                                 {(() => {
+                                  const searchLower = (resourceSearch || '').trim().toLowerCase();
+                                  const selectedRes = resources.find(r => r.id === currentItem.resourceId) || services.find(s => s.id === currentItem.resourceId);
+                                  const isSelectedMatch = selectedRes && (
+                                    (selectedRes.name || '').toLowerCase() === searchLower ||
+                                    `${selectedRes.code || ''} - ${selectedRes.name || ''}`.toLowerCase() === searchLower
+                                  );
+                                  const effectiveSearch = isSelectedMatch ? '' : searchLower;
+
                                   const seenEquipment = new Set<string>();
-                                  return resources
+                                  const filteredResources = resources
                                     .filter(r => 
-                                      r.name.toLowerCase().includes(resourceSearch.toLowerCase()) || 
-                                      r.code.toLowerCase().includes(resourceSearch.toLowerCase())
+                                      (r.name || '').toLowerCase().includes(effectiveSearch) || 
+                                      (r.code || '').toLowerCase().includes(effectiveSearch)
                                     )
                                     .filter(r => {
                                       if (r.type === 'equipment') {
@@ -1109,71 +1123,69 @@ export function ServiceView({
                                       }
                                       return true;
                                     });
-                                })()
-                                  .map(r => (
-                                    <button
-                                      type="button"
-                                      key={r.id}
-                                      onClick={() => {
-                                        setCurrentItem({ ...currentItem, resourceId: r.id });
-                                        setResourceSearch(r.name);
-                                        setIsDropdownOpenEdit(false);
-                                      }}
-                                      className="w-full text-left px-3 py-2 text-sm rounded-lg hover:bg-gray-50 flex items-center justify-between group transition-colors"
-                                    >
-                                      <div className="flex flex-col">
-                                        <span className="font-semibold text-gray-950">{r.name}</span>
-                                        <span className="text-xs font-mono text-gray-500">{r.code} • {r.unit}</span>
-                                      </div>
-                                      <span className="text-xs font-bold text-gray-400 group-hover:text-blue-600">Selecionar</span>
-                                    </button>
-                                  ))}
 
-                                {/* Serviços */}
-                                <div className="px-2 py-1 mt-2 flex items-center justify-between border-t border-gray-100 pt-2">
-                                  <span className="text-xs font-black text-gray-400 uppercase tracking-wider">Serviços</span>
-                                  <span className="text-[10px] bg-purple-50 text-purple-600 px-1.5 py-0.5 rounded-full font-bold">Total: {services.length}</span>
-                                </div>
-                                {services
-                                  .filter(s => s.id !== editingService.id)
-                                  .filter(s => 
-                                    s.name.toLowerCase().includes(resourceSearch.toLowerCase()) || 
-                                    s.code.toLowerCase().includes(resourceSearch.toLowerCase())
-                                  )
-                                  .map(s => (
-                                    <button
-                                      type="button"
-                                      key={s.id}
-                                      onClick={() => {
-                                        setCurrentItem({ ...currentItem, resourceId: s.id });
-                                        setResourceSearch(s.name);
-                                        setIsDropdownOpenEdit(false);
-                                      }}
-                                      className="w-full text-left px-3 py-2 text-sm rounded-lg hover:bg-gray-50 flex items-center justify-between group transition-colors"
-                                    >
-                                      <div className="flex flex-col">
-                                        <span className="font-semibold text-gray-950">{s.name}</span>
-                                        <span className="text-xs font-mono text-gray-500">{s.code} • {s.unit}</span>
-                                      </div>
-                                      <span className="text-xs font-bold text-gray-400 group-hover:text-purple-600">Selecionar</span>
-                                    </button>
-                                  ))}
-
-                                {(() => {
-                                  const filteredResources = resources.filter(r => 
-                                    r.name.toLowerCase().includes(resourceSearch.toLowerCase()) || 
-                                    r.code.toLowerCase().includes(resourceSearch.toLowerCase())
-                                  );
                                   const filteredServices = services
-                                    .filter(s => s.id !== editingService.id)
+                                    .filter(s => editingService && s.id !== editingService.id)
                                     .filter(s => 
-                                      s.name.toLowerCase().includes(resourceSearch.toLowerCase()) || 
-                                      s.code.toLowerCase().includes(resourceSearch.toLowerCase())
+                                      (s.name || '').toLowerCase().includes(effectiveSearch) || 
+                                      (s.code || '').toLowerCase().includes(effectiveSearch)
                                     );
-                                  if (filteredResources.length === 0 && filteredServices.length === 0) {
-                                    return <p className="text-center text-xs text-gray-400 py-4 font-medium animate-pulse">Nenhum insumo ou serviço encontrado.</p>;
-                                  }
-                                  return null;
+
+                                  return (
+                                    <>
+                                      {/* Insumos */}
+                                      <div className="px-2 py-1 flex items-center justify-between">
+                                        <span className="text-xs font-black text-gray-400 uppercase tracking-wider">Insumos</span>
+                                        <span className="text-[10px] bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded-full font-bold">Total: {filteredResources.length}</span>
+                                      </div>
+                                      {filteredResources.map(r => (
+                                        <button
+                                          type="button"
+                                          key={r.id}
+                                          onClick={() => {
+                                            setCurrentItem({ ...currentItem, resourceId: r.id });
+                                            setResourceSearch(r.name);
+                                            setIsDropdownOpenEdit(false);
+                                          }}
+                                          className="w-full text-left px-3 py-2 text-sm rounded-lg hover:bg-gray-50 flex items-center justify-between group transition-colors"
+                                        >
+                                          <div className="flex flex-col">
+                                            <span className="font-semibold text-gray-950">{r.name}</span>
+                                            <span className="text-xs font-mono text-gray-500">{r.code} • {r.unit}</span>
+                                          </div>
+                                          <span className="text-xs font-bold text-gray-400 group-hover:text-blue-600">Selecionar</span>
+                                        </button>
+                                      ))}
+
+                                      {/* Serviços */}
+                                      <div className="px-2 py-1 mt-2 flex items-center justify-between border-t border-gray-100 pt-2">
+                                        <span className="text-xs font-black text-gray-400 uppercase tracking-wider">Serviços</span>
+                                        <span className="text-[10px] bg-purple-50 text-purple-600 px-1.5 py-0.5 rounded-full font-bold">Total: {filteredServices.length}</span>
+                                      </div>
+                                      {filteredServices.map(s => (
+                                        <button
+                                          type="button"
+                                          key={s.id}
+                                          onClick={() => {
+                                            setCurrentItem({ ...currentItem, resourceId: s.id });
+                                            setResourceSearch(s.name);
+                                            setIsDropdownOpenEdit(false);
+                                          }}
+                                          className="w-full text-left px-3 py-2 text-sm rounded-lg hover:bg-gray-50 flex items-center justify-between group transition-colors"
+                                        >
+                                          <div className="flex flex-col">
+                                            <span className="font-semibold text-gray-950">{s.name}</span>
+                                            <span className="text-xs font-mono text-gray-500">{s.code} • {s.unit}</span>
+                                          </div>
+                                          <span className="text-xs font-bold text-gray-400 group-hover:text-purple-600">Selecionar</span>
+                                        </button>
+                                      ))}
+
+                                      {filteredResources.length === 0 && filteredServices.length === 0 && (
+                                        <p className="text-center text-xs text-gray-400 py-4 font-medium animate-pulse">Nenhum insumo ou serviço encontrado.</p>
+                                      )}
+                                    </>
+                                  );
                                 })()}
                               </div>
                             </>

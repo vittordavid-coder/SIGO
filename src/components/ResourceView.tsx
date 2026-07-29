@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { motion } from 'motion/react';
 import { Plus, Edit, Trash2, FileSpreadsheet, Download, ChevronUp, ChevronDown, TrendingUp, ArrowLeft, Upload, FileText } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
-import { Resource, ResourceType, PurchaseOrder } from '../types';
+import { Resource, ResourceType, PurchaseOrder, Employee, ControllerEquipment } from '../types';
 import { cn, formatCurrency } from '../lib/utils';
 import { exportResourcesToExcel, exportResourcesToPDF } from '../lib/exportUtils';
 import { Button } from '@/components/ui/button';
@@ -12,6 +12,9 @@ import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
+import { Check, ChevronsUpDown } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts';
 
@@ -20,14 +23,16 @@ import { NumericInput } from '@/components/ui/numeric-input';
 interface ResourceViewProps {
   key?: string;
   resources: Resource[];
-  onAdd: (r: Omit<Resource, 'id'>) => void;
+  onAdd: (r: Omit<Resource, 'id'> & { id?: string }) => string | void;
   onDelete: (id: string) => void;
   onUpdate: (r: Resource) => void;
   purchaseOrders?: PurchaseOrder[];
   readonly?: boolean;
+  employees?: Employee[];
+  controllerEquipments?: ControllerEquipment[];
 }
 
-export function ResourceView({ resources, onAdd, onDelete, onUpdate, purchaseOrders = [], readonly }: ResourceViewProps) {
+export function ResourceView({ resources, onAdd, onDelete, onUpdate, purchaseOrders = [], readonly, employees = [], controllerEquipments = [] }: ResourceViewProps) {
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isExportSelectorOpen, setIsExportSelectorOpen] = useState(false);
@@ -35,6 +40,17 @@ export function ResourceView({ resources, onAdd, onDelete, onUpdate, purchaseOrd
   const [editingResource, setEditingResource] = useState<Resource | null>(null);
   const [selectedHistoryResource, setSelectedHistoryResource] = useState<Resource | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [operatorSearch, setOperatorSearch] = useState('');
+  const [operatorComboboxOpen, setOperatorComboboxOpen] = useState(false);
+  const [newOperatorName, setNewOperatorName] = useState('');
+  const [newOperatorSalary, setNewOperatorSalary] = useState(0);
+  const [newOperatorHours, setNewOperatorHours] = useState(220);
+
+  const [editOperatorSearch, setEditOperatorSearch] = useState('');
+  const [editOperatorComboboxOpen, setEditOperatorComboboxOpen] = useState(false);
+  const [editNewOperatorName, setEditNewOperatorName] = useState('');
+  const [editNewOperatorSalary, setEditNewOperatorSalary] = useState(0);
+  const [editNewOperatorHours, setEditNewOperatorHours] = useState(220);
   const [sortField, setSortField] = useState<'code' | 'name' | 'type' | 'unit' | 'basePrice'>('code');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
   const [newResource, setNewResource] = useState<Omit<Resource, 'id'>>({
@@ -43,7 +59,84 @@ export function ResourceView({ resources, onAdd, onDelete, onUpdate, purchaseOrd
     unit: '',
     type: 'material',
     basePrice: 0,
+    hoursPerMonth: 220,
+    monthlySalary: 0,
   });
+
+  const augmentedResources = React.useMemo(() => {
+    let aug = [...resources];
+
+    // Equipment from Controller
+    const existingEqTypes = new Set(aug.filter(r => r.type === 'equipment').map(r => r.name.toLowerCase()));
+    controllerEquipments.forEach(eq => {
+      if (eq.type && !existingEqTypes.has(eq.type.toLowerCase())) {
+        existingEqTypes.add(eq.type.toLowerCase());
+        aug.push({
+          id: `eq-auto-${eq.type}`,
+          code: `EQ-${eq.type.substring(0, 3).toUpperCase()}`,
+          name: eq.type,
+          unit: 'un',
+          type: 'equipment',
+          basePrice: 0,
+        });
+      }
+    });
+
+    // Labor from RH
+    const roles = new Map<string, { totalSalary: number, count: number }>();
+    employees.forEach(emp => {
+      if (!emp.role) return;
+      const roleKey = emp.role.toLowerCase();
+      const current = roles.get(roleKey) || { totalSalary: 0, count: 0 };
+      let hourlyRate = emp.salary;
+      if (emp.paymentType === 'month') hourlyRate = emp.salary / 220;
+      if (emp.paymentType === 'day') hourlyRate = emp.salary / 8;
+      
+      roles.set(roleKey, {
+        totalSalary: current.totalSalary + hourlyRate,
+        count: current.count + 1
+      });
+    });
+
+    const existingLaborTypes = new Set(aug.filter(r => r.type === 'labor').map(r => r.name.toLowerCase()));
+    
+    roles.forEach((data, roleKey) => {
+      if (!existingLaborTypes.has(roleKey)) {
+        existingLaborTypes.add(roleKey);
+        // Find original role name
+        const originalRole = employees.find(e => e.role?.toLowerCase() === roleKey)?.role || roleKey;
+        aug.push({
+          id: `mo-auto-${roleKey}`,
+          code: `MO-${originalRole.substring(0, 3).toUpperCase()}`,
+          name: originalRole,
+          unit: 'h',
+          type: 'labor',
+          basePrice: data.totalSalary / data.count,
+        });
+      } else {
+        // Override base price of existing labor resources with RH average
+        const existing = aug.find(r => r.type === 'labor' && r.name.toLowerCase() === roleKey);
+        if (existing) {
+          existing.basePrice = data.totalSalary / data.count;
+        }
+      }
+    });
+    
+    // Recalculate Equipment prices based on operator
+    aug = aug.map(r => {
+      if (r.type === 'equipment' && r.operatorId) {
+        const op = aug.find(o => o.id === r.operatorId);
+        const opCost = op ? op.basePrice : 0;
+        return {
+           ...r,
+           basePrice: (r.equipmentBaseCost || 0) + opCost
+        };
+      }
+      return r;
+    });
+
+    return aug;
+  }, [resources, employees, controllerEquipments]);
 
   const getResourceStats = React.useCallback((r: Resource) => {
     const codeToMatch = r.code.trim().toLowerCase();
@@ -100,6 +193,99 @@ export function ResourceView({ resources, onAdd, onDelete, onUpdate, purchaseOrd
       source: 'Inicial',
       rawDate: '0000-00-00'
     });
+
+    // History from RH for Labor
+    if (selectedHistoryResource.type === 'labor') {
+      const roleName = selectedHistoryResource.name.toLowerCase();
+      employees.forEach(emp => {
+        if (emp.role && emp.role.toLowerCase() === roleName) {
+          let hourlyRate = emp.salary;
+          if (emp.paymentType === 'month') hourlyRate = emp.salary / 220;
+          if (emp.paymentType === 'day') hourlyRate = emp.salary / 8;
+
+          const dateStr = emp.admissionDate || new Date().toISOString().split('T')[0];
+          let formattedDate = dateStr;
+          try {
+            const parts = dateStr.split('-');
+            if (parts.length === 3) formattedDate = `${parts[2]}/${parts[1]}/${parts[0].slice(2)}`;
+          } catch(e) {}
+
+          history.push({
+             date: formattedDate,
+             price: hourlyRate,
+             quantity: 1,
+             total: hourlyRate,
+             source: `Colab: ${emp.name}`,
+             rawDate: dateStr
+          });
+        }
+      });
+    }
+
+
+    
+    // If it's equipment and has an operator, the operator's history affects the equipment
+    if (selectedHistoryResource.type === 'equipment' && selectedHistoryResource.operatorId) {
+      const op = augmentedResources.find(r => r.id === selectedHistoryResource.operatorId);
+      if (op) {
+        // Find operator history in RH
+        if (op.type === 'labor') {
+          const roleName = op.name.toLowerCase();
+          employees.forEach(emp => {
+            if (emp.role && emp.role.toLowerCase() === roleName) {
+              let hourlyRate = emp.salary;
+              if (emp.paymentType === 'month') hourlyRate = emp.salary / 220;
+              if (emp.paymentType === 'day') hourlyRate = emp.salary / 8;
+              const dateStr = emp.admissionDate || new Date().toISOString().split('T')[0];
+              let formattedDate = dateStr;
+              try {
+                const parts = dateStr.split('-');
+                if (parts.length === 3) formattedDate = `${parts[2]}/${parts[1]}/${parts[0].slice(2)}`;
+              } catch(e) {}
+              
+              const eqCost = selectedHistoryResource.equipmentBaseCost || 0;
+              history.push({
+                 date: formattedDate,
+                 price: eqCost + hourlyRate,
+                 quantity: 1,
+                 total: eqCost + hourlyRate,
+                 source: `Colab (Op): ${emp.name}`,
+                 rawDate: dateStr
+              });
+            }
+          });
+        }
+        
+        // Also check operator purchases
+        const opCode = op.code.trim().toLowerCase();
+        const opName = op.name.trim().toLowerCase();
+        purchaseOrders.forEach(po => {
+           // similar to what is done below, but add eqCost
+           const orderDateRaw = po.orderDate || new Date().toISOString().split('T')[0];
+           let formattedDate = orderDateRaw;
+           try {
+             const parts = orderDateRaw.split('-');
+             if (parts.length === 3) formattedDate = `${parts[2]}/${parts[1]}/${parts[0].slice(2)}`;
+           } catch(e) {}
+           
+           po.items.forEach(item => {
+             const itemCode = (item.code || '').trim().toLowerCase();
+             const itemName = (item.description || '').trim().toLowerCase();
+             if ((itemCode && itemCode === opCode) || (!itemCode && itemName && itemName.includes(opName))) {
+                const eqCost = selectedHistoryResource.equipmentBaseCost || 0;
+                history.push({
+                  date: formattedDate,
+                  price: eqCost + item.price,
+                  quantity: item.quantity,
+                  total: eqCost + item.price,
+                  source: `Compra (Op): Pedido #${po.id.substring(0,6)}`,
+                  rawDate: orderDateRaw
+                });
+             }
+           });
+        });
+      }
+    }
 
     const codeToMatch = selectedHistoryResource.code.trim().toLowerCase();
     const nameToMatch = selectedHistoryResource.name.trim().toLowerCase();
@@ -158,7 +344,7 @@ export function ResourceView({ resources, onAdd, onDelete, onUpdate, purchaseOrd
 
   const getNextCode = (type: ResourceType) => {
     const prefix = type === 'labor' ? 'MO-' : type === 'equipment' ? 'EP-' : 'MAT-';
-    const typeResources = resources.filter(r => r.type === type);
+    const typeResources = augmentedResources.filter(r => r.type === type);
     
     // Extract numbers from codes like "MO-0001"
     const existingNumbers = typeResources
@@ -204,9 +390,31 @@ export function ResourceView({ resources, onAdd, onDelete, onUpdate, purchaseOrd
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onAdd(newResource);
+    let finalResource = { ...newResource };
+    if (finalResource.type === 'equipment' && finalResource.operatorId === 'new') {
+      const opPrice = newOperatorSalary / newOperatorHours;
+      const newOpId = onAdd({
+        code: getNextCode('labor'),
+        name: newOperatorName,
+        type: 'labor',
+        unit: 'h',
+        basePrice: opPrice,
+        hoursPerMonth: newOperatorHours,
+        monthlySalary: newOperatorSalary,
+        encargos: 0
+      });
+      if (typeof newOpId === 'string' && newOpId) {
+        finalResource.operatorId = newOpId;
+      } else {
+        finalResource.operatorId = undefined;
+      }
+      finalResource.basePrice = (finalResource.equipmentBaseCost || 0) + opPrice;
+    }
+    onAdd(finalResource);
     setIsAddOpen(false);
     setNewResource({ code: '', name: '', unit: '', type: 'material', basePrice: 0 });
+    setNewOperatorName('');
+    setNewOperatorSalary(0);
     alert("Insumo salvo com sucesso na tabela resources!");
   };
 
@@ -223,9 +431,31 @@ export function ResourceView({ resources, onAdd, onDelete, onUpdate, purchaseOrd
   const handleEditSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (editingResource) {
-      onUpdate(editingResource);
+      let finalResource = { ...editingResource };
+      if (finalResource.type === 'equipment' && finalResource.operatorId === 'new') {
+        const opPrice = editNewOperatorSalary / editNewOperatorHours;
+        const newOpId = onAdd({
+          code: getNextCode('labor'),
+          name: editNewOperatorName,
+          type: 'labor',
+          unit: 'h',
+          basePrice: opPrice,
+          hoursPerMonth: editNewOperatorHours,
+          monthlySalary: editNewOperatorSalary,
+          encargos: 0
+        });
+        if (typeof newOpId === 'string' && newOpId) {
+          finalResource.operatorId = newOpId;
+        } else {
+          finalResource.operatorId = undefined;
+        }
+        finalResource.basePrice = (finalResource.equipmentBaseCost || 0) + opPrice;
+      }
+      onUpdate(finalResource);
       setIsEditOpen(false);
       setEditingResource(null);
+      setEditNewOperatorName('');
+      setEditNewOperatorSalary(0);
       alert("Insumo editado com sucesso na tabela resources!");
     }
   };
@@ -321,14 +551,12 @@ export function ResourceView({ resources, onAdd, onDelete, onUpdate, purchaseOrd
   const handleSort = (field: typeof sortField) => {
     if (sortField === field) {
       setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
-    } else {
-      setSortField(field);
       setSortOrder('asc');
     }
   };
 
   const sortedResources = React.useMemo(() => {
-    const filtered = resources.filter(r => 
+    const filtered = augmentedResources.filter(r => 
       r.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
       r.code.toLowerCase().includes(searchTerm.toLowerCase())
     );
@@ -722,33 +950,237 @@ export function ResourceView({ resources, onAdd, onDelete, onUpdate, purchaseOrd
                     />
                   </div>
                   <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="price" className="text-right">Preço Base</Label>
+                    <Label htmlFor="price" className="text-right">
+                      {newResource.type === 'labor' ? 'Preço Hora' : newResource.type === 'equipment' ? 'Preço Final' : 'Preço Base'}
+                    </Label>
                     <div className="col-span-3">
                       <NumericInput 
                         id="price" 
                         value={newResource.basePrice} 
-                        onChange={val => setNewResource({...newResource, basePrice: val})} 
+                        onChange={val => {
+                          if (newResource.type === 'labor') {
+                            setNewResource({...newResource, basePrice: val, monthlySalary: val * (newResource.hoursPerMonth || 220)});
+                          } else {
+                            setNewResource({...newResource, basePrice: val});
+                          }
+                        }} 
                         prefix="R$"
                         decimals={2}
                         required
+                        disabled={newResource.type === 'equipment' && !!newResource.operatorId}
                       />
                     </div>
                   </div>
                   {newResource.type === 'labor' && (
-                    <div className="grid grid-cols-4 items-center gap-4">
-                      <Label htmlFor="encargos" className="text-right">Encargos (%)</Label>
-                      <div className="col-span-3">
-                        <NumericInput 
-                          id="encargos" 
-                          value={newResource.encargos || 0} 
-                          onChange={val => setNewResource({...newResource, encargos: val})} 
-                          decimals={2}
-                        />
+                    <>
+                      <div className="grid grid-cols-4 items-center gap-4">
+                        <Label htmlFor="hoursPerMonth" className="text-right">Horas/Mês</Label>
+                        <div className="col-span-3">
+                          <NumericInput 
+                            id="hoursPerMonth" 
+                            value={newResource.hoursPerMonth || 220} 
+                            onChange={val => {
+                               const hours = val || 220;
+                               setNewResource({...newResource, hoursPerMonth: hours, basePrice: newResource.monthlySalary ? newResource.monthlySalary / hours : newResource.basePrice});
+                            }} 
+                            decimals={0}
+                          />
+                        </div>
                       </div>
-                    </div>
+                      <div className="grid grid-cols-4 items-center gap-4">
+                        <Label htmlFor="monthlySalary" className="text-right">Valor Mensal</Label>
+                        <div className="col-span-3">
+                          <NumericInput 
+                            id="monthlySalary" 
+                            value={newResource.monthlySalary || 0} 
+                            onChange={val => {
+                               const hours = newResource.hoursPerMonth || 220;
+                               setNewResource({...newResource, monthlySalary: val, basePrice: val / hours});
+                            }} 
+                            prefix="R$"
+                            decimals={2}
+                          />
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-4 items-center gap-4">
+                        <Label htmlFor="encargos" className="text-right">Encargos (%)</Label>
+                        <div className="col-span-3">
+                          <NumericInput 
+                            id="encargos" 
+                            value={newResource.encargos || 0} 
+                            onChange={val => setNewResource({...newResource, encargos: val})} 
+                            decimals={2}
+                          />
+                        </div>
+                      </div>
+                    </>
                   )}
                   {newResource.type === 'equipment' && (
                     <>
+                      <div className="grid grid-cols-4 items-center gap-4">
+                        <Label htmlFor="equipmentBaseCost" className="text-right leading-tight">Custo<br/>Equipamento</Label>
+                        <div className="col-span-3">
+                          <NumericInput 
+                            id="equipmentBaseCost" 
+                            value={newResource.equipmentBaseCost || 0} 
+                            onChange={val => {
+                              const op = augmentedResources.find(r => r.id === newResource.operatorId);
+                              const opCost = op ? op.basePrice : 0;
+                              setNewResource({...newResource, equipmentBaseCost: val, basePrice: (val || 0) + opCost});
+                            }} 
+                            prefix="R$"
+                            decimals={2}
+                          />
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-4 items-center gap-4">
+                        <Label className="text-right">Operador</Label>
+                        <div className="col-span-3 flex flex-col gap-2">
+                          <div className="relative">
+                            <Input
+                              type="text"
+                              placeholder="Digite para buscar ou criar operador..."
+                              value={
+                                (!operatorComboboxOpen && newResource.operatorId)
+                                  ? (newResource.operatorId === 'new'
+                                      ? `Novo: ${newOperatorName}`
+                                      : (augmentedResources.find(r => r.id === newResource.operatorId)?.name || 'Sem operador'))
+                                  : operatorSearch
+                              }
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                setOperatorSearch(val);
+                                setOperatorComboboxOpen(true);
+                                if (!val) {
+                                  setNewResource({
+                                    ...newResource,
+                                    operatorId: undefined,
+                                    basePrice: newResource.equipmentBaseCost || 0
+                                  });
+                                }
+                              }}
+                              onFocus={() => {
+                                setOperatorComboboxOpen(true);
+                                const currentName = newResource.operatorId === 'new'
+                                  ? newOperatorName
+                                  : (augmentedResources.find(r => r.id === newResource.operatorId)?.name || '');
+                                setOperatorSearch(currentName);
+                              }}
+                              className="h-10 text-sm"
+                            />
+                            {(newResource.operatorId || operatorSearch) && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setNewResource({
+                                    ...newResource,
+                                    operatorId: undefined,
+                                    basePrice: newResource.equipmentBaseCost || 0
+                                  });
+                                  setOperatorSearch('');
+                                  setOperatorComboboxOpen(false);
+                                }}
+                                className="absolute right-3 top-3 text-gray-400 hover:text-gray-600 font-bold text-xs"
+                              >
+                                ✕
+                              </button>
+                            )}
+
+                            {operatorComboboxOpen && (
+                              <>
+                                <div className="fixed inset-0 z-10" onClick={() => setOperatorComboboxOpen(false)} />
+                                <div className="absolute z-20 left-0 right-0 mt-1 max-h-60 overflow-y-auto bg-white border border-gray-200 rounded-xl shadow-lg p-2 space-y-1">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setNewResource({
+                                        ...newResource,
+                                        operatorId: undefined,
+                                        basePrice: newResource.equipmentBaseCost || 0
+                                      });
+                                      setOperatorSearch('');
+                                      setOperatorComboboxOpen(false);
+                                    }}
+                                    className="w-full text-left px-3 py-2 text-sm rounded-lg hover:bg-gray-50 flex items-center justify-between text-gray-500 font-medium"
+                                  >
+                                    <span>Sem operador</span>
+                                    {!newResource.operatorId && <Check className="w-4 h-4 text-blue-600" />}
+                                  </button>
+
+                                  {(() => {
+                                    const searchLower = (operatorSearch || '').trim().toLowerCase();
+                                    const currentOpName = newResource.operatorId === 'new'
+                                      ? newOperatorName
+                                      : (augmentedResources.find(r => r.id === newResource.operatorId)?.name || '');
+                                    const effectiveSearch = (currentOpName && currentOpName.toLowerCase() === searchLower) ? '' : searchLower;
+
+                                    const matches = augmentedResources
+                                      .filter(r => r.type === 'labor')
+                                      .filter(r => (r.name || '').toLowerCase().includes(effectiveSearch));
+
+                                    return matches.map(lab => (
+                                      <button
+                                        type="button"
+                                        key={lab.id}
+                                        onClick={() => {
+                                          const opCost = lab.basePrice;
+                                          setNewResource({
+                                            ...newResource,
+                                            operatorId: lab.id,
+                                            basePrice: (newResource.equipmentBaseCost || 0) + opCost
+                                          });
+                                          setOperatorSearch(lab.name);
+                                          setOperatorComboboxOpen(false);
+                                        }}
+                                        className="w-full text-left px-3 py-2 text-sm rounded-lg hover:bg-gray-50 flex items-center justify-between group"
+                                      >
+                                        <div className="flex flex-col">
+                                          <span className="font-semibold text-gray-900">{lab.name}</span>
+                                          <span className="text-xs text-gray-500 font-mono">{formatCurrency(lab.basePrice)}</span>
+                                        </div>
+                                        {newResource.operatorId === lab.id && <Check className="w-4 h-4 text-blue-600" />}
+                                      </button>
+                                    ));
+                                  })()}
+
+                                  {operatorSearch.trim() && (
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setNewResource({ ...newResource, operatorId: 'new' });
+                                        setNewOperatorName(operatorSearch);
+                                        setOperatorComboboxOpen(false);
+                                      }}
+                                      className="w-full text-left px-3 py-2 text-sm rounded-lg hover:bg-blue-50 text-blue-600 flex items-center gap-2 font-semibold border-t border-gray-100 mt-1 pt-2"
+                                    >
+                                      <Plus className="w-4 h-4" /> Criar operador "{operatorSearch}"
+                                    </button>
+                                  )}
+                                </div>
+                              </>
+                            )}
+                          </div>
+                          {newResource.operatorId === 'new' && (
+                             <div className="p-3 border rounded-md bg-gray-50 flex flex-col gap-3 mt-2">
+                               <div className="text-xs font-bold text-gray-500 uppercase">Novo Operador</div>
+                               <div className="flex flex-col gap-2">
+                                 <Label>Nome da Função</Label>
+                                 <Input value={newOperatorName} onChange={e => setNewOperatorName(e.target.value)} />
+                               </div>
+                               <div className="flex gap-2">
+                                 <div className="flex flex-col gap-2 w-1/3">
+                                   <Label>Horas/Mês</Label>
+                                   <NumericInput value={newOperatorHours} onChange={setNewOperatorHours} decimals={0} />
+                                 </div>
+                                 <div className="flex flex-col gap-2 w-2/3">
+                                   <Label>Salário Mensal</Label>
+                                   <NumericInput value={newOperatorSalary} onChange={setNewOperatorSalary} prefix="R$" decimals={2} />
+                                 </div>
+                               </div>
+                             </div>
+                          )}
+                        </div>
+                      </div>
                       <div className="grid grid-cols-4 items-center gap-4">
                         <Label htmlFor="productivePrice" className="text-right leading-tight">Preço Hora<br/>Produtiva</Label>
                         <div className="col-span-3">
@@ -841,33 +1273,237 @@ export function ResourceView({ resources, onAdd, onDelete, onUpdate, purchaseOrd
                     />
                   </div>
                   <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="edit-price" className="text-right">Preço Base</Label>
+                    <Label htmlFor="edit-price" className="text-right">
+                      {editingResource.type === 'labor' ? 'Preço Hora' : editingResource.type === 'equipment' ? 'Preço Final' : 'Preço Base'}
+                    </Label>
                     <div className="col-span-3">
                       <NumericInput 
                         id="edit-price" 
                         value={editingResource.basePrice} 
-                        onChange={val => setEditingResource({...editingResource, basePrice: val})} 
+                        onChange={val => {
+                          if (editingResource.type === 'labor') {
+                            setEditingResource({...editingResource, basePrice: val, monthlySalary: val * (editingResource.hoursPerMonth || 220)});
+                          } else {
+                            setEditingResource({...editingResource, basePrice: val});
+                          }
+                        }} 
                         prefix="R$"
                         decimals={2}
                         required
+                        disabled={editingResource.type === 'equipment' && !!editingResource.operatorId}
                       />
                     </div>
                   </div>
                   {editingResource.type === 'labor' && (
-                    <div className="grid grid-cols-4 items-center gap-4">
-                      <Label htmlFor="edit-encargos" className="text-right">Encargos (%)</Label>
-                      <div className="col-span-3">
-                        <NumericInput 
-                          id="edit-encargos" 
-                          value={editingResource.encargos || 0} 
-                          onChange={val => setEditingResource({...editingResource, encargos: val})} 
-                          decimals={2}
-                        />
+                    <>
+                      <div className="grid grid-cols-4 items-center gap-4">
+                        <Label htmlFor="edit-hoursPerMonth" className="text-right">Horas/Mês</Label>
+                        <div className="col-span-3">
+                          <NumericInput 
+                            id="edit-hoursPerMonth" 
+                            value={editingResource.hoursPerMonth || 220} 
+                            onChange={val => {
+                               const hours = val || 220;
+                               setEditingResource({...editingResource, hoursPerMonth: hours, basePrice: editingResource.monthlySalary ? editingResource.monthlySalary / hours : editingResource.basePrice});
+                            }} 
+                            decimals={0}
+                          />
+                        </div>
                       </div>
-                    </div>
+                      <div className="grid grid-cols-4 items-center gap-4">
+                        <Label htmlFor="edit-monthlySalary" className="text-right">Valor Mensal</Label>
+                        <div className="col-span-3">
+                          <NumericInput 
+                            id="edit-monthlySalary" 
+                            value={editingResource.monthlySalary || 0} 
+                            onChange={val => {
+                               const hours = editingResource.hoursPerMonth || 220;
+                               setEditingResource({...editingResource, monthlySalary: val, basePrice: val / hours});
+                            }} 
+                            prefix="R$"
+                            decimals={2}
+                          />
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-4 items-center gap-4">
+                        <Label htmlFor="edit-encargos" className="text-right">Encargos (%)</Label>
+                        <div className="col-span-3">
+                          <NumericInput 
+                            id="edit-encargos" 
+                            value={editingResource.encargos || 0} 
+                            onChange={val => setEditingResource({...editingResource, encargos: val})} 
+                            decimals={2}
+                          />
+                        </div>
+                      </div>
+                    </>
                   )}
                   {editingResource.type === 'equipment' && (
                     <>
+                      <div className="grid grid-cols-4 items-center gap-4">
+                        <Label htmlFor="edit-equipmentBaseCost" className="text-right leading-tight">Custo<br/>Equipamento</Label>
+                        <div className="col-span-3">
+                          <NumericInput 
+                            id="edit-equipmentBaseCost" 
+                            value={editingResource.equipmentBaseCost || 0} 
+                            onChange={val => {
+                              const op = augmentedResources.find(r => r.id === editingResource.operatorId);
+                              const opCost = op ? op.basePrice : 0;
+                              setEditingResource({...editingResource, equipmentBaseCost: val, basePrice: (val || 0) + opCost});
+                            }} 
+                            prefix="R$"
+                            decimals={2}
+                          />
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-4 items-center gap-4">
+                        <Label className="text-right">Operador</Label>
+                        <div className="col-span-3 flex flex-col gap-2">
+                          <div className="relative">
+                            <Input
+                              type="text"
+                              placeholder="Digite para buscar ou criar operador..."
+                              value={
+                                (!editOperatorComboboxOpen && editingResource.operatorId)
+                                  ? (editingResource.operatorId === 'new'
+                                      ? `Novo: ${editNewOperatorName}`
+                                      : (augmentedResources.find(r => r.id === editingResource.operatorId)?.name || 'Sem operador'))
+                                  : editOperatorSearch
+                              }
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                setEditOperatorSearch(val);
+                                setEditOperatorComboboxOpen(true);
+                                if (!val) {
+                                  setEditingResource({
+                                    ...editingResource,
+                                    operatorId: undefined,
+                                    basePrice: editingResource.equipmentBaseCost || 0
+                                  });
+                                }
+                              }}
+                              onFocus={() => {
+                                setEditOperatorComboboxOpen(true);
+                                const currentName = editingResource.operatorId === 'new'
+                                  ? editNewOperatorName
+                                  : (augmentedResources.find(r => r.id === editingResource.operatorId)?.name || '');
+                                setEditOperatorSearch(currentName);
+                              }}
+                              className="h-10 text-sm"
+                            />
+                            {(editingResource.operatorId || editOperatorSearch) && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setEditingResource({
+                                    ...editingResource,
+                                    operatorId: undefined,
+                                    basePrice: editingResource.equipmentBaseCost || 0
+                                  });
+                                  setEditOperatorSearch('');
+                                  setEditOperatorComboboxOpen(false);
+                                }}
+                                className="absolute right-3 top-3 text-gray-400 hover:text-gray-600 font-bold text-xs"
+                              >
+                                ✕
+                              </button>
+                            )}
+
+                            {editOperatorComboboxOpen && (
+                              <>
+                                <div className="fixed inset-0 z-10" onClick={() => setEditOperatorComboboxOpen(false)} />
+                                <div className="absolute z-20 left-0 right-0 mt-1 max-h-60 overflow-y-auto bg-white border border-gray-200 rounded-xl shadow-lg p-2 space-y-1">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setEditingResource({
+                                        ...editingResource,
+                                        operatorId: undefined,
+                                        basePrice: editingResource.equipmentBaseCost || 0
+                                      });
+                                      setEditOperatorSearch('');
+                                      setEditOperatorComboboxOpen(false);
+                                    }}
+                                    className="w-full text-left px-3 py-2 text-sm rounded-lg hover:bg-gray-50 flex items-center justify-between text-gray-500 font-medium"
+                                  >
+                                    <span>Sem operador</span>
+                                    {!editingResource.operatorId && <Check className="w-4 h-4 text-blue-600" />}
+                                  </button>
+
+                                  {(() => {
+                                    const searchLower = (editOperatorSearch || '').trim().toLowerCase();
+                                    const currentOpName = editingResource.operatorId === 'new'
+                                      ? editNewOperatorName
+                                      : (augmentedResources.find(r => r.id === editingResource.operatorId)?.name || '');
+                                    const effectiveSearch = (currentOpName && currentOpName.toLowerCase() === searchLower) ? '' : searchLower;
+
+                                    const matches = augmentedResources
+                                      .filter(r => r.type === 'labor')
+                                      .filter(r => (r.name || '').toLowerCase().includes(effectiveSearch));
+
+                                    return matches.map(lab => (
+                                      <button
+                                        type="button"
+                                        key={lab.id}
+                                        onClick={() => {
+                                          const opCost = lab.basePrice;
+                                          setEditingResource({
+                                            ...editingResource,
+                                            operatorId: lab.id,
+                                            basePrice: (editingResource.equipmentBaseCost || 0) + opCost
+                                          });
+                                          setEditOperatorSearch(lab.name);
+                                          setEditOperatorComboboxOpen(false);
+                                        }}
+                                        className="w-full text-left px-3 py-2 text-sm rounded-lg hover:bg-gray-50 flex items-center justify-between group"
+                                      >
+                                        <div className="flex flex-col">
+                                          <span className="font-semibold text-gray-900">{lab.name}</span>
+                                          <span className="text-xs text-gray-500 font-mono">{formatCurrency(lab.basePrice)}</span>
+                                        </div>
+                                        {editingResource.operatorId === lab.id && <Check className="w-4 h-4 text-blue-600" />}
+                                      </button>
+                                    ));
+                                  })()}
+
+                                  {editOperatorSearch.trim() && (
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setEditingResource({ ...editingResource, operatorId: 'new' });
+                                        setEditNewOperatorName(editOperatorSearch);
+                                        setEditOperatorComboboxOpen(false);
+                                      }}
+                                      className="w-full text-left px-3 py-2 text-sm rounded-lg hover:bg-blue-50 text-blue-600 flex items-center gap-2 font-semibold border-t border-gray-100 mt-1 pt-2"
+                                    >
+                                      <Plus className="w-4 h-4" /> Criar operador "{editOperatorSearch}"
+                                    </button>
+                                  )}
+                                </div>
+                              </>
+                            )}
+                          </div>
+                          {editingResource.operatorId === 'new' && (
+                             <div className="p-3 border rounded-md bg-gray-50 flex flex-col gap-3 mt-2">
+                               <div className="text-xs font-bold text-gray-500 uppercase">Novo Operador</div>
+                               <div className="flex flex-col gap-2">
+                                 <Label>Nome da Função</Label>
+                                 <Input value={editNewOperatorName} onChange={e => setEditNewOperatorName(e.target.value)} />
+                               </div>
+                               <div className="flex gap-2">
+                                 <div className="flex flex-col gap-2 w-1/3">
+                                   <Label>Horas/Mês</Label>
+                                   <NumericInput value={editNewOperatorHours} onChange={setEditNewOperatorHours} decimals={0} />
+                                 </div>
+                                 <div className="flex flex-col gap-2 w-2/3">
+                                   <Label>Salário Mensal</Label>
+                                   <NumericInput value={editNewOperatorSalary} onChange={setEditNewOperatorSalary} prefix="R$" decimals={2} />
+                                 </div>
+                               </div>
+                             </div>
+                          )}
+                        </div>
+                      </div>
                       <div className="grid grid-cols-4 items-center gap-4">
                         <Label htmlFor="edit-productivePrice" className="text-right leading-tight">Preço Hora<br/>Produtiva</Label>
                         <div className="col-span-3">
