@@ -146,7 +146,13 @@ export function ResourceView({ resources, onAdd, onDelete, onUpdate, purchaseOrd
     // Recalculate Equipment prices based on operator and calculate productive price
     aug = aug.map(r => {
       if (r.type === 'equipment') {
-        const eqCost = r.equipmentBaseCost !== undefined ? r.equipmentBaseCost : (r.basePrice || 0);
+        let eqCostRaw = r.equipmentBaseCost !== undefined && r.equipmentBaseCost > 0 
+          ? r.equipmentBaseCost 
+          : (r.basePrice || 0);
+
+        // If eqCostRaw is an hourly rate (< 500), convert to monthly value (* 200)
+        let eqCost = (eqCostRaw > 0 && eqCostRaw < 500) ? eqCostRaw * 200 : eqCostRaw;
+
         let opCost = 0;
         if (r.operatorId) {
           const op = aug.find(o => o.id === r.operatorId);
@@ -155,7 +161,7 @@ export function ResourceView({ resources, onAdd, onDelete, onUpdate, purchaseOrd
           }
         }
         const finalPrice = eqCost + opCost;
-        const workHours = r.hoursPerMonth || 220;
+        const workHours = r.hoursPerMonth || 200;
         return {
            ...r,
            equipmentBaseCost: eqCost,
@@ -490,7 +496,7 @@ export function ResourceView({ resources, onAdd, onDelete, onUpdate, purchaseOrd
 
       // Calculate monthly cost of equipment (valor mensal do equipamento)
       let monthlyCost = 0;
-      const hours = eq.hoursPerMonth || 220;
+      const hours = eq.hoursPerMonth || 200;
       if (eq.monthlyPrice && Number(eq.monthlyPrice) > 0) {
         monthlyCost = Number(eq.monthlyPrice);
       } else if (eq.equipmentBaseCost && Number(eq.equipmentBaseCost) > 0) {
@@ -545,7 +551,7 @@ export function ResourceView({ resources, onAdd, onDelete, onUpdate, purchaseOrd
         }
       }
 
-      const hours = existing?.hoursPerMonth || 220;
+      const hours = existing?.hoursPerMonth || 200;
       const finalPrice = avgMonthlyCost + opSalary;
       const prodPrice = finalPrice / hours;
 
@@ -649,7 +655,8 @@ export function ResourceView({ resources, onAdd, onDelete, onUpdate, purchaseOrd
       } else {
         finalResource.operatorId = undefined;
       }
-      finalResource.basePrice = (finalResource.equipmentBaseCost || 0) + opPrice;
+      finalResource.basePrice = (finalResource.equipmentBaseCost || 0) + newOperatorSalary;
+      finalResource.productivePrice = finalResource.basePrice / (finalResource.hoursPerMonth || 200);
     }
     onAdd(finalResource);
     setIsAddOpen(false);
@@ -690,7 +697,8 @@ export function ResourceView({ resources, onAdd, onDelete, onUpdate, purchaseOrd
         } else {
           finalResource.operatorId = undefined;
         }
-        finalResource.basePrice = (finalResource.equipmentBaseCost || 0) + opPrice;
+        finalResource.basePrice = (finalResource.equipmentBaseCost || 0) + editNewOperatorSalary;
+        finalResource.productivePrice = finalResource.basePrice / (finalResource.hoursPerMonth || 200);
       }
       onUpdate(finalResource);
       setIsEditOpen(false);
@@ -1522,7 +1530,7 @@ export function ResourceView({ resources, onAdd, onDelete, onUpdate, purchaseOrd
                                         type="button"
                                         key={lab.id}
                                         onClick={() => {
-                                          const opCost = lab.basePrice;
+                                          const opCost = lab.monthlySalary || (lab.paymentType === 'month' || lab.paymentType === 'pj' ? (lab.basePrice > 500 ? lab.basePrice : lab.basePrice * 220) : lab.basePrice * 220) || lab.basePrice || 0;
                                           setNewResource({
                                             ...newResource,
                                             operatorId: lab.id,
@@ -1844,7 +1852,7 @@ export function ResourceView({ resources, onAdd, onDelete, onUpdate, purchaseOrd
                                         type="button"
                                         key={lab.id}
                                         onClick={() => {
-                                          const opCost = lab.basePrice;
+                                          const opCost = lab.monthlySalary || (lab.paymentType === 'month' || lab.paymentType === 'pj' ? (lab.basePrice > 500 ? lab.basePrice : lab.basePrice * 220) : lab.basePrice * 220) || lab.basePrice || 0;
                                           setEditingResource({
                                             ...editingResource,
                                             operatorId: lab.id,

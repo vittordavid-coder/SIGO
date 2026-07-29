@@ -2552,9 +2552,13 @@ export default function App() {
       
       // Cascade operator changes to equipments
       if (r.type === 'equipment' && r.operatorId === updatedResource.id) {
+         const opCost = updatedResource.monthlySalary || (updatedResource.paymentType === 'month' || updatedResource.paymentType === 'pj' ? (updatedResource.basePrice > 500 ? updatedResource.basePrice : updatedResource.basePrice * 220) : updatedResource.basePrice * 220) || updatedResource.basePrice || 0;
+         const finalPrice = (r.equipmentBaseCost || 0) + opCost;
+         const hours = r.hoursPerMonth || 200;
          return {
            ...r,
-           basePrice: (r.equipmentBaseCost || 0) + updatedResource.basePrice
+           basePrice: finalPrice,
+           productivePrice: finalPrice / hours
          };
       }
       return r;
@@ -3404,7 +3408,7 @@ export default function App() {
           const keyLower = eqType.toLowerCase();
 
           let monthlyCost = 0;
-          const hours = eq.hoursPerMonth || 220;
+          const hours = eq.hoursPerMonth || 200;
           if (eq.monthlyPrice && Number(eq.monthlyPrice) > 0) {
             monthlyCost = Number(eq.monthlyPrice);
           } else if (eq.equipmentBaseCost && Number(eq.equipmentBaseCost) > 0) {
@@ -3452,7 +3456,7 @@ export default function App() {
           }
 
           const finalPrice = avgMonthlyCost + opSalary;
-          const hours = existing?.hoursPerMonth || data.hoursPerMonth || 220;
+          const hours = existing?.hoursPerMonth || data.hoursPerMonth || 200;
           const prodPrice = finalPrice / hours;
 
           if (index !== -1) {
