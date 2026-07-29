@@ -4722,6 +4722,8 @@ export default function App() {
                   onAdd={addService} 
                   onDelete={deleteService} 
                   onUpdate={updateService}
+                  onAddResource={addResource}
+                  onAddServices={addServices}
                   companyLogo={companyLogo}
                   bdi={calculateBDI(bdiConfig)}
                   readonly={currentUser?.role === 'reader'}

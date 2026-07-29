@@ -29,6 +29,8 @@ interface ServiceViewProps {
   onAdd: (s: Omit<ServiceComposition, 'id'>) => void;
   onDelete: (id: string) => void;
   onUpdate: (s: ServiceComposition) => void;
+  onAddResource?: (r: (Omit<Resource, 'id'> & { id?: string }) | (Omit<Resource, 'id'> & { id?: string })[]) => string | void;
+  onAddServices?: (s: Omit<ServiceComposition, 'id'>[]) => Promise<any[]> | any[];
   companyLogo?: string;
   bdi?: number;
   readonly?: boolean;
@@ -43,6 +45,8 @@ export function ServiceView({
   onAdd, 
   onDelete, 
   onUpdate, 
+  onAddResource,
+  onAddServices,
   companyLogo, 
   bdi = 0, 
   readonly,
@@ -78,6 +82,21 @@ export function ServiceView({
   // Modal for Export/Import Excel/JSON
   const [isExportImportModalOpen, setIsExportImportModalOpen] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
+
+  interface ServiceColumnMappingModalState {
+    isOpen: boolean;
+    rawRows: any[][];
+    headerRowIndex: number;
+    fileName: string;
+    selectedCols: {
+      code: number;
+      name: number;
+      unit: number;
+      price: number;
+    };
+  }
+
+  const [serviceColumnMappingModal, setServiceColumnMappingModal] = useState<ServiceColumnMappingModalState | null>(null);
 
   const contractServiceIds = useMemo(() => {
     if (!selectedContractId || !contracts) return null;
@@ -431,6 +450,218 @@ export function ServiceView({
         if (e.target) e.target.value = '';
       }
     };
+  };
+
+  const handleSalaTecnicaImport = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsImporting(true);
+    const reader = new FileReader();
+    reader.readAsArrayBuffer(file);
+    reader.onload = async (event) => {
+      try {
+        const buffer = event.target?.result as ArrayBuffer;
+        const XLSX = await import("xlsx");
+        const wb = XLSX.read(buffer, { type: "array" });
+
+        const worksheetName = wb.SheetNames[0];
+        const worksheet = wb.Sheets[worksheetName];
+        if (!worksheet) {
+          alert("❌ Planilha não encontrada no arquivo.");
+          setIsImporting(false);
+          return;
+        }
+
+        const rawRows = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: "" }) as any[][];
+        if (!rawRows || rawRows.length === 0) {
+          alert("❌ Planilha vazia ou formato incompatível.");
+          setIsImporting(false);
+          return;
+        }
+
+        // Auto-detect header row index
+        let headerRowIndex = 0;
+        for (let i = 0; i < Math.min(15, rawRows.length); i++) {
+          const rowStr = (rawRows[i] || []).map((c: any) => String(c).toLowerCase()).join(" ");
+          if (
+            rowStr.includes("nome") ||
+            rowStr.includes("descrição") ||
+            rowStr.includes("descricao") ||
+            rowStr.includes("serviço") ||
+            rowStr.includes("servico") ||
+            rowStr.includes("código") ||
+            rowStr.includes("codigo") ||
+            rowStr.includes("unidade") ||
+            rowStr.includes("preço") ||
+            rowStr.includes("preco")
+          ) {
+            headerRowIndex = i;
+            break;
+          }
+        }
+
+        const headerRow = rawRows[headerRowIndex] || [];
+
+        const findColIdx = (candidates: string[]): number => {
+          for (let c = 0; c < headerRow.length; c++) {
+            const headerStr = String(headerRow[c] || "").toLowerCase().trim();
+            if (candidates.some((cand) => headerStr.includes(cand.toLowerCase()))) {
+              return c;
+            }
+          }
+          return -1;
+        };
+
+        const codeIdx = findColIdx(["código", "codigo", "code", "cod"]);
+        const nameIdx = findColIdx(["descrição", "descricao", "desc", "nome", "especificação", "especificacao", "serviço", "servico"]);
+        const unitIdx = findColIdx(["unidade", "unid", "und", "um", "unit"]);
+        const priceIdx = findColIdx(["preço", "preco", "valor", "unitário", "unitario", "price"]);
+
+        setServiceColumnMappingModal({
+          isOpen: true,
+          rawRows,
+          headerRowIndex,
+          fileName: file.name,
+          selectedCols: {
+            code: codeIdx !== -1 ? codeIdx : 0,
+            name: nameIdx !== -1 ? nameIdx : 1,
+            unit: unitIdx !== -1 ? unitIdx : 2,
+            price: priceIdx !== -1 ? priceIdx : 3,
+          }
+        });
+      } catch (err) {
+        console.error("[Sala Tecnica Import Error]", err);
+        alert("❌ Erro ao processar arquivo para importação.");
+      } finally {
+        setIsImporting(false);
+        if (e.target) e.target.value = '';
+      }
+    };
+  };
+
+  const executeServiceImportWithMapping = (data: ServiceColumnMappingModalState) => {
+    const { rawRows, headerRowIndex, selectedCols } = data;
+    const { code: colCode, name: colName, unit: colUnit, price: colPrice } = selectedCols;
+
+    try {
+      const servicesToAdd: Omit<ServiceComposition, 'id'>[] = [];
+      const resourcesToAdd: (Omit<Resource, 'id'> & { id?: string })[] = [];
+
+      let importedCount = 0;
+      let updatedCount = 0;
+
+      for (let i = headerRowIndex + 1; i < rawRows.length; i++) {
+        const row = rawRows[i];
+        if (!row || !Array.isArray(row)) continue;
+
+        if (row.every(cell => cell === null || cell === undefined || String(cell).trim() === "")) {
+          continue;
+        }
+
+        const rawCode = colCode !== -1 && colCode < row.length ? row[colCode] : null;
+        const rawName = colName !== -1 && colName < row.length ? row[colName] : null;
+        const rawUnit = colUnit !== -1 && colUnit < row.length ? row[colUnit] : null;
+        const rawPriceVal = colPrice !== -1 && colPrice < row.length ? row[colPrice] : null;
+
+        const codeVal = rawCode ? String(rawCode).trim() : "";
+        const nameVal = rawName ? String(rawName).trim() : "";
+        const unitVal = rawUnit ? String(rawUnit).trim() : "un";
+
+        if (!codeVal || !nameVal) continue;
+
+        let parsedPrice = 0;
+        if (typeof rawPriceVal === 'number') {
+          parsedPrice = rawPriceVal;
+        } else if (rawPriceVal !== null && rawPriceVal !== undefined) {
+          const str = String(rawPriceVal).trim();
+          if (str) {
+            let clean = str.replace(/\s/g, '').replace('R$', '');
+            if (clean.includes(',')) {
+              clean = clean.replace(/\./g, '').replace(',', '.');
+            }
+            parsedPrice = parseFloat(clean) || 0;
+          }
+        }
+
+        // Check if service composition already exists
+        const existingService = services.find(s => s.code.trim().toLowerCase() === codeVal.toLowerCase());
+
+        // Generate IDs for mapping
+        const compositionId = existingService ? existingService.id : `srv-${Math.random().toString(36).substring(2, 9)}`;
+        const insumoCode = `INS-${codeVal}`;
+        const existingResource = resources.find(r => r.code.trim().toLowerCase() === insumoCode.toLowerCase() || r.code.trim().toLowerCase() === codeVal.toLowerCase());
+        const resourceId = existingResource ? existingResource.id : `res-${Math.random().toString(36).substring(2, 9)}`;
+
+        if (!existingResource && parsedPrice > 0) {
+          resourcesToAdd.push({
+            id: resourceId,
+            code: insumoCode,
+            name: nameVal,
+            unit: unitVal,
+            type: 'material',
+            basePrice: parsedPrice,
+            encargos: 0,
+            productivePrice: 0,
+            unproductivePrice: 0,
+            operatorId: '',
+            equipmentBaseCost: 0,
+            hoursPerMonth: 220,
+            monthlySalary: 0
+          });
+        }
+
+        const items = parsedPrice > 0 ? [{ resourceId, consumption: 1 }] : [];
+
+        if (existingService) {
+          onUpdate({
+            ...existingService,
+            name: nameVal || existingService.name,
+            unit: unitVal || existingService.unit,
+            production: existingService.production || 1,
+            fit: existingService.fit || 0,
+            items: items.length > 0 ? items : existingService.items
+          });
+          updatedCount++;
+        } else {
+          servicesToAdd.push({
+            code: codeVal,
+            name: nameVal,
+            unit: unitVal,
+            production: 1,
+            fit: 0,
+            items
+          });
+          importedCount++;
+        }
+      }
+
+      // Save via batch functions
+      if (resourcesToAdd.length > 0 && onAddResource) {
+        onAddResource(resourcesToAdd);
+      }
+
+      if (servicesToAdd.length > 0) {
+        if (onAddServices) {
+          onAddServices(servicesToAdd);
+        } else {
+          servicesToAdd.forEach(s => onAdd(s));
+        }
+      }
+
+      alert(
+        `✅ Importação de serviços e insumos concluída com sucesso!\n\n` +
+        `• Novos serviços adicionados: ${importedCount}\n` +
+        `• Serviços existentes atualizados: ${updatedCount}\n` +
+        `• Novos insumos criados para composição: ${resourcesToAdd.length}`
+      );
+
+      setServiceColumnMappingModal(null);
+      setIsExportImportModalOpen(false);
+    } catch (err) {
+      console.error("Service mapping import error:", err);
+      alert("❌ Erro ao processar a importação de serviços.");
+    }
   };
 
   const activeComposition = activeView === 'add' ? newService : editingService;
@@ -1321,6 +1552,20 @@ export function ServiceView({
               />
             </div>
 
+            <div className="p-4 rounded-xl bg-emerald-50/50 border border-emerald-100 space-y-2">
+              <h4 className="font-bold text-slate-900 text-sm flex items-center gap-1.5 text-emerald-800">
+                <Sparkles className="w-4 h-4 text-emerald-600" /> Importar Planilha Sala Técnica
+              </h4>
+              <p className="text-xs text-slate-500">Selecione uma planilha de serviços da Sala Técnica (.xlsx, .xls) para importar como composições.</p>
+              <Input 
+                type="file" 
+                accept=".xlsx, .xls" 
+                onChange={handleSalaTecnicaImport}
+                disabled={isImporting}
+                className="cursor-pointer text-xs border-emerald-200 bg-white"
+              />
+            </div>
+
             <Separator />
 
             <div className="flex gap-2">
@@ -1348,6 +1593,140 @@ export function ServiceView({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Modal de Mapeamento de Colunas de Serviços */}
+      {serviceColumnMappingModal && serviceColumnMappingModal.isOpen && (
+        <Dialog
+          open={serviceColumnMappingModal.isOpen}
+          onOpenChange={(open) => {
+            if (!open) setServiceColumnMappingModal(null);
+          }}
+        >
+          <DialogContent className="sm:max-w-[700px] w-full bg-white border border-slate-200 shadow-2xl rounded-2xl p-6 text-left flex flex-col max-h-[90vh] overflow-y-auto">
+            <DialogHeader className="text-left space-y-1 shrink-0">
+              <div className="flex items-center gap-2 text-blue-600 font-semibold text-xs tracking-wider uppercase mb-1">
+                <Sparkles className="w-4 h-4" /> Importação de Serviços (Sala Técnica)
+              </div>
+              <DialogTitle className="text-lg font-bold text-slate-900">
+                Mapeamento de Colunas da Planilha
+              </DialogTitle>
+              <DialogDescription className="text-xs text-slate-500">
+                Associe as colunas detectadas na sua planilha de Sala Técnica com os campos necessários de Serviços.
+              </DialogDescription>
+            </DialogHeader>
+
+            {/* Info bar */}
+            <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 flex flex-wrap items-center justify-between gap-3 text-xs my-3 shrink-0">
+              <div>
+                <span className="text-slate-400 font-medium">Arquivo:</span>{" "}
+                <strong className="text-slate-700">{serviceColumnMappingModal.fileName}</strong>
+              </div>
+              <div>
+                <span className="text-slate-400 font-medium">Total de Linhas:</span>{" "}
+                <strong className="text-blue-700">{serviceColumnMappingModal.rawRows.length}</strong>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-slate-500 font-medium">Linha do Cabeçalho:</span>
+                <select
+                  className="border border-slate-300 rounded-lg px-2 py-1 text-xs bg-white font-medium text-slate-800"
+                  value={serviceColumnMappingModal.headerRowIndex}
+                  onChange={(e) => {
+                    const newIdx = parseInt(e.target.value);
+                    setServiceColumnMappingModal((prev) => prev ? { ...prev, headerRowIndex: newIdx } : null);
+                  }}
+                >
+                  {serviceColumnMappingModal.rawRows.slice(0, 15).map((row, idx) => (
+                    <option key={`hr-${idx}`} value={idx}>
+                      Linha {idx + 1}: {Array.isArray(row) ? row.slice(0, 4).filter(Boolean).join(" | ").substring(0, 45) || "Vazia" : "Vazia"}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="space-y-4 my-2 overflow-y-auto pr-1">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+                <Layers className="w-3.5 h-3.5 text-blue-500" /> Correspondência de Colunas
+              </h4>
+
+              {(() => {
+                const currentHeaderRow = serviceColumnMappingModal.rawRows[serviceColumnMappingModal.headerRowIndex] || [];
+                const maxCols = Math.max(...serviceColumnMappingModal.rawRows.slice(0, 20).map((r) => Array.isArray(r) ? r.length : 0));
+                const colOptions = Array.from({ length: Math.max(maxCols, 1) }, (_, idx) => {
+                  const rawLabel = String(currentHeaderRow[idx] || "").trim();
+                  return {
+                    value: idx,
+                    label: rawLabel ? `Col ${idx + 1} (${rawLabel})` : `Coluna ${idx + 1}`,
+                  };
+                });
+
+                const renderSelect = (
+                  label: string,
+                  fieldName: keyof typeof serviceColumnMappingModal.selectedCols,
+                  required: boolean = false,
+                  noneLabel: string = "-- Ignorar / Não Mapeado --"
+                ) => (
+                  <div>
+                    <Label className="text-xs font-bold text-slate-700 mb-1.5 flex items-center gap-1">
+                      {label} {required && <span className="text-red-500">*</span>}
+                    </Label>
+                    <select
+                      className="w-full rounded-lg px-3 py-2 text-xs font-medium border border-slate-300 bg-white text-slate-800 focus:border-blue-500 focus:ring-blue-500"
+                      value={serviceColumnMappingModal.selectedCols[fieldName]}
+                      onChange={(e) => {
+                        const val = parseInt(e.target.value);
+                        setServiceColumnMappingModal((prev) =>
+                          prev
+                            ? {
+                                ...prev,
+                                selectedCols: { ...prev.selectedCols, [fieldName]: val },
+                              }
+                            : null
+                        );
+                      }}
+                    >
+                      {!required && <option value={-1}>{noneLabel}</option>}
+                      {colOptions.map((opt) => (
+                        <option key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                );
+
+                return (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {renderSelect("Coluna do Código do Serviço", "code", true)}
+                    {renderSelect("Coluna de Nome/Descrição do Serviço", "name", true)}
+                    {renderSelect("Coluna da Unidade", "unit", false)}
+                    {renderSelect("Coluna do Preço Unitário (Sala Técnica)", "price", false)}
+                  </div>
+                );
+              })()}
+            </div>
+
+            <DialogFooter className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between gap-3 shrink-0">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setServiceColumnMappingModal(null)}
+                className="rounded-xl border-slate-200 text-slate-700 font-semibold cursor-pointer"
+              >
+                Cancelar
+              </Button>
+
+              <Button
+                type="button"
+                onClick={() => executeServiceImportWithMapping(serviceColumnMappingModal)}
+                className="rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold px-6 shadow-md shadow-blue-500/20 flex items-center gap-2 cursor-pointer"
+              >
+                <Check className="w-4 h-4" /> Confirmar e Importar Serviços
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
     </motion.div>
   );
 }
