@@ -1,7 +1,7 @@
 import React, { useState, useRef, useMemo } from 'react';
 import { motion } from 'motion/react';
 import { 
-  Plus, Edit, Trash2, FileSpreadsheet, Briefcase, Download, Upload, HelpCircle, 
+  Plus, Edit, Trash2, FileSpreadsheet, Briefcase, Download, Upload, HelpCircle, Copy,
   ChevronDown, ChevronRight, Tag, RefreshCw, AlertCircle, FileText, ArrowLeft, Check, Search, 
   Layers, Calculator, X, Sparkles, Filter 
 } from 'lucide-react';
@@ -144,8 +144,11 @@ export function ServiceView({
   const displayedServices = useMemo(() => {
     if (selectedContractId && contractServiceIds && !showAllServices) {
       return services.filter(s => 
-        contractServiceIds.ids.has(s.id) || 
-        (s.code && contractServiceIds.codes.has(s.code.trim().toLowerCase()))
+        (s.contractId === selectedContractId) || 
+        (!s.contractId && (
+          contractServiceIds.ids.has(s.id) || 
+          (s.code && contractServiceIds.codes.has(s.code.trim().toLowerCase()))
+        ))
       );
     }
     return services;
@@ -158,77 +161,80 @@ export function ServiceView({
       s.code.toLowerCase().includes(term)
     );
 
-    // If no contract is active or we are showing all services, we can just group them into a default group or by contract if possible.
-    if (!activeContract || showAllServices) {
-      return [
-        {
-          id: 'all-compositions',
-          name: 'Todas as Composições de Serviços',
-          services: filtered
-        }
-      ];
-    }
-
     const groupsList: { id: string; name: string; services: ServiceComposition[] }[] = [];
     const matchedServiceIds = new Set<string>();
 
-    // 1. Process contract groups
-    if (activeContract.groups && activeContract.groups.length > 0) {
-      activeContract.groups.forEach((g: any) => {
-        const groupServices: ServiceComposition[] = [];
-        
-        g.services?.forEach((gs: any) => {
+    if (activeContract) {
+      // 1. Process contract groups
+      if (activeContract.groups && activeContract.groups.length > 0) {
+        activeContract.groups.forEach((g: any) => {
+          const groupServices: ServiceComposition[] = [];
+          g.services?.forEach((gs: any) => {
+            const match = filtered.find(fs => 
+              (fs.contractId === selectedContractId && (fs.id === gs.serviceId || (gs.code && fs.code.trim().toLowerCase() === gs.code.trim().toLowerCase()))) ||
+              (!fs.contractId && (fs.id === gs.serviceId || (gs.code && fs.code.trim().toLowerCase() === gs.code.trim().toLowerCase())))
+            );
+            if (match && !groupServices.some(x => x.id === match.id)) {
+              groupServices.push(match);
+              matchedServiceIds.add(match.id);
+            }
+          });
+
+          if (groupServices.length > 0) {
+            groupsList.push({
+              id: g.id || `group-${g.name}`,
+              name: `Grupo: ${g.name}`,
+              services: groupServices
+            });
+          }
+        });
+      }
+
+      // 2. Process contract direct services (not in any group)
+      const directServices: ServiceComposition[] = [];
+      if (activeContract.services && activeContract.services.length > 0) {
+        activeContract.services.forEach((gs: any) => {
           const match = filtered.find(fs => 
-            fs.id === gs.serviceId || 
-            (gs.code && fs.code.trim().toLowerCase() === gs.code.trim().toLowerCase())
+            (fs.contractId === selectedContractId && (fs.id === gs.serviceId || (gs.code && fs.code.trim().toLowerCase() === gs.code.trim().toLowerCase()))) ||
+            (!fs.contractId && (fs.id === gs.serviceId || (gs.code && fs.code.trim().toLowerCase() === gs.code.trim().toLowerCase())))
           );
-          if (match && !groupServices.some(x => x.id === match.id)) {
-            groupServices.push(match);
+          if (match && !matchedServiceIds.has(match.id) && !directServices.some(x => x.id === match.id)) {
+            directServices.push(match);
             matchedServiceIds.add(match.id);
           }
         });
+      }
 
-        // Only include group if it has services
-        if (groupServices.length > 0) {
-          groupsList.push({
-            id: g.id || `group-${g.name}`,
-            name: g.name,
-            services: groupServices
-          });
+      // Also add any other compositions specifically created for this contract that didn't match groups/direct lists
+      filtered.forEach(fs => {
+        if (fs.contractId === selectedContractId && !matchedServiceIds.has(fs.id)) {
+          directServices.push(fs);
+          matchedServiceIds.add(fs.id);
         }
       });
-    }
 
-    // 2. Process contract direct services (not in any group)
-    const directServices: ServiceComposition[] = [];
-    if (activeContract.services && activeContract.services.length > 0) {
-      activeContract.services.forEach((gs: any) => {
-        const match = filtered.find(fs => 
-          fs.id === gs.serviceId || 
-          (gs.code && fs.code.trim().toLowerCase() === gs.code.trim().toLowerCase())
-        );
-        if (match && !matchedServiceIds.has(match.id) && !directServices.some(x => x.id === match.id)) {
-          directServices.push(match);
-          matchedServiceIds.add(match.id);
-        }
-      });
-    }
+      if (directServices.length > 0) {
+        groupsList.push({
+          id: 'direct-services',
+          name: 'Serviços do Seu Contrato',
+          services: directServices
+        });
+      }
 
-    if (directServices.length > 0) {
+      // 3. Process remaining filtered services that are NOT part of this contract
+      const otherServices = filtered.filter(fs => !matchedServiceIds.has(fs.id));
+      if (otherServices.length > 0) {
+        groupsList.push({
+          id: 'other-services',
+          name: 'Composições de Outras Obras / Global',
+          services: otherServices
+        });
+      }
+    } else {
       groupsList.push({
-        id: 'direct-services',
-        name: 'Serviços do Contrato (Sem Grupo)',
-        services: directServices
-      });
-    }
-
-    // 3. Process remaining filtered services that are not matched in the contract
-    const otherServices = filtered.filter(fs => !matchedServiceIds.has(fs.id));
-    if (otherServices.length > 0) {
-      groupsList.push({
-        id: 'other-services',
-        name: 'Outros Serviços Cadastrados',
-        services: otherServices
+        id: 'all-compositions',
+        name: 'Todas as Composições de Serviços',
+        services: filtered
       });
     }
 
@@ -316,7 +322,11 @@ export function ServiceView({
       alert('Por favor, preencha todos os campos obrigatórios (Código, Nome e Unidade).');
       return;
     }
-    onAdd(newService);
+    const serviceWithContract = {
+      ...newService,
+      contractId: selectedContractId || undefined
+    };
+    onAdd(serviceWithContract as any);
     setActiveView('list');
     setNewService({ code: '', name: '', unit: '', production: 1, fit: 0, items: [] });
   };
@@ -332,6 +342,39 @@ export function ServiceView({
       setActiveView('list');
       setEditingService(null);
     }
+  };
+
+  const handleCloneAndImport = (service: ServiceComposition) => {
+    if (!selectedContractId) {
+      alert("❌ Nenhum contrato selecionado para associar a composição.");
+      return;
+    }
+
+    const cleanCode = service.code.trim();
+    const alreadyExists = services.some(s => 
+      s.contractId === selectedContractId && 
+      s.code.trim().toLowerCase() === cleanCode.toLowerCase()
+    );
+
+    if (alreadyExists) {
+      if (!confirm(`Seu contrato já possui uma composição com o código "${cleanCode}". Deseja importar assim mesmo (isso criará uma cópia)?`)) {
+        return;
+      }
+    }
+
+    const cloned: ServiceComposition = {
+      ...service,
+      id: `SC-${Math.floor(100000 + Math.random() * 900000)}`,
+      contractId: selectedContractId,
+      name: `${service.name} (Importado)`
+    };
+
+    onAdd(cloned);
+    alert(`✅ Composição "${cloned.name}" importada com sucesso para o seu contrato!`);
+    
+    // Open for editing
+    setEditingService(cloned);
+    setActiveView('edit');
   };
 
   // Helper calculation for breakdown by category in composition page
@@ -522,7 +565,10 @@ export function ServiceView({
             });
             updatedCount++;
           } else {
-            onAdd(imported);
+            onAdd({
+              ...imported,
+              contractId: selectedContractId || undefined
+            });
             addedCount++;
           }
         });
@@ -661,8 +707,9 @@ export function ServiceView({
             unit: unitVal,
             production: 1,
             fit: 0,
-            items
-          });
+            items,
+            contractId: selectedContractId || undefined
+          } as any);
           importedCount++;
         }
       });
@@ -700,6 +747,7 @@ export function ServiceView({
   // Render Full-Page Composition View / Window
   if (activeView === 'add' || activeView === 'edit') {
     const isEditMode = activeView === 'edit';
+    const isCompositionReadOnly = isEditMode && editingService && selectedContractId && (editingService.contractId !== selectedContractId);
     const currentCompositionData = activeComposition;
     const categoryStats = currentCompositionData ? getCategoryBreakdown(currentCompositionData) : null;
     const directCost = currentCompositionData ? calculateServiceUnitCost(currentCompositionData as ServiceComposition, resources, services) : 0;
@@ -726,15 +774,19 @@ export function ServiceView({
             <div className="h-8 w-px bg-slate-800 hidden md:block" />
             <div>
               <div className="flex items-center gap-2">
-                <span className="text-[10px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/30">
-                  {isEditMode ? 'Editando Composição' : 'Nova Composição de Serviço'}
+                <span className={`text-[10px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full ${
+                  isCompositionReadOnly 
+                    ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30' 
+                    : isEditMode ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30' : 'bg-green-500/20 text-green-300 border border-green-500/30'
+                }`}>
+                  {isCompositionReadOnly ? 'Modo de Visualização' : isEditMode ? 'Editando Composição' : 'Nova Composição de Serviço'}
                 </span>
                 {isEditMode && editingService && (
                   <span className="text-xs font-mono font-bold text-slate-400">{editingService.code}</span>
                 )}
               </div>
               <h1 className="text-xl font-black text-white tracking-tight mt-1">
-                {isEditMode ? (editingService?.name || 'Composição de Serviço') : (newService.name || 'Nova Composição')}
+                {isCompositionReadOnly ? `Visualizar: ${editingService?.name}` : isEditMode ? (editingService?.name || 'Composição de Serviço') : (newService.name || 'Nova Composição')}
               </h1>
             </div>
           </div>
@@ -759,16 +811,48 @@ export function ServiceView({
             >
               Cancelar
             </Button>
-            <Button 
-              type="button"
-              onClick={isEditMode ? () => handleEditSubmit() : () => handleSubmit()}
-              className="h-10 px-6 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-black shadow-md hover:shadow-lg transition-all flex items-center gap-2"
-            >
-              <Check className="w-4 h-4" />
-              {isEditMode ? 'Salvar Alterações' : 'Criar Composição'}
-            </Button>
+            {isCompositionReadOnly ? (
+              <Button 
+                type="button"
+                onClick={() => handleCloneAndImport(editingService!)}
+                className="h-10 px-6 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-black shadow-md hover:shadow-lg transition-all flex items-center gap-2"
+              >
+                <Copy className="w-4 h-4" />
+                Importar para Meu Contrato
+              </Button>
+            ) : (
+              <Button 
+                type="button"
+                onClick={isEditMode ? () => handleEditSubmit() : () => handleSubmit()}
+                className="h-10 px-6 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-black shadow-md hover:shadow-lg transition-all flex items-center gap-2"
+              >
+                <Check className="w-4 h-4" />
+                {isEditMode ? 'Salvar Alterações' : 'Criar Composição'}
+              </Button>
+            )}
           </div>
         </div>
+
+        {isCompositionReadOnly && (
+          <div className="bg-amber-50 border border-amber-200 p-4 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-sm">
+            <div className="flex items-start gap-3">
+              <AlertCircle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+              <div>
+                <h4 className="font-bold text-amber-900 text-sm">Composição Restrita a Outras Obras</h4>
+                <p className="text-xs text-amber-700 leading-relaxed">
+                  Esta composição de serviço pertence a outra obra da empresa ou é uma composição padrão global. 
+                  Você possui permissão apenas para visualizá-la, mas pode importá-la para o seu contrato atual para editá-la livremente.
+                </p>
+              </div>
+            </div>
+            <Button 
+              onClick={() => handleCloneAndImport(editingService!)}
+              className="bg-amber-600 hover:bg-amber-700 text-white text-xs font-black px-4 py-2.5 rounded-xl flex items-center gap-1.5 shrink-0 shadow-sm"
+            >
+              <Copy className="w-4 h-4" /> Importar para Meu Contrato
+            </Button>
+          </div>
+        )}
 
         {/* Basic Metadata Header Card */}
         <Card className="border-slate-200 shadow-sm bg-white rounded-2xl overflow-hidden">
@@ -794,6 +878,7 @@ export function ServiceView({
                   placeholder="Ex: SER-001"
                   className="font-mono font-bold bg-slate-50 border-slate-200 h-11"
                   required 
+                  disabled={isCompositionReadOnly}
                 />
               </div>
 
@@ -808,6 +893,7 @@ export function ServiceView({
                   placeholder="Ex: m³, m², un, h"
                   className="font-bold bg-slate-50 border-slate-200 h-11"
                   required 
+                  disabled={isCompositionReadOnly}
                 />
               </div>
 
@@ -822,6 +908,7 @@ export function ServiceView({
                   placeholder="Ex: Escavação Mecânica e Carga de Vala"
                   className="font-bold bg-slate-50 border-slate-200 h-11 text-base"
                   required 
+                  disabled={isCompositionReadOnly}
                 />
               </div>
 
@@ -836,6 +923,7 @@ export function ServiceView({
                   decimals={3}
                   className="font-bold bg-slate-50 border-slate-200 h-11 text-center"
                   required 
+                  disabled={isCompositionReadOnly}
                 />
               </div>
 
@@ -850,6 +938,7 @@ export function ServiceView({
                   decimals={3}
                   className="font-bold bg-slate-50 border-slate-200 h-11 text-center"
                   required 
+                  disabled={isCompositionReadOnly}
                 />
               </div>
             </div>
@@ -863,249 +952,251 @@ export function ServiceView({
           <div className="lg:col-span-8 space-y-6">
             
             {/* Panel 1: Adicionar Insumos à Composição */}
-            <Card className="border-slate-200 shadow-sm bg-white rounded-2xl overflow-hidden">
-              <div className="bg-slate-50 px-6 py-4 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div className="flex items-center gap-2">
-                  <Plus className="w-5 h-5 text-blue-600" />
-                  <h3 className="font-black text-slate-900 text-base">Adicionar Insumos e Componentes</h3>
+            {!isCompositionReadOnly && (
+              <Card className="border-slate-200 shadow-sm bg-white rounded-2xl overflow-hidden">
+                <div className="bg-slate-50 px-6 py-4 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="flex items-center gap-2">
+                    <Plus className="w-5 h-5 text-blue-600" />
+                    <h3 className="font-black text-slate-900 text-base">Adicionar Insumos e Componentes</h3>
+                  </div>
+
+                  {/* Filter Category Tabs */}
+                  <div className="flex items-center gap-1 bg-slate-200/60 p-1 rounded-xl text-xs font-bold">
+                    <button 
+                      type="button"
+                      onClick={() => setSelectedCategoryFilter('all')}
+                      className={`px-3 py-1 rounded-lg transition-all ${selectedCategoryFilter === 'all' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-900'}`}
+                    >
+                      Todos
+                    </button>
+                    <button 
+                      type="button"
+                      onClick={() => setSelectedCategoryFilter('labor')}
+                      className={`px-3 py-1 rounded-lg transition-all ${selectedCategoryFilter === 'labor' ? 'bg-emerald-600 text-white shadow-sm' : 'text-slate-600 hover:text-emerald-700'}`}
+                    >
+                      Mão de Obra
+                    </button>
+                    <button 
+                      type="button"
+                      onClick={() => setSelectedCategoryFilter('equipment')}
+                      className={`px-3 py-1 rounded-lg transition-all ${selectedCategoryFilter === 'equipment' ? 'bg-purple-600 text-white shadow-sm' : 'text-slate-600 hover:text-purple-700'}`}
+                    >
+                      Equipamentos
+                    </button>
+                    <button 
+                      type="button"
+                      onClick={() => setSelectedCategoryFilter('material')}
+                      className={`px-3 py-1 rounded-lg transition-all ${selectedCategoryFilter === 'material' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-600 hover:text-blue-700'}`}
+                    >
+                      Materiais
+                    </button>
+                    <button 
+                      type="button"
+                      onClick={() => setSelectedCategoryFilter('service')}
+                      className={`px-3 py-1 rounded-lg transition-all ${selectedCategoryFilter === 'service' ? 'bg-amber-600 text-white shadow-sm' : 'text-slate-600 hover:text-amber-700'}`}
+                    >
+                      Auxiliares
+                    </button>
+                  </div>
                 </div>
 
-                {/* Filter Category Tabs */}
-                <div className="flex items-center gap-1 bg-slate-200/60 p-1 rounded-xl text-xs font-bold">
-                  <button 
-                    type="button"
-                    onClick={() => setSelectedCategoryFilter('all')}
-                    className={`px-3 py-1 rounded-lg transition-all ${selectedCategoryFilter === 'all' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-900'}`}
-                  >
-                    Todos
-                  </button>
-                  <button 
-                    type="button"
-                    onClick={() => setSelectedCategoryFilter('labor')}
-                    className={`px-3 py-1 rounded-lg transition-all ${selectedCategoryFilter === 'labor' ? 'bg-emerald-600 text-white shadow-sm' : 'text-slate-600 hover:text-emerald-700'}`}
-                  >
-                    Mão de Obra
-                  </button>
-                  <button 
-                    type="button"
-                    onClick={() => setSelectedCategoryFilter('equipment')}
-                    className={`px-3 py-1 rounded-lg transition-all ${selectedCategoryFilter === 'equipment' ? 'bg-purple-600 text-white shadow-sm' : 'text-slate-600 hover:text-purple-700'}`}
-                  >
-                    Equipamentos
-                  </button>
-                  <button 
-                    type="button"
-                    onClick={() => setSelectedCategoryFilter('material')}
-                    className={`px-3 py-1 rounded-lg transition-all ${selectedCategoryFilter === 'material' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-600 hover:text-blue-700'}`}
-                  >
-                    Materiais
-                  </button>
-                  <button 
-                    type="button"
-                    onClick={() => setSelectedCategoryFilter('service')}
-                    className={`px-3 py-1 rounded-lg transition-all ${selectedCategoryFilter === 'service' ? 'bg-amber-600 text-white shadow-sm' : 'text-slate-600 hover:text-amber-700'}`}
-                  >
-                    Auxiliares
-                  </button>
-                </div>
-              </div>
+                <CardContent className="p-6 space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-end">
+                    
+                    {/* Combobox Search Selector */}
+                    <div className="md:col-span-7 relative space-y-1.5">
+                      <Label className="text-xs font-bold text-slate-700 uppercase tracking-wider">Selecionar Insumo ou Serviço Auxiliar</Label>
+                      <div className="relative">
+                        <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                        <Input
+                          placeholder="Pesquisar por código ou nome do insumo..."
+                          value={
+                            (!isDropdownOpen && currentItem.resourceId)
+                              ? (() => {
+                                  const res = resources.find(r => r.id === currentItem.resourceId) || services.find(s => s.id === currentItem.resourceId);
+                                  return res ? `${res.code} - ${res.name}` : '';
+                                })()
+                              : resourceSearch
+                          }
+                          onChange={(e) => {
+                            setResourceSearch(e.target.value);
+                            setIsDropdownOpen(true);
+                            if (!e.target.value) {
+                              setCurrentItem(prev => ({ ...prev, resourceId: '' }));
+                            }
+                          }}
+                          onFocus={() => {
+                            setIsDropdownOpen(true);
+                            if (currentItem.resourceId) {
+                              const res = resources.find(r => r.id === currentItem.resourceId) || services.find(s => s.id === currentItem.resourceId);
+                              if (res) setResourceSearch(res.name);
+                            }
+                          }}
+                          className="pl-9 pr-8 font-medium bg-slate-50 border-slate-200 h-11"
+                        />
+                        {currentItem.resourceId && (
+                          <button 
+                            type="button" 
+                            onClick={() => { setCurrentItem({ resourceId: '', consumption: 0 }); setResourceSearch(''); }}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        )}
+                      </div>
 
-              <CardContent className="p-6 space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-end">
-                  
-                  {/* Combobox Search Selector */}
-                  <div className="md:col-span-7 relative space-y-1.5">
-                    <Label className="text-xs font-bold text-slate-700 uppercase tracking-wider">Selecionar Insumo ou Serviço Auxiliar</Label>
-                    <div className="relative">
-                      <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                      <Input
-                        placeholder="Pesquisar por código ou nome do insumo..."
-                        value={
-                          (!isDropdownOpen && currentItem.resourceId)
-                            ? (() => {
-                                const res = resources.find(r => r.id === currentItem.resourceId) || services.find(s => s.id === currentItem.resourceId);
-                                return res ? `${res.code} - ${res.name}` : '';
-                              })()
-                            : resourceSearch
-                        }
-                        onChange={(e) => {
-                          setResourceSearch(e.target.value);
-                          setIsDropdownOpen(true);
-                          if (!e.target.value) {
-                            setCurrentItem(prev => ({ ...prev, resourceId: '' }));
-                          }
-                        }}
-                        onFocus={() => {
-                          setIsDropdownOpen(true);
-                          if (currentItem.resourceId) {
-                            const res = resources.find(r => r.id === currentItem.resourceId) || services.find(s => s.id === currentItem.resourceId);
-                            if (res) setResourceSearch(res.name);
-                          }
-                        }}
-                        className="pl-9 pr-8 font-medium bg-slate-50 border-slate-200 h-11"
-                      />
-                      {currentItem.resourceId && (
-                        <button 
-                          type="button" 
-                          onClick={() => { setCurrentItem({ resourceId: '', consumption: 0 }); setResourceSearch(''); }}
-                          className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-                        >
-                          <X className="w-4 h-4" />
-                        </button>
+                      {/* Dropdown Options List */}
+                      {isDropdownOpen && (
+                        <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-xl max-h-60 overflow-y-auto divide-y divide-slate-100">
+                          {(() => {
+                            const searchLower = resourceSearch.toLowerCase();
+                            const filterType = selectedCategoryFilter;
+
+                            let availableResources = resources.filter(r => {
+                              if (filterType === 'labor' && r.type !== 'labor') return false;
+                              if (filterType === 'equipment' && r.type !== 'equipment') return false;
+                              if (filterType === 'material' && r.type !== 'material') return false;
+                              if (filterType === 'service' && r.type !== 'service') return false;
+                              return r.name.toLowerCase().includes(searchLower) || r.code.toLowerCase().includes(searchLower);
+                            });
+
+                            let availableServices = (filterType === 'all' || filterType === 'service') ? services.filter(s => {
+                              if (isEditMode && editingService && s.id === editingService.id) return false;
+                              return s.name.toLowerCase().includes(searchLower) || s.code.toLowerCase().includes(searchLower);
+                            }) : [];
+
+                            if (availableResources.length === 0 && availableServices.length === 0) {
+                              return <div className="p-4 text-center text-xs text-slate-400">Nenhum insumo ou serviço encontrado.</div>;
+                            }
+
+                            return (
+                              <>
+                                {availableResources.map(r => (
+                                  <div
+                                    key={r.id}
+                                    className="px-4 py-2.5 hover:bg-slate-50 cursor-pointer flex items-center justify-between text-xs transition-colors"
+                                    onClick={() => {
+                                      setCurrentItem({
+                                        resourceId: r.id,
+                                        consumption: currentItem.consumption || 1,
+                                        productiveConsumption: r.type === 'equipment' ? (currentItem.productiveConsumption || 1) : undefined,
+                                        unproductiveConsumption: r.type === 'equipment' ? (currentItem.unproductiveConsumption || 0) : undefined,
+                                      });
+                                      setResourceSearch(`${r.code} - ${r.name}`);
+                                      setIsDropdownOpen(false);
+                                    }}
+                                  >
+                                    <div className="flex items-center gap-2">
+                                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
+                                        r.type === 'labor' ? 'bg-emerald-100 text-emerald-800' :
+                                        r.type === 'equipment' ? 'bg-purple-100 text-purple-800' :
+                                        r.type === 'material' ? 'bg-blue-100 text-blue-800' : 'bg-amber-100 text-amber-800'
+                                      }`}>
+                                        {r.type === 'labor' ? 'M.Obra' : r.type === 'equipment' ? 'Equip' : r.type === 'material' ? 'Mat' : 'Aux'}
+                                      </span>
+                                      <span className="font-mono font-bold text-slate-500">{r.code}</span>
+                                      <span className="font-bold text-slate-900">{r.name}</span>
+                                    </div>
+                                    <div className="text-right font-mono font-bold text-slate-700">
+                                      {formatCurrency(r.type === 'equipment' ? (r.productivePrice || r.basePrice) : r.basePrice)} / {r.unit}
+                                    </div>
+                                  </div>
+                                ))}
+
+                                {availableServices.map(s => (
+                                  <div
+                                    key={s.id}
+                                    className="px-4 py-2.5 hover:bg-amber-50 cursor-pointer flex items-center justify-between text-xs transition-colors"
+                                    onClick={() => {
+                                      setCurrentItem({
+                                        resourceId: s.id,
+                                        consumption: currentItem.consumption || 1,
+                                      });
+                                      setResourceSearch(`${s.code} - ${s.name}`);
+                                      setIsDropdownOpen(false);
+                                    }}
+                                  >
+                                    <div className="flex items-center gap-2">
+                                      <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-amber-100 text-amber-800">
+                                        Serv. Aux.
+                                      </span>
+                                      <span className="font-mono font-bold text-slate-500">{s.code}</span>
+                                      <span className="font-bold text-slate-900">{s.name}</span>
+                                    </div>
+                                    <div className="text-right font-mono font-bold text-amber-700">
+                                      {formatCurrency(calculateServiceUnitCost(s, resources, services))} / {s.unit}
+                                    </div>
+                                  </div>
+                                ))}
+                              </>
+                            );
+                          })()}
+                        </div>
                       )}
                     </div>
 
-                    {/* Dropdown Options List */}
-                    {isDropdownOpen && (
-                      <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-xl max-h-60 overflow-y-auto divide-y divide-slate-100">
-                        {(() => {
-                          const searchLower = resourceSearch.toLowerCase();
-                          const filterType = selectedCategoryFilter;
+                    {/* Dynamic Consumption Inputs */}
+                    {(() => {
+                      const selectedRes = resources.find(r => r.id === currentItem.resourceId);
+                      const isEquip = selectedRes?.type === 'equipment';
 
-                          let availableResources = resources.filter(r => {
-                            if (filterType === 'labor' && r.type !== 'labor') return false;
-                            if (filterType === 'equipment' && r.type !== 'equipment') return false;
-                            if (filterType === 'material' && r.type !== 'material') return false;
-                            if (filterType === 'service' && r.type !== 'service') return false;
-                            return r.name.toLowerCase().includes(searchLower) || r.code.toLowerCase().includes(searchLower);
-                          });
-
-                          let availableServices = (filterType === 'all' || filterType === 'service') ? services.filter(s => {
-                            if (isEditMode && editingService && s.id === editingService.id) return false;
-                            return s.name.toLowerCase().includes(searchLower) || s.code.toLowerCase().includes(searchLower);
-                          }) : [];
-
-                          if (availableResources.length === 0 && availableServices.length === 0) {
-                            return <div className="p-4 text-center text-xs text-slate-400">Nenhum insumo ou serviço encontrado.</div>;
-                          }
-
-                          return (
-                            <>
-                              {availableResources.map(r => (
-                                <div
-                                  key={r.id}
-                                  className="px-4 py-2.5 hover:bg-slate-50 cursor-pointer flex items-center justify-between text-xs transition-colors"
-                                  onClick={() => {
-                                    setCurrentItem({
-                                      resourceId: r.id,
-                                      consumption: currentItem.consumption || 1,
-                                      productiveConsumption: r.type === 'equipment' ? (currentItem.productiveConsumption || 1) : undefined,
-                                      unproductiveConsumption: r.type === 'equipment' ? (currentItem.unproductiveConsumption || 0) : undefined,
-                                    });
-                                    setResourceSearch(`${r.code} - ${r.name}`);
-                                    setIsDropdownOpen(false);
-                                  }}
-                                >
-                                  <div className="flex items-center gap-2">
-                                    <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
-                                      r.type === 'labor' ? 'bg-emerald-100 text-emerald-800' :
-                                      r.type === 'equipment' ? 'bg-purple-100 text-purple-800' :
-                                      r.type === 'material' ? 'bg-blue-100 text-blue-800' : 'bg-amber-100 text-amber-800'
-                                    }`}>
-                                      {r.type === 'labor' ? 'M.Obra' : r.type === 'equipment' ? 'Equip' : r.type === 'material' ? 'Mat' : 'Aux'}
-                                    </span>
-                                    <span className="font-mono font-bold text-slate-500">{r.code}</span>
-                                    <span className="font-bold text-slate-900">{r.name}</span>
-                                  </div>
-                                  <div className="text-right font-mono font-bold text-slate-700">
-                                    {formatCurrency(r.type === 'equipment' ? (r.productivePrice || r.basePrice) : r.basePrice)} / {r.unit}
-                                  </div>
-                                </div>
-                              ))}
-
-                              {availableServices.map(s => (
-                                <div
-                                  key={s.id}
-                                  className="px-4 py-2.5 hover:bg-amber-50 cursor-pointer flex items-center justify-between text-xs transition-colors"
-                                  onClick={() => {
-                                    setCurrentItem({
-                                      resourceId: s.id,
-                                      consumption: currentItem.consumption || 1,
-                                    });
-                                    setResourceSearch(`${s.code} - ${s.name}`);
-                                    setIsDropdownOpen(false);
-                                  }}
-                                >
-                                  <div className="flex items-center gap-2">
-                                    <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-amber-100 text-amber-800">
-                                      Serv. Aux.
-                                    </span>
-                                    <span className="font-mono font-bold text-slate-500">{s.code}</span>
-                                    <span className="font-bold text-slate-900">{s.name}</span>
-                                  </div>
-                                  <div className="text-right font-mono font-bold text-amber-700">
-                                    {formatCurrency(calculateServiceUnitCost(s, resources, services))} / {s.unit}
-                                  </div>
-                                </div>
-                              ))}
-                            </>
-                          );
-                        })()}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Dynamic Consumption Inputs */}
-                  {(() => {
-                    const selectedRes = resources.find(r => r.id === currentItem.resourceId);
-                    const isEquip = selectedRes?.type === 'equipment';
-
-                    if (isEquip) {
-                      return (
-                        <div className="md:col-span-5 grid grid-cols-2 gap-2">
-                          <div className="space-y-1.5">
-                            <Label className="text-[11px] font-bold text-blue-700 uppercase">Cons. Produtivo (h)</Label>
-                            <NumericInput
-                              value={currentItem.productiveConsumption || 0}
-                              onChange={val => setCurrentItem(prev => ({ ...prev, productiveConsumption: val }))}
-                              decimals={6}
-                              className="font-mono font-bold bg-blue-50/50 border-blue-200 h-11 text-center"
-                            />
+                      if (isEquip) {
+                        return (
+                          <div className="md:col-span-5 grid grid-cols-2 gap-2">
+                            <div className="space-y-1.5">
+                              <Label className="text-[11px] font-bold text-blue-700 uppercase">Cons. Produtivo (h)</Label>
+                              <NumericInput
+                                value={currentItem.productiveConsumption || 0}
+                                onChange={val => setCurrentItem(prev => ({ ...prev, productiveConsumption: val }))}
+                                decimals={6}
+                                className="font-mono font-bold bg-blue-50/50 border-blue-200 h-11 text-center"
+                              />
+                            </div>
+                            <div className="space-y-1.5">
+                              <Label className="text-[11px] font-bold text-slate-600 uppercase">Cons. Improdutivo (h)</Label>
+                              <NumericInput
+                                value={currentItem.unproductiveConsumption || 0}
+                                onChange={val => setCurrentItem(prev => ({ ...prev, unproductiveConsumption: val }))}
+                                decimals={6}
+                                className="font-mono font-bold bg-slate-50 border-slate-200 h-11 text-center"
+                              />
+                            </div>
                           </div>
+                        );
+                      }
+
+                      return (
+                        <div className="md:col-span-5 grid grid-cols-1 gap-2">
                           <div className="space-y-1.5">
-                            <Label className="text-[11px] font-bold text-slate-600 uppercase">Cons. Improdutivo (h)</Label>
+                            <Label className="text-xs font-bold text-slate-700 uppercase tracking-wider">Coeficiente / Consumo</Label>
                             <NumericInput
-                              value={currentItem.unproductiveConsumption || 0}
-                              onChange={val => setCurrentItem(prev => ({ ...prev, unproductiveConsumption: val }))}
+                              value={currentItem.consumption}
+                              onChange={val => setCurrentItem(prev => ({ ...prev, consumption: val }))}
                               decimals={6}
-                              className="font-mono font-bold bg-slate-50 border-slate-200 h-11 text-center"
+                              placeholder="0.000000"
+                              className="font-mono font-bold bg-slate-50 border-slate-200 h-11 text-center text-base"
                             />
                           </div>
                         </div>
                       );
-                    }
+                    })()}
+                  </div>
 
-                    return (
-                      <div className="md:col-span-5 grid grid-cols-1 gap-2">
-                        <div className="space-y-1.5">
-                          <Label className="text-xs font-bold text-slate-700 uppercase tracking-wider">Coeficiente / Consumo</Label>
-                          <NumericInput
-                            value={currentItem.consumption}
-                            onChange={val => setCurrentItem(prev => ({ ...prev, consumption: val }))}
-                            decimals={6}
-                            placeholder="0.000000"
-                            className="font-mono font-bold bg-slate-50 border-slate-200 h-11 text-center text-base"
-                          />
-                        </div>
-                      </div>
-                    );
-                  })()}
-                </div>
-
-                {/* Add Item Action Button */}
-                <div className="pt-2 flex justify-end">
-                  <Button
-                    type="button"
-                    onClick={() => addItem(isEditMode)}
-                    disabled={!currentItem.resourceId}
-                    className="h-11 px-6 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold flex items-center gap-2 shadow-sm"
-                  >
-                    <Plus className="w-4 h-4" />
-                    {editingItemIndex !== null ? 'Atualizar Item na Composição' : 'Adicionar Item à Composição'}
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
+                  {/* Add Item Action Button */}
+                  <div className="pt-2 flex justify-end">
+                    <Button
+                      type="button"
+                      onClick={() => addItem(isEditMode)}
+                      disabled={!currentItem.resourceId}
+                      className="h-11 px-6 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold flex items-center gap-2 shadow-sm"
+                    >
+                      <Plus className="w-4 h-4" />
+                      {editingItemIndex !== null ? 'Atualizar Item na Composição' : 'Adicionar Item à Composição'}
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
 
             {/* Panel 2: Interactive Composition Items Table */}
             <Card className="border-slate-200 shadow-sm bg-white rounded-2xl overflow-hidden">
@@ -1130,13 +1221,13 @@ export function ServiceView({
                       <TableHead className="w-[180px] font-bold text-slate-700 text-xs text-right">Coeficiente / Consumo</TableHead>
                       <TableHead className="w-[130px] font-bold text-slate-700 text-xs text-right">Custo Unit. (R$)</TableHead>
                       <TableHead className="w-[140px] font-bold text-slate-700 text-xs text-right">Custo Total (R$)</TableHead>
-                      <TableHead className="w-[90px] font-bold text-slate-700 text-xs text-center">Ações</TableHead>
+                      {!isCompositionReadOnly && <TableHead className="w-[90px] font-bold text-slate-700 text-xs text-center">Ações</TableHead>}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {!currentCompositionData || currentCompositionData.items.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={8} className="py-12 text-center text-slate-400 font-medium">
+                        <TableCell colSpan={isCompositionReadOnly ? 7 : 8} className="py-12 text-center text-slate-400 font-medium">
                           Nenhum insumo ou serviço adicionado a esta composição ainda. Use o painel acima para buscar e adicionar.
                         </TableCell>
                       </TableRow>
@@ -1215,28 +1306,30 @@ export function ServiceView({
                             <TableCell className="text-right font-mono text-sm font-black text-blue-700">
                               {formatCurrency(itemTotalCost)}
                             </TableCell>
-                            <TableCell className="text-center">
-                              <div className="flex items-center justify-center gap-1">
-                                <Button 
-                                  variant="ghost" 
-                                  size="icon" 
-                                  className="h-7 w-7 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg" 
-                                  onClick={() => editItem(index, isEditMode)}
-                                  title="Editar coeficiente"
-                                >
-                                  <Edit className="w-3.5 h-3.5" />
-                                </Button>
-                                <Button 
-                                  variant="ghost" 
-                                  size="icon" 
-                                  className="h-7 w-7 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg" 
-                                  onClick={() => removeItem(index, isEditMode)}
-                                  title="Remover insumo"
-                                >
-                                  <Trash2 className="w-3.5 h-3.5" />
-                                </Button>
-                              </div>
-                            </TableCell>
+                            {!isCompositionReadOnly && (
+                              <TableCell className="text-center">
+                                <div className="flex items-center justify-center gap-1">
+                                  <Button 
+                                    variant="ghost" 
+                                    size="icon" 
+                                    className="h-7 w-7 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg" 
+                                    onClick={() => editItem(index, isEditMode)}
+                                    title="Editar coeficiente"
+                                  >
+                                    <Edit className="w-3.5 h-3.5" />
+                                  </Button>
+                                  <Button 
+                                    variant="ghost" 
+                                    size="icon" 
+                                    className="h-7 w-7 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg" 
+                                    onClick={() => removeItem(index, isEditMode)}
+                                    title="Remover insumo"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </Button>
+                                </div>
+                              </TableCell>
+                            )}
                           </TableRow>
                         );
                       })
@@ -1356,21 +1449,23 @@ export function ServiceView({
 
             {/* Quick Actions Panel */}
             <Card className="border-slate-200 shadow-sm bg-white rounded-2xl p-6 space-y-3">
-              <Button 
-                type="button"
-                onClick={isEditMode ? () => handleEditSubmit() : () => handleSubmit()}
-                className="w-full h-12 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-black text-base shadow-md flex items-center justify-center gap-2"
-              >
-                <Check className="w-5 h-5" />
-                {isEditMode ? 'Salvar Alterações' : 'Concluir Composição'}
-              </Button>
+              {!isCompositionReadOnly && (
+                <Button 
+                  type="button"
+                  onClick={isEditMode ? () => handleEditSubmit() : () => handleSubmit()}
+                  className="w-full h-12 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-black text-base shadow-md flex items-center justify-center gap-2"
+                >
+                  <Check className="w-5 h-5" />
+                  {isEditMode ? 'Salvar Alterações' : 'Concluir Composição'}
+                </Button>
+              )}
               <Button 
                 variant="outline"
                 type="button"
                 onClick={() => { setActiveView('list'); setEditingService(null); }}
                 className="w-full h-10 rounded-xl border-slate-200 hover:bg-slate-50 text-slate-700 font-bold"
               >
-                Cancelar e Voltar
+                {!isCompositionReadOnly ? 'Cancelar e Voltar' : 'Voltar para a Lista'}
               </Button>
             </Card>
 

@@ -975,13 +975,12 @@ export default function App() {
               }
             }
             if (!hasError && allData.length === 0) {
-              if (prev && prev.length > 0) {
-                console.log(`[Sync] Preserving local cached data for ${tableName} since database is empty`);
-                if (!(window as any).sigoForceSyncUp) (window as any).sigoForceSyncUp = {};
-                (window as any).sigoForceSyncUp[tableName] = true;
-                finalVal = prev;
-                return prev;
-              }
+              // The database table is empty and was successfully queried.
+              // To respect the database as the absolute source of truth and prevent deleted data from coming back,
+              // we must clear the local cache instead of restoring/uploading it back.
+              console.log(`[Sync] Database table ${tableName} is empty. Clearing local cache.`);
+              finalVal = [];
+              return [];
             }
             if (JSON.stringify(prev) === JSON.stringify(finalVal)) return prev;
             return finalVal;
