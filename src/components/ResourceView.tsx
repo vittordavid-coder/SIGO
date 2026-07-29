@@ -884,7 +884,6 @@ export function ResourceView({ resources, onAdd, onDelete, onUpdate, purchaseOrd
         const codeVal = getVal(colCode);
         const unitVal = getVal(colUnit) || 'UN';
         const typeStr = getVal(colType).toLowerCase();
-        const priceStr = getVal(colPrice);
 
         let parsedType: ResourceType = 'material';
         if (typeStr.includes('obra') || typeStr.includes('mão') || typeStr.includes('mao') || typeStr === 'labor') {
@@ -894,9 +893,18 @@ export function ResourceView({ resources, onAdd, onDelete, onUpdate, purchaseOrd
         }
 
         let parsedPrice = 0;
-        if (priceStr) {
-          const clean = priceStr.replace(/\s/g, '').replace('R$', '').replace(/\./g, '').replace(',', '.');
-          parsedPrice = parseFloat(clean) || 0;
+        const rawPriceVal = colPrice !== -1 && colPrice < row.length ? row[colPrice] : undefined;
+        if (typeof rawPriceVal === 'number') {
+          parsedPrice = rawPriceVal;
+        } else if (rawPriceVal !== null && rawPriceVal !== undefined) {
+          const str = String(rawPriceVal).trim();
+          if (str) {
+            let clean = str.replace(/\s/g, '').replace('R$', '');
+            if (clean.includes(',')) {
+              clean = clean.replace(/\./g, '').replace(',', '.');
+            }
+            parsedPrice = parseFloat(clean) || 0;
+          }
         }
 
         let existing = null;
@@ -2457,7 +2465,6 @@ export function ResourceView({ resources, onAdd, onDelete, onUpdate, purchaseOrd
                               const nameVal = getVal(row, name);
                               const unitVal = getVal(row, unit);
                               const typeVal = getVal(row, type).toLowerCase();
-                              const priceVal = getVal(row, basePrice);
 
                               let parsedType = 'material';
                               if (typeVal.includes('obra') || typeVal.includes('mão') || typeVal.includes('mao') || typeVal === 'labor') {
@@ -2469,9 +2476,18 @@ export function ResourceView({ resources, onAdd, onDelete, onUpdate, purchaseOrd
                               }
 
                               let parsedPrice = 0;
-                              if (priceVal !== "-") {
-                                const clean = priceVal.replace(/\s/g, '').replace('R$', '').replace(/\./g, '').replace(',', '.');
-                                parsedPrice = parseFloat(clean) || 0;
+                              const rawPriceVal = basePrice !== -1 && basePrice < row.length ? row[basePrice] : undefined;
+                              if (typeof rawPriceVal === 'number') {
+                                parsedPrice = rawPriceVal;
+                              } else if (rawPriceVal !== null && rawPriceVal !== undefined) {
+                                const str = String(rawPriceVal).trim();
+                                if (str) {
+                                  let clean = str.replace(/\s/g, '').replace('R$', '');
+                                  if (clean.includes(',')) {
+                                    clean = clean.replace(/\./g, '').replace(',', '.');
+                                  }
+                                  parsedPrice = parseFloat(clean) || 0;
+                                }
                               }
 
                               return (
