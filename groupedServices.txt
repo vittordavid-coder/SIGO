@@ -1,0 +1,87 @@
+  const groupedServices = useMemo(() => {
+    const term = searchTerm.toLowerCase();
+    const filtered = displayedServices.filter(s => 
+      s.name.toLowerCase().includes(term) || 
+      s.code.toLowerCase().includes(term)
+    );
+
+    const groupsList: { id: string; name: string; services: ServiceComposition[] }[] = [];
+    const matchedServiceIds = new Set<string>();
+
+    if (activeContract) {
+      // 1. Process contract groups
+      if (activeContract.groups && activeContract.groups.length > 0) {
+        activeContract.groups.forEach((g: any) => {
+          const groupServices: ServiceComposition[] = [];
+          g.services?.forEach((gs: any) => {
+            const match = filtered.find(fs => 
+              (fs.contractId === selectedContractId && (fs.id === gs.serviceId || (gs.code && fs.code.trim().toLowerCase() === gs.code.trim().toLowerCase()))) ||
+              (!fs.contractId && (fs.id === gs.serviceId || (gs.code && fs.code.trim().toLowerCase() === gs.code.trim().toLowerCase())))
+            );
+            if (match && !groupServices.some(x => x.id === match.id)) {
+              groupServices.push(match);
+              matchedServiceIds.add(match.id);
+            }
+          });
+
+          if (groupServices.length > 0) {
+            groupsList.push({
+              id: g.id || `group-${g.name}`,
+              name: `Grupo: ${g.name}`,
+              services: groupServices
+            });
+          }
+        });
+      }
+
+      // 2. Process contract direct services (not in any group)
+      const directServices: ServiceComposition[] = [];
+      if (activeContract.services && activeContract.services.length > 0) {
+        activeContract.services.forEach((gs: any) => {
+          const match = filtered.find(fs => 
+            (fs.contractId === selectedContractId && (fs.id === gs.serviceId || (gs.code && fs.code.trim().toLowerCase() === gs.code.trim().toLowerCase()))) ||
+            (!fs.contractId && (fs.id === gs.serviceId || (gs.code && fs.code.trim().toLowerCase() === gs.code.trim().toLowerCase())))
+          );
+          if (match && !matchedServiceIds.has(match.id) && !directServices.some(x => x.id === match.id)) {
+            directServices.push(match);
+            matchedServiceIds.add(match.id);
+          }
+        });
+      }
+
+      // Also add any other compositions specifically created for this contract that didn't match groups/direct lists
+      filtered.forEach(fs => {
+        if (fs.contractId === selectedContractId && !matchedServiceIds.has(fs.id)) {
+          directServices.push(fs);
+          matchedServiceIds.add(fs.id);
+        }
+      });
+
+      if (directServices.length > 0) {
+        groupsList.push({
+          id: 'direct-services',
+          name: 'Serviços do Seu Contrato',
+          services: directServices
+        });
+      }
+
+      // 3. Process remaining filtered services that are NOT part of this contract
+      const otherServices = filtered.filter(fs => !matchedServiceIds.has(fs.id));
+      if (otherServices.length > 0) {
+        groupsList.push({
+          id: 'other-services',
+          name: 'Composições de Outras Obras / Global',
+          services: otherServices
+        });
+      }
+    } else {
+      groupsList.push({
+        id: 'all-compositions',
+        name: 'Todas as Composições de Serviços',
+        services: filtered
+      });
+    }
+
+    return groupsList;
+  }, [displayedServices, activeContract, searchTerm, showAllServices]);
+

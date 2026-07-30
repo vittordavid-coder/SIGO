@@ -7,8 +7,6 @@ interface ExcavatorLoaderProps {
 }
 
 export function ExcavatorLoader({ isSaving, message = "Gravando dados..." }: ExcavatorLoaderProps) {
-  const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
-
   useEffect(() => {
     if (!isSaving) return;
 
@@ -22,16 +20,8 @@ export function ExcavatorLoader({ isSaving, message = "Gravando dados..." }: Exc
 
     window.addEventListener("beforeunload", handleBeforeUnload);
 
-    // Track mouse position
-    const handleMouseMove = (e: MouseEvent) => {
-      setMousePos({ x: e.clientX, y: e.clientY });
-    };
-
-    window.addEventListener("mousemove", handleMouseMove);
-
     return () => {
       window.removeEventListener("beforeunload", handleBeforeUnload);
-      window.removeEventListener("mousemove", handleMouseMove);
     };
   }, [isSaving]);
 
@@ -45,7 +35,7 @@ export function ExcavatorLoader({ isSaving, message = "Gravando dados..." }: Exc
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className="fixed inset-0 bg-black/40 backdrop-blur-[2px] z-[99999] cursor-none flex flex-col items-center justify-center select-none"
+        className="fixed inset-0 bg-black/40 backdrop-blur-[2px] z-[99999] flex flex-col items-center justify-center select-none cursor-wait"
       >
         {/* Central visual feedback card to make it look extremely premium */}
         <motion.div
@@ -75,31 +65,6 @@ export function ExcavatorLoader({ isSaving, message = "Gravando dados..." }: Exc
             </span>
             <span className="text-[10px] uppercase font-bold tracking-wider text-amber-600 dark:text-amber-400 animate-pulse">
               Salvando em lote
-            </span>
-          </div>
-        </motion.div>
-
-        {/* Mouse Follower Excavator */}
-        <motion.div
-          style={{
-            position: "fixed",
-            left: mousePos.x,
-            top: mousePos.y,
-            x: 16,
-            y: 16,
-          }}
-          className="pointer-events-none z-[100000] bg-white/95 dark:bg-zinc-900/95 border border-amber-200 dark:border-amber-800/50 rounded-xl p-2.5 shadow-xl flex items-center gap-3 backdrop-blur-md"
-        >
-          {/* Miniature version of excavator loader next to the cursor */}
-          <div className="w-16 h-12 flex items-center justify-center overflow-hidden bg-amber-50/50 dark:bg-amber-950/20 rounded border border-amber-100/50 dark:border-amber-900/30">
-            <ExcavatorAnimation miniature />
-          </div>
-          <div className="flex flex-col">
-            <span className="text-[10px] font-bold text-amber-700 dark:text-amber-400 uppercase tracking-wider">
-              Importando dados
-            </span>
-            <span className="text-[9px] text-zinc-500 dark:text-zinc-400">
-              Sincronizando...
             </span>
           </div>
         </motion.div>

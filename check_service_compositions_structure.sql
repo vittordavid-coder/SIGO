@@ -18,6 +18,7 @@ BEGIN
     ALTER TABLE service_compositions ADD COLUMN IF NOT EXISTS production NUMERIC DEFAULT 1;
     ALTER TABLE service_compositions ADD COLUMN IF NOT EXISTS fit NUMERIC DEFAULT 1;
     ALTER TABLE service_compositions ADD COLUMN IF NOT EXISTS contract_id TEXT;
+    ALTER TABLE service_compositions ADD COLUMN IF NOT EXISTS group_name TEXT;
     ALTER TABLE service_compositions ADD COLUMN IF NOT EXISTS worksheet_type TEXT;
     ALTER TABLE service_compositions ADD COLUMN IF NOT EXISTS quantity NUMERIC DEFAULT 0;
     

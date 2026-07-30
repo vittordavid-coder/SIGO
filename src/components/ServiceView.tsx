@@ -156,6 +156,14 @@ export function ServiceView({
     return services;
   }, [services, selectedContractId, contractServiceIds, showAllServices]);
 
+  const uniqueGroups = useMemo(() => {
+    const groups = new Set<string>();
+    services.forEach(s => {
+      if (s.groupName) groups.add(s.groupName);
+    });
+    return Array.from(groups).sort();
+  }, [services]);
+
   const groupedServices = useMemo(() => {
     const term = searchTerm.toLowerCase();
     const filtered = displayedServices.filter(s => 
@@ -167,7 +175,7 @@ export function ServiceView({
     const matchedServiceIds = new Set<string>();
 
     if (activeContract) {
-      // 1. Process contract groups
+      // 1. Process contract worksheet groups
       if (activeContract.groups && activeContract.groups.length > 0) {
         activeContract.groups.forEach((g: any) => {
           const groupServices: ServiceComposition[] = [];
@@ -185,34 +193,42 @@ export function ServiceView({
           if (groupServices.length > 0) {
             groupsList.push({
               id: g.id || `group-${g.name}`,
-              name: `Grupo: ${g.name}`,
+              name: `Grupo da Planilha: ${g.name}`,
               services: groupServices
             });
           }
         });
       }
 
-      // 2. Process contract direct services (not in any group)
+      // 2. Process compositions that have a local groupName or are direct
+      const byLocalGroup = new Map<string, ServiceComposition[]>();
       const directServices: ServiceComposition[] = [];
-      if (activeContract.services && activeContract.services.length > 0) {
-        activeContract.services.forEach((gs: any) => {
-          const match = filtered.find(fs => 
-            (fs.contractId === selectedContractId && (fs.id === gs.serviceId || (gs.code && fs.code.trim().toLowerCase() === gs.code.trim().toLowerCase()))) ||
-            (!fs.contractId && (fs.id === gs.serviceId || (gs.code && fs.code.trim().toLowerCase() === gs.code.trim().toLowerCase())))
-          );
-          if (match && !matchedServiceIds.has(match.id) && !directServices.some(x => x.id === match.id)) {
-            directServices.push(match);
-            matchedServiceIds.add(match.id);
-          }
-        });
-      }
+      const otherServices: ServiceComposition[] = [];
 
-      // Also add any other compositions specifically created for this contract that didn't match groups/direct lists
       filtered.forEach(fs => {
-        if (fs.contractId === selectedContractId && !matchedServiceIds.has(fs.id)) {
-          directServices.push(fs);
-          matchedServiceIds.add(fs.id);
+        if (matchedServiceIds.has(fs.id)) return;
+        
+        if (fs.contractId === selectedContractId) {
+          if (fs.groupName) {
+            if (!byLocalGroup.has(fs.groupName)) byLocalGroup.set(fs.groupName, []);
+            byLocalGroup.get(fs.groupName)!.push(fs);
+            matchedServiceIds.add(fs.id);
+          } else {
+            directServices.push(fs);
+            matchedServiceIds.add(fs.id);
+          }
+        } else {
+          // not for this contract
+          otherServices.push(fs);
         }
+      });
+
+      byLocalGroup.forEach((svcs, gName) => {
+        groupsList.push({
+          id: `local-group-${gName}`,
+          name: `Grupo: ${gName}`,
+          services: svcs
+        });
       });
 
       if (directServices.length > 0) {
@@ -223,8 +239,6 @@ export function ServiceView({
         });
       }
 
-      // 3. Process remaining filtered services that are NOT part of this contract
-      const otherServices = filtered.filter(fs => !matchedServiceIds.has(fs.id));
       if (otherServices.length > 0) {
         groupsList.push({
           id: 'other-services',
@@ -233,11 +247,26 @@ export function ServiceView({
         });
       }
     } else {
-      groupsList.push({
-        id: 'all-compositions',
-        name: 'Todas as Composições de Serviços',
-        services: filtered
+      const byGroup = new Map<string, ServiceComposition[]>();
+      const ungrouped: ServiceComposition[] = [];
+      filtered.forEach(fs => {
+        if (fs.groupName) {
+          if (!byGroup.has(fs.groupName)) byGroup.set(fs.groupName, []);
+          byGroup.get(fs.groupName)!.push(fs);
+        } else {
+          ungrouped.push(fs);
+        }
       });
+      byGroup.forEach((svcs, gName) => {
+        groupsList.push({ id: `group-${gName}`, name: `Grupo: ${gName}`, services: svcs });
+      });
+      if (ungrouped.length > 0) {
+        groupsList.push({
+          id: 'all-compositions',
+          name: 'Composições sem grupo',
+          services: ungrouped
+        });
+      }
     }
 
     return groupsList;
@@ -904,7 +933,7 @@ export function ServiceView({
             </div>
           </div>
           <CardContent className="p-6">
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-8 gap-5">
               <div className="space-y-1.5">
                 <Label htmlFor="comp-code" className="text-xs font-bold text-slate-700 uppercase tracking-wider">Código</Label>
                 <Input 
@@ -933,6 +962,26 @@ export function ServiceView({
                   required 
                   disabled={isCompositionReadOnly}
                 />
+              </div>
+
+              <div className="space-y-1.5 sm:col-span-2 lg:col-span-2">
+                <Label htmlFor="comp-group" className="text-xs font-bold text-slate-700 uppercase tracking-wider">Grupo</Label>
+                <Input 
+                  id="comp-group" 
+                  list="group-names"
+                  value={isEditMode ? (editingService?.groupName || '') : (newService.groupName || '')} 
+                  onChange={e => isEditMode 
+                    ? setEditingService(prev => prev ? {...prev, groupName: e.target.value} : null) 
+                    : setNewService({...newService, groupName: e.target.value})} 
+                  placeholder="Ex: Movimentação de Terra"
+                  className="font-bold bg-slate-50 border-slate-200 h-11"
+                  disabled={isCompositionReadOnly}
+                />
+                <datalist id="group-names">
+                  {uniqueGroups.map(g => (
+                    <option key={g} value={g} />
+                  ))}
+                </datalist>
               </div>
 
               <div className="space-y-1.5 sm:col-span-2 lg:col-span-2">

@@ -29,6 +29,7 @@ export interface ServiceComposition {
   id: string;
   companyId?: string;
   contractId?: string;
+  groupName?: string;
   code: string;
   name: string;
   unit: string;

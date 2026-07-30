@@ -1,0 +1,60 @@
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-5">
+              <div className="space-y-1.5">
+                <Label htmlFor="comp-code" className="text-xs font-bold text-slate-700 uppercase tracking-wider">Código</Label>
+                <Input 
+                  id="comp-code" 
+                  value={isEditMode ? (editingService?.code || '') : newService.code} 
+                  onChange={e => isEditMode 
+                    ? setEditingService(prev => prev ? {...prev, code: e.target.value} : null) 
+                    : setNewService({...newService, code: e.target.value})} 
+                  placeholder="Ex: SER-001"
+                  className="font-mono font-bold bg-slate-50 border-slate-200 h-11"
+                  required 
+                  disabled={isCompositionReadOnly}
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="comp-unit" className="text-xs font-bold text-slate-700 uppercase tracking-wider">Unidade</Label>
+                <Input 
+                  id="comp-unit" 
+                  value={isEditMode ? (editingService?.unit || '') : newService.unit} 
+                  onChange={e => isEditMode 
+                    ? setEditingService(prev => prev ? {...prev, unit: e.target.value} : null) 
+                    : setNewService({...newService, unit: e.target.value})} 
+                  placeholder="Ex: m³, m², un, h"
+                  className="font-bold bg-slate-50 border-slate-200 h-11"
+                  required 
+                  disabled={isCompositionReadOnly}
+                />
+              </div>
+
+              <div className="space-y-1.5 sm:col-span-2 lg:col-span-2">
+                <Label htmlFor="comp-name" className="text-xs font-bold text-slate-700 uppercase tracking-wider">Nome / Descrição do Serviço</Label>
+                <Input 
+                  id="comp-name" 
+                  value={isEditMode ? (editingService?.name || '') : newService.name} 
+                  onChange={e => isEditMode 
+                    ? setEditingService(prev => prev ? {...prev, name: e.target.value} : null) 
+                    : setNewService({...newService, name: e.target.value})} 
+                  placeholder="Ex: Escavação Mecânica e Carga de Vala"
+                  className="font-bold bg-slate-50 border-slate-200 h-11 text-base"
+                  required 
+                  disabled={isCompositionReadOnly}
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="comp-prod" className="text-xs font-bold text-slate-700 uppercase tracking-wider">Produção Equipe (Pr)</Label>
+                <NumericInput 
+                  id="comp-prod" 
+                  value={isEditMode ? (editingService?.production || 1) : newService.production} 
+                  onChange={val => isEditMode 
+                    ? setEditingService(prev => prev ? {...prev, production: val} : null) 
+                    : setNewService({...newService, production: val})} 
+                  decimals={3}
+                  className="font-bold bg-slate-50 border-slate-200 h-11 text-center"
+                  required 
+                  disabled={isCompositionReadOnly}
+                />
+              </div>
