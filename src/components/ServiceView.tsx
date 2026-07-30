@@ -21,6 +21,7 @@ import { Separator } from '@/components/ui/separator';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuLabel } from "@/components/ui/dropdown-menu";
 import { Switch } from '@/components/ui/switch';
+import { ExcavatorLoader } from './ExcavatorLoader';
 
 interface ServiceViewProps {
   key?: string;
@@ -82,6 +83,7 @@ export function ServiceView({
   // Modal for Export/Import Excel/JSON
   const [isExportImportModalOpen, setIsExportImportModalOpen] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
   const [isImportFromContractModalOpen, setIsImportFromContractModalOpen] = useState(false);
   const [selectedImportContractId, setSelectedImportContractId] = useState<string | null>(null);
@@ -633,7 +635,7 @@ export function ServiceView({
     return list;
   };
 
-  const handleImportFromContract = () => {
+  const handleImportFromContract = async () => {
     const targetContract = contracts?.find(c => c.id === selectedImportContractId);
     if (!targetContract) {
       alert("❌ Por favor, selecione um contrato válido.");
@@ -652,6 +654,7 @@ export function ServiceView({
       return;
     }
 
+    setIsSaving(true);
     try {
       const servicesToAdd: Omit<ServiceComposition, 'id'>[] = [];
       const resourcesToAdd: (Omit<Resource, 'id'> & { id?: string })[] = [];
@@ -741,14 +744,22 @@ export function ServiceView({
 
       // Save via batch functions
       if (resourcesToAdd.length > 0 && onAddResource) {
-        onAddResource(resourcesToAdd);
+        const resResult = onAddResource(resourcesToAdd);
+        if (resResult instanceof Promise) {
+          await resResult;
+        }
       }
 
       if (servicesToAdd.length > 0) {
         if (onAddServices) {
-          onAddServices(servicesToAdd);
+          await onAddServices(servicesToAdd);
         } else {
-          servicesToAdd.forEach(s => onAdd(s));
+          for (const s of servicesToAdd) {
+            const res = onAdd(s);
+            if (res instanceof Promise) {
+              await res;
+            }
+          }
         }
       }
 
@@ -763,7 +774,9 @@ export function ServiceView({
       setIsExportImportModalOpen(false);
     } catch (err) {
       console.error("[Contract Import Error]", err);
-      alert("❌ Erro ao processar a importação de serviços do contrato.");
+      alert("❌ Erro ao processar a importação de serviços do contrato: " + (err instanceof Error ? err.message : String(err)));
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -1509,6 +1522,7 @@ export function ServiceView({
       exit={{ opacity: 0, y: -10 }} 
       className="space-y-6"
     >
+      <ExcavatorLoader isSaving={isSaving} message="Sincronizando serviços importados..." />
       {/* Header bar */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
         <div>
