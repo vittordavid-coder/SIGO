@@ -2713,6 +2713,33 @@ export default function App() {
 
     if (resourcesToAdd.length > 0) {
       addResource(resourcesToAdd);
+      
+      const config = getSupabaseConfig();
+      if (config.enabled && currentUser?.companyId) {
+        const supabase = createSupabaseClient(config.url, config.key);
+        if (supabase) {
+          const mappedResources = resourcesToAdd.map(r => ({
+            company_id: currentUser.companyId,
+            id: r.id,
+            code: r.code,
+            name: r.name,
+            unit: r.unit || 'un',
+            type: r.type,
+            base_price: r.basePrice || 0,
+            encargos: r.encargos || 0,
+            productive_price: r.productivePrice || 0,
+            unproductive_price: r.unproductivePrice || 0,
+            operator_id: r.operatorId || null,
+            equipment_base_cost: r.equipmentBaseCost || 0,
+            hours_per_month: r.hoursPerMonth || 220,
+            monthly_salary: r.monthlySalary || 0
+          }));
+          const { error } = await supabase.from('resources').upsert(mappedResources);
+          if (error) {
+            console.error("Error inserting resources batch:", error);
+          }
+        }
+      }
     }
 
     if (validServices.length > 0) {
@@ -2738,9 +2765,11 @@ export default function App() {
            const chunkSize = 50;
            for (let i = 0; i < mappedData.length; i += chunkSize) {
              const chunk = mappedData.slice(i, i + chunkSize);
-             supabase.from('service_compositions').upsert(chunk).then(({ error }) => {
-               if (error) console.error("Error inserting services batch:", error);
-             });
+             const { error } = await supabase.from('service_compositions').upsert(chunk);
+             if (error) {
+               console.error("Error inserting services batch:", error);
+               throw new Error("Erro ao inserir lote de serviços: " + error.message);
+             }
            }
         }
       }

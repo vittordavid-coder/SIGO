@@ -3569,23 +3569,28 @@ function ContractTab({
         quotationId: prev.quotationId || "none",
       }));
 
-      setTimeout(() => {
-        onUpdate(updatedContractData);
-      }, 100);
+      try {
+        setImportFeedbackMsg("⏳ Gravando dados no banco de dados, por favor aguarde...");
+        await onUpdate(updatedContractData);
 
-      let feedback = `✅ SUCESSO! A planilha de serviços foi carregada e gravada com sucesso no ${targetContractName}! (${importedGroups.length} Grupos e ${totalServicesArr} Serviços gravados).`;
+        let feedback = `✅ SUCESSO! A planilha de serviços foi carregada e gravada com sucesso no ${targetContractName}! (${importedGroups.length} Grupos e ${totalServicesArr} Serviços gravados).`;
 
-      if (missingServicesData.length > 0) {
-        feedback += ` Foram criados ${missingServicesData.length} novos serviços no cadastro geral.`;
+        if (missingServicesData.length > 0) {
+          feedback += ` Foram criados ${missingServicesData.length} novos serviços no cadastro geral.`;
+        }
+
+        if (skippedEmptyCount > 0) {
+          feedback += ` (${skippedEmptyCount} linhas ignoradas sem código).`;
+        }
+
+        setImportFeedbackMsg(feedback);
+        alert(`✅ SUCESSO! A planilha de serviços foi gravada com sucesso no ${targetContractName}!`);
+        setColumnMappingModal(null);
+      } catch (err) {
+        console.error("Erro ao salvar contrato:", err);
+        setImportFeedbackMsg("❌ Erro ao gravar dados no banco de dados.");
+        alert("❌ Erro ao gravar dados no banco de dados: " + (err instanceof Error ? err.message : String(err)));
       }
-
-      if (skippedEmptyCount > 0) {
-        feedback += ` (${skippedEmptyCount} linhas ignoradas sem código).`;
-      }
-
-      setImportFeedbackMsg(feedback);
-      alert(`✅ SUCESSO! A planilha de serviços foi gravada com sucesso no ${targetContractName}!`);
-      setColumnMappingModal(null);
     } else {
       alert("❌ Nenhum serviço foi importado. Verifique o mapeamento das colunas.");
     }
