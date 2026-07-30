@@ -2890,6 +2890,7 @@ export default function App() {
   }, [manpowerRecords.length, employees.length, currentUser?.id]);
 
   const addContract = async (contract: Omit<Contract, 'id'>) => {
+    lastLocalUpdate.current = Date.now();
     console.log('[Contract] Adding contract:', contract);
     const newId = uuidv4();
     const relatedQuotation = quotations.find(q => q.id === contract.quotationId);
@@ -2948,6 +2949,7 @@ export default function App() {
   };
 
   const updateContract = async (updated: Contract) => {
+    lastLocalUpdate.current = Date.now();
     setContracts(prev => prev.map(c => c.id === updated.id ? updated : c));
     addAuditLog('Edição', 'Contratos', `Contrato editado: ${updated.contractNumber}`);
 
@@ -2991,6 +2993,7 @@ export default function App() {
   };
 
   const deleteContract = async (id: string) => {
+    lastLocalUpdate.current = Date.now();
     if (!id) {
       alert("Erro: ID de contrato inválido.");
       return;

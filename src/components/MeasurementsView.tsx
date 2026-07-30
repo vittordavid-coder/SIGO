@@ -92,6 +92,7 @@ import {
 } from "./TechnicalRoomExtensions";
 import { TechnicalReportsView } from "./TechnicalReportsView";
 import { PhysicalProgressView } from "./PhysicalProgressView";
+import { ExcavatorLoader } from "./ExcavatorLoader";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -3096,6 +3097,7 @@ function ContractTab({
   const [importFeedbackMsg, setImportFeedbackMsg] = useState<string | null>(
     null,
   );
+  const [isSaving, setIsSaving] = useState(false);
 
   interface ColumnMappingModalState {
     isOpen: boolean;
@@ -3495,81 +3497,82 @@ function ContractTab({
       }
     });
 
-    // Phase 2: Create any missing services in bulk
-    let allServices = [...services];
-    if (missingServicesData.length > 0) {
-      const newServices = await onAddServices(missingServicesData);
-      allServices = [...allServices, ...newServices];
-      console.log(
-        `[Import] Created ${newServices.length} missing services on the fly.`,
-      );
-    }
-
-    // Phase 3: Build groups with the unified service IDs
-    rowsToProcess.forEach((r) => {
-      let service = allServices.find(
-        (s) =>
-          s.code.toLowerCase() === r.code.toLowerCase() &&
-          (activeContract ? s.contractId === activeContract.id : !s.contractId),
-      );
-
-      if (!service) {
-        service = {
-          id: uuidv4(),
-          code: r.code,
-          name: r.name,
-          unit: r.unit || "un",
-          production: 1,
-          fit: 1,
-          items: [],
-        };
-      } else {
-        if (r.name && (service.name === service.code || !service.name || service.name === "Descrição não disponível")) {
-          service.name = r.name;
-        }
-        if (r.unit && r.unit !== "un" && (service.unit === "un" || !service.unit)) {
-          service.unit = r.unit;
-        }
+    setIsSaving(true);
+    try {
+      // Phase 2: Create any missing services in bulk
+      let allServices = [...services];
+      if (missingServicesData.length > 0) {
+        const newServices = await onAddServices(missingServicesData);
+        allServices = [...allServices, ...newServices];
+        console.log(
+          `[Import] Created ${newServices.length} missing services on the fly.`,
+        );
       }
 
-      let group = importedGroups.find((g) => g.name === r.groupName);
-      if (!group) {
-        group = { id: uuidv4(), name: r.groupName, services: [] };
-        importedGroups.push(group);
-      }
+      // Phase 3: Build groups with the unified service IDs
+      rowsToProcess.forEach((r) => {
+        let service = allServices.find(
+          (s) =>
+            s.code.toLowerCase() === r.code.toLowerCase() &&
+            (activeContract ? s.contractId === activeContract.id : !s.contractId),
+        );
 
-      group.services.push({
-        serviceId: service.id,
-        code: r.code || service.code,
-        name: r.name || service.name,
-        unit: r.unit || service.unit || "un",
-        quantity: r.quantity,
-        price: r.price,
-        worksheetType: "direct",
+        if (!service) {
+          service = {
+            id: uuidv4(),
+            code: r.code,
+            name: r.name,
+            unit: r.unit || "un",
+            production: 1,
+            fit: 1,
+            items: [],
+          };
+        } else {
+          if (r.name && (service.name === service.code || !service.name || service.name === "Descrição não disponível")) {
+            service.name = r.name;
+          }
+          if (r.unit && r.unit !== "un" && (service.unit === "un" || !service.unit)) {
+            service.unit = r.unit;
+          }
+        }
+
+        let group = importedGroups.find((g) => g.name === r.groupName);
+        if (!group) {
+          group = { id: uuidv4(), name: r.groupName, services: [] };
+          importedGroups.push(group);
+        }
+
+        group.services.push({
+          serviceId: service.id,
+          code: r.code || service.code,
+          name: r.name || service.name,
+          unit: r.unit || service.unit || "un",
+          quantity: r.quantity,
+          price: r.price,
+          worksheetType: "direct",
+        });
       });
-    });
 
-    if (importedGroups.length > 0) {
-      const totalServicesArr = importedGroups.reduce(
-        (acc, g) => acc + g.services.length,
-        0,
-      );
+      if (importedGroups.length > 0) {
+        const totalServicesArr = importedGroups.reduce(
+          (acc, g) => acc + g.services.length,
+          0,
+        );
 
-      const updatedContractData: Contract = {
-        ...activeContract,
-        groups: importedGroups,
-        services: [],
-        quotationId: activeContract.quotationId || "none",
-      };
+        const updatedContractData: Contract = {
+          ...activeContract,
+          groups: importedGroups,
+          services: [],
+          quotationId: activeContract.quotationId || "none",
+        };
 
-      setNewContract((prev) => ({
-        ...prev,
-        groups: importedGroups,
-        services: [],
-        quotationId: prev.quotationId || "none",
-      }));
+        setNewContract((prev) => ({
+          ...prev,
+          groups: importedGroups,
+          services: [],
+          quotationId: prev.quotationId || "none",
+        }));
 
-      try {
         setImportFeedbackMsg("⏳ Gravando dados no banco de dados, por favor aguarde...");
         await onUpdate(updatedContractData);
 
@@ -3586,13 +3589,15 @@ function ContractTab({
         setImportFeedbackMsg(feedback);
         alert(`✅ SUCESSO! A planilha de serviços foi gravada com sucesso no ${targetContractName}!`);
         setColumnMappingModal(null);
-      } catch (err) {
-        console.error("Erro ao salvar contrato:", err);
-        setImportFeedbackMsg("❌ Erro ao gravar dados no banco de dados.");
-        alert("❌ Erro ao gravar dados no banco de dados: " + (err instanceof Error ? err.message : String(err)));
+      } else {
+        alert("❌ Nenhum serviço foi importado. Verifique o mapeamento das colunas.");
       }
-    } else {
-      alert("❌ Nenhum serviço foi importado. Verifique o mapeamento das colunas.");
+    } catch (err) {
+      console.error("Erro ao salvar contrato:", err);
+      setImportFeedbackMsg("❌ Erro ao gravar dados no banco de dados.");
+      alert("❌ Erro ao gravar dados no banco de dados: " + (err instanceof Error ? err.message : String(err)));
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -3622,6 +3627,7 @@ function ContractTab({
       animate={{ opacity: 1, x: 0 }}
       className="space-y-6"
     >
+      <ExcavatorLoader isSaving={isSaving} message="Sincronizando serviços da Sala Técnica..." />
       <input
         ref={fileInputRef}
         type="file"
