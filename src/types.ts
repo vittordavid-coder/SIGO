@@ -1,4 +1,4 @@
-export type ResourceType = 'labor' | 'material' | 'equipment';
+export type ResourceType = 'labor' | 'material' | 'equipment' | 'service';
 
 export interface Resource {
   id: string;

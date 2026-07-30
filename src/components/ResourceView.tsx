@@ -395,11 +395,11 @@ export function ResourceView({ resources, onAdd, onDelete, onUpdate, purchaseOrd
   }, [selectedHistoryResource, purchaseOrders]);
 
   const getNextCode = (type: ResourceType, currentList?: Resource[]) => {
-    const prefix = type === 'labor' ? 'MO-' : type === 'equipment' ? 'EP-' : 'MAT-';
+    const prefix = type === 'labor' ? 'MO-' : type === 'equipment' ? 'EP-' : type === 'service' ? 'SRV-' : 'MAT-';
     const list = currentList || augmentedResources;
     const typeResources = list.filter(r => r.type === type);
     
-    // Extract numbers from codes like "MO-0001" or "EP-0001"
+    // Extract numbers from codes like "MO-0001" or "EP-0001" or "SRV-0001"
     const existingNumbers = typeResources
       .map(r => {
         const match = r.code.match(new RegExp(`${prefix}(\\d+)`));
@@ -628,8 +628,9 @@ export function ResourceView({ resources, onAdd, onDelete, onUpdate, purchaseOrd
       const isEqNonStandard = res.type === 'equipment' && (!res.code.startsWith('EP-') || !/^EP-\d{4}$/.test(res.code));
       const isLaborNonStandard = res.type === 'labor' && (!res.code.startsWith('MO-') || !/^MO-\d{4}$/.test(res.code));
       const isMaterialNonStandard = res.type === 'material' && (!res.code.startsWith('MAT-') || !/^MAT-\d{4}$/.test(res.code));
+      const isServiceNonStandard = res.type === 'service' && (!res.code.startsWith('SRV-') || !/^SRV-\d{4}$/.test(res.code));
 
-      if (isEqNonStandard || isLaborNonStandard || isMaterialNonStandard) {
+      if (isEqNonStandard || isLaborNonStandard || isMaterialNonStandard || isServiceNonStandard) {
         const newCode = getNextCode(res.type, tempResources.filter(r => r.id !== res.id));
         onUpdate({
           ...res,
@@ -641,7 +642,7 @@ export function ResourceView({ resources, onAdd, onDelete, onUpdate, purchaseOrd
     });
 
     if (modifiedCount > 0) {
-      alert(`✅ Padronização de códigos concluída!\n\n${modifiedCount} insumo(s) tiveram seus códigos atualizados para o padrão oficial de Cotações (MO-XXXX, EP-XXXX, MAT-XXXX).`);
+      alert(`✅ Padronização de códigos concluída!\n\n${modifiedCount} insumo(s) tiveram seus códigos atualizados para o padrão oficial de Cotações (MO-XXXX, EP-XXXX, MAT-XXXX, SRV-XXXX).`);
     } else {
       alert("ℹ️ Todos os códigos de insumos já estão no padrão oficial de Cotações.");
     }

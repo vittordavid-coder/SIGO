@@ -654,9 +654,33 @@ export function ServiceView({
 
     try {
       const servicesToAdd: Omit<ServiceComposition, 'id'>[] = [];
+      const resourcesToAdd: (Omit<Resource, 'id'> & { id?: string })[] = [];
 
       let importedCount = 0;
       let updatedCount = 0;
+
+      // Helper to generate sequential SRV-XXXX codes
+      let nextNumber = 1;
+      const getNextSrvCode = (existingResources: Resource[], newlyAdded: any[]) => {
+        const prefix = 'SRV-';
+        const all = [...existingResources, ...newlyAdded];
+        const typeResources = all.filter(r => r.type === 'service');
+        
+        const existingNumbers = typeResources
+          .map(r => {
+            const match = r.code.match(/SRV-(\d+)/);
+            return match ? parseInt(match[1], 10) : null;
+          })
+          .filter((n): n is number => n !== null)
+          .sort((a, b) => a - b);
+
+        while (existingNumbers.includes(nextNumber)) {
+          nextNumber++;
+        }
+        const generatedCode = `${prefix}${nextNumber.toString().padStart(4, '0')}`;
+        nextNumber++;
+        return generatedCode;
+      };
 
       servicesToProcess.forEach(item => {
         const codeVal = item.code.trim();
@@ -669,7 +693,27 @@ export function ServiceView({
           (selectedContractId ? s.contractId === selectedContractId : !s.contractId)
         );
 
-        const items: CompositionItem[] = []; // empty, imported without price to allow composition
+        // Check if resource of type 'service' with the same name already exists
+        const existingResource = resources.find(r => 
+          r.type === 'service' && 
+          r.name.trim().toLowerCase() === nameVal.toLowerCase()
+        );
+
+        const resourceId = existingResource ? existingResource.id : `res-${Math.random().toString(36).substring(2, 9)}`;
+
+        if (!existingResource) {
+          const srvCode = getNextSrvCode(resources, resourcesToAdd);
+          resourcesToAdd.push({
+            id: resourceId,
+            code: srvCode,
+            name: nameVal,
+            unit: unitVal,
+            type: 'service',
+            basePrice: 0,
+          });
+        }
+
+        const items: CompositionItem[] = [{ resourceId, consumption: 1 }];
 
         if (existingService) {
           onUpdate({
@@ -695,6 +739,11 @@ export function ServiceView({
         }
       });
 
+      // Save via batch functions
+      if (resourcesToAdd.length > 0 && onAddResource) {
+        onAddResource(resourcesToAdd);
+      }
+
       if (servicesToAdd.length > 0) {
         if (onAddServices) {
           onAddServices(servicesToAdd);
@@ -705,8 +754,9 @@ export function ServiceView({
 
       alert(
         `✅ Importação de serviços do contrato concluída com sucesso!\n\n` +
-        `• Novos serviços adicionados (sem preço, prontos para composição): ${importedCount}\n` +
-        `• Serviços existentes atualizados: ${updatedCount}`
+        `• Novos serviços adicionados (com insumos de tipo serviço "SRV-XXXX" criados sem preço): ${importedCount}\n` +
+        `• Serviços existentes atualizados: ${updatedCount}\n` +
+        `• Novos insumos criados do tipo Serviço: ${resourcesToAdd.length}`
       );
 
       setIsImportFromContractModalOpen(false);
