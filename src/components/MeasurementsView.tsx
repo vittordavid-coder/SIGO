@@ -3475,7 +3475,9 @@ function ContractTab({
     rowsToProcess.forEach((r) => {
       const exists =
         services.some(
-          (s) => s.code.toLowerCase() === r.code.toLowerCase(),
+          (s) =>
+            s.code.toLowerCase() === r.code.toLowerCase() &&
+            (activeContract ? s.contractId === activeContract.id : !s.contractId),
         ) ||
         missingServicesData.some(
           (s) => s.code.toLowerCase() === r.code.toLowerCase(),
@@ -3488,6 +3490,7 @@ function ContractTab({
           production: 1,
           fit: 1,
           items: [],
+          contractId: activeContract ? activeContract.id : undefined,
         });
       }
     });
@@ -3505,7 +3508,9 @@ function ContractTab({
     // Phase 3: Build groups with the unified service IDs
     rowsToProcess.forEach((r) => {
       let service = allServices.find(
-        (s) => s.code.toLowerCase() === r.code.toLowerCase(),
+        (s) =>
+          s.code.toLowerCase() === r.code.toLowerCase() &&
+          (activeContract ? s.contractId === activeContract.id : !s.contractId),
       );
 
       if (!service) {

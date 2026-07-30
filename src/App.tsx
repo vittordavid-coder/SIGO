@@ -2573,26 +2573,147 @@ export default function App() {
 
   // --- Service Management ---
   const addService = (service: Omit<ServiceComposition, 'id'>) => {
-    if (services.some(s => s.code === service.code) || resources.some(r => r.code === service.code)) {
-      alert(`O código ${service.code} já está em uso.`);
+    const codeLower = service.code.trim().toLowerCase();
+    const serviceContractId = service.contractId;
+    
+    const alreadyExists = services.some(s => 
+      s.code.trim().toLowerCase() === codeLower && 
+      (serviceContractId ? s.contractId === serviceContractId : !s.contractId)
+    );
+
+    if (alreadyExists) {
+      alert(`O código ${service.code} já está cadastrado para este contrato.`);
       return;
     }
+
+    const nameVal = service.name.trim();
+    const unitVal = (service.unit || "un").trim();
+
+    // Find if a resource of type 'service' with the same name already exists
+    const existingResource = resources.find(r => 
+      r.type === 'service' && 
+      r.name.trim().toLowerCase() === nameVal.toLowerCase()
+    );
+
+    const resourceId = existingResource ? existingResource.id : `res-${Math.random().toString(36).substring(2, 9)}`;
+    const resourcesToAdd: Resource[] = [];
+
+    if (!existingResource) {
+      // Helper to generate sequential SRV-XXXX codes
+      let nextNumber = 1;
+      const typeResources = resources.filter(r => r.type === 'service');
+      const existingNumbers = typeResources
+        .map(r => {
+          const match = r.code.match(/SRV-(\d+)/);
+          return match ? parseInt(match[1], 10) : null;
+        })
+        .filter((n): n is number => n !== null)
+        .sort((a, b) => a - b);
+
+      while (existingNumbers.includes(nextNumber)) {
+        nextNumber++;
+      }
+      const srvCode = `SRV-${nextNumber.toString().padStart(4, '0')}`;
+
+      resourcesToAdd.push({
+        id: resourceId,
+        code: srvCode,
+        name: nameVal,
+        unit: unitVal,
+        type: 'service',
+        basePrice: 0,
+        companyId: currentUser?.companyId || undefined
+      } as any);
+    }
+
+    const items = (service.items && service.items.length > 0) ? service.items : [{ resourceId, consumption: 1 }];
     const newId = uuidv4();
-    updateServices([...services, { ...service, id: newId, companyId: currentUser?.companyId }]);
+    const newServiceObj = { ...service, id: newId, items, companyId: currentUser?.companyId };
+
+    if (resourcesToAdd.length > 0) {
+      addResource(resourcesToAdd);
+    }
+
+    updateServices([...services, newServiceObj]);
     addAuditLog('Adição', 'Serviços', `Serviço adicionado: ${service.code} - ${service.name}`);
   };
 
   const addServices = async (newServices: Omit<ServiceComposition, 'id'>[]) => {
     const validServices: ServiceComposition[] = [];
     const logs: string[] = [];
+    const resourcesToAdd: Resource[] = [];
     
+    // Helper to generate sequential SRV-XXXX codes in batch
+    let nextNumber = 1;
+    const getNextSrvCode = (existingResources: Resource[], newlyAdded: Resource[]) => {
+      const prefix = 'SRV-';
+      const all = [...existingResources, ...newlyAdded];
+      const typeResources = all.filter(r => r.type === 'service');
+      
+      const existingNumbers = typeResources
+        .map(r => {
+          const match = r.code.match(/SRV-(\d+)/);
+          return match ? parseInt(match[1], 10) : null;
+        })
+        .filter((n): n is number => n !== null)
+        .sort((a, b) => a - b);
+
+      while (existingNumbers.includes(nextNumber)) {
+        nextNumber++;
+      }
+      const generatedCode = `${prefix}${nextNumber.toString().padStart(4, '0')}`;
+      nextNumber++;
+      return generatedCode;
+    };
+
     newServices.forEach(s => {
-      if (!services.some(existing => existing.code.toLowerCase() === s.code.toLowerCase())) {
+      const codeLower = s.code.trim().toLowerCase();
+      const serviceContractId = s.contractId;
+      
+      const alreadyExists = services.some(existing => 
+        existing.code.trim().toLowerCase() === codeLower &&
+        (serviceContractId ? existing.contractId === serviceContractId : !existing.contractId)
+      );
+
+      if (!alreadyExists) {
         const id = uuidv4();
-        validServices.push({ ...s, id, companyId: currentUser?.companyId });
+        const nameVal = s.name.trim();
+        const unitVal = (s.unit || "un").trim();
+
+        // Check if unique resource of type 'service' with the same name already exists
+        const existingResource = resources.find(r => 
+          r.type === 'service' && 
+          r.name.trim().toLowerCase() === nameVal.toLowerCase()
+        ) || resourcesToAdd.find(r => 
+          r.type === 'service' && 
+          r.name.trim().toLowerCase() === nameVal.toLowerCase()
+        );
+
+        const resourceId = existingResource ? existingResource.id : `res-${Math.random().toString(36).substring(2, 9)}`;
+
+        if (!existingResource) {
+          const srvCode = getNextSrvCode(resources, resourcesToAdd);
+          resourcesToAdd.push({
+            id: resourceId,
+            code: srvCode,
+            name: nameVal,
+            unit: unitVal,
+            type: 'service',
+            basePrice: 0,
+            companyId: currentUser?.companyId || undefined
+          } as any);
+        }
+
+        const items = (s.items && s.items.length > 0) ? s.items : [{ resourceId, consumption: 1 }];
+
+        validServices.push({ ...s, id, items, companyId: currentUser?.companyId });
         logs.push(s.code);
       }
     });
+
+    if (resourcesToAdd.length > 0) {
+      addResource(resourcesToAdd);
+    }
 
     if (validServices.length > 0) {
       setServices(prev => [...prev, ...validServices]);
@@ -2605,6 +2726,7 @@ export default function App() {
            const mappedData = validServices.map(s => ({
              company_id: currentUser.companyId,
              id: s.id,
+             contract_id: s.contractId || null,
              code: s.code,
              name: s.name,
              unit: s.unit,
@@ -2634,9 +2756,17 @@ export default function App() {
   };
 
   const updateService = (updatedService: ServiceComposition) => {
-    if (services.some(s => s.code === updatedService.code && s.id !== updatedService.id) || 
-        resources.some(r => r.code === updatedService.code)) {
-      alert(`O código ${updatedService.code} já está em uso.`);
+    const codeLower = updatedService.code.trim().toLowerCase();
+    const serviceContractId = updatedService.contractId;
+
+    const alreadyExists = services.some(s => 
+      s.code.trim().toLowerCase() === codeLower && 
+      s.id !== updatedService.id &&
+      (serviceContractId ? s.contractId === serviceContractId : !s.contractId)
+    );
+
+    if (alreadyExists) {
+      alert(`O código ${updatedService.code} já está cadastrado para este contrato.`);
       return;
     }
     updateServices(services.map(s => s.id === updatedService.id ? updatedService : s));
