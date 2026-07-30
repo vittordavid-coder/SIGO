@@ -5,6 +5,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { Resource, ResourceType, PurchaseOrder, Employee, ControllerEquipment } from '../types';
 import { cn, formatCurrency } from '../lib/utils';
 import { exportResourcesToExcel, exportResourcesToPDF } from '../lib/exportUtils';
+import { getGlobalEncargos } from "../lib/calculations";
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -107,6 +108,7 @@ interface ResourceViewProps {
   readonly?: boolean;
   employees?: Employee[];
   controllerEquipments?: ControllerEquipment[];
+  onNavigateToHelp?: (sectorId: string, tabId: string) => void;
 }
 
 interface ResourceColumnMappingModalState {
@@ -123,8 +125,9 @@ interface ResourceColumnMappingModalState {
   };
 }
 
-export function ResourceView({ resources, onAdd, onDelete, onUpdate, purchaseOrders = [], readonly, employees = [], controllerEquipments = [] }: ResourceViewProps) {
+export function ResourceView({ resources, onAdd, onDelete, onUpdate, purchaseOrders = [], readonly, employees = [], controllerEquipments = [], onNavigateToHelp }: ResourceViewProps) {
   const [resourceColumnMappingModal, setResourceColumnMappingModal] = useState<ResourceColumnMappingModalState | null>(null);
+  const [isInteractiveHelpOpen, setIsInteractiveHelpOpen] = useState(false);
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isExportSelectorOpen, setIsExportSelectorOpen] = useState(false);
@@ -1223,6 +1226,47 @@ export function ResourceView({ resources, onAdd, onDelete, onUpdate, purchaseOrd
             />
           </div>
           <div className="flex gap-2">
+            <Button
+              onClick={() => setIsInteractiveHelpOpen(true)}
+              className="bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-black h-10 px-4 rounded-xl shadow-md hover:shadow-lg transition-all flex items-center gap-2 cursor-pointer text-xs"
+              title="Abrir Diagrama e Ajuda Interativa de Insumos"
+            >
+              <Sparkles className="w-4 h-4 text-amber-300 animate-pulse shrink-0" />
+              <span>Ajuda Interativa: Insumos</span>
+            </Button>
+
+            <Dialog open={isInteractiveHelpOpen} onOpenChange={setIsInteractiveHelpOpen}>
+              <DialogContent className="max-w-6xl w-full bg-slate-950 text-white border border-slate-800 shadow-2xl rounded-3xl p-6 max-h-[90vh] overflow-y-auto">
+                <DialogHeader className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-800 pb-4">
+                  <div>
+                    <DialogTitle className="text-xl font-black text-white flex items-center gap-2">
+                      <Sparkles className="w-5 h-5 text-amber-400" />
+                      Ajuda Interativa: Diagrama de Conexões de Insumos
+                    </DialogTitle>
+                    <DialogDescription className="text-xs text-slate-400">
+                      Entenda como os preços dos Insumos se relacionam em tempo real com RH, Controlador, Compras e Composições (CPU).
+                    </DialogDescription>
+                  </div>
+                  {onNavigateToHelp && (
+                    <Button
+                      onClick={() => {
+                        setIsInteractiveHelpOpen(false);
+                        onNavigateToHelp('interactive_help', 'interactive_resources');
+                      }}
+                      variant="outline"
+                      className="bg-slate-900 border-slate-700 text-slate-200 hover:bg-slate-800 text-xs font-bold rounded-xl"
+                    >
+                      Ver na Central de Ajuda
+                    </Button>
+                  )}
+                </DialogHeader>
+
+                <div className="py-4">
+                  <InteractiveResourceDiagram />
+                </div>
+              </DialogContent>
+            </Dialog>
+
             <Popover>
               <PopoverTrigger asChild>
                 <Button
@@ -2216,12 +2260,22 @@ export function ResourceView({ resources, onAdd, onDelete, onUpdate, purchaseOrd
                 </TableCell>
               </TableRow>
             ) : (
-              sortedResources.map(r => {
-                const rStats = getResourceStats(r);
+              (['labor', 'equipment', 'material', 'service'] as ResourceType[]).map(groupType => {
+                const groupResources = sortedResources.filter(r => r.type === groupType || (groupType === 'service' && r.type === 'service'));
+                if (groupResources.length === 0) return null;
                 return (
-                  <TableRow key={r.id} className="group">
-                    {columnOrder.map((colKey) => {
-                      if (colKey === 'code') {
+                  <React.Fragment key={groupType}>
+                    <TableRow className="bg-slate-100 hover:bg-slate-100">
+                      <TableCell colSpan={columnOrder.length} className="font-bold text-slate-700 uppercase tracking-wider text-xs py-2">
+                        {groupType === 'labor' ? 'Mão de Obra' : groupType === 'equipment' ? 'Equipamentos' : groupType === 'material' ? 'Materiais' : 'Serviços'}
+                      </TableCell>
+                    </TableRow>
+                    {groupResources.map(r => {
+                      const rStats = getResourceStats(r);
+                      return (
+                        <TableRow key={r.id} className="group">
+                          {columnOrder.map((colKey) => {
+                            if (colKey === 'code') {
                         return <TableCell key="code" className="font-mono text-sm">{r.code}</TableCell>;
                       }
                       if (colKey === 'name') {
@@ -2296,8 +2350,11 @@ export function ResourceView({ resources, onAdd, onDelete, onUpdate, purchaseOrd
                         );
                       }
                       return null;
+                          })}
+                        </TableRow>
+                      );
                     })}
-                  </TableRow>
+                  </React.Fragment>
                 );
               })
             )}

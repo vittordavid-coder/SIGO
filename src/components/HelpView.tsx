@@ -16,6 +16,7 @@ import { Switch } from '@/components/ui/switch';
 import { cn } from '../lib/utils';
 import bannerImg from '../assets/images/budget_help_banner_1783521777612.jpg';
 import { ContractSimulation } from './ContractSimulation';
+import { ArchitectureGraph } from "./ArchitectureGraph";
 
 interface HelpTab {
   id: string;
@@ -673,9 +674,11 @@ interface HelpViewProps {
     role: string;
     name: string;
   };
+  initialSectorId?: string;
+  initialTabId?: string;
 }
 
-export function HelpView({ currentUser }: HelpViewProps) {
+export function HelpView({ currentUser, initialSectorId, initialTabId }: HelpViewProps) {
   const isMaster = currentUser?.role === 'master';
   
   // Load data from localStorage or fallback to default
@@ -683,7 +686,9 @@ export function HelpView({ currentUser }: HelpViewProps) {
     const saved = localStorage.getItem('synera_help_records_v2');
     if (saved) {
       try {
-        return JSON.parse(saved);
+        const parsed = JSON.parse(saved);
+        // Filter out any leftover interactive_help sector
+        return parsed.filter((s: any) => s.id !== 'interactive_help');
       } catch (e) {
         console.error('Error parsing help records from localStorage, resetting to default', e);
       }
@@ -691,8 +696,13 @@ export function HelpView({ currentUser }: HelpViewProps) {
     return DEFAULT_HELP_DATA;
   });
 
-  const [activeSectorId, setActiveSectorId] = useState<string>('quotations');
-  const [activeTabId, setActiveTabId] = useState<string>('resources');
+  const [activeSectorId, setActiveSectorId] = useState<string>(initialSectorId || 'quotations');
+  const [activeTabId, setActiveTabId] = useState<string>(initialTabId || 'resources');
+
+  useEffect(() => {
+    if (initialSectorId) setActiveSectorId(initialSectorId);
+    if (initialTabId) setActiveTabId(initialTabId);
+  }, [initialSectorId, initialTabId]);
   
   // Editing state
   const [editMode, setEditMode] = useState<boolean>(false);
@@ -764,22 +774,22 @@ export function HelpView({ currentUser }: HelpViewProps) {
   };
 
   return (
-    <div id="help_view_container" className="max-w-7xl mx-auto space-y-6 pb-12">
+    <div id="help_view_container" className="w-full max-w-full space-y-6 pb-12 px-2 md:px-4">
       {/* Header Banner */}
-      <div className="relative rounded-3xl overflow-hidden bg-slate-900 border border-slate-800 text-white min-h-[220px] flex flex-col md:flex-row items-center justify-between p-8 md:p-12 shadow-xl gap-6">
-        <div className="z-10 max-w-xl space-y-4">
+      <div className="relative rounded-3xl overflow-hidden bg-slate-900 border border-slate-800 text-white min-h-[200px] flex flex-col md:flex-row items-center justify-between p-6 md:p-10 shadow-xl gap-6">
+        <div className="z-10 max-w-xl space-y-3">
           <div className="inline-flex items-center gap-2 px-3 py-1 bg-blue-500/10 border border-blue-500/20 text-blue-400 rounded-full text-xs font-black uppercase tracking-wider">
             <BookOpen className="w-3.5 h-3.5" />
             Central de Ajuda & Conhecimento
           </div>
-          <h1 className="text-3xl md:text-4xl font-extrabold tracking-tight">Como utilizar o sistema Synera</h1>
-          <p className="text-slate-400 text-sm md:text-base font-medium leading-relaxed">
+          <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight">Como utilizar o sistema Synera</h1>
+          <p className="text-slate-400 text-sm font-medium leading-relaxed">
             Encontre guias passo a passo, boas práticas e explicações completas sobre as atividades técnicas, orçamentos, medições de obras e controle operacional do sistema.
           </p>
         </div>
         
         {/* Banner image illustration */}
-        <div className="relative shrink-0 w-full md:w-[320px] lg:w-[400px] h-[160px] md:h-[200px] rounded-2xl overflow-hidden border border-white/10 shadow-2xl bg-slate-800 flex items-center justify-center">
+        <div className="relative shrink-0 w-full md:w-[280px] lg:w-[360px] h-[140px] md:h-[180px] rounded-2xl overflow-hidden border border-white/10 shadow-2xl bg-slate-800 flex items-center justify-center">
           <img 
             src={bannerImg} 
             alt="Ilustração Cotações Synera" 
@@ -790,11 +800,11 @@ export function HelpView({ currentUser }: HelpViewProps) {
         </div>
       </div>
 
-      {/* Main Layout Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 items-start">
-        {/* Sectors Navigation Sidebar */}
-        <div className="lg:col-span-1 space-y-4">
-          <Card className="border-none shadow-sm bg-white overflow-hidden rounded-2xl">
+      {/* Main Layout Grid - Max Width Page Layout */}
+      <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 items-start">
+        {/* Sectors Navigation Sidebar at the Edge */}
+        <div className="xl:col-span-3 space-y-4">
+          <Card className="border-none shadow-sm bg-white overflow-hidden rounded-2xl sticky top-4">
             <CardHeader className="bg-slate-50 border-b border-slate-100 p-4">
               <CardTitle className="text-base font-black text-slate-800 flex items-center gap-2">
                 <Layout className="w-4 h-4 text-slate-500" />
@@ -802,7 +812,7 @@ export function HelpView({ currentUser }: HelpViewProps) {
               </CardTitle>
               <CardDescription className="text-xs font-bold text-slate-400 uppercase tracking-wider">Selecione uma área técnica</CardDescription>
             </CardHeader>
-            <CardContent className="p-2 space-y-1">
+            <CardContent className="p-2 space-y-1 max-h-[calc(100vh-220px)] overflow-y-auto">
               {sectors.map((sector) => (
                 <button
                   key={sector.id}
@@ -819,7 +829,7 @@ export function HelpView({ currentUser }: HelpViewProps) {
                 >
                   <div className="flex items-center gap-2.5 truncate">
                     <span className={cn(
-                      "w-2 h-2 rounded-full",
+                      "w-2 h-2 rounded-full shrink-0",
                       activeSectorId === sector.id ? "bg-blue-600" : "bg-slate-300"
                     )} />
                     <span className="truncate">{sector.label}</span>
@@ -866,8 +876,8 @@ export function HelpView({ currentUser }: HelpViewProps) {
           )}
         </div>
 
-        {/* Help Content Tabs & Steps */}
-        <div className="lg:col-span-3 space-y-6">
+        {/* Help Content Tabs & Steps (Maximizing Space for 3D Diagram) */}
+        <div className="xl:col-span-9 space-y-6">
           <Card className="border-none shadow-sm bg-white overflow-hidden rounded-3xl">
             {/* Sector Summary */}
             <div className="bg-slate-50 p-6 md:p-8 border-b border-slate-100 space-y-2">
@@ -981,6 +991,12 @@ export function HelpView({ currentUser }: HelpViewProps) {
                       <p className="text-slate-600 text-sm md:text-base leading-relaxed whitespace-pre-line font-medium">
                         {activeTab?.description || 'Nenhuma descrição cadastrada para esta aba.'}
                       </p>
+
+                      {activeTabId === 'interactive_architecture' && (
+                        <div className="mt-6 pt-4 border-t border-slate-100">
+                          <ArchitectureGraph />
+                        </div>
+                      )}
 
                       {/* Animated Demonstration for Key System Operations - Only on First Tab of Sector */}
                       {isFirstTabOfSector && (

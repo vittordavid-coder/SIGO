@@ -1,6 +1,6 @@
 import { Resource, ServiceComposition, Quotation, BDIConfig } from '../types';
 
-function getGlobalEncargos(): number {
+export function getGlobalEncargos(): number {
   try {
     const saved = localStorage.getItem("rh_parameters_config");
     if (saved) {

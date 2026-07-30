@@ -243,6 +243,8 @@ export default function App() {
   }, [selectedMeasurementId]);
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [helpInitialSector, setHelpInitialSector] = useState<string | undefined>();
+  const [helpInitialTab, setHelpInitialTab] = useState<string | undefined>();
   const [isSupabaseSynced, setIsSupabaseSynced] = useState(false);
   const [supabaseSyncError, setSupabaseSyncError] = useState<string | null>(null);
   const lastLocalUpdate = React.useRef<number>(0);
@@ -4872,6 +4874,11 @@ export default function App() {
                   employees={filteredEmployees}
                   controllerEquipments={finalControllerEquipments}
                   readonly={currentUser?.role === 'reader'}
+                  onNavigateToHelp={(sec, tab) => {
+                    setHelpInitialSector(sec);
+                    setHelpInitialTab(tab);
+                    setMainTab('help');
+                  }}
                 />
               )}
 
@@ -5346,7 +5353,11 @@ export default function App() {
               )}
 
               {mainTab === 'help' && currentUser && (
-                <HelpView currentUser={currentUser} />
+                <HelpView 
+                  currentUser={currentUser} 
+                  initialSectorId={helpInitialSector}
+                  initialTabId={helpInitialTab}
+                />
               )}
             </AnimatePresence>
           </div>
