@@ -1,0 +1,12 @@
+
+          <div className="flex items-center gap-2">
+            {isEditMode && editingService && (
+              <Button 
+                variant="outline"
+                type="button"
+                onClick={() => exportCompositionToPDF(editingService, resources, services, companyLogo, bdi)}
+                className="h-10 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700 font-bold flex items-center gap-2"
+              >
+                <Download className="w-4 h-4 text-blue-400" />
+                Exportar PDF
+              </Button>

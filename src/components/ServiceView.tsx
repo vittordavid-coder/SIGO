@@ -3,13 +3,15 @@ import { motion } from 'motion/react';
 import { 
   Plus, Edit, Trash2, FileSpreadsheet, Briefcase, Download, Upload, HelpCircle, Copy,
   ChevronDown, ChevronRight, Tag, RefreshCw, AlertCircle, FileText, ArrowLeft, Check, Search, 
-  Layers, Calculator, X, Sparkles, Filter 
+  Layers, Calculator, X, Sparkles, Filter, Printer, FileDown
 } from 'lucide-react';
 import { saveAs } from 'file-saver';
 import { ServiceComposition, Resource, CompositionItem } from '../types';
 import { formatCurrency, formatNumber } from '../lib/utils';
 import { calculateServiceUnitCost } from '../lib/calculations';
-import { exportServicesToExcel, exportAllCompositionsToExcel, exportCompositionToPDF, exportServicesToPDF } from '../lib/exportUtils';
+import { exportServicesToExcel, exportAllCompositionsToExcel, exportServicesToPDF } from '../lib/exportUtils';
+import { printDocument, exportToPDF, exportToExcel } from '../lib/reportTemplate';
+import { getCompositionReportConfig } from '../lib/getCompositionReportConfig';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -111,7 +113,7 @@ export function ServiceView({
     const hasDirectGroups = contract.groups && contract.groups.length > 0;
 
     if (hasDirectServices) {
-      contract.services.forEach((s: any) => {
+      (contract.services || []).forEach((s: any) => {
         if (s.serviceId) serviceIds.add(s.serviceId);
         if (s.code) serviceCodes.add(s.code.trim().toLowerCase());
       });
@@ -158,7 +160,7 @@ export function ServiceView({
 
   const uniqueGroups = useMemo(() => {
     const groups = new Set<string>();
-    services.forEach(s => {
+    (services || []).forEach(s => {
       if (s.groupName) groups.add(s.groupName);
     });
     return Array.from(groups).sort();
@@ -415,7 +417,7 @@ export function ServiceView({
     let material = 0;
     let auxiliary = 0;
 
-    composition.items.forEach(item => {
+    (composition.items || []).forEach(item => {
       const res = resources.find(r => r.id === item.resourceId);
       const sub = services.find(s => s.id === item.resourceId);
 
@@ -624,7 +626,7 @@ export function ServiceView({
     const seenCodes = new Set<string>();
 
     if (contract.services) {
-      contract.services.forEach((s: any) => {
+      (contract.services || []).forEach((s: any) => {
         if (s.code && s.name) {
           const cleanCode = s.code.trim();
           if (!seenCodes.has(cleanCode)) {
@@ -643,7 +645,7 @@ export function ServiceView({
     if (contract.groups) {
       contract.groups.forEach((g: any) => {
         if (g.services) {
-          g.services.forEach((s: any) => {
+          (g.services || []).forEach((s: any) => {
             if (s.code && s.name) {
               const cleanCode = s.code.trim();
               if (!seenCodes.has(cleanCode)) {
@@ -860,15 +862,42 @@ export function ServiceView({
 
           <div className="flex items-center gap-2">
             {isEditMode && editingService && (
-              <Button 
-                variant="outline"
-                type="button"
-                onClick={() => exportCompositionToPDF(editingService, resources, services, companyLogo, bdi)}
-                className="h-10 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700 font-bold flex items-center gap-2"
-              >
-                <Download className="w-4 h-4 text-blue-400" />
-                Exportar PDF
-              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button 
+                    variant="outline"
+                    type="button"
+                    className="h-10 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700 font-bold flex items-center gap-2"
+                  >
+                    <Printer className="w-4 h-4 text-blue-400" />
+                    Ações / Imprimir
+                    <ChevronDown className="w-4 h-4 text-slate-400" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-56 bg-slate-800 border-slate-700 text-slate-200 shadow-xl rounded-xl p-1 z-50">
+                  <DropdownMenuItem 
+                    onClick={() => printDocument(getCompositionReportConfig(editingService, resources, services, companyLogo, bdi))}
+                    className="flex items-center gap-2.5 px-3 py-2 text-xs font-medium hover:bg-slate-700 focus:bg-slate-700 rounded-lg cursor-pointer"
+                  >
+                    <Printer className="w-4 h-4 text-emerald-400" />
+                    Imprimir Composição
+                  </DropdownMenuItem>
+                  <DropdownMenuItem 
+                    onClick={() => exportToPDF(getCompositionReportConfig(editingService, resources, services, companyLogo, bdi))}
+                    className="flex items-center gap-2.5 px-3 py-2 text-xs font-medium hover:bg-slate-700 focus:bg-slate-700 rounded-lg cursor-pointer"
+                  >
+                    <FileDown className="w-4 h-4 text-blue-400" />
+                    Exportar em PDF
+                  </DropdownMenuItem>
+                  <DropdownMenuItem 
+                    onClick={() => exportToExcel(getCompositionReportConfig(editingService, resources, services, companyLogo, bdi))}
+                    className="flex items-center gap-2.5 px-3 py-2 text-xs font-medium hover:bg-slate-700 focus:bg-slate-700 rounded-lg cursor-pointer"
+                  >
+                    <FileSpreadsheet className="w-4 h-4 text-emerald-400" />
+                    Exportar em Excel
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             )}
             <Button 
               variant="ghost" 
@@ -1118,6 +1147,10 @@ export function ServiceView({
                               const res = resources.find(r => r.id === currentItem.resourceId) || services.find(s => s.id === currentItem.resourceId);
                               if (res) setResourceSearch(res.name);
                             }
+                          }}
+                          onBlur={() => {
+                            // Delay hiding so clicks on the dropdown items can register
+                            setTimeout(() => setIsDropdownOpen(false), 200);
                           }}
                           className="pl-9 pr-8 font-medium bg-slate-50 border-slate-200 h-11"
                         />
@@ -1747,15 +1780,41 @@ export function ServiceView({
                                 >
                                   <Edit className="w-4 h-4" />
                                 </Button>
-                                <Button 
-                                  variant="ghost" 
-                                  size="icon" 
-                                  className="w-8 h-8 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg"
-                                  onClick={() => exportCompositionToPDF(s, resources, services, companyLogo, bdi)}
-                                  title="Exportar PDF"
-                                >
-                                  <Download className="w-4 h-4" />
-                                </Button>
+                                <DropdownMenu>
+                                  <DropdownMenuTrigger asChild>
+                                    <Button 
+                                      variant="ghost" 
+                                      size="icon" 
+                                      className="w-8 h-8 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg"
+                                      title="Exportar / Imprimir"
+                                    >
+                                      <Printer className="w-4 h-4" />
+                                    </Button>
+                                  </DropdownMenuTrigger>
+                                  <DropdownMenuContent align="end" className="w-56 bg-white border-slate-200 shadow-xl rounded-xl p-1 z-50">
+                                    <DropdownMenuItem 
+                                      onClick={() => printDocument(getCompositionReportConfig(s, resources, services, companyLogo, bdi))}
+                                      className="flex items-center gap-2.5 px-3 py-2 text-xs font-medium hover:bg-slate-50 focus:bg-slate-50 rounded-lg cursor-pointer"
+                                    >
+                                      <Printer className="w-4 h-4 text-slate-500" />
+                                      Imprimir Composição
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem 
+                                      onClick={() => exportToPDF(getCompositionReportConfig(s, resources, services, companyLogo, bdi))}
+                                      className="flex items-center gap-2.5 px-3 py-2 text-xs font-medium hover:bg-slate-50 focus:bg-slate-50 rounded-lg cursor-pointer"
+                                    >
+                                      <FileDown className="w-4 h-4 text-blue-500" />
+                                      Exportar em PDF
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem 
+                                      onClick={() => exportToExcel(getCompositionReportConfig(s, resources, services, companyLogo, bdi))}
+                                      className="flex items-center gap-2.5 px-3 py-2 text-xs font-medium hover:bg-slate-50 focus:bg-slate-50 rounded-lg cursor-pointer"
+                                    >
+                                      <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
+                                      Exportar em Excel
+                                    </DropdownMenuItem>
+                                  </DropdownMenuContent>
+                                </DropdownMenu>
                                 {!readonly && (
                                   <Button 
                                     variant="ghost" 

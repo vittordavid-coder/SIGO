@@ -15,7 +15,7 @@ export function exportContractSpreadsheetToExcel(contract: Contract, services: S
   if (contract.groups && contract.groups.length > 0) {
     contract.groups.forEach(g => {
       if (g.services && g.services.length > 0) {
-        g.services.forEach(gs => {
+        (g.services || []).forEach(gs => {
           const s = services.find(serv => serv.id === gs.serviceId) || services.find(serv => serv.code === (gs as any).code);
           data.push([
             g.name || 'Geral',
@@ -29,7 +29,7 @@ export function exportContractSpreadsheetToExcel(contract: Contract, services: S
       }
     });
   } else if (contract.services && contract.services.length > 0) {
-    contract.services.forEach(gs => {
+    (contract.services || []).forEach(gs => {
       const s = services.find(serv => serv.id === gs.serviceId) || services.find(serv => serv.code === (gs as any).code);
       data.push([
         'Principal',
@@ -485,33 +485,86 @@ export function exportServicesToPDF(services: ServiceComposition[], resources: R
   doc.save('lista_servicos.pdf');
 }
 
-export function exportAllCompositionsToExcel(services: ServiceComposition[], resources: Resource[]) {
+export function exportAllCompositionsToExcel(services: ServiceComposition[], resources: Resource[], companyLogo?: string, bdi?: number) {
   const wb = XLSX.utils.book_new();
+  const flatData: any[] = [];
 
-  services.forEach(s => {
-    const items = s.items.map(item => {
+  (services || []).forEach(s => {
+    const compCost = calculateServiceUnitCost(s, resources, services);
+    const compCostWithBDI = compCost * (1 + (bdi || 0) / 100);
+
+    if (!s.items || s.items.length === 0) {
+      flatData.push({
+        'Grupo da Composição': s.groupName || '-',
+        'Código Composição': s.code,
+        'Descrição Composição': s.name,
+        'Unidade Composição': s.unit,
+        'Produção Equipe': s.production || 1,
+        'Custo Unitário S/ BDI': compCost,
+        'Preço Unitário C/ BDI': compCostWithBDI,
+        'Tipo Insumo': '-',
+        'Código Insumo': '-',
+        'Descrição Insumo': '-',
+        'Unidade Insumo': '-',
+        'Consumo (Prod / Impr)': '-',
+        'Custo Unitário Insumo': '-',
+        'Custo Total Insumo': '-',
+      });
+      return;
+    }
+
+    (s.items || []).forEach(item => {
       const res = resources.find(r => r.id === item.resourceId) || services.find(serv => serv.id === item.resourceId);
       const isEquip = res && 'type' in res && res.type === 'equipment';
       
-      return {
-        Código: res?.code,
-        Descrição: res?.name,
-        Unidade: res?.unit,
-        Consumo: isEquip ? `Prod: ${item.productiveConsumption || 0} / Impr: ${item.unproductiveConsumption || 0}` : item.consumption,
-        Preço: isEquip 
-                ? `Prod: ${(res as Resource).productivePrice || (res as Resource).basePrice} / Impr: ${(res as Resource).unproductivePrice || (res as Resource).basePrice}`
-                : ((res as any)?.basePrice || calculateServiceUnitCost(res as any, resources, services)),
-        Total: isEquip
-                ? ((item.productiveConsumption || 0) * ((res as Resource).productivePrice || (res as Resource).basePrice) + 
-                   (item.unproductiveConsumption || 0) * ((res as Resource).unproductivePrice || (res as Resource).basePrice))
-                : item.consumption * ((res as any)?.basePrice || calculateServiceUnitCost(res as any, resources, services))
-      };
-    });
+      let itemType = 'Desconhecido';
+      if (res) {
+        if ('type' in res) {
+          itemType = res.type === 'labor' ? 'Mão de Obra' : 
+                     res.type === 'equipment' ? 'Equipamento' : 
+                     res.type === 'material' ? 'Material' : 'Serviço Auxiliar';
+        } else {
+          itemType = 'Serviço Auxiliar';
+        }
+      }
 
-    const ws = XLSX.utils.json_to_sheet(items);
-    XLSX.utils.book_append_sheet(wb, ws, s.code.substring(0, 31));
+      let unitCost = 0;
+      let totalCost = 0;
+      let consumeText = '';
+
+      if (isEquip) {
+        const prodPrice = (res as Resource).productivePrice || (res as Resource).basePrice;
+        const unprodPrice = (res as Resource).unproductivePrice || (res as Resource).basePrice;
+        unitCost = prodPrice; // simplificação para a coluna unitária
+        totalCost = ((item.productiveConsumption || 0) * prodPrice) + ((item.unproductiveConsumption || 0) * unprodPrice);
+        consumeText = `Prod: ${item.productiveConsumption || 0} / Impr: ${item.unproductiveConsumption || 0}`;
+      } else {
+        unitCost = (res as any)?.basePrice || calculateServiceUnitCost(res as any, resources, services);
+        totalCost = item.consumption * unitCost;
+        consumeText = item.consumption.toString();
+      }
+
+      flatData.push({
+        'Grupo da Composição': s.groupName || '-',
+        'Código Composição': s.code,
+        'Descrição Composição': s.name,
+        'Unidade Composição': s.unit,
+        'Produção Equipe': s.production || 1,
+        'Custo Unitário S/ BDI': compCost,
+        'Preço Unitário C/ BDI': compCostWithBDI,
+        'Tipo Insumo': itemType,
+        'Código Insumo': res?.code || '-',
+        'Descrição Insumo': res?.name || 'Insumo não encontrado',
+        'Unidade Insumo': res?.unit || '-',
+        'Consumo (Prod / Impr)': consumeText,
+        'Custo Unitário Insumo': unitCost,
+        'Custo Total Insumo': totalCost,
+      });
+    });
   });
 
+  const ws = XLSX.utils.json_to_sheet(flatData);
+  XLSX.utils.book_append_sheet(wb, ws, 'Composições Detalhadas');
   XLSX.writeFile(wb, 'composicoes_detalhadas.xlsx');
 }
 
@@ -558,7 +611,7 @@ export function exportQuotationToPDF(quotation: Quotation, services: ServiceComp
     ]);
     
     let groupTotal = 0;
-    group.services.forEach(gs => {
+    (group.services || []).forEach(gs => {
       if (gs.quantity <= 0) return;
       const s = services.find(serv => serv.id === gs.serviceId);
       if (!s) return;
@@ -858,7 +911,7 @@ export function exportScheduleToExcel(schedule: Schedule, services: ServiceCompo
   });
 
   // Data
-  schedule.services.forEach(ss => {
+  (schedule.services || []).forEach(ss => {
     const s = services.find(serv => serv.id === ss.serviceId);
     const rowData: (string | number | undefined)[] = [s?.code, s?.name, s?.unit];
     periods.forEach(p => {
@@ -1112,7 +1165,7 @@ export function exportCustomReport(options: {
       ]);
       
       let groupTotal = 0;
-      group.services.forEach(gs => {
+      (group.services || []).forEach(gs => {
         if (gs.quantity <= 0) return; // Skip zero quantity items
         const s = options.services.find(serv => serv.id === gs.serviceId);
         if (!s) return; // Skip if service not found

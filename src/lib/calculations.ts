@@ -39,7 +39,7 @@ export function calculateServiceUnitCost(
   let equipment = 0;
   let auxiliary = 0;
 
-  service.items.forEach(item => {
+  (service.items || []).forEach(item => {
     const resource = resources.find(r => r.id === item.resourceId);
     if (resource) {
       if (resource.type === 'equipment') {
@@ -553,7 +553,7 @@ export function calculateResourceSchedule(
     const production = comp.production || 1;
     const fit = comp.fit || 0;
 
-    comp.items.forEach(item => {
+    (comp.items || []).forEach(item => {
       const res = resources.find(r => r.id === item.resourceId);
       if (res) {
         if (!resourceTotals[res.id]) {
