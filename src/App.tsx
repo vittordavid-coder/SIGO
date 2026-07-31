@@ -391,7 +391,27 @@ export default function App() {
   const [applications, setApplications] = useLocalStorage<WarehouseApplication[]>('sigo_warehouse_applications', [], compId);
   const [workMovements, setWorkMovements] = useLocalStorage<WorkMovement[]>('sigo_work_movements', INITIAL_WORK_MOVEMENTS, compId);
 
-  const addWorkMovement = (movement: Omit<WorkMovement, 'id' | 'timestamp'>) => {
+  const updateWorkMovements = async (val: WorkMovement[] | ((prev: WorkMovement[]) => WorkMovement[])) => {
+    lastLocalUpdate.current = Date.now();
+    const newVal = typeof val === 'function' ? val(workMovements) : val;
+    setWorkMovements(newVal);
+
+    const config = getSupabaseConfig();
+    if (config.enabled && compId) {
+      const supabase = createSupabaseClient(config.url, config.key);
+      if (supabase) {
+        try {
+          const mapped = newVal.map(m => mapToSnake({ ...m, companyId: compId }));
+          await supabase.from('work_movements').upsert(mapped);
+          console.log('[Supabase] Work movements persisted immediately');
+        } catch (err) {
+          console.warn('[Sync] Work movements persist failed', err);
+        }
+      }
+    }
+  };
+
+  const addWorkMovement = async (movement: Omit<WorkMovement, 'id' | 'timestamp'>) => {
     const newMovement: WorkMovement = {
       ...movement,
       id: `wm-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
@@ -399,6 +419,20 @@ export default function App() {
       responsibleUser: movement.responsibleUser || currentUser?.name || currentUser?.username || 'Sistema'
     };
     setWorkMovements(prev => [newMovement, ...(prev || [])]);
+
+    const config = getSupabaseConfig();
+    if (config.enabled && compId) {
+      const supabase = createSupabaseClient(config.url, config.key);
+      if (supabase) {
+        try {
+          const mapped = mapToSnake({ ...newMovement, companyId: compId });
+          await supabase.from('work_movements').upsert(mapped);
+          console.log('[Supabase] Work movement persisted immediately');
+        } catch (err) {
+          console.warn('[Sync] Work movement persist failed', err);
+        }
+      }
+    }
   };
   
   const [selectedContractId, setSelectedContractId] = useState<string | null>(() => {
@@ -858,6 +892,7 @@ export default function App() {
           'assets': { key: 'sigo_assets', setter: setAssets },
           'warehouse_transfers': { key: 'sigo_warehouse_transfers', setter: setTransfers },
           'warehouse_applications': { key: 'sigo_warehouse_applications', setter: setApplications },
+          'work_movements': { key: 'sigo_work_movements', setter: setWorkMovements },
           'users': { key: 'sigo_users', setter: setUsers }
         };
 
@@ -5262,7 +5297,7 @@ export default function App() {
                   requests={finalPurchaseRequests}
                   setRequests={updatePurchaseRequests}
                   workMovements={workMovements}
-                  setWorkMovements={setWorkMovements}
+                  setWorkMovements={updateWorkMovements}
                   onAddWorkMovement={addWorkMovement}
                   contracts={contracts}
                   currentUser={currentUser}

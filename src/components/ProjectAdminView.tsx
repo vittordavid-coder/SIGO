@@ -17,7 +17,8 @@ import {
   CheckCircle, XCircle, Eye, FileText, ClipboardList, HardHat, 
   Users, Package, ShoppingCart, Landmark, Truck, Activity, 
   Search, Filter, Plus, Database, Copy, Check, Download,
-  Calendar, User as UserIcon, ArrowUpRight, ArrowDownRight, Tag, Info, AlertTriangle
+  Calendar, User as UserIcon, ArrowUpRight, ArrowDownRight, Tag, Info, AlertTriangle,
+  ChevronLeft, ChevronRight
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '@/lib/utils';
@@ -144,6 +145,28 @@ export function ProjectAdminView({
   const [selectedActionFilter, setSelectedActionFilter] = useState<string>('ALL');
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedContractFilter, setSelectedContractFilter] = useState<string>('ALL');
+  
+  // Date filtering state
+  const [selectedMonth, setSelectedMonth] = useState(() => {
+    const today = new Date();
+    return new Date(today.getFullYear(), today.getMonth(), 1);
+  });
+  
+  const maxMonth = useMemo(() => {
+    const today = new Date();
+    return new Date(today.getFullYear(), today.getMonth(), 1);
+  }, []);
+
+  const handlePrevMonth = () => {
+    setSelectedMonth(prev => new Date(prev.getFullYear(), prev.getMonth() - 1, 1));
+  };
+
+  const handleNextMonth = () => {
+    setSelectedMonth(prev => {
+      const next = new Date(prev.getFullYear(), prev.getMonth() + 1, 1);
+      return next > maxMonth ? prev : next;
+    });
+  };
   
   // Detail Modal state
   const [selectedMovement, setSelectedMovement] = useState<WorkMovement | null>(null);
@@ -284,6 +307,12 @@ export function ProjectAdminView({
   // Filtered movements
   const filteredMovements = useMemo(() => {
     return workMovements.filter(m => {
+      // Month Filter
+      const mDate = new Date(m.timestamp);
+      if (mDate.getFullYear() !== selectedMonth.getFullYear() || mDate.getMonth() !== selectedMonth.getMonth()) {
+        return false;
+      }
+
       // Sector Filter
       if (selectedSectorFilter !== 'ALL' && m.sector !== selectedSectorFilter) {
         return false;
@@ -311,7 +340,7 @@ export function ProjectAdminView({
       }
       return true;
     });
-  }, [workMovements, selectedSectorFilter, selectedActionFilter, selectedContractFilter, searchTerm]);
+  }, [workMovements, selectedSectorFilter, selectedActionFilter, selectedContractFilter, searchTerm, selectedMonth]);
 
   // Available actions based on current sector selection
   const availableActionsForFilter = useMemo(() => {
@@ -325,20 +354,19 @@ export function ProjectAdminView({
     return Array.from(new Set(allActions));
   }, [selectedSectorFilter]);
 
-  // Sector Stats
+  // Sector Stats for selected month
   const sectorCounts = useMemo(() => {
-    const counts: Record<string, number> = { ALL: workMovements.length };
+    const monthMovements = workMovements.filter(m => {
+      const mDate = new Date(m.timestamp);
+      return mDate.getFullYear() === selectedMonth.getFullYear() && mDate.getMonth() === selectedMonth.getMonth();
+    });
+    const counts: Record<string, number> = { ALL: monthMovements.length };
     Object.keys(SECTOR_ACTIONS_MAP).forEach(sec => {
-      counts[sec] = workMovements.filter(m => m.sector === sec).length;
+      counts[sec] = monthMovements.filter(m => m.sector === sec).length;
     });
     return counts;
-  }, [workMovements]);
+  }, [workMovements, selectedMonth]);
 
-  const handleCopySql = () => {
-    navigator.clipboard.writeText(WORK_MOVEMENTS_SQL_SCRIPT);
-    setCopiedSql(true);
-    setTimeout(() => setCopiedSql(false), 2500);
-  };
 
   const handleExportCsv = () => {
     if (filteredMovements.length === 0) {
@@ -572,6 +600,31 @@ export function ProjectAdminView({
             </CardHeader>
 
             <CardContent className="p-0">
+              {/* Month Navigation */}
+              <div className="bg-slate-50 flex items-center justify-between px-4 py-2 border-b border-slate-200">
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  onClick={handlePrevMonth}
+                  className="h-8 px-3 text-slate-600 hover:text-slate-900 bg-white border border-slate-200 shadow-sm"
+                >
+                  <ChevronLeft className="w-4 h-4 mr-1" />
+                  Anterior
+                </Button>
+                <div className="font-black text-sm text-slate-800 uppercase tracking-widest">
+                  {selectedMonth.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}
+                </div>
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  onClick={handleNextMonth}
+                  disabled={selectedMonth >= maxMonth}
+                  className="h-8 px-3 text-slate-600 hover:text-slate-900 bg-white border border-slate-200 shadow-sm"
+                >
+                  Próximo
+                  <ChevronRight className="w-4 h-4 ml-1" />
+                </Button>
+              </div>
               <div className="overflow-x-auto">
                 <Table>
                   <TableHeader className="bg-slate-50/80">
