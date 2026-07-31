@@ -622,7 +622,7 @@ export function ServiceView({
   };
 
   const getContractServices = (contract: any) => {
-    const list: { code: string; name: string; unit: string; price: number }[] = [];
+    const list: { code: string; name: string; unit: string; price: number; groupName?: string }[] = [];
     const seenCodes = new Set<string>();
 
     if (contract.services) {
@@ -635,7 +635,8 @@ export function ServiceView({
               code: cleanCode,
               name: s.name.trim(),
               unit: s.unit || 'un',
-              price: s.price || 0
+              price: s.price || 0,
+              groupName: s.groupName || s.group || s.category || ''
             });
           }
         }
@@ -644,6 +645,7 @@ export function ServiceView({
 
     if (contract.groups) {
       contract.groups.forEach((g: any) => {
+        const groupTitle = g.name || g.groupName || g.title || g.group || g.category || '';
         if (g.services) {
           (g.services || []).forEach((s: any) => {
             if (s.code && s.name) {
@@ -654,7 +656,8 @@ export function ServiceView({
                   code: cleanCode,
                   name: s.name.trim(),
                   unit: s.unit || 'un',
-                  price: s.price || 0
+                  price: s.price || 0,
+                  groupName: groupTitle || s.groupName || s.group || s.category || ''
                 });
               }
             }
@@ -688,38 +691,14 @@ export function ServiceView({
     setIsSaving(true);
     try {
       const servicesToAdd: Omit<ServiceComposition, 'id'>[] = [];
-      const resourcesToAdd: (Omit<Resource, 'id'> & { id?: string })[] = [];
-
       let importedCount = 0;
       let updatedCount = 0;
-
-      // Helper to generate sequential SRV-XXXX codes
-      let nextNumber = 1;
-      const getNextSrvCode = (existingResources: Resource[], newlyAdded: any[]) => {
-        const prefix = 'SRV-';
-        const all = [...existingResources, ...newlyAdded];
-        const typeResources = all.filter(r => r.type === 'service');
-        
-        const existingNumbers = typeResources
-          .map(r => {
-            const match = r.code.match(/SRV-(\d+)/);
-            return match ? parseInt(match[1], 10) : null;
-          })
-          .filter((n): n is number => n !== null)
-          .sort((a, b) => a - b);
-
-        while (existingNumbers.includes(nextNumber)) {
-          nextNumber++;
-        }
-        const generatedCode = `${prefix}${nextNumber.toString().padStart(4, '0')}`;
-        nextNumber++;
-        return generatedCode;
-      };
 
       servicesToProcess.forEach(item => {
         const codeVal = item.code.trim();
         const nameVal = item.name.trim();
         const unitVal = (item.unit || "un").trim();
+        const groupVal = (item.groupName || "").trim();
 
         // Check if service composition already exists for the CURRENT contract
         const existingService = services.find(s => 
@@ -727,36 +706,15 @@ export function ServiceView({
           (selectedContractId ? s.contractId === selectedContractId : !s.contractId)
         );
 
-        // Check if resource of type 'service' with the same name already exists
-        const existingResource = resources.find(r => 
-          r.type === 'service' && 
-          r.name.trim().toLowerCase() === nameVal.toLowerCase()
-        );
-
-        const resourceId = existingResource ? existingResource.id : `res-${Math.random().toString(36).substring(2, 9)}`;
-
-        if (!existingResource) {
-          const srvCode = getNextSrvCode(resources, resourcesToAdd);
-          resourcesToAdd.push({
-            id: resourceId,
-            code: srvCode,
-            name: nameVal,
-            unit: unitVal,
-            type: 'service',
-            basePrice: 0,
-          });
-        }
-
-        const items: CompositionItem[] = [{ resourceId, consumption: 1 }];
-
         if (existingService) {
           onUpdate({
             ...existingService,
             name: nameVal || existingService.name,
             unit: unitVal || existingService.unit,
+            groupName: groupVal || existingService.groupName,
             production: existingService.production || 1,
             fit: existingService.fit || 0,
-            items: existingService.items.length > 0 ? existingService.items : items
+            items: existingService.items || []
           });
           updatedCount++;
         } else {
@@ -764,22 +722,15 @@ export function ServiceView({
             code: codeVal,
             name: nameVal,
             unit: unitVal,
+            groupName: groupVal || undefined,
             production: 1,
             fit: 0,
-            items,
+            items: [],
             contractId: selectedContractId || undefined
           } as any);
           importedCount++;
         }
       });
-
-      // Save via batch functions
-      if (resourcesToAdd.length > 0 && onAddResource) {
-        const resResult = onAddResource(resourcesToAdd);
-        if (resResult instanceof Promise) {
-          await resResult;
-        }
-      }
 
       if (servicesToAdd.length > 0) {
         if (onAddServices) {
@@ -796,9 +747,8 @@ export function ServiceView({
 
       alert(
         `✅ Importação de serviços do contrato concluída com sucesso!\n\n` +
-        `• Novos serviços adicionados (com insumos de tipo serviço "SRV-XXXX" criados sem preço): ${importedCount}\n` +
-        `• Serviços existentes atualizados: ${updatedCount}\n` +
-        `• Novos insumos criados do tipo Serviço: ${resourcesToAdd.length}`
+        `• Novos serviços adicionados: ${importedCount}\n` +
+        `• Serviços existentes atualizados: ${updatedCount}`
       );
 
       setIsImportFromContractModalOpen(false);
@@ -2055,6 +2005,9 @@ export function ServiceView({
                             <TableCell className="py-2.5 text-xs text-slate-800">
                               <div className="flex flex-col">
                                 <span className="font-semibold">{s.name}</span>
+                                {s.groupName && (
+                                  <span className="text-[10px] text-blue-600 font-medium">Grupo: {s.groupName}</span>
+                                )}
                                 {alreadyExists && (
                                   <span className="text-[9px] text-amber-600 font-bold mt-0.5">⚠️ Já possui composição (será atualizada)</span>
                                 )}

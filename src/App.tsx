@@ -2589,50 +2589,9 @@ export default function App() {
     const nameVal = service.name.trim();
     const unitVal = (service.unit || "un").trim();
 
-    // Find if a resource of type 'service' with the same name already exists
-    const existingResource = resources.find(r => 
-      r.type === 'service' && 
-      r.name.trim().toLowerCase() === nameVal.toLowerCase()
-    );
-
-    const resourceId = existingResource ? existingResource.id : `res-${Math.random().toString(36).substring(2, 9)}`;
-    const resourcesToAdd: Resource[] = [];
-
-    if (!existingResource) {
-      // Helper to generate sequential SRV-XXXX codes
-      let nextNumber = 1;
-      const typeResources = resources.filter(r => r.type === 'service');
-      const existingNumbers = typeResources
-        .map(r => {
-          const match = r.code.match(/SRV-(\d+)/);
-          return match ? parseInt(match[1], 10) : null;
-        })
-        .filter((n): n is number => n !== null)
-        .sort((a, b) => a - b);
-
-      while (existingNumbers.includes(nextNumber)) {
-        nextNumber++;
-      }
-      const srvCode = `SRV-${nextNumber.toString().padStart(4, '0')}`;
-
-      resourcesToAdd.push({
-        id: resourceId,
-        code: srvCode,
-        name: nameVal,
-        unit: unitVal,
-        type: 'service',
-        basePrice: 0,
-        companyId: currentUser?.companyId || undefined
-      } as any);
-    }
-
-    const items = (service.items && service.items.length > 0) ? service.items : [{ resourceId, consumption: 1 }];
+    const items = service.items || [];
     const newId = uuidv4();
     const newServiceObj = { ...service, id: newId, items, companyId: currentUser?.companyId };
-
-    if (resourcesToAdd.length > 0) {
-      addResource(resourcesToAdd);
-    }
 
     updateServices([...services, newServiceObj]);
     addAuditLog('Adição', 'Serviços', `Serviço adicionado: ${service.code} - ${service.name}`);
@@ -2641,30 +2600,6 @@ export default function App() {
   const addServices = async (newServices: Omit<ServiceComposition, 'id'>[]) => {
     const validServices: ServiceComposition[] = [];
     const logs: string[] = [];
-    const resourcesToAdd: Resource[] = [];
-    
-    // Helper to generate sequential SRV-XXXX codes in batch
-    let nextNumber = 1;
-    const getNextSrvCode = (existingResources: Resource[], newlyAdded: Resource[]) => {
-      const prefix = 'SRV-';
-      const all = [...existingResources, ...newlyAdded];
-      const typeResources = all.filter(r => r.type === 'service');
-      
-      const existingNumbers = typeResources
-        .map(r => {
-          const match = r.code.match(/SRV-(\d+)/);
-          return match ? parseInt(match[1], 10) : null;
-        })
-        .filter((n): n is number => n !== null)
-        .sort((a, b) => a - b);
-
-      while (existingNumbers.includes(nextNumber)) {
-        nextNumber++;
-      }
-      const generatedCode = `${prefix}${nextNumber.toString().padStart(4, '0')}`;
-      nextNumber++;
-      return generatedCode;
-    };
 
     newServices.forEach(s => {
       const codeLower = s.code.trim().toLowerCase();
@@ -2677,34 +2612,7 @@ export default function App() {
 
       if (!alreadyExists) {
         const id = uuidv4();
-        const nameVal = s.name.trim();
-        const unitVal = (s.unit || "un").trim();
-
-        // Check if unique resource of type 'service' with the same name already exists
-        const existingResource = resources.find(r => 
-          r.type === 'service' && 
-          r.name.trim().toLowerCase() === nameVal.toLowerCase()
-        ) || resourcesToAdd.find(r => 
-          r.type === 'service' && 
-          r.name.trim().toLowerCase() === nameVal.toLowerCase()
-        );
-
-        const resourceId = existingResource ? existingResource.id : `res-${Math.random().toString(36).substring(2, 9)}`;
-
-        if (!existingResource) {
-          const srvCode = getNextSrvCode(resources, resourcesToAdd);
-          resourcesToAdd.push({
-            id: resourceId,
-            code: srvCode,
-            name: nameVal,
-            unit: unitVal,
-            type: 'service',
-            basePrice: 0,
-            companyId: currentUser?.companyId || undefined
-          } as any);
-        }
-
-        const items = (s.items && s.items.length > 0) ? s.items : [{ resourceId, consumption: 1 }];
+        const items = s.items || [];
 
         validServices.push({ ...s, id, items, companyId: currentUser?.companyId });
         logs.push(s.code);
