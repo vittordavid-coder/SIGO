@@ -14,7 +14,7 @@ import {
   WorkMovementSector, Contract, User 
 } from '../types';
 import { 
-  CheckCircle, XCircle, Eye, FileText, ClipboardList, HardHat, 
+  CheckCircle, CheckCircle2, XCircle, Eye, FileText, ClipboardList, HardHat, 
   Users, Package, ShoppingCart, Landmark, Truck, Activity, 
   Search, Filter, Plus, Database, Copy, Check, Download,
   Calendar, User as UserIcon, ArrowUpRight, ArrowDownRight, Tag, Info, AlertTriangle,
@@ -438,9 +438,9 @@ export function ProjectAdminView({
             className="rounded-xl px-6 font-extrabold text-sm gap-2 data-[state=active]:bg-blue-600 data-[state=active]:text-white"
           >
             <FileText className="w-4 h-4" />
-            Aprovação de Suprimentos
+            Solicitações
             {pendingQuotations.length > 0 && (
-              <Badge className="ml-1 bg-amber-500 text-slate-950 font-black text-[10px] px-1.5 py-0">
+              <Badge className="ml-1 bg-amber-500 text-slate-950 font-black text-[10px] px-1.5 py-0 shadow-sm animate-pulse">
                 {pendingQuotations.length}
               </Badge>
             )}
@@ -483,21 +483,23 @@ export function ProjectAdminView({
                   }}
                   className={cn(
                     "p-3.5 rounded-2xl border text-left transition-all flex flex-col justify-between shadow-sm relative overflow-hidden group",
+                    sec.bg,
+                    sec.border,
                     isSelected
-                      ? cn(sec.bg, sec.border, "ring-2 ring-offset-2", sec.color.replace('text-', 'ring-'))
-                      : "bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50/80"
+                      ? "ring-2 ring-offset-2 " + sec.color.replace('text-', 'ring-')
+                      : "hover:shadow-md hover:scale-[1.02]"
                   )}
                 >
                   <div className="flex items-center justify-between">
-                    <span className={cn("text-[10px] font-black uppercase tracking-wider", isSelected ? sec.color : "text-slate-500")}>
+                    <span className={cn("text-[10px] font-black uppercase tracking-wider", sec.color)}>
                       {sec.name}
                     </span>
-                    <Icon className={cn("w-4 h-4", isSelected ? sec.color : "text-slate-400")} />
+                    <Icon className={cn("w-4 h-4", sec.color)} />
                   </div>
-                  <div className={cn("text-2xl font-black mt-1", isSelected ? sec.color : "text-slate-800")}>
+                  <div className={cn("text-2xl font-black mt-1", sec.color)}>
                     {count}
                   </div>
-                  <span className="text-[9px] font-bold text-slate-400 truncate">
+                  <span className="text-[9px] font-bold text-slate-500 truncate">
                     {sec.actions.length} tipos de ação
                   </span>
                 </button>
@@ -600,29 +602,32 @@ export function ProjectAdminView({
             </CardHeader>
 
             <CardContent className="p-0">
-              {/* Month Navigation */}
-              <div className="bg-slate-50 flex items-center justify-between px-4 py-2 border-b border-slate-200">
+              {/* Month Navigation Strip */}
+              <div className="bg-slate-900 text-white flex items-center justify-between px-6 py-3 border-b border-slate-800 shadow-inner">
                 <Button 
                   variant="ghost" 
                   size="sm" 
                   onClick={handlePrevMonth}
-                  className="h-8 px-3 text-slate-600 hover:text-slate-900 bg-white border border-slate-200 shadow-sm"
+                  className="h-8 px-3 text-slate-200 hover:text-white bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-xl text-xs font-bold gap-1"
                 >
-                  <ChevronLeft className="w-4 h-4 mr-1" />
-                  Anterior
+                  <ChevronLeft className="w-4 h-4" />
+                  Mês Anterior
                 </Button>
-                <div className="font-black text-sm text-slate-800 uppercase tracking-widest">
-                  {selectedMonth.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}
+                <div className="flex items-center gap-2">
+                  <Calendar className="w-4 h-4 text-amber-400" />
+                  <span className="font-black text-sm text-white uppercase tracking-widest">
+                    {selectedMonth.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}
+                  </span>
                 </div>
                 <Button 
                   variant="ghost" 
                   size="sm" 
                   onClick={handleNextMonth}
                   disabled={selectedMonth >= maxMonth}
-                  className="h-8 px-3 text-slate-600 hover:text-slate-900 bg-white border border-slate-200 shadow-sm"
+                  className="h-8 px-3 text-slate-200 hover:text-white bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-xl text-xs font-bold gap-1 disabled:opacity-40"
                 >
-                  Próximo
-                  <ChevronRight className="w-4 h-4 ml-1" />
+                  Próximo Mês
+                  <ChevronRight className="w-4 h-4" />
                 </Button>
               </div>
               <div className="overflow-x-auto">
@@ -644,8 +649,8 @@ export function ProjectAdminView({
                         <TableCell colSpan={7} className="h-56 text-center py-8">
                           <div className="flex flex-col items-center justify-center text-slate-400 space-y-2">
                             <Activity className="w-10 h-10 text-slate-300" />
-                            <p className="font-bold text-sm text-slate-600">Nenhuma movimentação encontrada com os filtros aplicados.</p>
-                            <p className="text-xs text-slate-400">Tente ajustar o termo de pesquisa ou limpar os filtros de setor e ação.</p>
+                            <p className="font-bold text-sm text-slate-600">Nenhuma movimentação registrada no mês selecionado.</p>
+                            <p className="text-xs text-slate-400">Navegue entre os meses ou altere os filtros de busca acima.</p>
                           </div>
                         </TableCell>
                       </TableRow>
@@ -730,103 +735,141 @@ export function ProjectAdminView({
           </Card>
         </TabsContent>
 
-        {/* TAB 2: APROVAÇÃO DE SUPRIMENTOS (ORÇAMENTOS) */}
-        <TabsContent value="solicitacoes" className="mt-0 outline-none">
-          <div className="grid grid-cols-1 gap-6">
-            <Card className="border-none shadow-xl rounded-3xl overflow-hidden bg-white">
-              <CardHeader className="bg-white border-b border-slate-100 pb-6">
-                <CardTitle className="text-xl font-bold flex items-center gap-2">
+        {/* TAB 2: SOLICITAÇÕES (EXIBIÇÃO EM BALÕES) */}
+        <TabsContent value="solicitacoes" className="mt-0 outline-none space-y-6">
+          <Card className="border-none shadow-xl rounded-3xl overflow-hidden bg-white p-6">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-4 mb-6">
+              <div>
+                <h3 className="text-lg font-black text-slate-900 flex items-center gap-2">
                   <FileText className="w-5 h-5 text-blue-600" />
-                  Orçamentos para Aprovação de Compras
-                </CardTitle>
-                <CardDescription className="text-xs font-medium text-slate-500">
-                  Visualize e aprove os orçamentos preenchidos pelo departamento de compras para autorizar os pedidos de suprimentos da obra.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="p-0">
-                <Table>
-                  <TableHeader className="bg-slate-50">
-                    <TableRow>
-                      <TableHead className="font-bold text-xs uppercase">ID Cotação</TableHead>
-                      <TableHead className="font-bold text-xs uppercase">Data Envio</TableHead>
-                      <TableHead className="font-bold text-xs uppercase">Itens da Solicitação</TableHead>
-                      <TableHead className="font-bold text-xs uppercase">Fornecedores Participantes</TableHead>
-                      <TableHead className="font-bold text-xs uppercase">Menor Valor R$</TableHead>
-                      <TableHead className="text-right font-bold text-xs uppercase">Ação</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {pendingQuotations.length === 0 ? (
-                      <TableRow>
-                        <TableCell colSpan={6} className="h-48 text-center text-slate-400">
-                          <p className="font-medium text-sm">Não há solicitações de orçamento aguardando aprovação no momento.</p>
-                        </TableCell>
-                      </TableRow>
-                    ) : (
-                      pendingQuotations.map((q) => {
-                        const supplierTotals = (q.suppliers || []).map(qs => 
-                          (q.items || []).reduce((acc, item) => {
-                            const res = (qs.responses || []).find(r => r.itemId === item.itemId);
-                            return acc + (item.quantity * (res?.price || 0));
-                          }, 0)
-                        ).filter(total => total > 0);
-                        
-                        const lowestTotal = supplierTotals.length > 0 ? Math.min(...supplierTotals) : 0;
+                  Solicitações e Cotações Pendentes de Aprovação
+                </h3>
+                <p className="text-xs text-slate-500 font-medium mt-0.5">
+                  Cada solicitação é apresentada em formato de balão com os detalhes dos suprimentos solicitados.
+                </p>
+              </div>
+              <Badge className="bg-blue-100 text-blue-900 border-blue-300 font-black text-xs px-3 py-1">
+                Total: {pendingQuotations.length} solicitação(ões)
+              </Badge>
+            </div>
 
-                        return (
-                          <TableRow key={q.id} className="hover:bg-blue-50/30 transition-colors">
-                            <TableCell className="font-mono text-xs font-bold text-slate-600">
-                              COT-{q.date.replace(/-/g, '')}-{q.id.substring(0, 4).toUpperCase()}
-                            </TableCell>
-                            <TableCell className="text-slate-600 text-xs font-medium">
-                              {q.date ? new Date(q.date).toLocaleDateString('pt-BR') : '-'}
-                            </TableCell>
-                            <TableCell className="font-semibold text-xs text-slate-900">
-                              {(q.items || []).length} itens (Ex: {q.items?.[0]?.description || '-'})
-                            </TableCell>
-                            <TableCell>
-                              <div className="flex -space-x-2">
-                                {(q.suppliers || []).map((s, idx) => (
-                                  <div 
-                                    key={s.supplierId} 
-                                    className={cn(
-                                      "w-7 h-7 rounded-full border-2 border-white flex items-center justify-center text-xs font-black uppercase text-white shadow-sm",
-                                      idx % 2 === 0 ? "bg-blue-500" : "bg-emerald-500"
-                                    )}
-                                    title={suppliers.find(sup => sup.id === s.supplierId)?.name || 'Fornecedor'}
-                                  >
-                                    {suppliers.find(sup => sup.id === s.supplierId)?.name?.[0] || '?'}
-                                  </div>
-                                ))}
-                              </div>
-                            </TableCell>
-                            <TableCell className="text-emerald-700 font-black text-xs">
-                              R$ {lowestTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                            </TableCell>
-                            <TableCell className="text-right">
-                              <Button 
-                                variant="ghost" 
-                                size="sm" 
-                                onClick={() => { 
-                                  setSelectedQuotation(q); 
-                                  setSelectedSupplierId(null); 
-                                  setIsDetailsOpen(true); 
-                                }}
-                                className="text-blue-600 hover:bg-blue-50 font-bold text-xs h-8"
-                              >
-                                <Eye className="w-3.5 h-3.5 mr-1" />
-                                Revisar
-                              </Button>
-                            </TableCell>
-                          </TableRow>
-                        );
-                      })
-                    )}
-                  </TableBody>
-                </Table>
-              </CardContent>
-            </Card>
-          </div>
+            {pendingQuotations.length === 0 ? (
+              <div className="text-center py-16 bg-slate-50 rounded-3xl border border-dashed border-slate-200">
+                <CheckCircle2 className="w-12 h-12 text-emerald-500 mx-auto mb-3 opacity-80" />
+                <h4 className="text-base font-bold text-slate-800">Nenhuma solicitação pendente</h4>
+                <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
+                  Todas as solicitações de compras e orçamentos foram analisadas ou aprovadas.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-6">
+                {pendingQuotations.map((q) => {
+                  const supplierTotals = (q.suppliers || []).map(qs => 
+                    (q.items || []).reduce((acc, item) => {
+                      const res = (qs.responses || []).find(r => r.itemId === item.itemId);
+                      return acc + (item.quantity * (res?.price || 0));
+                    }, 0)
+                  ).filter(total => total > 0);
+                  
+                  const lowestTotal = supplierTotals.length > 0 ? Math.min(...supplierTotals) : 0;
+
+                  return (
+                    <div 
+                      key={q.id} 
+                      className="relative bg-gradient-to-br from-blue-50/50 via-white to-slate-50 border-2 border-blue-200/80 rounded-3xl rounded-tl-md p-6 shadow-md hover:shadow-xl transition-all space-y-4 group"
+                    >
+                      {/* Speech Bubble Header */}
+                      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-blue-100 pb-3">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-2xl bg-blue-600 text-white flex items-center justify-center font-black shadow-md shadow-blue-200">
+                            <ShoppingCart className="w-5 h-5" />
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="font-mono text-xs font-black text-blue-900 bg-white px-2.5 py-1 rounded-lg border border-blue-200 shadow-xs">
+                                COT-{q.date.replace(/-/g, '')}-{q.id.substring(0, 4).toUpperCase()}
+                              </span>
+                              <Badge className="bg-amber-100 text-amber-800 border-amber-300 font-extrabold text-[10px]">
+                                Suprimentos & Almoxarifado
+                              </Badge>
+                            </div>
+                            <p className="text-[11px] text-slate-500 font-semibold mt-1">
+                              Solicitação gerada em {q.date ? new Date(q.date).toLocaleDateString('pt-BR') : '-'}
+                            </p>
+                          </div>
+                        </div>
+
+                        <Badge className="bg-amber-500 text-slate-950 font-black text-xs px-3 py-1 shadow-sm">
+                          Aguardando Aprovação
+                        </Badge>
+                      </div>
+
+                      {/* Speech Bubble Content */}
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-white/80 backdrop-blur-xs p-4 rounded-2xl border border-blue-100">
+                        <div className="space-y-1">
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Itens Solicitados</span>
+                          <p className="text-xs font-bold text-slate-900">
+                            {(q.items || []).length} item(ns) na lista
+                          </p>
+                          <p className="text-[11px] text-slate-500 truncate">
+                            Ex: {q.items?.[0]?.description || 'Material operacional'}
+                          </p>
+                        </div>
+
+                        <div className="space-y-1">
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Fornecedores Cotados</span>
+                          <div className="flex items-center gap-1.5">
+                            <div className="flex -space-x-2">
+                              {(q.suppliers || []).map((s, idx) => (
+                                <div 
+                                  key={s.supplierId} 
+                                  className={cn(
+                                    "w-6 h-6 rounded-full border-2 border-white flex items-center justify-center text-[10px] font-black uppercase text-white shadow-xs",
+                                    idx % 2 === 0 ? "bg-blue-500" : "bg-emerald-500"
+                                  )}
+                                  title={suppliers.find(sup => sup.id === s.supplierId)?.name || 'Fornecedor'}
+                                >
+                                  {suppliers.find(sup => sup.id === s.supplierId)?.name?.[0] || '?'}
+                                </div>
+                              ))}
+                            </div>
+                            <span className="text-xs font-bold text-slate-700">
+                              {(q.suppliers || []).length} participante(s)
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="space-y-1 md:text-right">
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Menor Orçamento</span>
+                          <p className="text-base font-black text-emerald-600">
+                            R$ {lowestTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Speech Bubble Footer / Method to View Details */}
+                      <div className="flex items-center justify-between pt-1">
+                        <span className="text-xs text-slate-500 font-medium italic">
+                          Clique para analisar propostas e autorizar pedido de compra.
+                        </span>
+                        <Button 
+                          onClick={() => { 
+                            setSelectedQuotation(q); 
+                            setSelectedSupplierId(null); 
+                            setIsDetailsOpen(true); 
+                          }}
+                          className="bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl px-5 h-9 gap-1.5 shadow-md shadow-blue-200 cursor-pointer"
+                        >
+                          <Eye className="w-4 h-4" />
+                          Exibir Detalhes da Solicitação
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </Card>
         </TabsContent>
       </Tabs>
 

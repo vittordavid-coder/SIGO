@@ -371,16 +371,73 @@ export default function RHView({
     alert(`Solicitação de transferência para ${transferModalEmployee.name} enviada com sucesso! Aguardando aprovações.`);
   };
 
-  const executeTransfer = (transfer: EmployeeTransfer) => {
+  const handleDeleteEmployee = async (e: Employee) => {
+    if (
+      !confirm(
+        `Excluir o colaborador ${e.name}? Esta ação removerá o colaborador e TODOS os seus vínculos (pontos, transferências, equipes e alojamentos).`
+      )
+    ) {
+      return;
+    }
+
+    // 1. Remove from employees array
+    const updatedEmployees = employees.filter((item) => item.id !== e.id);
+    onUpdateEmployees(updatedEmployees);
+
+    // 2. Remove team assignments
+    if (teamAssignments && onUpdateAssignments) {
+      onUpdateAssignments(teamAssignments.filter((a) => a.memberId !== e.id));
+    }
+
+    // 3. Clear supervisor reference in teams
+    if (controllerTeams && onUpdateTeams) {
+      onUpdateTeams(
+        controllerTeams.map((t) =>
+          t.supervisorId === e.id ? { ...t, supervisorId: "" } : t
+        )
+      );
+    }
+
+    // 4. Remove time records linked to employee
+    if (timeRecords && onUpdateRecords) {
+      onUpdateRecords(timeRecords.filter((r) => r.employeeId !== e.id));
+    }
+
+    // 5. Remove employee transfers linked to employee
+    if (employeeTransfers && onUpdateTransfers) {
+      onUpdateTransfers(employeeTransfers.filter((t) => t.employeeId !== e.id));
+    }
+
+    // 6. Direct Supabase deletion for persistent cascade
+    try {
+      const config = getSupabaseConfig();
+      if (config.enabled) {
+        const supabase = createSupabaseClient(config.url, config.key);
+        if (supabase) {
+          await Promise.all([
+            supabase.from("employees").delete().eq("id", e.id),
+            supabase.from("time_records").delete().eq("employee_id", e.id),
+            supabase.from("team_assignments").delete().eq("member_id", e.id),
+            supabase.from("employee_transfers").delete().eq("employee_id", e.id),
+          ]);
+          console.log(`[Supabase] Cascading deletion executed for employee ${e.id}`);
+        }
+      }
+    } catch (err) {
+      console.warn("Cascade delete error in Supabase:", err);
+    }
+  };
+
+  const executeTransfer = async (transfer: EmployeeTransfer) => {
+    const updatedTransferObj: EmployeeTransfer = {
+      ...transfer,
+      status: "approved",
+      sourceStatus: "approved",
+      targetStatus: "approved",
+    };
+
     const updatedTransfers = employeeTransfers.map((t) =>
-      t.id === transfer.id
-        ? {
-            ...t,
-            status: "approved" as const,
-            sourceStatus: "approved" as const,
-            targetStatus: "approved" as const,
-          }
-        : t
+      t.id === transfer.id ? updatedTransferObj : t
     );
 
     const targetEmp = employees.find((e) => e.id === transfer.employeeId);
@@ -410,6 +467,26 @@ export default function RHView({
           )
         );
       }
+
+      // Persist directly to Supabase if enabled
+      try {
+        const config = getSupabaseConfig();
+        if (config.enabled) {
+          const supabase = createSupabaseClient(config.url, config.key);
+          if (supabase) {
+            await Promise.all([
+              supabase
+                .from("employees")
+                .update({ contract_id: transfer.targetContractId, alojamento_id: null, team: null })
+                .eq("id", transfer.employeeId),
+              supabase.from("employee_transfers").upsert(mapToSnake(updatedTransferObj)),
+            ]);
+            console.log(`[Supabase] Transfer completed and persisted for employee ${transfer.employeeId}`);
+          }
+        }
+      } catch (err) {
+        console.warn("Supabase transfer execution error:", err);
+      }
     }
 
     if (onUpdateTransfers) {
@@ -418,7 +495,7 @@ export default function RHView({
 
     const targetName = getContractName(transfer.targetContractId);
     alert(
-      `Transferência concluída! O colaborador ${transfer.employeeName} foi retirado da equipe e alojamento da obra atual e transferido para ${targetName}.`
+      `Transferência concluída! O colaborador ${transfer.employeeName} foi aprovado por ambas as obras e transferido com sucesso para ${targetName}.`
     );
   };
 
@@ -3997,33 +4074,7 @@ export default function RHView({
                                 className="h-8 w-8 text-gray-400 hover:text-red-600 hover:bg-red-50"
                                 onClick={(ev) => {
                                   ev.stopPropagation();
-                                  if (confirm(`Excluir ${e.name}?`)) {
-                                    onUpdateEmployees(
-                                      employees.filter(
-                                        (item) => item.id !== e.id,
-                                      ),
-                                    );
-                                    if (
-                                      teamAssignments &&
-                                      onUpdateAssignments
-                                    ) {
-                                      onUpdateAssignments(
-                                        teamAssignments.filter(
-                                          (a) => a.memberId !== e.id,
-                                        ),
-                                      );
-                                    }
-                                    if (
-                                      controllerTeams &&
-                                      onUpdateTeams
-                                    ) {
-                                      onUpdateTeams(
-                                        controllerTeams.map((t) =>
-                                          t.supervisorId === e.id ? { ...t, supervisorId: "" } : t
-                                        )
-                                      );
-                                    }
-                                  }
+                                  handleDeleteEmployee(e);
                                 }}
                                 title="Excluir Colaborador"
                               >
@@ -7520,104 +7571,150 @@ export default function RHView({
 
       {/* Modal de Solicitação de Transferência de Colaborador */}
       <Dialog open={isTransferModalOpen} onOpenChange={setIsTransferModalOpen}>
-        <DialogContent className="max-w-lg bg-white border border-slate-200 shadow-2xl rounded-2xl p-6 text-left">
-          <DialogHeader className="text-left space-y-2">
-            <DialogTitle className="text-lg font-bold text-slate-900 flex items-center gap-2">
-              <ArrowRightLeft className="w-5 h-5 text-indigo-600" />
-              Solicitar Transferência de Colaborador
-            </DialogTitle>
-            <DialogDescription className="text-xs text-slate-500">
-              Informe a obra de destino para movimentar o colaborador. A transferência exigirá aprovação dos administradores das duas obras.
+        <DialogContent className="max-w-3xl bg-white border border-slate-200 shadow-2xl rounded-3xl p-8 text-left space-y-6">
+          <DialogHeader className="text-left space-y-2 border-b border-slate-100 pb-4">
+            <div className="flex items-center justify-between">
+              <DialogTitle className="text-xl font-black text-slate-900 flex items-center gap-3">
+                <div className="p-2.5 rounded-2xl bg-indigo-50 text-indigo-600 border border-indigo-100">
+                  <ArrowRightLeft className="w-6 h-6" />
+                </div>
+                Solicitar Transferência de Colaborador
+              </DialogTitle>
+              <Badge variant="outline" className="bg-indigo-50 text-indigo-700 border-indigo-200 text-xs font-bold px-3 py-1">
+                Aprovação em 2 Etapas
+              </Badge>
+            </div>
+            <DialogDescription className="text-xs text-slate-500 font-medium leading-relaxed">
+              Transfira o colaborador com segurança entre obras. A alteração só será salva no banco de dados e na folha do colaborador após aprovação do Administrador da Obra de Origem e do Administrador da Obra de Destino.
             </DialogDescription>
           </DialogHeader>
 
           {transferModalEmployee && (
-            <div className="space-y-4 py-2 text-left">
+            <div className="space-y-6 py-2 text-left">
               {/* Employee Summary Card */}
-              <div className="bg-slate-50 border border-slate-200/80 rounded-xl p-3 flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="p-2.5 rounded-full bg-indigo-100 text-indigo-700 font-bold">
-                    <Contact className="w-5 h-5" />
+              <div className="bg-gradient-to-r from-slate-50 to-indigo-50/30 border border-slate-200/80 rounded-2xl p-4 flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <div className="p-3 rounded-2xl bg-indigo-600 text-white font-bold shadow-md">
+                    <Contact className="w-6 h-6" />
                   </div>
                   <div>
-                    <p className="font-extrabold text-slate-900 text-sm">{transferModalEmployee.name}</p>
-                    <p className="text-xs text-slate-500">
-                      CPF: {maskCPF(transferModalEmployee.cpf)} | Cargo: {transferModalEmployee.role}
+                    <p className="font-black text-slate-900 text-base">{transferModalEmployee.name}</p>
+                    <p className="text-xs text-slate-600 font-medium mt-0.5">
+                      CPF: <span className="font-mono">{maskCPF(transferModalEmployee.cpf)}</span> • Cargo: <span className="font-semibold text-indigo-900">{transferModalEmployee.role}</span>
                     </p>
                   </div>
                 </div>
               </div>
 
-              {/* Obra Atual */}
-              <div className="space-y-1">
-                <Label className="text-xs font-bold text-slate-700">Obra Atual (Origem)</Label>
-                <div className="p-3 bg-slate-100 rounded-xl text-xs font-semibold text-slate-700 border border-slate-200">
-                  {getContractName(
-                    transferModalEmployee.contractId ||
-                      (selectedContractId !== "all" ? selectedContractId : "") ||
-                      ""
-                  )}
+              {/* Grid 2 Colunas: Origem -> Destino */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Obra Atual (Origem) */}
+                <div className="space-y-2">
+                  <Label className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-amber-500"></span> Obra Atual (Origem)
+                  </Label>
+                  <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 text-xs space-y-1">
+                    <p className="font-black text-slate-900 text-sm">
+                      {(() => {
+                        const sourceId = transferModalEmployee.contractId || (selectedContractId !== "all" ? selectedContractId : "") || "";
+                        const c = contracts.find((x) => x.id === sourceId);
+                        return c ? (c.name || c.workName || c.client || "Obra sem nome") : "Obra não vinculada";
+                      })()}
+                    </p>
+                    <p className="text-[11px] text-slate-500 font-medium">
+                      {(() => {
+                        const sourceId = transferModalEmployee.contractId || (selectedContractId !== "all" ? selectedContractId : "") || "";
+                        const c = contracts.find((x) => x.id === sourceId);
+                        return c?.contractNumber ? `Contrato Nº ${c.contractNumber}` : "Sem contrato registrado";
+                      })()}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Obra Destino */}
+                <div className="space-y-2">
+                  <Label htmlFor="target-contract-select" className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500"></span> Obra de Destino <span className="text-rose-500">*</span>
+                  </Label>
+                  <Select
+                    value={transferTargetContractId}
+                    onValueChange={setTransferTargetContractId}
+                  >
+                    <SelectTrigger id="target-contract-select" className="w-full h-12 bg-white border-slate-200 rounded-2xl text-xs font-bold text-slate-900 shadow-xs focus:ring-2 focus:ring-indigo-500">
+                      <SelectValue placeholder="Selecione a obra de destino pelo nome...">
+                        {transferTargetContractId ? (() => {
+                          const found = contracts.find(c => c.id === transferTargetContractId);
+                          return found ? (found.name || found.workName || found.client || "Obra sem nome") : "Selecione a obra de destino...";
+                        })() : "Selecione a obra de destino..."}
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent className="bg-white border-slate-200 z-50 max-h-72 rounded-2xl p-1">
+                      {contracts
+                        .filter(
+                          (c) =>
+                            c.id !==
+                            (transferModalEmployee.contractId ||
+                              (selectedContractId !== "all" ? selectedContractId : ""))
+                        )
+                        .map((c) => {
+                          const obraName = c.name || c.workName || c.client || "Obra sem nome";
+                          return (
+                            <SelectItem key={c.id} value={c.id} className="rounded-xl my-0.5">
+                              <div className="flex flex-col py-1">
+                                <span className="font-extrabold text-slate-900 text-sm">{obraName}</span>
+                                <span className="text-[11px] text-slate-500 font-medium">
+                                  {c.contractNumber ? `Contrato: ${c.contractNumber}` : "S/N"} {c.client ? `• Cliente: ${c.client}` : ""}
+                                </span>
+                              </div>
+                            </SelectItem>
+                          );
+                        })}
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
 
-              {/* Obra Destino */}
-              <div className="space-y-1">
-                <Label htmlFor="target-contract-select" className="text-xs font-bold text-slate-700">
-                  Obra de Destino <span className="text-rose-500">*</span>
-                </Label>
-                <Select
-                  value={transferTargetContractId}
-                  onValueChange={setTransferTargetContractId}
-                >
-                  <SelectTrigger id="target-contract-select" className="w-full bg-white border-slate-200 rounded-xl">
-                    <SelectValue placeholder="Selecione a obra de destino..." />
-                  </SelectTrigger>
-                  <SelectContent className="bg-white border-slate-200 z-50">
-                    {contracts
-                      .filter(
-                        (c) =>
-                          c.id !==
-                          (transferModalEmployee.contractId ||
-                            (selectedContractId !== "all" ? selectedContractId : ""))
-                      )
-                      .map((c) => (
-                        <SelectItem key={c.id} value={c.id}>
-                          {c.contractNumber ? `[${c.contractNumber}] ` : ""}
-                          {c.name}
-                        </SelectItem>
-                      ))}
-                  </SelectContent>
-                </Select>
+              {/* Notice Box Flow */}
+              <div className="bg-amber-50/60 border border-amber-200/80 rounded-2xl p-4 flex items-start gap-3">
+                <AlertCircle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+                <div className="space-y-1">
+                  <p className="text-xs font-bold text-amber-900 uppercase">Fluxo de Aprovação em 2 Etapas</p>
+                  <p className="text-xs text-amber-800 leading-relaxed">
+                    1. O Administrador da Obra de Origem deverá aprovar a saída.<br />
+                    2. O Administrador da Obra de Destino deverá aprovar a entrada.<br />
+                    3. Somente após ambas as aprovações, a alteração da obra é finalizada e gravada no banco de dados.
+                  </p>
+                </div>
               </div>
 
               {/* Observações / Motivo */}
-              <div className="space-y-1">
+              <div className="space-y-1.5">
                 <Label htmlFor="transfer-notes" className="text-xs font-bold text-slate-700">
-                  Observações / Motivo da Transferência (Opcional)
+                  Observações / Justificativa da Transferência (Opcional)
                 </Label>
                 <textarea
                   id="transfer-notes"
                   rows={3}
                   value={transferNotes}
                   onChange={(e) => setTransferNotes(e.target.value)}
-                  placeholder="Descreva o motivo ou detalhes da transferência..."
-                  className="w-full p-2.5 text-xs bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                  placeholder="Ex: Remanejamento para reforço da equipe técnica da nova obra..."
+                  className="w-full p-3 text-xs bg-white border border-slate-200 rounded-2xl focus:ring-2 focus:ring-indigo-500 focus:outline-none font-medium text-slate-800"
                 />
               </div>
             </div>
           )}
 
-          <DialogFooter className="flex justify-end gap-2 border-t pt-4">
+          <DialogFooter className="flex justify-end gap-3 border-t border-slate-100 pt-5">
             <Button
               variant="outline"
               onClick={() => setIsTransferModalOpen(false)}
-              className="rounded-xl text-xs font-semibold cursor-pointer"
+              className="rounded-2xl text-xs font-bold px-5 h-11 border-slate-200 cursor-pointer"
             >
               Cancelar
             </Button>
             <Button
               onClick={handleRequestTransfer}
-              className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-xs px-5 flex items-center gap-2 cursor-pointer"
+              className="bg-indigo-600 hover:bg-indigo-700 text-white font-black rounded-2xl text-xs px-6 h-11 flex items-center gap-2 shadow-md cursor-pointer"
             >
               <ArrowRightLeft className="w-4 h-4" />
               Solicitar Transferência

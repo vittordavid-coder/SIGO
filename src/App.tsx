@@ -796,10 +796,11 @@ export default function App() {
             `${activeId}_sigo_controller_teams`, `${activeId}_sigo_controller_equipments`, `${activeId}_sigo_equipment_maintenance`,
             `${activeId}_sigo_equipment_monthly`, `${activeId}_sigo_measurement_parameters`, `${activeId}_sigo_controller_manpower`, `${activeId}_sigo_manpower_monthly`,
             `${activeId}_sigo_team_assignments`, `${activeId}_sigo_suppliers`, `${activeId}_sigo_purchase_orders`,
-            `${activeId}_sigo_purchase_requests`, `${activeId}_sigo_purchase_quotations`, `${activeId}_sigo_equipment_transfers`,
+            `${activeId}_sigo_purchase_requests`, `${activeId}_sigo_purchase_quotations`, `${activeId}_sigo_equipment_transfers`, `${activeId}_sigo_employee_transfers`,
             `${activeId}_sigo_aportes`, `${activeId}_sigo_ctrl_charges`, `${activeId}_sigo_ctrl_ot`, `${activeId}_sigo_warehouses`,
             `${activeId}_sigo_warehouse_items`, `${activeId}_sigo_warehouse_entries`, `${activeId}_sigo_assets`,
-            `${activeId}_sigo_warehouse_transfers`, `${activeId}_sigo_warehouse_applications`, `${activeId}_sigo_company_logo_right`
+            `${activeId}_sigo_warehouse_transfers`, `${activeId}_sigo_warehouse_applications`, `${activeId}_sigo_company_logo_right`,
+            `${activeId}_sigo_work_movements`
           ];
           blobQuery = blobQuery.in('id', expectedBlobIds);
           // Fetch users for this company (or everyone if master)
@@ -874,6 +875,7 @@ export default function App() {
           'purchase_requests': { key: 'sigo_purchase_requests', setter: setPurchaseRequests },
           'purchase_quotations': { key: 'sigo_purchase_quotations', setter: setPurchaseQuotations },
           'equipment_transfers': { key: 'sigo_equipment_transfers', setter: setEquipmentTransfers },
+          'employee_transfers': { key: 'sigo_employee_transfers', setter: setEmployeeTransfers },
           'employees': { key: 'sigo_employees', setter: setEmployees },
           'alojamentos': { key: 'sigo_alojamentos', setter: setAlojamentos },
           'time_records': { key: 'sigo_time_records', setter: setTimeRecords },
@@ -1689,6 +1691,7 @@ export default function App() {
       { id: `${compId}_sigo_assets`, content: assets },
       { id: `${compId}_sigo_warehouse_transfers`, content: transfers },
       { id: `${compId}_sigo_warehouse_applications`, content: applications },
+      { id: `${compId}_sigo_work_movements`, content: workMovements },
     ];
 
     const tableMap: Record<string, string> = {
@@ -1720,6 +1723,7 @@ export default function App() {
       'sigo_purchase_requests': 'purchase_requests',
       'sigo_purchase_quotations': 'purchase_quotations',
       'sigo_equipment_transfers': 'equipment_transfers',
+      'sigo_employee_transfers': 'employee_transfers',
       'sigo_aportes': 'aportes',
       'sigo_employees': 'employees',
       'sigo_time_records': 'time_records',
@@ -1732,6 +1736,7 @@ export default function App() {
       'sigo_assets': 'assets',
       'sigo_warehouse_transfers': 'warehouse_transfers',
       'sigo_warehouse_applications': 'warehouse_applications',
+      'sigo_work_movements': 'work_movements',
       'sigo_users': 'users'
     };
 
