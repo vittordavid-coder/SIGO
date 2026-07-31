@@ -623,45 +623,44 @@ export function ServiceView({
 
   const getContractServices = (contract: any) => {
     const list: { code: string; name: string; unit: string; price: number; groupName?: string }[] = [];
-    const seenCodes = new Set<string>();
+    const seenKeys = new Set<string>();
 
-    if (contract.services) {
-      (contract.services || []).forEach((s: any) => {
-        if (s.code && s.name) {
-          const cleanCode = s.code.trim();
-          if (!seenCodes.has(cleanCode)) {
-            seenCodes.add(cleanCode);
-            list.push({
-              code: cleanCode,
-              name: s.name.trim(),
-              unit: s.unit || 'un',
-              price: s.price || 0,
-              groupName: s.groupName || s.group || s.category || ''
-            });
-          }
+    const processServiceItem = (s: any, defaultGroupName: string) => {
+      const linkedService = services.find(serv => serv.id === s.serviceId);
+      const rawCode = s.code || linkedService?.code || '';
+      const rawName = s.name || linkedService?.name || '';
+      const rawUnit = s.unit || linkedService?.unit || 'un';
+      const rawGroup = defaultGroupName || s.groupName || s.group || s.category || linkedService?.groupName || '';
+      const price = s.price || 0;
+
+      const codeVal = rawCode.trim();
+      const nameVal = rawName.trim();
+
+      if (nameVal || codeVal) {
+        const finalCode = codeVal || `SRV-${(list.length + 1).toString().padStart(4, '0')}`;
+        const key = `${finalCode.toLowerCase()}___${(nameVal || finalCode).toLowerCase()}`;
+        if (!seenKeys.has(key)) {
+          seenKeys.add(key);
+          list.push({
+            code: finalCode,
+            name: nameVal || finalCode,
+            unit: rawUnit.trim() || 'un',
+            price,
+            groupName: rawGroup.trim()
+          });
         }
-      });
+      }
+    };
+
+    if (contract.services && Array.isArray(contract.services)) {
+      contract.services.forEach((s: any) => processServiceItem(s, ''));
     }
 
-    if (contract.groups) {
+    if (contract.groups && Array.isArray(contract.groups)) {
       contract.groups.forEach((g: any) => {
         const groupTitle = g.name || g.groupName || g.title || g.group || g.category || '';
-        if (g.services) {
-          (g.services || []).forEach((s: any) => {
-            if (s.code && s.name) {
-              const cleanCode = s.code.trim();
-              if (!seenCodes.has(cleanCode)) {
-                seenCodes.add(cleanCode);
-                list.push({
-                  code: cleanCode,
-                  name: s.name.trim(),
-                  unit: s.unit || 'un',
-                  price: s.price || 0,
-                  groupName: groupTitle || s.groupName || s.group || s.category || ''
-                });
-              }
-            }
-          });
+        if (g.services && Array.isArray(g.services)) {
+          g.services.forEach((s: any) => processServiceItem(s, groupTitle));
         }
       });
     }
@@ -691,6 +690,7 @@ export function ServiceView({
     setIsSaving(true);
     try {
       const servicesToAdd: Omit<ServiceComposition, 'id'>[] = [];
+      const targetContractId = selectedContractId || selectedImportContractId || undefined;
       let importedCount = 0;
       let updatedCount = 0;
 
@@ -700,10 +700,10 @@ export function ServiceView({
         const unitVal = (item.unit || "un").trim();
         const groupVal = (item.groupName || "").trim();
 
-        // Check if service composition already exists for the CURRENT contract
+        // Check if service composition already exists for this contract (or globally)
         const existingService = services.find(s => 
           s.code.trim().toLowerCase() === codeVal.toLowerCase() &&
-          (selectedContractId ? s.contractId === selectedContractId : !s.contractId)
+          (targetContractId ? s.contractId === targetContractId : !s.contractId)
         );
 
         if (existingService) {
@@ -726,7 +726,7 @@ export function ServiceView({
             production: 1,
             fit: 0,
             items: [],
-            contractId: selectedContractId || undefined
+            contractId: targetContractId
           } as any);
           importedCount++;
         }

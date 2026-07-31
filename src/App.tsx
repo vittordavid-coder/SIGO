@@ -1270,13 +1270,16 @@ export default function App() {
 
   const updateServices = async (val: ServiceComposition[] | ((prev: ServiceComposition[]) => ServiceComposition[])) => {
     lastLocalUpdate.current = Date.now();
-    const newVal = typeof val === 'function' ? val(services) : val;
-    setServices(newVal);
+    let newVal: ServiceComposition[] = [];
+    setServices(prev => {
+      newVal = typeof val === 'function' ? val(prev) : val;
+      return newVal;
+    });
 
     const config = getSupabaseConfig();
     if (config.enabled && compId) {
       const supabase = createSupabaseClient(config.url, config.key);
-      if (supabase) {
+      if (supabase && newVal) {
         try {
           // Normalize and defensively cast values
           const mapped = newVal.map(s => {
@@ -2619,37 +2622,6 @@ export default function App() {
       }
     });
 
-    if (resourcesToAdd.length > 0) {
-      addResource(resourcesToAdd);
-      
-      const config = getSupabaseConfig();
-      if (config.enabled && currentUser?.companyId) {
-        const supabase = createSupabaseClient(config.url, config.key);
-        if (supabase) {
-          const mappedResources = resourcesToAdd.map(r => ({
-            company_id: currentUser.companyId,
-            id: r.id,
-            code: r.code,
-            name: r.name,
-            unit: r.unit || 'un',
-            type: r.type,
-            base_price: r.basePrice || 0,
-            encargos: r.encargos || 0,
-            productive_price: r.productivePrice || 0,
-            unproductive_price: r.unproductivePrice || 0,
-            operator_id: r.operatorId || null,
-            equipment_base_cost: r.equipmentBaseCost || 0,
-            hours_per_month: r.hoursPerMonth || 220,
-            monthly_salary: r.monthlySalary || 0
-          }));
-          const { error } = await supabase.from('resources').upsert(mappedResources);
-          if (error) {
-            console.error("Error inserting resources batch:", error);
-          }
-        }
-      }
-    }
-
     if (validServices.length > 0) {
       setServices(prev => [...prev, ...validServices]);
       addAuditLog('Adição', 'Serviços', `Lote de ${validServices.length} serviços adicionados via importação: ${logs.join(', ')}`);
@@ -2706,7 +2678,7 @@ export default function App() {
       alert(`O código ${updatedService.code} já está cadastrado para este contrato.`);
       return;
     }
-    updateServices(services.map(s => s.id === updatedService.id ? updatedService : s));
+    updateServices(prev => prev.map(s => s.id === updatedService.id ? updatedService : s));
     addAuditLog('Edição', 'Serviços', `Serviço editado: ${updatedService.code}`);
   };
 
