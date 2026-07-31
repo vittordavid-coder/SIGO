@@ -124,9 +124,7 @@ export function useLocalStorage<T>(key: string, initialValue: T, companyId?: str
         'sigo_time_records': 'time_records',
         'sigo_measurement_templates': 'measurement_templates',
         'sconet_schedules': 'budget_schedules',
-        'sigo_controller_teams': 'controller_teams',
-        'sigo_controller_equipments': 'equipments',
-        'sigo_equipment_maintenance': 'equipment_maintenance',
+        'sigo_controller_equipments': 'controller_equipments',
         'sigo_equipment_monthly': 'equipment_monthly_data',
         'sigo_controller_manpower': 'controller_manpower',
         'sigo_manpower_monthly': 'manpower_monthly_data',
@@ -138,17 +136,11 @@ export function useLocalStorage<T>(key: string, initialValue: T, companyId?: str
         'sigo_reset_requests': 'password_reset_requests',
         'sigo_users': 'users',
         'sigo_aportes': 'aportes',
-        'sigo_team_assignments': 'team_assignments',
-        'sigo_warehouses': 'warehouses',
-        'sigo_warehouse_items': 'warehouse_items',
-        'sigo_warehouse_entries': 'warehouse_entries',
-        'sigo_assets': 'assets',
-        'sigo_warehouse_transfers': 'warehouse_transfers',
-        'sigo_warehouse_applications': 'warehouse_applications'
+        'sigo_team_assignments': 'team_assignments'
       };
       const targetTable = tableMap[key];
 
-      if (globalHashes[namespacedKey] === currentHash && (!targetTable || !forceSyncFlags[targetTable])) {
+      if (globalHashes[namespacedKey] === currentHash && !forceSyncFlags[targetTable]) {
         // Already synchronized, bypass to prevent write-back and accidental wipes on load/errors!
         return;
       }
@@ -160,55 +152,80 @@ export function useLocalStorage<T>(key: string, initialValue: T, companyId?: str
       try {
         const now = new Date().toISOString();
         // 1. Sync blob
-        try {
-          const { error: blobError } = await supabase.from('app_state').upsert({ 
-            id: namespacedKey, 
-            content: value,
-            updated_at: now
-          });
-          if (blobError) {
-            console.warn(`[Supabase] Warning syncing app_state blob for ${namespacedKey}:`, blobError.message || blobError);
-          } else {
-            window.localStorage.setItem(`last_sync_${namespacedKey}`, now);
-          }
-        } catch (blobErr) {
-          console.warn(`[Supabase] Exception syncing app_state blob for ${namespacedKey}:`, blobErr);
-        }
+        const { error: blobError } = await supabase.from('app_state').upsert({ 
+          id: namespacedKey, 
+          content: value,
+          updated_at: now
+        });
+        
+        if (blobError) throw blobError;
+        window.localStorage.setItem(`last_sync_${namespacedKey}`, now);
 
         // 2. Sync individual table
+        const tableMap: Record<string, string> = {
+          'sconet_resources': 'resources',
+          'sconet_services': 'service_compositions',
+          'sconet_quotations': 'quotations',
+          'sconet_contracts': 'contracts',
+          'sconet_measurements': 'measurements',
+          'sigo_audit_logs': 'audit_logs',
+          'sigo_highway_locations': 'highway_locations',
+          'sigo_station_groups': 'station_groups',
+          'sigo_cubation_data': 'cubation_data',
+          'sigo_transport_data': 'transport_data',
+          'sigo_calc_memories': 'calculation_memories',
+          'sigo_service_productions': 'service_productions',
+          'sigo_daily_reports': 'daily_reports',
+          'sigo_pluviometry_records': 'pluviometry_records',
+          'sigo_technical_schedules': 'technical_schedules',
+          'sigo_employees': 'employees',
+          'sigo_time_records': 'time_records',
+          'sigo_measurement_templates': 'measurement_templates',
+          'sconet_schedules': 'budget_schedules',
+          'sigo_controller_equipments': 'controller_equipments',
+          'sigo_equipment_monthly': 'equipment_monthly_data',
+          'sigo_controller_manpower': 'controller_manpower',
+          'sigo_manpower_monthly': 'manpower_monthly_data',
+          'sigo_equipment_transfers': 'equipment_transfers',
+          'sigo_suppliers': 'suppliers',
+          'sigo_purchase_requests': 'purchase_requests',
+          'sigo_purchase_quotations': 'purchase_quotations',
+          'sigo_purchase_orders': 'purchase_orders',
+          'sigo_reset_requests': 'password_reset_requests',
+          'sigo_users': 'users'
+        };
+
+        const targetTable = tableMap[key];
         if (targetTable && Array.isArray(value)) {
           const activeCompId = companyId || (value.length > 0 ? (value[0].companyId || value[0].company_id) : null);
           
           if (activeCompId || isGlobal) {
             // Cleanup orphans 
-            try {
-              let dbItems: any[] = [];
-              let from = 0;
-              const pageSize = 1000;
-              let keepFetching = true;
-              while (keepFetching) {
-                let query = supabase.from(targetTable).select('id').range(from, from + pageSize - 1);
-                if (!isGlobal && activeCompId) query = query.eq('company_id', activeCompId);
-                
-                const { data, error } = await query;
-                if (error || !data) {
-                  keepFetching = false;
-                } else {
-                  dbItems = [...dbItems, ...data];
-                  if (data.length < pageSize) keepFetching = false;
-                  else from += pageSize;
-                }
-              }
-              const dbIds = dbItems?.map((d: any) => d.id) || [];
-              const currentIds = (value as any[]).map(c => c.id);
-              const toDeleteIds = dbIds.filter(id => !currentIds.includes(id));
+            // We run this every time to ensure if items were deleted locally (even if the array is now empty), 
+            // they are also deleted in Supabase.
+            let dbItems: any[] = [];
+            let from = 0;
+            const pageSize = 1000;
+            let keepFetching = true;
+            while (keepFetching) {
+              let query = supabase.from(targetTable).select('id').range(from, from + pageSize - 1);
+              if (!isGlobal && activeCompId) query = query.eq('company_id', activeCompId);
               
-              if (toDeleteIds.length > 0) {
-                const { error: delErr } = await supabase.from(targetTable).delete().in('id', toDeleteIds);
-                if (delErr) console.warn(`[Supabase] Cleanup warning in ${targetTable}:`, delErr.message || delErr);
+              const { data, error } = await query;
+              if (error || !data) {
+                keepFetching = false;
+              } else {
+                dbItems = [...dbItems, ...data];
+                if (data.length < pageSize) keepFetching = false;
+                else from += pageSize;
               }
-            } catch (orphanErr) {
-              console.warn(`[Supabase] Exception checking orphans in ${targetTable}:`, orphanErr);
+            }
+            const dbIds = dbItems?.map((d: any) => d.id) || [];
+            const currentIds = (value as any[]).map(c => c.id);
+            const toDeleteIds = dbIds.filter(id => !currentIds.includes(id));
+            
+            if (toDeleteIds.length > 0) {
+              await supabase.from(targetTable).delete().in('id', toDeleteIds);
             }
 
             if (value.length > 0) {
@@ -242,14 +259,7 @@ export function useLocalStorage<T>(key: string, initialValue: T, companyId?: str
               const chunkSize = 50;
               for (let i = 0; i < mappedData.length; i += chunkSize) {
                 const chunk = mappedData.slice(i, i + chunkSize);
-                try {
-                  const { error: upsertErr } = await supabase.from(targetTable).upsert(chunk);
-                  if (upsertErr) {
-                    console.warn(`[Supabase] Upsert warning on ${targetTable}:`, upsertErr.message || upsertErr);
-                  }
-                } catch (chunkErr) {
-                  console.warn(`[Supabase] Exception upserting chunk on ${targetTable}:`, chunkErr);
-                }
+                await supabase.from(targetTable).upsert(chunk);
               }
               console.log(`[Supabase] Sincronizado ${value.length} itens em ${targetTable}`);
             }
@@ -263,7 +273,7 @@ export function useLocalStorage<T>(key: string, initialValue: T, companyId?: str
         if (!(window as any).sigoLastSyncedHashes) (window as any).sigoLastSyncedHashes = {};
         (window as any).sigoLastSyncedHashes[namespacedKey] = currentHash;
       } catch (e) {
-        console.warn(`[Supabase] Sincronização secundária avisou:`, e);
+        console.error(`[Supabase] Erro de Sincronização:`, e);
       } finally {
         isSyncingRef.current = false;
         // Se houver uma sincronização pendente, executa agora
