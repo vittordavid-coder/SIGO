@@ -3691,8 +3691,8 @@ function QuotationsTab({
                   <TableCell className="text-gray-600">
                     {new Date(q.date).toLocaleDateString('pt-BR')}
                   </TableCell>
-                  <TableCell className="max-w-[250px]">
-                    <div className="text-base font-medium text-gray-900 truncate">
+                  <TableCell className="max-w-[300px]">
+                    <div className="text-base font-medium text-gray-900 whitespace-normal break-words">
                       {q.items.map(i => i.description).join(', ')}
                     </div>
                     <div className="text-base text-gray-400">{q.items.length} item(ns)</div>
@@ -3787,8 +3787,8 @@ function QuotationsTab({
                   <TableBody>
                     {selectedQuotation.items.map((item) => (
                       <TableRow key={item.itemId} className="hover:bg-gray-50/50 transition-colors">
-                        <TableCell className="py-2">
-                          <div className="font-bold text-gray-900 text-base">{item.description}</div>
+                        <TableCell className="py-2 max-w-[300px]">
+                          <div className="font-bold text-gray-900 text-base whitespace-normal break-words">{item.description}</div>
                           <div className="text-base text-gray-400 font-bold uppercase">{item.unit}</div>
                         </TableCell>
                         <TableCell className="text-center font-black text-gray-900 text-base">

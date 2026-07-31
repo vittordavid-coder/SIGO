@@ -2236,7 +2236,7 @@ export function ResourceView({ resources, onAdd, onDelete, onUpdate, purchaseOrd
                         return <TableCell key="code" className="font-mono text-sm">{r.code}</TableCell>;
                       }
                       if (colKey === 'name') {
-                        return <TableCell key="name" className="font-medium">{r.name}</TableCell>;
+                        return <TableCell key="name" className="font-medium whitespace-normal break-words max-w-[400px]">{r.name}</TableCell>;
                       }
                       if (colKey === 'type') {
                         return (
@@ -2508,7 +2508,7 @@ export function ResourceView({ resources, onAdd, onDelete, onUpdate, purchaseOrd
                               return (
                                 <TableRow key={`prev-res-${pIdx}`} className="hover:bg-slate-50/80">
                                   <TableCell className="text-xs font-mono font-semibold text-slate-700">{codeVal !== "-" ? codeVal : "(Auto-gerado)"}</TableCell>
-                                  <TableCell className="text-xs font-bold text-blue-950 bg-blue-50/10 max-w-[200px] truncate">{nameVal}</TableCell>
+                                  <TableCell className="text-xs font-bold text-blue-950 bg-blue-50/10 max-w-[300px] whitespace-normal break-words">{nameVal}</TableCell>
                                   <TableCell className="text-xs font-mono text-slate-600">{unitVal !== "-" ? unitVal : "UN"}</TableCell>
                                   <TableCell className="text-xs font-medium text-slate-700">{parsedType}</TableCell>
                                   <TableCell className="text-xs text-right text-emerald-700 font-mono font-semibold">

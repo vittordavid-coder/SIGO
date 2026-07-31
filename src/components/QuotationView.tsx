@@ -253,7 +253,7 @@ export function QuotationView({ quotations, services, resources, onAdd, onDelete
                             const unitCost = calculateServiceUnitCost(s, resources, services);
                             return (
                               <TableRow key={idx} className={editingServiceIndex === idx ? "bg-orange-50" : ""}>
-                                <TableCell className="text-sm max-w-[200px] truncate" title={s.name}>{s.name}</TableCell>
+                                <TableCell className="text-sm py-1.5 whitespace-normal break-words max-w-[300px]" title={s.name}>{s.name}</TableCell>
                                 <TableCell className="text-right text-sm font-mono">{formatNumber(qs.quantity, 3)}</TableCell>
                                 <TableCell className="text-right text-sm font-mono">{formatCurrency(unitCost)}</TableCell>
                                 <TableCell className="text-right text-sm font-mono">{formatCurrency(unitCost * qs.quantity)}</TableCell>
@@ -385,7 +385,7 @@ export function QuotationView({ quotations, services, resources, onAdd, onDelete
                               const unitCost = calculateServiceUnitCost(s, resources, services, bdi);
                               return (
                                 <TableRow key={idx} className={editingServiceIndex === idx ? "bg-orange-50" : ""}>
-                                  <TableCell className="text-sm py-1 max-w-[300px] truncate" title={s.name}>{s.name}</TableCell>
+                                  <TableCell className="text-sm py-1.5 whitespace-normal break-words max-w-[300px]" title={s.name}>{s.name}</TableCell>
                                   <TableCell className="text-right text-sm font-mono py-1">{formatNumber(qs.quantity, 3)}</TableCell>
                                   <TableCell className="text-right text-sm font-mono py-1">{formatCurrency(unitCost)}</TableCell>
                                   <TableCell className="text-right text-sm font-mono py-1">{formatCurrency(unitCost * qs.quantity)}</TableCell>
@@ -549,7 +549,7 @@ function QuotationReport({ quotation, services, resources, companyLogo }: {
               return (
                 <TableRow key={`main-${idx}`} className="hover:bg-transparent h-10">
                   <TableCell className="text-sm font-bold text-blue-600">{s.code}</TableCell>
-                  <TableCell className="text-sm max-w-[250px] truncate" title={s.name}>{s.name}</TableCell>
+                  <TableCell className="text-sm whitespace-normal break-words max-w-[300px]" title={s.name}>{s.name}</TableCell>
                   <TableCell className="text-sm text-center">{s.unit}</TableCell>
                   <TableCell className="text-right text-sm font-mono">{formatNumber(qs.quantity, 3)}</TableCell>
                   <TableCell className="text-right text-sm font-mono">{formatCurrency(unitCost)}</TableCell>
@@ -577,7 +577,7 @@ function QuotationReport({ quotation, services, resources, companyLogo }: {
                   return (
                     <TableRow key={`${group.id}-${idx}`} className="hover:bg-transparent h-10">
                       <TableCell className="text-sm font-bold text-blue-600 pl-6">{s.code}</TableCell>
-                      <TableCell className="text-sm max-w-[250px] truncate" title={s.name}>{s.name}</TableCell>
+                      <TableCell className="text-sm whitespace-normal break-words max-w-[300px]" title={s.name}>{s.name}</TableCell>
                       <TableCell className="text-sm text-center">{s.unit}</TableCell>
                       <TableCell className="text-right text-sm font-mono">{formatNumber(gs.quantity, 3)}</TableCell>
                       <TableCell className="text-right text-sm font-mono">{formatCurrency(unitCost)}</TableCell>
