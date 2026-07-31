@@ -92,6 +92,7 @@ interface PurchasesViewProps {
   warehouses?: any[];
   aportes?: import('../types').Aporte[];
   onUpdateAportes?: (val: import('../types').Aporte[]) => void;
+  onAddWorkMovement?: (movement: any) => void;
 }
 
 export default function PurchasesView({ 
@@ -123,7 +124,8 @@ export default function PurchasesView({
   warehouseItems = [],
   warehouses = [],
   aportes = [],
-  onUpdateAportes
+  onUpdateAportes,
+  onAddWorkMovement
 }: PurchasesViewProps) {
   const [activeTab, setActiveTab] = useState<'requests' | 'suppliers' | 'quotations' | 'orders' | 'tracking' | 'estoque' | 'evaluation'>(initialTab || 'requests');
   const [localSelectedContractId, setLocalSelectedContractId] = useState<string>(contracts[0]?.id || 'all');
@@ -452,6 +454,21 @@ function RequestsTab({
       newRequests = requests.map(r => r.id === requestToSave.id ? requestToSave : r);
     } else {
       newRequests = [requestToSave, ...requests];
+      if (onAddWorkMovement) {
+        const cName = requestToSave.contractId ? contracts.find(c => c.id === requestToSave.contractId)?.name || 'Contrato' : 'Geral';
+        onAddWorkMovement({
+          sector: 'SUPRIMENTOS',
+          action: 'SOLICITAÇÃO DE COMPRA',
+          description: `Solicitação de Compra ${requestToSave.description || ''} criada com ${requestToSave.items.length} itens`,
+          referenceCode: `SC-${requestToSave.id.slice(-4)}`,
+          contractName: cName,
+          details: {
+            priority: requestToSave.priority,
+            itemsCount: requestToSave.items.length,
+            createdBy: currentUser?.name || 'Usuário'
+          }
+        });
+      }
     }
     setRequests(newRequests);
     setIsRequestDialogOpen(false);
@@ -1959,6 +1976,21 @@ function OrdersTab({
       newOrders = orders.map(o => o.id === currentOrder.id ? orderToSave : o);
     } else {
       newOrders = [...orders, orderToSave];
+      if (onAddWorkMovement) {
+        const cName = orderToSave.contractId ? contracts.find(c => c.id === orderToSave.contractId)?.name || 'Contrato' : 'Geral';
+        onAddWorkMovement({
+          sector: 'SUPRIMENTOS',
+          action: 'ORDEM DE COMPRA',
+          description: `Emissão da Ordem de Compra ${orderToSave.orderNumber || ''} - Fornecedor: ${orderToSave.supplierName}`,
+          referenceCode: `OC-${orderToSave.orderNumber || orderToSave.id.slice(-4)}`,
+          contractName: cName,
+          details: {
+            supplierName: orderToSave.supplierName,
+            totalValue: orderToSave.total,
+            itemsCount: orderToSave.items.length
+          }
+        });
+      }
     }
     
     setOrders(newOrders);
@@ -4270,6 +4302,23 @@ function TrackingTab({ orders, setOrders, equipmentMaintenance, onUpdateMaintena
         return aporte;
       });
       onUpdateAportes(updatedAportes);
+    }
+    
+    if (onAddWorkMovement) {
+      const cName = evaluationOrder.contractId ? contracts.find(c => c.id === evaluationOrder.contractId)?.name || 'Contrato' : 'Geral';
+      onAddWorkMovement({
+        sector: 'SUPRIMENTOS',
+        action: 'AVALIAÇÃO DE FORNECEDOR / ENTREGA',
+        description: `Avaliação do fornecedor ${evaluationOrder.supplierName} (OC: ${evaluationOrder.orderNumber || ''}) finalizada`,
+        referenceCode: `AV-${evaluationOrder.id.slice(-4)}`,
+        contractName: cName,
+        details: {
+          supplierName: evaluationOrder.supplierName,
+          orderNumber: evaluationOrder.orderNumber,
+          scores: scores,
+          comments: comments
+        }
+      });
     }
 
     setEvaluationOrder(null);

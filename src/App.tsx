@@ -10,7 +10,8 @@ import {
 import { motion, AnimatePresence, Reorder } from 'motion/react';
 import { v4 as uuidv4 } from 'uuid';
 import { useLocalStorage } from './lib/useLocalStorage';
-import { Resource, ServiceComposition, Quotation, User, ABCConfig, BudgetGroup, BDIConfig, AuditLog, UserRole, Contract, Measurement, MeasurementTemplate, CalculationMemory, HighwayLocation, StationGroup, CubationData, TransportData, ServiceProduction, Employee, TimeRecord, DailyReport, DailyReportActivity, PluviometryRecord, TechnicalSchedule, DashboardConfig, ControllerTeam, ControllerEquipment, EquipmentMonthlyData, ControllerManpower, ManpowerMonthlyData, TeamAssignment, MarketingConfig, AppModule, PasswordResetRequest, EquipmentTransfer, Supplier, PurchaseOrder, EmailConfig, PurchaseRequest, PurchaseQuotation, EquipmentMaintenance, FuelTank, FuelLog, EquipmentMeasurement, DailyEquipmentMeasurement, Aporte, Warehouse, WarehouseItem, WarehouseEntry, Asset, WarehouseTransfer, WarehouseApplication, Alojamento, MeasurementParameter } from './types';
+import { Resource, ServiceComposition, Quotation, User, ABCConfig, BudgetGroup, BDIConfig, AuditLog, UserRole, Contract, Measurement, MeasurementTemplate, CalculationMemory, HighwayLocation, StationGroup, CubationData, TransportData, ServiceProduction, Employee, TimeRecord, DailyReport, DailyReportActivity, PluviometryRecord, TechnicalSchedule, DashboardConfig, ControllerTeam, ControllerEquipment, EquipmentMonthlyData, ControllerManpower, ManpowerMonthlyData, TeamAssignment, MarketingConfig, AppModule, PasswordResetRequest, EquipmentTransfer, Supplier, PurchaseOrder, EmailConfig, PurchaseRequest, PurchaseQuotation, EquipmentMaintenance, FuelTank, FuelLog, EquipmentMeasurement, DailyEquipmentMeasurement, Aporte, Warehouse, WarehouseItem, WarehouseEntry, Asset, WarehouseTransfer, WarehouseApplication, Alojamento, MeasurementParameter, WorkMovement } from './types';
+import { INITIAL_WORK_MOVEMENTS } from './lib/workMovementsSql';
 import { cn, hashPassword } from './lib/utils';
 import { calculateBDI } from './lib/calculations';
 import { compressImage } from './lib/imageUtils';
@@ -388,6 +389,17 @@ export default function App() {
   const [assets, setAssets] = useLocalStorage<Asset[]>('sigo_assets', [], compId);
   const [transfers, setTransfers] = useLocalStorage<WarehouseTransfer[]>('sigo_warehouse_transfers', [], compId);
   const [applications, setApplications] = useLocalStorage<WarehouseApplication[]>('sigo_warehouse_applications', [], compId);
+  const [workMovements, setWorkMovements] = useLocalStorage<WorkMovement[]>('sigo_work_movements', INITIAL_WORK_MOVEMENTS, compId);
+
+  const addWorkMovement = (movement: Omit<WorkMovement, 'id' | 'timestamp'>) => {
+    const newMovement: WorkMovement = {
+      ...movement,
+      id: `wm-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+      timestamp: new Date().toISOString(),
+      responsibleUser: movement.responsibleUser || currentUser?.name || currentUser?.username || 'Sistema'
+    };
+    setWorkMovements(prev => [newMovement, ...(prev || [])]);
+  };
   
   const [selectedContractId, setSelectedContractId] = useState<string | null>(() => {
     try {
@@ -1803,6 +1815,36 @@ export default function App() {
                    chunkToUpsert = chunk.map(({ items: nestedItems, ...rest }: any) => {
                      if (rest.data === '') rest.data = null;
                      return rest;
+                   });
+                } else if (activeTable === 'employees' || targetTable === 'employees') {
+                   chunkToUpsert = chunk.map((empItem: any) => {
+                     const { team, charges_percentage, overtime_percentage, chargesPercentage, overtimePercentage, ...rest } = empItem;
+                     if (rest.contract_id === "" || rest.contract_id === undefined) rest.contract_id = null;
+                     if (rest.alojamento_id === "" || rest.alojamento_id === undefined) rest.alojamento_id = null;
+                     if (rest.registration_number === "") rest.registration_number = null;
+                     if (rest.admission_date === "") rest.admission_date = null;
+                     if (rest.dismissal_date === "") rest.dismissal_date = null;
+                     if (rest.birth_date === "") rest.birth_date = null;
+                     if (rest.salary === "" || rest.salary === null || rest.salary === undefined) rest.salary = 0;
+                     if (rest.commuter_value1 === "" || rest.commuter_value1 === null) rest.commuter_value1 = 0;
+                     if (rest.commuter_value2 === "" || rest.commuter_value2 === null) rest.commuter_value2 = 0;
+                     if (rest.dependents && !Array.isArray(rest.dependents)) rest.dependents = [];
+                     if (!rest.status) rest.status = 'active';
+                     if (!rest.payment_type) rest.payment_type = 'month';
+                     return rest;
+                   });
+                } else {
+                   chunkToUpsert = chunk.map((row: any) => {
+                     if (row && typeof row === 'object') {
+                       const cleaned = { ...row };
+                       for (const key of Object.keys(cleaned)) {
+                         if (cleaned[key] === '' && (key.endsWith('_id') || key.endsWith('_date') || key.endsWith('_at'))) {
+                           cleaned[key] = null;
+                         }
+                       }
+                       return cleaned;
+                     }
+                     return row;
                    });
                 }
                 let { error: tError } = await supabase.from(activeTable).upsert(chunkToUpsert);
@@ -4947,6 +4989,7 @@ export default function App() {
                   onUpdateTeams={setControllerTeams}
                   employeeTransfers={employeeTransfers}
                   onUpdateTransfers={updateEmployeeTransfers}
+                  onAddWorkMovement={addWorkMovement}
                 />
               )}
 
@@ -5106,6 +5149,7 @@ export default function App() {
                   setWarehouseItems={setWarehouseItems}
                   applications={applications}
                   setApplications={setApplications}
+                  onAddWorkMovement={addWorkMovement}
                 />
               )}
 
@@ -5146,6 +5190,7 @@ export default function App() {
                   currentUser={currentUser}
                   purchaseOrders={finalPurchaseOrders}
                   setPurchaseOrders={updatePurchaseOrders}
+                  onAddWorkMovement={addWorkMovement}
                 />
               )}
 
@@ -5178,6 +5223,9 @@ export default function App() {
                   quotations={finalQuotations}
                   warehouseItems={warehouseItems}
                   warehouses={warehouses}
+                  aportes={aportes}
+                  onUpdateAportes={updateAportes}
+                  onAddWorkMovement={addWorkMovement}
                 />
               )}
               {mainTab === 'almoxarife' && currentUser && (
@@ -5202,6 +5250,7 @@ export default function App() {
                   setApplications={setApplications}
                   purchaseRequests={purchaseRequests}
                   onUpdatePurchaseRequests={updatePurchaseRequests}
+                  onAddWorkMovement={addWorkMovement}
                 />
               )}
 
@@ -5212,6 +5261,11 @@ export default function App() {
                   suppliers={suppliers}
                   requests={finalPurchaseRequests}
                   setRequests={updatePurchaseRequests}
+                  workMovements={workMovements}
+                  setWorkMovements={setWorkMovements}
+                  onAddWorkMovement={addWorkMovement}
+                  contracts={contracts}
+                  currentUser={currentUser}
                 />
               )}
 

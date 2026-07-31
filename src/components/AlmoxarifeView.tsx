@@ -44,6 +44,7 @@ interface AlmoxarifeViewProps {
   setApplications: React.Dispatch<React.SetStateAction<WarehouseApplication[]>>;
   purchaseRequests?: PurchaseRequest[];
   onUpdatePurchaseRequests?: (requests: PurchaseRequest[]) => void;
+  onAddWorkMovement?: (movement: any) => void;
 }
 
 export default function AlmoxarifeView({
@@ -66,7 +67,8 @@ export default function AlmoxarifeView({
   applications,
   setApplications,
   purchaseRequests = [],
-  onUpdatePurchaseRequests
+  onUpdatePurchaseRequests,
+  onAddWorkMovement
 }: AlmoxarifeViewProps) {
   const [activeTab, setActiveTab] = useState<'estoques' | 'entradas' | 'patrimonio' | 'transferencias' | 'aplicacoes'>('estoques');
   const compId = currentUser?.companyId || 'default';
@@ -371,6 +373,23 @@ export default function AlmoxarifeView({
       return po;
     }));
 
+    if (onAddWorkMovement) {
+      const cName = warehouse.contractId ? contracts.find(c => c.id === warehouse.contractId)?.name || 'Contrato não encontrado' : 'Estoque Geral';
+      onAddWorkMovement({
+        sector: 'ALMOXARIFADO',
+        action: 'RECEBIMENTO DE MATERIAL',
+        description: `Recebimento de materiais da OS ${receivingOrder.osNumber} no almoxarifado ${warehouse.name}`,
+        referenceCode: `RC-${receivingOrder.osNumber}`,
+        contractName: cName,
+        details: {
+          warehouseName: warehouse.name,
+          osNumber: receivingOrder.osNumber,
+          itemsCount: entryItems.length,
+          receivedBy: currentUser?.name || 'Almoxarife'
+        }
+      });
+    }
+
     setReceivingOrder(null);
     alert('Entrada de materiais efetuada no estoque com sucesso!');
   };
@@ -427,6 +446,22 @@ export default function AlmoxarifeView({
 
     setAssets(prev => [newAsset, ...prev]);
     
+    if (onAddWorkMovement) {
+      onAddWorkMovement({
+        sector: 'ALMOXARIFADO',
+        action: 'CADASTRO DE PATRIMÔNIO',
+        description: `Cadastro do bem patrimonial ${newAsset.description} (${newAsset.code})`,
+        referenceCode: `PAT-${newAsset.code}`,
+        contractName: 'Estoque Geral',
+        details: {
+          assetCode: newAsset.code,
+          assetDescription: newAsset.description,
+          assetCategory: newAsset.category,
+          currentLocation: newAsset.currentLocation
+        }
+      });
+    }
+
     // Reset Form
     setAssetCode('');
     setAssetDesc('');
@@ -660,6 +695,24 @@ export default function AlmoxarifeView({
       return t;
     }));
 
+    if (onAddWorkMovement) {
+      const originWh = warehouses.find(w => w.id === trans.originWarehouseId);
+      const destWh = warehouses.find(w => w.id === trans.destinationWarehouseId);
+      const cName = originWh?.contractId ? contracts.find(c => c.id === originWh.contractId)?.name : 'Estoque Geral';
+      onAddWorkMovement({
+        sector: 'ALMOXARIFADO',
+        action: 'TRANSFERÊNCIA DE MATERIAL',
+        description: `Confirmação de recebimento da transferência de ${originWh?.name} para ${destWh?.name || trans.destinationName}`,
+        referenceCode: `TRF-${trans.id.slice(-4)}`,
+        contractName: cName || 'Geral',
+        details: {
+          origin: originWh?.name,
+          destination: destWh?.name || trans.destinationName,
+          itemsCount: trans.items.length
+        }
+      });
+    }
+
     alert('Transferência recebida! Saldos em estoque atualizados.');
   };
 
@@ -881,6 +934,25 @@ export default function AlmoxarifeView({
         }
         return item;
       }));
+    }
+
+    if (onAddWorkMovement) {
+      const warehouse = warehouses.find(w => w.id === applWarehouseId);
+      const contract = contracts.find(c => c.id === applContractId);
+      onAddWorkMovement({
+        sector: 'ALMOXARIFADO',
+        action: 'SAÍDA DE MATERIAL',
+        description: `Aplicação de ${qty} ${sourceItem.unit || 'UN'} de ${sourceItem.description} no local ${selectedPlaceObj?.displayText || 'Desconhecido'}`,
+        referenceCode: `SAI-${newApp.id.slice(-4)}`,
+        contractName: contract?.name || 'Geral',
+        details: {
+          warehouseName: warehouse?.name,
+          serviceName: selectedPlaceObj?.displayText,
+          material: sourceItem.description,
+          quantity: qty,
+          appliedBy: currentUser?.name || 'Almoxarife'
+        }
+      });
     }
 
     // Reset Form

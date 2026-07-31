@@ -313,6 +313,44 @@ export interface AuditLog {
   module: string;
 }
 
+export type WorkMovementSector = 'RH' | 'ALMOXARIFE' | 'COMPRAS' | 'FINANCEIRO' | 'SALA TÉCNICA' | 'CONTROLADOR';
+
+export interface WorkMovementDetail {
+  collaboratorName?: string;
+  collaboratorRole?: string;
+  collaboratorCpf?: string;
+  materialName?: string;
+  quantity?: number;
+  unit?: string;
+  supplier?: string;
+  invoiceNumber?: string;
+  equipmentCode?: string;
+  equipmentName?: string;
+  hoursOrHorometer?: number;
+  amount?: number;
+  productionValue?: number;
+  progressPercentage?: number;
+  origin?: string;
+  destination?: string;
+  status?: string;
+  notes?: string;
+  [key: string]: any;
+}
+
+export interface WorkMovement {
+  id: string;
+  companyId?: string;
+  contractId?: string;
+  contractName?: string;
+  timestamp: string;
+  sector: WorkMovementSector;
+  action: string;
+  description: string;
+  responsibleUser: string;
+  referenceCode?: string;
+  details: WorkMovementDetail;
+}
+
 export type TimeUnit = 'days' | 'weeks' | 'months';
 
 export interface ServiceSchedule {

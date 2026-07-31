@@ -183,6 +183,7 @@ interface ControlViewProps {
   setSuppliers?: (val: Supplier[] | ((prev: Supplier[]) => Supplier[])) => void;
   measurementParameters?: MeasurementParameter[];
   onUpdateMeasurementParameters?: (val: MeasurementParameter[] | ((prev: MeasurementParameter[]) => MeasurementParameter[])) => void;
+  onAddWorkMovement?: (movement: any) => void;
 }
 
 export default function ControlView({
@@ -223,6 +224,7 @@ export default function ControlView({
   setSuppliers,
   measurementParameters = [],
   onUpdateMeasurementParameters = () => {},
+  onAddWorkMovement,
 }: ControlViewProps) {
   const [activeTab, setActiveTab] = React.useState(initialTab || "list");
 
@@ -1862,11 +1864,12 @@ export default function ControlView({
       ? newEquip.contractId
       : (selectedContractId && selectedContractId !== "all" ? selectedContractId : undefined);
 
+    const equipId = crypto.randomUUID();
     onUpdateEquipments((prev) => [
       ...prev,
       {
         ...(newEquip as ControllerEquipment),
-        id: crypto.randomUUID(),
+        id: equipId,
         companyId: currentUser?.companyId,
         contractId: finalContractId,
         currentReading: Number(newEquip.currentReading) || 0,
@@ -1875,6 +1878,18 @@ export default function ControlView({
         year: Number(newEquip.year) || undefined,
       },
     ]);
+    
+    if (onAddWorkMovement) {
+      const cName = finalContractId ? contracts.find(c => c.id === finalContractId)?.name : 'Geral';
+      onAddWorkMovement({
+        sector: 'CONTROLADOR',
+        action: 'CADASTRO DE EQUIPAMENTO',
+        description: `Cadastro do equipamento ${newEquip.name} (Frota: ${newEquip.fleetNumber || 'N/A'})`,
+        referenceCode: `EQP-${equipId.slice(-4)}`,
+        contractName: cName || 'Geral'
+      });
+    }
+
     setIsAddOpen(false);
     setNewEquip({
       code: "",
@@ -3363,6 +3378,18 @@ export default function ControlView({
       );
     } else {
       setFuelLogs([logToSave, ...fuelLogs]);
+      
+      if (onAddWorkMovement) {
+        onAddWorkMovement({
+          sector: 'CONTROLADOR',
+          action: newFuelLog.type === 'entrada' ? 'ENTRADA DE COMBUSTÍVEL' : 'SAÍDA DE COMBUSTÍVEL',
+          description: newFuelLog.type === 'entrada' 
+            ? `Entrada de ${quantityNum}L (NF: ${newFuelLog.invoiceNumber || '-'}) no tanque ${newFuelLog.tankId}`
+            : `Abastecimento de ${quantityNum}L no equipamento ${newFuelLog.equipmentId || '-'}`,
+          referenceCode: `CMB-${logToSave.id.slice(-4)}`,
+          contractName: 'Geral'
+        });
+      }
     }
 
     setIsFuelLogModalOpen(false);
@@ -3518,6 +3545,18 @@ export default function ControlView({
         e.id === equipmentToDelete.id ? { ...e, exitDate: exitDateInput } : e,
       ),
     );
+    
+    if (onAddWorkMovement) {
+      const cName = equipmentToDelete.contractId ? contracts.find(c => c.id === equipmentToDelete.contractId)?.name : 'Geral';
+      onAddWorkMovement({
+        sector: 'CONTROLADOR',
+        action: 'SAÍDA DE EQUIPAMENTO',
+        description: `Saída/Desmobilização do equipamento ${equipmentToDelete.name} (Data: ${exitDateInput})`,
+        referenceCode: `EQP-OUT-${equipmentToDelete.id.slice(-4)}`,
+        contractName: cName || 'Geral'
+      });
+    }
+
     setIsDeleteOpen(false);
     setEquipmentToDelete(null);
   };
@@ -3563,6 +3602,20 @@ export default function ControlView({
           : t,
       ),
     );
+    
+    if (onAddWorkMovement) {
+      const eq = equipments.find(e => e.id === transfer.equipmentId);
+      const targetName = contracts.find(c => c.id === transfer.targetContractId)?.name || 'Geral';
+      const sourceName = contracts.find(c => c.id === transfer.sourceContractId)?.name || 'Geral';
+      
+      onAddWorkMovement({
+        sector: 'CONTROLADOR',
+        action: 'TRANSFERÊNCIA DE EQUIPAMENTO',
+        description: `Transferência de ${eq?.name || 'Equipamento'} de ${sourceName} para ${targetName} aprovada`,
+        referenceCode: `EQP-TRF-${transfer.id.slice(-4)}`,
+        contractName: targetName
+      });
+    }
   };
 
   const handleRejectTransfer = (transfer: EquipmentTransfer) => {
@@ -3659,6 +3712,17 @@ export default function ControlView({
         ),
       );
     }
+    
+    if (onAddWorkMovement) {
+      const cName = equipmentToExit.contractId ? contracts.find(c => c.id === equipmentToExit.contractId)?.name : 'Geral';
+      onAddWorkMovement({
+        sector: 'CONTROLADOR',
+        action: 'FIM DE MANUTENÇÃO',
+        description: `Fim de manutenção para o equipamento ${equipmentToExit.name} (Frota: ${equipmentToExit.fleetNumber || 'N/A'})`,
+        referenceCode: `MNT-FIM-${equipmentToExit.id.slice(-4)}`,
+        contractName: cName || 'Geral'
+      });
+    }
 
     setIsExitMaintenanceModalOpen(false);
     setEquipmentToExit(null);
@@ -3726,6 +3790,17 @@ export default function ControlView({
       updatedMaintenance = [newMaintenance, ...equipmentMaintenance];
     }
     onUpdateMaintenance(updatedMaintenance);
+    
+    if (onAddWorkMovement) {
+      const cName = maintenanceEquipment.contractId ? contracts.find(c => c.id === maintenanceEquipment.contractId)?.name : 'Geral';
+      onAddWorkMovement({
+        sector: 'CONTROLADOR',
+        action: 'INÍCIO DE MANUTENÇÃO',
+        description: `Entrada em manutenção (${maintenanceType}) para o equipamento ${maintenanceEquipment.name}`,
+        referenceCode: `MNT-INI-${maintenanceEquipment.id.slice(-4)}`,
+        contractName: cName || 'Geral'
+      });
+    }
 
     // Create or update a purchase request if there are items or a free-text specification
     if (

@@ -25,7 +25,8 @@ export const FinanceView = ({
   setAportes,
   currentUser,
   purchaseOrders = [],
-  setPurchaseOrders
+  setPurchaseOrders,
+  onAddWorkMovement
 }: any) => {
   const [localSelectedContractId, setLocalSelectedContractId] = useState<string>('all');
   const selectedContractId = propSelectedContractId || localSelectedContractId;
@@ -528,6 +529,21 @@ export const FinanceView = ({
       setAportes([...aportes, newAporte]);
       setSelectedAporteId(newAporte.id);
       setActiveTab('aportes');
+      
+      if (onAddWorkMovement) {
+        const cName = selectedContractId !== 'all' && selectedContractId ? contracts.find((c: any) => c.id === selectedContractId)?.name || 'Contrato' : 'Geral';
+        onAddWorkMovement({
+          sector: 'FINANCEIRO',
+          action: 'CRIAÇÃO DE APORTE',
+          description: `Aporte nº ${newAporte.numero} criado com sucesso`,
+          referenceCode: `AP-${newAporte.numero}`,
+          contractName: cName,
+          details: {
+            aporteDate: newAporte.data,
+            createdBy: currentUser?.name || 'Usuário',
+          }
+        });
+      }
     }
     setIsAporteDialogOpen(false);
   };
@@ -623,6 +639,23 @@ export const FinanceView = ({
 
     const updatedAporte = { ...selectedAporte, items: updatedItems };
     setAportes(aportes.map((a: Aporte) => a.id === updatedAporte.id ? updatedAporte : a));
+    
+    if (!editingItem && onAddWorkMovement) {
+      const cName = selectedContractId !== 'all' && selectedContractId ? contracts.find((c: any) => c.id === selectedContractId)?.name || 'Contrato' : 'Geral';
+      onAddWorkMovement({
+        sector: 'FINANCEIRO',
+        action: 'INCLUSÃO DE ITEM NO APORTE',
+        description: `Inclusão do item "${newItem.descricao}" no aporte nº ${updatedAporte.numero}`,
+        referenceCode: `ITEM-${newItem.id.slice(-4)}`,
+        contractName: cName,
+        details: {
+          aporteId: updatedAporte.numero,
+          itemDescription: newItem.descricao,
+          itemValue: newItem.valor
+        }
+      });
+    }
+    
     setIsItemDialogOpen(false);
   };
 

@@ -208,6 +208,7 @@ interface RHViewProps {
   onUpdateTeams?: (teams: ControllerTeam[]) => void;
   employeeTransfers?: EmployeeTransfer[];
   onUpdateTransfers?: (transfers: EmployeeTransfer[]) => void;
+  onAddWorkMovement?: (movement: Omit<WorkMovement, 'id' | 'timestamp'>) => void;
 }
 
 export default function RHView({
@@ -228,6 +229,7 @@ export default function RHView({
   onUpdateTeams,
   employeeTransfers = [],
   onUpdateTransfers,
+  onAddWorkMovement,
 }: RHViewProps) {
   const [activeTab, setActiveTab] = useState(initialTab || "employees");
   const [rhParams, setRhParams] = useState(() => {
@@ -345,6 +347,25 @@ export default function RHView({
     const updated = [newTransfer, ...employeeTransfers];
     if (onUpdateTransfers) {
       onUpdateTransfers(updated);
+    }
+
+    if (onAddWorkMovement) {
+      const sourceName = getContractName(newTransfer.sourceContractId);
+      const targetName = getContractName(newTransfer.targetContractId);
+      onAddWorkMovement({
+        sector: 'RH',
+        action: 'TRANSFERÊNCIA DE COLABORADOR',
+        description: `Transferência de ${newTransfer.employeeName} de ${sourceName} para ${targetName}`,
+        referenceCode: `TRF-${newTransfer.id.slice(-4)}`,
+        contractName: targetName,
+        details: {
+          collaboratorName: newTransfer.employeeName,
+          collaboratorRole: newTransfer.employeeRole,
+          origin: sourceName,
+          destination: targetName,
+          notes: newTransfer.notes
+        }
+      });
     }
     setIsTransferModalOpen(false);
     alert(`Solicitação de transferência para ${transferModalEmployee.name} enviada com sucesso! Aguardando aprovações.`);
@@ -816,6 +837,20 @@ export default function RHView({
     }
 
     setIsSavingClosings(false);
+    if (onAddWorkMovement) {
+      const cName = selectedContractId ? getContractName(selectedContractId) : undefined;
+      onAddWorkMovement({
+        sector: 'RH',
+        action: 'FECHAMENTO DE JORNADA',
+        description: `Fechamento da jornada / folha mensal do mês ${selectedMonth}`,
+        referenceCode: `JRN-${selectedMonth.replace('-', '')}`,
+        contractName: cName,
+        details: {
+          notes: `Fechamento de jornada salvo para o mês ${selectedMonth}`
+        }
+      });
+    }
+
     if (!configObj.enabled) {
       alert(`✅ SUCESSO! O Fechamento de Jornada do mês ${selectedMonth} foi salvo com sucesso no banco de dados de desenvolvimento local.`);
     } else if (dbSuccess) {
@@ -2081,7 +2116,23 @@ export default function RHView({
       if (config.enabled) {
         const supabase = createSupabaseClient(config.url, config.key);
         if (supabase) {
-          const snakeData = importedEmployees.map(mapToSnake);
+          const snakeData = importedEmployees.map(emp => {
+            const { team, chargesPercentage, overtimePercentage, charges_percentage, overtime_percentage, ...restEmp } = emp as any;
+            const m = mapToSnake(restEmp);
+            if (m.contract_id === "" || m.contract_id === undefined) m.contract_id = null;
+            if (m.alojamento_id === "" || m.alojamento_id === undefined) m.alojamento_id = null;
+            if (m.registration_number === "") m.registration_number = null;
+            if (m.admission_date === "") m.admission_date = null;
+            if (m.dismissal_date === "") m.dismissal_date = null;
+            if (m.birth_date === "") m.birth_date = null;
+            if (m.salary === "" || m.salary === null || m.salary === undefined) m.salary = 0;
+            if (m.commuter_value1 === "" || m.commuter_value1 === null) m.commuter_value1 = 0;
+            if (m.commuter_value2 === "" || m.commuter_value2 === null) m.commuter_value2 = 0;
+            if (m.dependents && !Array.isArray(m.dependents)) m.dependents = [];
+            if (!m.status) m.status = 'active';
+            if (!m.payment_type) m.payment_type = 'month';
+            return m;
+          });
           try {
             const { error } = await supabase.from("employees").upsert(snakeData);
             if (error) {
@@ -2670,6 +2721,22 @@ export default function RHView({
           commuterCity2: newEmployee.commuterCity2,
         };
         finalEmployees = [...employees, employee];
+
+        if (onAddWorkMovement) {
+          const cName = getContractName(newEmployee.contractId);
+          onAddWorkMovement({
+            sector: 'RH',
+            action: 'ADMISSÃO DE COLABORADOR',
+            description: `Admissão do colaborador ${newEmployee.name} (${newEmployee.role || 'Colaborador'})`,
+            referenceCode: `ADM-${targetEmployeeId.slice(-4)}`,
+            contractName: cName,
+            details: {
+              collaboratorName: newEmployee.name,
+              collaboratorRole: newEmployee.role || 'Colaborador',
+              amount: newEmployee.salary || 0
+            }
+          });
+        }
       }
 
       setSaveEmployeeProgress({ step: "Sincronizando com o banco...", progress: 50 });
@@ -2758,6 +2825,22 @@ export default function RHView({
           : emp,
       );
       onUpdateEmployees(updated);
+
+      if (onAddWorkMovement) {
+        const cName = getContractName(e.contractId);
+        onAddWorkMovement({
+          sector: 'RH',
+          action: 'DEMISSÃO DE COLABORADOR',
+          description: `Demissão do colaborador ${e.name} (${e.role || 'Colaborador'}) - Data: ${finalDate}`,
+          referenceCode: `DEM-${e.id.slice(-4)}`,
+          contractName: cName,
+          details: {
+            collaboratorName: e.name,
+            collaboratorRole: e.role,
+            notes: `Data de desvinculação: ${finalDate}`
+          }
+        });
+      }
 
       // Remove the employee from active team assignments
       if (teamAssignments && onUpdateAssignments) {
