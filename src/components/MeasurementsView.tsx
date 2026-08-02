@@ -2214,9 +2214,9 @@ export function MeasurementsView({
               />
             )}
 
-            {activeSubTab === "projeto" && selectedContract && (
+            {activeSubTab === "projeto" && (
               <ProjectAlignmentView
-                contract={selectedContract}
+                contract={selectedContract || contracts[0] || ({ id: 'contrato-padrao', workName: 'Obra Principal', contractNumber: 'CTR-001', client: 'Siga / Synera' } as Contract)}
                 projectAlignments={projectAlignments}
                 onSaveProjectAlignment={onSaveProjectAlignment}
                 onDeleteProjectAlignment={onDeleteProjectAlignment}

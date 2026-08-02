@@ -100,7 +100,7 @@ export function ProjectAlignmentView({
 }: ProjectAlignmentViewProps) {
   // Current active alignment for this contract or newly uploaded
   const currentAlignment = useMemo(() => {
-    return projectAlignments.find(a => a.contractId === contract.id);
+    return projectAlignments.find(a => a.contractId === contract.id) || projectAlignments[0];
   }, [projectAlignments, contract.id]);
 
   const [activeLayerType, setActiveLayerType] = useState<'google_satellite' | 'google_hybrid' | 'google_roadmap' | 'google_terrain'>('google_hybrid');

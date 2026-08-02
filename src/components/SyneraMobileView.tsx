@@ -4,7 +4,7 @@ import {
   Send, Camera, HardHat, Wrench, Users, FileText, AlertTriangle, 
   MapPin, CloudSun, Plus, Trash2, ShieldCheck, Download, Share2, 
   ChevronRight, Calendar, ArrowUpRight, Zap, Building2, Package, ArrowLeft, Layers,
-  Search, Edit3, X, Eye
+  Search, Edit3, X, Eye, LogOut
 } from 'lucide-react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -26,6 +26,7 @@ export interface SyneraMobileViewProps {
   onUpdateServiceProduction: (p: ServiceProduction) => void;
   onAddWorkMovement?: (movement: any) => void;
   onSaveDailyReport?: (report: DailyReport) => void;
+  onLogout?: () => void;
 }
 
 export interface OfflinePendingItem {
@@ -146,6 +147,7 @@ export function SyneraMobileView({
   onUpdateServiceProduction,
   onAddWorkMovement,
   onSaveDailyReport,
+  onLogout,
 }: SyneraMobileViewProps) {
   const [isOnline, setIsOnline] = useState<boolean>(() => navigator.onLine);
   
@@ -801,22 +803,34 @@ export function SyneraMobileView({
 
           {/* Connection Status Badge & Obra Vinculada */}
           <div className="flex flex-col items-end">
-            <div className={`px-2.5 py-1 rounded-full border text-[10px] font-black flex items-center gap-1.5 shadow-sm ${
-              isOnline 
-                ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/40' 
-                : 'bg-red-500/20 text-red-400 border-red-500/50 animate-pulse'
-            }`}>
-              <div className={`w-2 h-2 rounded-full ${isOnline ? 'bg-emerald-400 animate-ping' : 'bg-red-500'}`} />
-              {isOnline ? (
-                <>
-                  <Wifi className="w-3.5 h-3.5 text-emerald-400" />
-                  <span>ONLINE</span>
-                </>
-              ) : (
-                <>
-                  <WifiOff className="w-3.5 h-3.5 text-red-400" />
-                  <span>OFFLINE</span>
-                </>
+            <div className="flex items-center gap-1.5">
+              <div className={`px-2.5 py-1 rounded-full border text-[10px] font-black flex items-center gap-1.5 shadow-sm ${
+                isOnline 
+                  ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/40' 
+                  : 'bg-red-500/20 text-red-400 border-red-500/50 animate-pulse'
+              }`}>
+                <div className={`w-2 h-2 rounded-full ${isOnline ? 'bg-emerald-400 animate-ping' : 'bg-red-500'}`} />
+                {isOnline ? (
+                  <>
+                    <Wifi className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>ONLINE</span>
+                  </>
+                ) : (
+                  <>
+                    <WifiOff className="w-3.5 h-3.5 text-red-400" />
+                    <span>OFFLINE</span>
+                  </>
+                )}
+              </div>
+
+              {onLogout && (
+                <button
+                  onClick={onLogout}
+                  className="p-1.5 rounded-xl bg-slate-800 hover:bg-red-500/20 text-slate-300 hover:text-red-400 border border-slate-700 transition-colors"
+                  title="Sair do aplicativo"
+                >
+                  <LogOut className="w-3.5 h-3.5" />
+                </button>
               )}
             </div>
 

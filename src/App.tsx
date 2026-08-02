@@ -221,12 +221,12 @@ export default function App() {
   }, [mainTab]);
 
   useEffect(() => {
-    if (currentUser && (currentUser.userGroup === 'mobile' || currentUser.role === 'apontador')) {
+    if (currentUser && (currentUser.userGroup === 'mobile' || currentUser.role === 'apontador' || isMobileDevice)) {
       if (mainTab !== 'mobile') {
         setMainTab('mobile');
       }
     }
-  }, [currentUser, mainTab]);
+  }, [currentUser, mainTab, isMobileDevice]);
 
   useEffect(() => {
     try {
@@ -592,13 +592,25 @@ export default function App() {
 
   const technicalRoomOrder = useMemo(() => {
     const saved = systemConfig.find(c => c.configKey === 'technical_room_modules_order');
+    let list = defaultTechnicalRoomOrder;
     if (saved && Array.isArray(saved.configValue)) {
-      // Ensure all current modules are present in the saved order
       const savedIds = saved.configValue.map((m: any) => m.id);
       const missing = defaultTechnicalRoomOrder.filter(m => !savedIds.includes(m.id));
-      return [...saved.configValue, ...missing];
+      list = [...saved.configValue, ...missing];
     }
-    return defaultTechnicalRoomOrder;
+
+    // Strictly enforce that 'projeto' comes immediately before 'physical_progress'
+    const projIdx = list.findIndex((m: any) => m.id === 'projeto');
+    const physIdx = list.findIndex((m: any) => m.id === 'physical_progress');
+    if (projIdx !== -1 && physIdx !== -1 && projIdx !== physIdx - 1) {
+      const newList = [...list];
+      const [projItem] = newList.splice(projIdx, 1);
+      const newPhysIdx = newList.findIndex((m: any) => m.id === 'physical_progress');
+      newList.splice(newPhysIdx, 0, projItem);
+      return newList;
+    }
+
+    return list;
   }, [systemConfig]);
 
   const updateTechnicalRoomOrder = async (newOrder: any[]) => {
@@ -674,8 +686,8 @@ export default function App() {
   const navItems = useMemo(() => {
     if (!currentUser) return [];
 
-    // Exclusive access for Synera Mobile users
-    if (currentUser.userGroup === 'mobile' || currentUser.role === 'apontador') {
+    // Exclusive access for Synera Mobile users or when accessing via mobile device
+    if (currentUser.userGroup === 'mobile' || currentUser.role === 'apontador' || isMobileDevice) {
       return [
         { 
           id: 'mobile', 
@@ -4423,7 +4435,31 @@ export default function App() {
     );
   }
 
+  if (currentUser && (isMobileDevice || currentUser.userGroup === 'mobile' || currentUser.role === 'apontador')) {
     return (
+      <div className="min-h-screen bg-slate-950 text-slate-100 font-sans">
+        <SyneraMobileView
+          contracts={finalContracts}
+          services={filteredServices}
+          serviceProductions={serviceProductions}
+          equipments={finalControllerEquipments}
+          employees={employees}
+          currentUser={currentUser}
+          onUpdateServiceProduction={updateServiceProduction}
+          onAddWorkMovement={addWorkMovement}
+          onSaveDailyReport={(r) => addDailyReport(r)}
+          fieldReports={fieldReports}
+          onSaveFieldReport={handleSaveFieldReport}
+          onUpdateFieldReport={handleUpdateFieldReport}
+          selectedContractId={selectedContractId}
+          onUpdateContractId={setSelectedContractId}
+          onLogout={handleLogout}
+        />
+      </div>
+    );
+  }
+
+  return (
     <div className="flex flex-col h-screen bg-[#F5F5F5] font-sans text-gray-900 overflow-hidden">
       {/* Superior Tab Layer */}
       <header className="h-14 bg-white border-b border-gray-200 flex items-center px-6 z-40 shrink-0">
