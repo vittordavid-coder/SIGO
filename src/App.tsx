@@ -5007,6 +5007,7 @@ export default function App() {
                   chargesPerc={chargesPerc}
                   otPerc={otPerc}
                   currentUser={currentUser!}
+                  onAddWorkMovement={addWorkMovement}
                 />
               )}
 

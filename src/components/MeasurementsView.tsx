@@ -400,6 +400,7 @@ interface MeasurementsViewProps {
   chargesPerc: number;
   otPerc: number;
   currentUser: User;
+  onAddWorkMovement?: (movement: any) => void;
 }
 
 export function MeasurementsView({
@@ -469,6 +470,7 @@ export function MeasurementsView({
   chargesPerc,
   otPerc,
   currentUser,
+  onAddWorkMovement,
 }: MeasurementsViewProps) {
   const [activeMeasureType, setActiveMeasureType] = useState<
     "services" | "cubacao" | "transport" | null
@@ -2159,7 +2161,22 @@ export function MeasurementsView({
                 contract={selectedContract}
                 services={services}
                 serviceProductions={serviceProductions}
-                onUpdateProduction={onUpdateServiceProduction}
+                onUpdateProduction={(p) => {
+                  onUpdateServiceProduction(p);
+                  if (onAddWorkMovement) {
+                    const sName = services.find((s) => s.id === p.serviceId)?.name || "Serviço";
+                    onAddWorkMovement({
+                      sector: "SALA TÉCNICA",
+                      action: "PRODUÇÃO ATUALIZADA",
+                      description: `Atualização da produção diária do serviço: ${sName} (${p.month})`,
+                      referenceCode: `PROD-${p.month.replace("-", "")}`,
+                      contractName: selectedContract.name || "Geral",
+                      details: {
+                        notes: `Apontamento de produção registrado para o serviço ${sName}`,
+                      },
+                    });
+                  }
+                }}
                 onDeleteProduction={onDeleteServiceProduction}
                 readonly={readonly}
                 companyLogo={companyLogo}
@@ -2246,7 +2263,21 @@ export function MeasurementsView({
                   measurements={measurements.filter(m => m.contractId === selectedContract.id)}
                   technicalSchedules={technicalSchedules}
                   schedules={schedules}
-                  onUpdate={onUpdateTechnicalSchedule}
+                  onUpdate={(s) => {
+                    onUpdateTechnicalSchedule(s);
+                    if (onAddWorkMovement) {
+                      onAddWorkMovement({
+                        sector: "SALA TÉCNICA",
+                        action: "CRONOGRAMA ATUALIZADO",
+                        description: `Atualização do cronograma técnico da obra ${selectedContract.name}`,
+                        referenceCode: `CRN-${s.id ? s.id.slice(-4) : 'REV'}`,
+                        contractName: selectedContract.name || "Geral",
+                        details: {
+                          notes: "Linha de balanço / cronograma físico-financeiro atualizado",
+                        },
+                      });
+                    }
+                  }}
                   readonly={readonly}
                 />
               </motion.div>

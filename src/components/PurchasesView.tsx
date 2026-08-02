@@ -457,7 +457,7 @@ function RequestsTab({
       if (onAddWorkMovement) {
         const cName = requestToSave.contractId ? contracts.find(c => c.id === requestToSave.contractId)?.name || 'Contrato' : 'Geral';
         onAddWorkMovement({
-          sector: 'SUPRIMENTOS',
+          sector: 'COMPRAS',
           action: 'SOLICITAÇÃO DE COMPRA',
           description: `Solicitação de Compra ${requestToSave.description || ''} criada com ${requestToSave.items.length} itens`,
           referenceCode: `SC-${requestToSave.id.slice(-4)}`,
@@ -1979,7 +1979,7 @@ function OrdersTab({
       if (onAddWorkMovement) {
         const cName = orderToSave.contractId ? contracts.find(c => c.id === orderToSave.contractId)?.name || 'Contrato' : 'Geral';
         onAddWorkMovement({
-          sector: 'SUPRIMENTOS',
+          sector: 'COMPRAS',
           action: 'ORDEM DE COMPRA',
           description: `Emissão da Ordem de Compra ${orderToSave.orderNumber || ''} - Fornecedor: ${orderToSave.supplierName}`,
           referenceCode: `OC-${orderToSave.orderNumber || orderToSave.id.slice(-4)}`,
@@ -4307,7 +4307,7 @@ function TrackingTab({ orders, setOrders, equipmentMaintenance, onUpdateMaintena
     if (onAddWorkMovement) {
       const cName = evaluationOrder.contractId ? contracts.find(c => c.id === evaluationOrder.contractId)?.name || 'Contrato' : 'Geral';
       onAddWorkMovement({
-        sector: 'SUPRIMENTOS',
+        sector: 'COMPRAS',
         action: 'AVALIAÇÃO DE FORNECEDOR / ENTREGA',
         description: `Avaliação do fornecedor ${evaluationOrder.supplierName} (OC: ${evaluationOrder.orderNumber || ''}) finalizada`,
         referenceCode: `AV-${evaluationOrder.id.slice(-4)}`,

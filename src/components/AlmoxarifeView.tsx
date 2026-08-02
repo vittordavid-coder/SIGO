@@ -376,7 +376,7 @@ export default function AlmoxarifeView({
     if (onAddWorkMovement) {
       const cName = warehouse.contractId ? contracts.find(c => c.id === warehouse.contractId)?.name || 'Contrato não encontrado' : 'Estoque Geral';
       onAddWorkMovement({
-        sector: 'ALMOXARIFADO',
+        sector: 'ALMOXARIFE',
         action: 'RECEBIMENTO DE MATERIAL',
         description: `Recebimento de materiais da OS ${receivingOrder.osNumber} no almoxarifado ${warehouse.name}`,
         referenceCode: `RC-${receivingOrder.osNumber}`,
@@ -448,7 +448,7 @@ export default function AlmoxarifeView({
     
     if (onAddWorkMovement) {
       onAddWorkMovement({
-        sector: 'ALMOXARIFADO',
+        sector: 'ALMOXARIFE',
         action: 'CADASTRO DE PATRIMÔNIO',
         description: `Cadastro do bem patrimonial ${newAsset.description} (${newAsset.code})`,
         referenceCode: `PAT-${newAsset.code}`,
@@ -700,7 +700,7 @@ export default function AlmoxarifeView({
       const destWh = warehouses.find(w => w.id === trans.destinationWarehouseId);
       const cName = originWh?.contractId ? contracts.find(c => c.id === originWh.contractId)?.name : 'Estoque Geral';
       onAddWorkMovement({
-        sector: 'ALMOXARIFADO',
+        sector: 'ALMOXARIFE',
         action: 'TRANSFERÊNCIA DE MATERIAL',
         description: `Confirmação de recebimento da transferência de ${originWh?.name} para ${destWh?.name || trans.destinationName}`,
         referenceCode: `TRF-${trans.id.slice(-4)}`,
@@ -940,7 +940,7 @@ export default function AlmoxarifeView({
       const warehouse = warehouses.find(w => w.id === applWarehouseId);
       const contract = contracts.find(c => c.id === applContractId);
       onAddWorkMovement({
-        sector: 'ALMOXARIFADO',
+        sector: 'ALMOXARIFE',
         action: 'SAÍDA DE MATERIAL',
         description: `Aplicação de ${qty} ${sourceItem.unit || 'UN'} de ${sourceItem.description} no local ${selectedPlaceObj?.displayText || 'Desconhecido'}`,
         referenceCode: `SAI-${newApp.id.slice(-4)}`,

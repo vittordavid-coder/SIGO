@@ -59,7 +59,10 @@ export const SECTOR_ACTIONS_MAP: Record<WorkMovementSector, { name: string; acti
       'SOLICITAÇÃO DE MATERIAL',
       'ENTRADA DE MATERIAL',
       'SAÍDA DE MATERIAL',
-      'ATUALIZAÇÃO DE ESTOQUE'
+      'ATUALIZAÇÃO DE ESTOQUE',
+      'RECEBIMENTO DE MATERIAL',
+      'CADASTRO DE PATRIMÔNIO',
+      'TRANSFERÊNCIA DE MATERIAL'
     ],
     color: 'text-amber-700',
     bg: 'bg-amber-50',
@@ -71,7 +74,10 @@ export const SECTOR_ACTIONS_MAP: Record<WorkMovementSector, { name: string; acti
     name: 'COMPRAS',
     actions: [
       'COTAÇÃO APROVADA',
-      'COMPRA EFETUADA'
+      'COMPRA EFETUADA',
+      'SOLICITAÇÃO DE COMPRA',
+      'ORDEM DE COMPRA',
+      'AVALIAÇÃO DE FORNECEDOR / ENTREGA'
     ],
     color: 'text-blue-700',
     bg: 'bg-blue-50',
@@ -83,7 +89,9 @@ export const SECTOR_ACTIONS_MAP: Record<WorkMovementSector, { name: string; acti
     name: 'FINANCEIRO',
     actions: [
       'MOVIMENTAÇÃO DE CAIXA',
-      'FECHAMENTO DE APORTE'
+      'FECHAMENTO DE APORTE',
+      'CRIAÇÃO DE APORTE',
+      'INCLUSÃO DE ITEM NO APORTE'
     ],
     color: 'text-emerald-700',
     bg: 'bg-emerald-50',
@@ -107,10 +115,15 @@ export const SECTOR_ACTIONS_MAP: Record<WorkMovementSector, { name: string; acti
   CONTROLADOR: {
     name: 'CONTROLADOR',
     actions: [
+      'CADASTRO DE EQUIPAMENTO',
       'ENTRADA DE EQUIPAMENTO',
       'SAÍDA DE EQUIPAMENTO',
       'TRANSFERÊNCIA DE EQUIPAMENTO',
+      'INÍCIO DE MANUTENÇÃO',
+      'FIM DE MANUTENÇÃO',
       'EQUIPAMENTO EM MANUTENÇÃO',
+      'ENTRADA DE COMBUSTÍVEL',
+      'SAÍDA DE COMBUSTÍVEL',
       'MEDIÇÃO EQUIPAMENTO'
     ],
     color: 'text-cyan-700',
@@ -171,6 +184,18 @@ export function ProjectAdminView({
   // Detail Modal state
   const [selectedMovement, setSelectedMovement] = useState<WorkMovement | null>(null);
   const [isMovementDetailsOpen, setIsMovementDetailsOpen] = useState(false);
+
+  const getMovementValue = (m: WorkMovement | null | undefined): number | null => {
+    if (!m || !m.details) return null;
+    const d = m.details;
+    const val = d.amount ?? d.totalValue ?? d.itemValue ?? d.total ?? d.value;
+    if (typeof val === 'number' && !isNaN(val)) return val;
+    if (typeof val === 'string' && !isNaN(parseFloat(val))) {
+      const parsed = parseFloat(val);
+      return isNaN(parsed) ? null : parsed;
+    }
+    return null;
+  };
   
   const pendingQuotations = purchaseQuotations.filter(q => q.status === 'awaiting_approval');
 
@@ -373,10 +398,12 @@ export function ProjectAdminView({
       alert('Não há movimentações para exportar.');
       return;
     }
-    const headers = ['Data', 'Hora', 'Setor', 'Ação', 'Código Ref.', 'Descrição', 'Responsável', 'Detalhes Principal'];
+    const headers = ['Data', 'Hora', 'Setor', 'Ação', 'Código Ref.', 'Descrição', 'Valor (R$)', 'Responsável', 'Detalhes Principal'];
     const rows = filteredMovements.map(m => {
       const dt = new Date(m.timestamp);
-      const mainDetail = m.details.collaboratorName || m.details.materialName || m.details.equipmentName || (m.details.amount ? `R$ ${m.details.amount}` : '-');
+      const val = getMovementValue(m);
+      const valFormatted = val !== null ? `R$ ${val.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '-';
+      const mainDetail = m.details.collaboratorName || m.details.materialName || m.details.equipmentName || valFormatted;
       return [
         dt.toLocaleDateString('pt-BR'),
         dt.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
@@ -384,6 +411,7 @@ export function ProjectAdminView({
         m.action,
         m.referenceCode || '-',
         `"${m.description.replace(/"/g, '""')}"`,
+        `"${valFormatted}"`,
         `"${m.responsibleUser.replace(/"/g, '""')}"`,
         `"${String(mainDetail).replace(/"/g, '""')}"`
       ];
@@ -634,11 +662,12 @@ export function ProjectAdminView({
                 <Table>
                   <TableHeader className="bg-slate-50/80">
                     <TableRow className="border-b border-slate-200">
-                      <TableHead className="font-bold text-slate-700 text-xs uppercase w-36">Data / Hora</TableHead>
-                      <TableHead className="font-bold text-slate-700 text-xs uppercase w-36">Setor</TableHead>
+                      <TableHead className="font-bold text-slate-700 text-xs uppercase w-32">Data / Hora</TableHead>
+                      <TableHead className="font-bold text-slate-700 text-xs uppercase w-32">Setor</TableHead>
                       <TableHead className="font-bold text-slate-700 text-xs uppercase">Ação Registrada</TableHead>
-                      <TableHead className="font-bold text-slate-700 text-xs uppercase w-36">Código Ref.</TableHead>
+                      <TableHead className="font-bold text-slate-700 text-xs uppercase w-32">Código Ref.</TableHead>
                       <TableHead className="font-bold text-slate-700 text-xs uppercase">Descrição do Evento</TableHead>
+                      <TableHead className="font-bold text-slate-700 text-xs uppercase text-right w-36">Valor (R$)</TableHead>
                       <TableHead className="font-bold text-slate-700 text-xs uppercase">Responsável</TableHead>
                       <TableHead className="text-right font-bold text-slate-700 text-xs uppercase w-28">Ação</TableHead>
                     </TableRow>
@@ -646,7 +675,7 @@ export function ProjectAdminView({
                   <TableBody>
                     {filteredMovements.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={7} className="h-56 text-center py-8">
+                        <TableCell colSpan={8} className="h-56 text-center py-8">
                           <div className="flex flex-col items-center justify-center text-slate-400 space-y-2">
                             <Activity className="w-10 h-10 text-slate-300" />
                             <p className="font-bold text-sm text-slate-600">Nenhuma movimentação registrada no mês selecionado.</p>
@@ -667,6 +696,7 @@ export function ProjectAdminView({
                         const dateObj = new Date(mov.timestamp);
                         const dateFormatted = dateObj.toLocaleDateString('pt-BR');
                         const timeFormatted = dateObj.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+                        const movVal = getMovementValue(mov);
 
                         return (
                           <TableRow 
@@ -701,6 +731,16 @@ export function ProjectAdminView({
 
                             <TableCell className="text-xs font-medium text-slate-700 max-w-xs truncate">
                               <span title={mov.description}>{mov.description}</span>
+                            </TableCell>
+
+                            <TableCell className="text-right whitespace-nowrap font-mono text-xs font-black">
+                              {movVal !== null ? (
+                                <span className="inline-block px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200 font-black">
+                                  R$ {movVal.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                </span>
+                              ) : (
+                                <span className="text-slate-400 font-normal">-</span>
+                              )}
                             </TableCell>
 
                             <TableCell className="text-xs font-semibold text-slate-600 whitespace-nowrap">
@@ -996,11 +1036,11 @@ export function ProjectAdminView({
                       )}
 
                       {/* Financial / Cost Details */}
-                      {selectedMovement.details.amount !== undefined && (
+                      {getMovementValue(selectedMovement) !== null && (
                         <div className="p-3.5 rounded-2xl bg-emerald-50/60 border border-emerald-100 space-y-1">
-                          <span className="text-[10px] font-black uppercase text-emerald-700 block">Valor da Operação R$</span>
-                          <span className="font-black text-xl text-emerald-800 block">
-                            R$ {selectedMovement.details.amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                          <span className="text-[10px] font-black uppercase text-emerald-700 block">Valor Envolvido / Operação R$</span>
+                          <span className="font-mono font-black text-xl text-emerald-800 block">
+                            R$ {getMovementValue(selectedMovement)?.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                           </span>
                           {selectedMovement.details.unit && (
                             <span className="text-[11px] text-emerald-600 block">Unidade/Base: {selectedMovement.details.unit}</span>
