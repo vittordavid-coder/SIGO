@@ -5,12 +5,12 @@ import {
   FileSpreadsheet, Settings, Calendar, Percent, ShieldCheck,
   ClipboardList, Users, Calculator, BarChart3, Landmark,
   BookOpen, CloudRain, Cloud, HardHat, Truck, Users2, Activity, Layers,
-  RefreshCw, ShoppingCart, GripVertical, AlertCircle, Database, XCircle, MoreHorizontal, Filter, HelpCircle, Menu
+  RefreshCw, ShoppingCart, GripVertical, AlertCircle, Database, XCircle, MoreHorizontal, Filter, HelpCircle, Menu, Smartphone, ChevronDown, CheckCircle2
 } from 'lucide-react';
 import { motion, AnimatePresence, Reorder } from 'motion/react';
 import { v4 as uuidv4 } from 'uuid';
 import { useLocalStorage } from './lib/useLocalStorage';
-import { Resource, ServiceComposition, Quotation, User, ABCConfig, BudgetGroup, BDIConfig, AuditLog, UserRole, Contract, Measurement, MeasurementTemplate, CalculationMemory, HighwayLocation, StationGroup, CubationData, TransportData, ServiceProduction, Employee, TimeRecord, DailyReport, DailyReportActivity, PluviometryRecord, TechnicalSchedule, DashboardConfig, ControllerTeam, ControllerEquipment, EquipmentMonthlyData, ControllerManpower, ManpowerMonthlyData, TeamAssignment, MarketingConfig, AppModule, PasswordResetRequest, EquipmentTransfer, Supplier, PurchaseOrder, EmailConfig, PurchaseRequest, PurchaseQuotation, EquipmentMaintenance, FuelTank, FuelLog, EquipmentMeasurement, DailyEquipmentMeasurement, Aporte, Warehouse, WarehouseItem, WarehouseEntry, Asset, WarehouseTransfer, WarehouseApplication, Alojamento, MeasurementParameter, WorkMovement } from './types';
+import { Resource, ServiceComposition, Quotation, User, ABCConfig, BudgetGroup, BDIConfig, AuditLog, UserRole, Contract, Measurement, MeasurementTemplate, CalculationMemory, HighwayLocation, StationGroup, CubationData, TransportData, ServiceProduction, Employee, TimeRecord, DailyReport, DailyReportActivity, PluviometryRecord, TechnicalSchedule, DashboardConfig, ControllerTeam, ControllerEquipment, EquipmentMonthlyData, ControllerManpower, ManpowerMonthlyData, TeamAssignment, MarketingConfig, AppModule, PasswordResetRequest, EquipmentTransfer, Supplier, PurchaseOrder, EmailConfig, PurchaseRequest, PurchaseQuotation, EquipmentMaintenance, FuelTank, FuelLog, EquipmentMeasurement, DailyEquipmentMeasurement, Aporte, Warehouse, WarehouseItem, WarehouseEntry, Asset, WarehouseTransfer, WarehouseApplication, Alojamento, MeasurementParameter, WorkMovement, ProjectAlignment } from './types';
 import { INITIAL_WORK_MOVEMENTS } from './lib/workMovementsSql';
 import { cn, hashPassword } from './lib/utils';
 import { calculateBDI } from './lib/calculations';
@@ -49,6 +49,7 @@ import { HelpView } from './components/HelpView';
 import { Chat } from './components/Chat';
 import { ManagementView } from './components/ManagementView';
 import { FinanceView } from './components/FinanceView';
+import { SyneraMobileView } from './components/SyneraMobileView';
 
 import { getSupabaseConfig, createSupabaseClient } from './lib/supabaseClient';
 
@@ -144,7 +145,20 @@ export default function App() {
 
   const compId = currentUser?.companyId;
 
-  const [mainTab, setMainTab] = useState<'home' | 'quotations' | 'measurements' | 'rh' | 'control' | 'purchases' | 'project_admin' | 'settings' | 'admin' | 'profile' | 'gerencia' | 'financeiro' | 'almoxarife' | 'help'>(() => {
+  const [isMobileDevice, setIsMobileDevice] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    return window.innerWidth < 768 || /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
+  });
+
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobileDevice(window.innerWidth < 768 || /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent));
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  const [mainTab, setMainTab] = useState<'home' | 'quotations' | 'measurements' | 'rh' | 'control' | 'purchases' | 'project_admin' | 'settings' | 'admin' | 'profile' | 'gerencia' | 'financeiro' | 'almoxarife' | 'help' | 'mobile'>(() => {
     try {
       return (window.sessionStorage.getItem('sigo_main_tab') as any) || 'home';
     } catch {
@@ -160,7 +174,7 @@ export default function App() {
     }
   });
 
-  const [activeMeasureTab, setActiveMeasureTab] = useState<'contracts' | 'measurements' | 'measure' | 'controls' | 'physical_progress' | 'rdo' | 'pluviometria' | 'schedule' | 'teams' | 'reports' | 'summary'>(() => {
+  const [activeMeasureTab, setActiveMeasureTab] = useState<'contracts' | 'measurements' | 'measure' | 'controls' | 'projeto' | 'physical_progress' | 'rdo' | 'pluviometria' | 'schedule' | 'teams' | 'reports' | 'summary'>(() => {
     try {
       return (window.sessionStorage.getItem('sigo_active_measure_tab') as any) || 'contracts';
     } catch {
@@ -205,6 +219,14 @@ export default function App() {
       window.sessionStorage.setItem('sigo_main_tab', mainTab);
     } catch (e) {}
   }, [mainTab]);
+
+  useEffect(() => {
+    if (currentUser && (currentUser.userGroup === 'mobile' || currentUser.role === 'apontador')) {
+      if (mainTab !== 'mobile') {
+        setMainTab('mobile');
+      }
+    }
+  }, [currentUser, mainTab]);
 
   useEffect(() => {
     try {
@@ -319,6 +341,18 @@ export default function App() {
   const [dailyReports, setDailyReports] = useLocalStorage<DailyReport[]>('sigo_daily_reports', [], compId);
   const [pluviometryRecords, setPluviometryRecords] = useLocalStorage<PluviometryRecord[]>('sigo_pluviometry_records', [], compId);
   const [technicalSchedules, setTechnicalSchedules] = useLocalStorage<TechnicalSchedule[]>('sigo_technical_schedules', [], compId);
+  const [projectAlignments, setProjectAlignments] = useLocalStorage<ProjectAlignment[]>('sigo_project_alignments', [], compId);
+
+  const handleSaveProjectAlignment = (alignment: ProjectAlignment) => {
+    setProjectAlignments(prev => {
+      const filtered = prev.filter(a => a.contractId !== alignment.contractId);
+      return [alignment, ...filtered];
+    });
+  };
+
+  const handleDeleteProjectAlignment = (alignmentId: string) => {
+    setProjectAlignments(prev => prev.filter(a => a.id !== alignmentId));
+  };
   const [schedules, setSchedules] = useLocalStorage<any[]>('sconet_schedules', [], compId);
   const [budgetItems, setBudgetItems] = useLocalStorage<{serviceId: string, quantity: number}[]>('sconet_current_budget', [], compId);
   const [budgetGroups, setBudgetGroups] = useLocalStorage<BudgetGroup[]>('sconet_budget_groups', [], compId);
@@ -390,6 +424,40 @@ export default function App() {
   const [transfers, setTransfers] = useLocalStorage<WarehouseTransfer[]>('sigo_warehouse_transfers', [], compId);
   const [applications, setApplications] = useLocalStorage<WarehouseApplication[]>('sigo_warehouse_applications', [], compId);
   const [workMovements, setWorkMovements] = useLocalStorage<WorkMovement[]>('sigo_work_movements', INITIAL_WORK_MOVEMENTS, compId);
+  const [fieldReports, setFieldReports] = useLocalStorage<FieldProductionReport[]>('sigo_field_reports', [], compId);
+
+  const handleSaveFieldReport = (report: FieldProductionReport) => {
+    setFieldReports(prev => [report, ...prev]);
+  };
+
+  const handleUpdateFieldReport = (report: FieldProductionReport) => {
+    setFieldReports(prev => prev.map(r => r.id === report.id ? report : r));
+  };
+
+  const handleApproveFieldReport = (reportId: string) => {
+    const report = fieldReports.find(r => r.id === reportId);
+    if (!report) return;
+
+    setFieldReports(prev => prev.map(r => r.id === reportId ? { ...r, status: 'approved' as const } : r));
+
+    const newProd: ServiceProduction = {
+      id: `prod-appr-${Date.now()}`,
+      contractId: report.contractId,
+      serviceId: report.serviceId,
+      serviceName: report.serviceName,
+      unit: report.unit,
+      quantity: report.qty,
+      date: report.productionDate,
+      notes: `[Campo-PWA - Apontado por ${report.reportedBy}] ${report.notes || ''}`.trim(),
+      createdAt: new Date().toISOString()
+    };
+
+    setServiceProductions(prev => [newProd, ...prev]);
+  };
+
+  const handleRejectFieldReport = (reportId: string) => {
+    setFieldReports(prev => prev.map(r => r.id === reportId ? { ...r, status: 'rejected' as const } : r));
+  };
 
   const updateWorkMovements = async (val: WorkMovement[] | ((prev: WorkMovement[]) => WorkMovement[])) => {
     lastLocalUpdate.current = Date.now();
@@ -517,6 +585,7 @@ export default function App() {
     { id: 'schedule', label: 'Cronograma', icon: 'Calendar' },
     { id: 'teams', label: 'Equipes', icon: 'Users2' },
     { id: 'controls', label: 'Controles', icon: 'BarChart3' },
+    { id: 'projeto', label: 'Projeto', icon: 'Compass' },
     { id: 'physical_progress', label: 'Avanço Físico', icon: 'Activity' },
     { id: 'reports', label: 'Relatório', icon: 'FileText' }
   ];
@@ -604,9 +673,27 @@ export default function App() {
 
   const navItems = useMemo(() => {
     if (!currentUser) return [];
+
+    // Exclusive access for Synera Mobile users
+    if (currentUser.userGroup === 'mobile' || currentUser.role === 'apontador') {
+      return [
+        { 
+          id: 'mobile', 
+          label: 'Synera Mobile', 
+          icon: <Smartphone className="w-4 h-4 text-emerald-500" />, 
+          visible: true 
+        }
+      ];
+    }
     
     const items = [
       { id: 'home', label: 'Início', icon: <LayoutDashboard className="w-4 h-4" />, visible: true },
+      { 
+        id: 'mobile', 
+        label: 'Synera Mobile', 
+        icon: <Smartphone className="w-4 h-4 text-emerald-500" />, 
+        visible: currentUser.role === 'master' 
+      },
       { 
         id: 'quotations', 
         label: 'Cotações', 
@@ -4350,10 +4437,16 @@ export default function App() {
             <SheetContent side="left" className="w-72 p-0 border-none shadow-2xl bg-white">
               <div className="bg-blue-600 p-8 text-white">
                 <div className="flex items-center gap-3 mb-2">
-                  <div className="bg-white/20 p-1.5 rounded-lg">
-                    <LayoutDashboard className="w-5 h-5 text-white" />
+                  <div className="bg-white/20 p-1.5 rounded-lg flex items-center justify-center">
+                    {isMobileDevice || mainTab === 'mobile' ? (
+                      <Smartphone className="w-5 h-5 text-white animate-pulse" />
+                    ) : (
+                      <LayoutDashboard className="w-5 h-5 text-white" />
+                    )}
                   </div>
-                  <span className="font-bold text-xl tracking-tight">SYNERA</span>
+                  <span className="font-bold text-xl tracking-tight">
+                    {isMobileDevice || mainTab === 'mobile' ? 'SYNERA MOBILE' : 'SYNERA'}
+                  </span>
                 </div>
                 <p className="text-blue-100 text-sm font-bold uppercase tracking-widest opacity-80">
                   Navegação Principal
@@ -4381,11 +4474,25 @@ export default function App() {
             </SheetContent>
           </Sheet>
 
-          <div className="flex items-center gap-4">
-            <div className="bg-blue-600 p-1.5 rounded-lg">
-              <LayoutDashboard className="w-5 h-5 text-white" />
+          <div className="flex items-center gap-3">
+            <div className="bg-blue-600 p-1.5 rounded-lg flex items-center justify-center">
+              {isMobileDevice || mainTab === 'mobile' ? (
+                <Smartphone className="w-5 h-5 text-white animate-pulse" />
+              ) : (
+                <LayoutDashboard className="w-5 h-5 text-white" />
+              )}
             </div>
-            <span className="font-bold text-xl tracking-tight hidden lg:block">SYNERA</span>
+            <div className="flex items-center gap-2">
+              <span className="font-extrabold text-xl tracking-tight text-slate-900 hidden lg:inline">
+                {isMobileDevice || mainTab === 'mobile' ? 'SYNERA MOBILE' : 'SYNERA'}
+              </span>
+              {(isMobileDevice || mainTab === 'mobile') && (
+                <span className="px-2 py-0.5 text-[10px] font-black rounded-full bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 uppercase tracking-wider hidden sm:flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping" />
+                  PWA CAMPO
+                </span>
+              )}
+            </div>
           </div>
         </div>
         
@@ -4404,123 +4511,17 @@ export default function App() {
         </nav>
 
         <div className="ml-auto flex items-center gap-3 shrink-0">
+          {/* Active contract indicator badge */}
           {finalContracts.length > 0 && (
-            <Sheet open={isContractSheetOpen} onOpenChange={setIsContractSheetOpen}>
-              <SheetTrigger asChild>
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  className={cn(
-                    "h-10 rounded-2xl bg-white border border-gray-100 shadow-sm px-4 gap-2 transition-all hover:border-blue-200 group font-black text-sm",
-                    selectedContractId ? "text-blue-600 border-blue-100 bg-blue-50/20" : "text-gray-600"
-                  )}
-                >
-                  <Briefcase className="w-4 h-4" />
-                  <span className="max-w-[100px] sm:max-w-[120px] lg:max-w-[200px] truncate">
-                    {selectedContractId === null ? "Geral" : (() => {
-                      const c = finalContracts.find(x => x.id === selectedContractId);
-                      return c ? `${c.workName || c.client || 'Sem Nome'}` : "Selecionar";
-                    })()}
-                  </span>
-                  <div className={cn("transition-transform duration-200", isContractSheetOpen ? "rotate-180" : "rotate-0")}>
-                    <Filter className="w-3 h-3 opacity-40 group-hover:opacity-100 transition-opacity" />
-                  </div>
-                </Button>
-              </SheetTrigger>
-              <SheetContent side="top" className="h-[500px] p-0 border-none shadow-2xl bg-[#F8FAFC]">
-                <div className="max-w-4xl mx-auto w-full">
-                  <div className="bg-blue-600 p-8 text-white relative overflow-hidden rounded-b-[40px]">
-                    <Briefcase className="absolute -right-8 -bottom-8 w-48 h-48 opacity-10 rotate-12" />
-                    <div className="relative z-10 flex justify-between items-end">
-                      <div>
-                        <h3 className="text-3xl font-black text-white leading-tight">Gestão de Contratos</h3>
-                        <p className="text-blue-100 text-sm font-bold uppercase tracking-widest mt-1 opacity-80">
-                          Selecione o contrato para filtrar toda a aplicação
-                        </p>
-                      </div>
-                      <div className="hidden sm:block text-right">
-                        <p className="text-sm font-black text-blue-200 uppercase">Empresa</p>
-                        <p className="text-lg font-bold">{currentUser?.companyName || 'Controller'}</p>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="p-8 -mt-6">
-                    <div className="bg-white rounded-[32px] shadow-2xl border border-gray-100 p-2">
-                       <div className="flex flex-col md:flex-row gap-4 p-4 border-b border-gray-50">
-                          <div className="relative flex-1">
-                            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                            <Input 
-                              placeholder="Pesquisar por nome da obra, cliente ou número do contrato..." 
-                              className="pl-12 h-14 rounded-2xl bg-gray-50 border-transparent shadow-none focus:bg-white focus:ring-blue-500 text-base"
-                            />
-                          </div>
-                       </div>
-
-                       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 p-4 max-h-[300px] overflow-y-auto custom-scrollbar">
-                          <button
-                            onClick={() => {
-                              setSelectedContractId(null);
-                              setIsContractSheetOpen(false);
-                            }}
-                            className={cn(
-                              "flex items-center gap-4 p-4 rounded-2xl border transition-all text-left group",
-                              selectedContractId === null 
-                                ? "bg-blue-600 border-blue-600 text-white shadow-xl shadow-blue-100" 
-                                : "bg-gray-50 border-transparent hover:bg-blue-50 hover:border-blue-100"
-                            )}
-                          >
-                            <div className={cn("p-2.5 rounded-xl", selectedContractId === null ? "bg-white/20" : "bg-blue-100 text-blue-600")}>
-                              <LayoutDashboard className="w-5 h-5" />
-                            </div>
-                            <div>
-                               <p className={cn("font-black text-base", selectedContractId === null ? "text-white" : "text-gray-900")}>Geral (Todas as Obras)</p>
-                               <p className={cn("text-sm font-bold uppercase opacity-70", selectedContractId === null ? "text-blue-100" : "text-gray-400")}>Visão consolidada</p>
-                            </div>
-                          </button>
-
-                          {finalContracts.map(c => (
-                            <button
-                              key={c.id}
-                              onClick={() => {
-                                setSelectedContractId(c.id);
-                                setIsContractSheetOpen(false);
-                              }}
-                              className={cn(
-                                "flex flex-col p-4 rounded-2xl border transition-all text-left group",
-                                selectedContractId === c.id 
-                                  ? "bg-blue-50 border-blue-200 shadow-lg shadow-blue-50" 
-                                  : "bg-white border-gray-100 hover:border-blue-100 hover:bg-blue-50/10"
-                              )}
-                            >
-                              <div className="flex justify-between items-start mb-2">
-                                <span className={cn(
-                                  "font-black text-base leading-tight transition-colors",
-                                  selectedContractId === c.id ? "text-blue-700" : "text-gray-900 group-hover:text-blue-600"
-                                )}>
-                                  {c.workName || c.client || 'Sem Nome'}
-                                </span>
-                                <span className={cn(
-                                  "text-xs font-black px-2 py-0.5 rounded-lg uppercase tracking-tighter",
-                                  selectedContractId === c.id ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-500"
-                                )}>
-                                  {c.contractNumber || 'S/N'}
-                                </span>
-                              </div>
-                              <div className="flex items-center gap-2 mt-auto">
-                                <Users2 className="w-3.5 h-3.5 text-gray-400" />
-                                <span className="text-sm text-gray-400 font-bold truncate">
-                                  {c.client || 'Sem Cliente'}
-                                </span>
-                              </div>
-                            </button>
-                          ))}
-                       </div>
-                    </div>
-                  </div>
-                </div>
-              </SheetContent>
-            </Sheet>
+            <div className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-blue-50/70 border border-blue-100 text-blue-700 text-xs font-bold">
+              <Briefcase className="w-3.5 h-3.5 text-blue-600" />
+              <span className="max-w-[140px] truncate">
+                {selectedContractId === null ? "Geral (Todas as Obras)" : (() => {
+                  const c = finalContracts.find(x => x.id === selectedContractId);
+                  return c ? `${c.workName || c.client || 'Sem Nome'}` : "Geral";
+                })()}
+              </span>
+            </div>
           )}
 
           <div className="h-8 w-[1px] bg-gray-100 mx-1" />
@@ -4545,25 +4546,67 @@ export default function App() {
                 <div className="text-left hidden lg:block mr-1">
                   <p className="leading-none text-sm">{currentUser?.name?.split(' ')[0]}</p>
                 </div>
+                <ChevronDown className="w-3.5 h-3.5 opacity-60" />
               </button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-56 p-2 rounded-2xl shadow-2xl border-gray-100">
-              <div className="flex flex-col p-3 border-b border-gray-50 mb-1">
+            <DropdownMenuContent align="end" className="w-72 p-2 rounded-2xl shadow-2xl border-gray-100 bg-white">
+              <div className="flex flex-col p-3 border-b border-gray-100 mb-1">
                 <p className="text-base font-black text-gray-900">{currentUser?.name}</p>
-                <p className="text-sm text-gray-400 font-bold uppercase truncate">{currentUser?.email}</p>
+                <p className="text-xs text-gray-400 font-bold uppercase truncate">{currentUser?.email}</p>
               </div>
+
+              {/* Seleção de Obra / Contrato */}
+              {finalContracts.length > 0 && (
+                <div className="p-2 border-b border-gray-100 mb-1 space-y-1">
+                  <p className="text-[10px] font-black uppercase text-gray-400 px-1 tracking-wider flex items-center gap-1.5">
+                    <Briefcase className="w-3 h-3 text-blue-500" />
+                    Obra / Contrato Ativo
+                  </p>
+                  
+                  <div className="max-h-52 overflow-y-auto space-y-1 custom-scrollbar">
+                    <button
+                      onClick={() => setSelectedContractId(null)}
+                      className={cn(
+                        "w-full text-left px-3 py-2 rounded-xl text-xs flex items-center justify-between transition-colors",
+                        selectedContractId === null ? "bg-blue-50 text-blue-700 font-black" : "text-gray-700 hover:bg-gray-50 font-medium"
+                      )}
+                    >
+                      <span className="truncate">Geral (Todas as Obras)</span>
+                      {selectedContractId === null && <CheckCircle2 className="w-4 h-4 text-blue-600 shrink-0" />}
+                    </button>
+
+                    {finalContracts.map(c => (
+                      <button
+                        key={c.id}
+                        onClick={() => setSelectedContractId(c.id)}
+                        className={cn(
+                          "w-full text-left px-3 py-2 rounded-xl text-xs flex items-center justify-between transition-colors",
+                          selectedContractId === c.id ? "bg-blue-50 text-blue-700 font-black" : "text-gray-700 hover:bg-gray-50 font-medium"
+                        )}
+                      >
+                        <div className="truncate pr-2">
+                          <p className="truncate font-bold">{c.workName || c.client || 'Sem Nome'}</p>
+                          {c.contractNumber && <span className="text-[9px] text-gray-400">Nº: {c.contractNumber}</span>}
+                        </div>
+                        {selectedContractId === c.id && <CheckCircle2 className="w-4 h-4 text-blue-600 shrink-0" />}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               <DropdownMenuItem onClick={() => setMainTab('profile')} className="flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer hover:bg-gray-50 text-gray-600">
                 <UserIcon className="w-4 h-4" />
-                <span className="text-base font-medium">Perfil</span>
+                <span className="text-sm font-medium">Perfil</span>
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => setMainTab('help')} className="flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer hover:bg-gray-50 text-gray-700 font-medium">
                 <HelpCircle className="w-4 h-4 text-blue-500" />
-                <span className="text-base">Ajuda</span>
+                <span className="text-sm font-medium">Ajuda</span>
               </DropdownMenuItem>
-              <DropdownMenuSeparator className="bg-gray-50 my-1" />
+              <DropdownMenuSeparator className="bg-gray-100 my-1" />
               <DropdownMenuItem onClick={handleLogout} className="flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer hover:bg-red-50 text-red-600">
                 <LogOut className="w-4 h-4" />
-                <span className="text-base font-bold">Sair</span>
+                <span className="text-sm font-bold">Sair</span>
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -4758,6 +4801,7 @@ export default function App() {
                     activeMeasureTab === 'measurements' ? 'Planilha de Medição' :
                     activeMeasureTab === 'measure' ? 'Medir' :
                     activeMeasureTab === 'controls' ? 'Controles' :
+                    activeMeasureTab === 'projeto' ? 'Projeto' :
                     activeMeasureTab === 'physical_progress' ? 'Avanço Físico' :
                     activeMeasureTab === 'rdo' ? 'Diário de Obra' :
                     activeMeasureTab === 'pluviometria' ? 'Pluviometria' :
@@ -4981,6 +5025,9 @@ export default function App() {
                   onUpdatePluviometryRecord={updatePluviometryRecord}
                   technicalSchedules={finalTechnicalSchedules}
                   onUpdateTechnicalSchedule={updateTechnicalSchedule}
+                  projectAlignments={projectAlignments}
+                  onSaveProjectAlignment={handleSaveProjectAlignment}
+                  onDeleteProjectAlignment={handleDeleteProjectAlignment}
                   onSyncAll={handleSyncAllToSupabase}
                   schedules={schedules}
                   activeSubTab={activeMeasureTab}
@@ -5008,6 +5055,10 @@ export default function App() {
                   otPerc={otPerc}
                   currentUser={currentUser!}
                   onAddWorkMovement={addWorkMovement}
+                  fieldReports={fieldReports}
+                  onApproveFieldReport={handleApproveFieldReport}
+                  onRejectFieldReport={handleRejectFieldReport}
+                  onEditFieldReport={handleUpdateFieldReport}
                 />
               )}
 
@@ -5317,6 +5368,25 @@ export default function App() {
                     handleUpdateProfile(updated);
                     addAuditLog('Edição', 'Perfil', `Perfil do usuário ${updated.username} atualizado`);
                   }} 
+                />
+              )}
+
+              {mainTab === 'mobile' && currentUser && (
+                <SyneraMobileView
+                  contracts={finalContracts}
+                  services={filteredServices}
+                  serviceProductions={serviceProductions}
+                  equipments={finalControllerEquipments}
+                  employees={employees}
+                  currentUser={currentUser}
+                  onUpdateServiceProduction={updateServiceProduction}
+                  onAddWorkMovement={addWorkMovement}
+                  onSaveDailyReport={(r) => addDailyReport(r)}
+                  fieldReports={fieldReports}
+                  onSaveFieldReport={handleSaveFieldReport}
+                  onUpdateFieldReport={handleUpdateFieldReport}
+                  selectedContractId={selectedContractId}
+                  onUpdateContractId={setSelectedContractId}
                 />
               )}
 

@@ -73,9 +73,9 @@ export interface Quotation {
   groups?: BudgetGroup[];
 }
 
-export type UserRole = 'master' | 'admin' | 'editor' | 'reader' | 'project_admin' | 'almoxarife';
+export type UserRole = 'master' | 'admin' | 'editor' | 'reader' | 'project_admin' | 'almoxarife' | 'apontador';
 
-export type AppModule = 'quotations' | 'measurements' | 'rh' | 'control' | 'purchases' | 'project_admin' | 'settings' | 'financeiro' | 'gerencia' | 'almoxarife';
+export type AppModule = 'quotations' | 'measurements' | 'rh' | 'control' | 'purchases' | 'project_admin' | 'settings' | 'financeiro' | 'gerencia' | 'almoxarife' | 'mobile';
 
 export interface Dependent {
   name: string;
@@ -224,6 +224,8 @@ export interface EmailConfig {
   smtpSecure?: boolean;
 }
 
+export type MobileSector = 'producao' | 'rh' | 'equipamentos' | 'materiais' | 'project_admin';
+
 export interface User {
   id: string;
   companyId?: string;
@@ -233,6 +235,8 @@ export interface User {
   password?: string;
   role: UserRole;
   jobFunction?: string;
+  userGroup?: 'system' | 'mobile';
+  mobileSectors?: MobileSector[];
   allowedQuotationIds?: string[];
   allowedContractIds?: string[];
   allowedModules?: AppModule[];
@@ -313,7 +317,7 @@ export interface AuditLog {
   module: string;
 }
 
-export type WorkMovementSector = 'RH' | 'ALMOXARIFE' | 'COMPRAS' | 'FINANCEIRO' | 'SALA TÉCNICA' | 'CONTROLADOR';
+export type WorkMovementSector = 'RH' | 'ALMOXARIFE' | 'COMPRAS' | 'FINANCEIRO' | 'SALA TÉCNICA' | 'CONTROLADOR' | 'APONTADOR' | 'SYNERA MOBILE';
 
 export interface WorkMovementDetail {
   collaboratorName?: string;
@@ -1106,4 +1110,34 @@ export interface WarehouseApplication {
   date: string;
   appliedBy: string;
   createdAt?: string;
+}
+
+export interface ProjectAlignmentPoint {
+  id: string;
+  station: string; // Estaca (ex: "0+000", "12+15,40")
+  km?: number;
+  lat: number;
+  lng: number;
+  easting?: number; // UTM X
+  northing?: number; // UTM Y
+  radius?: number; // Raio de curva (m)
+  deflection?: number;
+  type?: 'PI' | 'PC' | 'PT' | 'Tangente' | 'Ponto';
+  description?: string;
+  elevation?: number;
+}
+
+export interface ProjectAlignment {
+  id: string;
+  companyId?: string;
+  contractId: string;
+  contractName?: string;
+  title: string;
+  highwayCode?: string;
+  importedAt: string;
+  fileName?: string;
+  totalLengthMeters: number;
+  startStation?: string;
+  endStation?: string;
+  points: ProjectAlignmentPoint[];
 }

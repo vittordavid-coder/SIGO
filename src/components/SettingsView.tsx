@@ -6,9 +6,10 @@ import {
   User as UserIcon, Settings as SettingsIcon, Upload, Download, 
   Database, CheckCircle2, AlertCircle, Users, History, Plus, 
   Trash2, Eye, ShieldCheck, UserPlus, Search, ClipboardList, Edit, Save,
-  Star, LayoutDashboard, FileSpreadsheet, Landmark, Key, XCircle, CheckCircle
+  Star, LayoutDashboard, FileSpreadsheet, Landmark, Key, XCircle, CheckCircle,
+  Smartphone, HardHat, Wrench, FileText, Building2
 } from 'lucide-react';
-import { User, Resource, ServiceComposition, Quotation, Schedule, BDIConfig, ABCConfig, BudgetGroup, AuditLog, UserRole, Contract, Measurement, MeasurementTemplate, TemplateColumn, DashboardConfig, DashboardSection, DashboardItem, AppModule, PasswordResetRequest, EmailConfig } from '../types';
+import { User, Resource, ServiceComposition, Quotation, Schedule, BDIConfig, ABCConfig, BudgetGroup, AuditLog, UserRole, Contract, Measurement, MeasurementTemplate, TemplateColumn, DashboardConfig, DashboardSection, DashboardItem, AppModule, PasswordResetRequest, EmailConfig, MobileSector } from '../types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -32,6 +33,7 @@ import {
 } from "@/components/ui/dialog";
 
 const ALL_MODULE_OPTIONS: { id: AppModule, label: string }[] = [
+  { id: 'mobile', label: 'Synera Mobile (Campo PWA)' },
   { id: 'quotations', label: 'Cotações' },
   { id: 'measurements', label: 'Sala Técnica' },
   { id: 'rh', label: 'RH' },

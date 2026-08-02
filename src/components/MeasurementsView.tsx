@@ -80,6 +80,8 @@ import {
   EquipmentMonthlyData,
   ManpowerMonthlyData,
   Employee,
+  FieldProductionReport,
+  ProjectAlignment,
 } from "../types";
 import { formatCurrency, formatNumber, cn } from "../lib/utils";
 import { calculateServiceUnitCost } from "../lib/calculations";
@@ -91,7 +93,9 @@ import {
   TechnicalScheduleView,
 } from "./TechnicalRoomExtensions";
 import { TechnicalReportsView } from "./TechnicalReportsView";
+import { TechnicalCampoView } from "./TechnicalCampoView";
 import { PhysicalProgressView } from "./PhysicalProgressView";
+import { ProjectAlignmentView } from "./ProjectAlignmentView";
 import { ExcavatorLoader } from "./ExcavatorLoader";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -352,31 +356,42 @@ interface MeasurementsViewProps {
   onUpdateTechnicalSchedule: (s: TechnicalSchedule) => void;
   onSyncAll?: () => Promise<void>;
   schedules: any[];
+  fieldReports?: FieldProductionReport[];
+  onApproveFieldReport?: (reportId: string, approvedBy: string, editedData?: Partial<FieldProductionReport>) => void;
+  onRejectFieldReport?: (reportId: string, rejectedBy: string, reason?: string) => void;
+  onEditFieldReport?: (report: FieldProductionReport) => void;
+  projectAlignments?: ProjectAlignment[];
+  onSaveProjectAlignment?: (alignment: ProjectAlignment) => void;
+  onDeleteProjectAlignment?: (alignmentId: string) => void;
   activeSubTab:
     | "contracts"
     | "measurements"
     | "measure"
     | "controls"
+    | "projeto"
     | "physical_progress"
     | "rdo"
     | "pluviometria"
     | "schedule"
     | "teams"
     | "reports"
-    | "summary";
+    | "summary"
+    | "campo";
   onSetActiveSubTab: (
     tab:
       | "contracts"
       | "measurements"
       | "measure"
       | "controls"
+      | "projeto"
       | "physical_progress"
       | "rdo"
       | "pluviometria"
       | "schedule"
       | "teams"
       | "reports"
-      | "summary",
+      | "summary"
+      | "campo",
   ) => void;
   selectedContractId: string | null;
   onSetSelectedContractId: (id: string | null) => void;
@@ -446,6 +461,10 @@ export function MeasurementsView({
   onUpdateTechnicalSchedule,
   onSyncAll,
   schedules,
+  fieldReports = [],
+  onApproveFieldReport = () => {},
+  onRejectFieldReport = () => {},
+  onEditFieldReport = () => {},
   activeSubTab,
   onSetActiveSubTab,
   selectedContractId,
@@ -471,6 +490,9 @@ export function MeasurementsView({
   otPerc,
   currentUser,
   onAddWorkMovement,
+  projectAlignments = [],
+  onSaveProjectAlignment,
+  onDeleteProjectAlignment,
 }: MeasurementsViewProps) {
   const [activeMeasureType, setActiveMeasureType] = useState<
     "services" | "cubacao" | "transport" | null
@@ -2192,6 +2214,15 @@ export function MeasurementsView({
               />
             )}
 
+            {activeSubTab === "projeto" && selectedContract && (
+              <ProjectAlignmentView
+                contract={selectedContract}
+                projectAlignments={projectAlignments}
+                onSaveProjectAlignment={onSaveProjectAlignment}
+                onDeleteProjectAlignment={onDeleteProjectAlignment}
+              />
+            )}
+
             {activeSubTab === "physical_progress" && selectedContract && (
               <PhysicalProgressView
                 contract={selectedContract}
@@ -2341,6 +2372,24 @@ export function MeasurementsView({
                   equipmentMonthly={equipmentMonthly}
                   chargesPerc={resolvedChargesPerc}
                   otPerc={resolvedOtPerc}
+                />
+              </motion.div>
+            )}
+
+            {activeSubTab === "campo" && selectedContract && (
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+              >
+                <TechnicalCampoView
+                  contract={selectedContract}
+                  fieldReports={fieldReports}
+                  services={services}
+                  serviceProductions={serviceProductions}
+                  onApproveReport={onApproveFieldReport}
+                  onRejectReport={onRejectFieldReport}
+                  onEditReport={onEditFieldReport}
                 />
               </motion.div>
             )}

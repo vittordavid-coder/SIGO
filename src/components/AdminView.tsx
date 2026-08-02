@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { motion } from 'motion/react';
 import { isPast, format } from 'date-fns';
-import { Users, History, Plus, Trash2, Eye, ShieldCheck, UserPlus, Search, Database, Download, FileCode, Printer, Link, Server, Settings, Globe, AlertCircle, Building2, ChevronDown, ChevronRight, Key, Activity, CheckCircle2, XCircle, Loader2, Landmark, Percent, Clock } from 'lucide-react';
+import { Users, History, Plus, Trash2, Eye, ShieldCheck, UserPlus, Search, Database, Download, FileCode, Printer, Link, Server, Settings, Globe, AlertCircle, Building2, ChevronDown, ChevronRight, Key, Activity, CheckCircle2, XCircle, Loader2, Landmark, Percent, Clock, Smartphone, HardHat, Wrench, FileText, LayoutDashboard } from 'lucide-react';
 import { 
   User, Quotation, AuditLog, UserRole, Resource, ServiceComposition, Contract, Measurement, 
   HighwayLocation, StationGroup, CubationData, TransportData, CalculationMemory, 
@@ -9,10 +9,11 @@ import {
   TechnicalSchedule, Employee, TimeRecord, Schedule,
   ControllerTeam, ControllerEquipment, EquipmentMonthlyData, ControllerManpower,
   ManpowerMonthlyData, TeamAssignment, MarketingConfig, ModulePrice, SystemPlan, PasswordResetRequest,
-  ABCConfig, BDIConfig
+  ABCConfig, BDIConfig, MobileSector
 } from '../types';
 
 const ALL_MODULE_OPTIONS: { id: AppModule, label: string }[] = [
+  { id: 'mobile', label: 'Synera Mobile (Campo PWA)' },
   { id: 'quotations', label: 'Cotações' },
   { id: 'measurements', label: 'Sala Técnica' },
   { id: 'rh', label: 'RH' },
@@ -324,6 +325,9 @@ export function AdminView({
     companyId: '',
     companyName: '',
     jobFunction: '',
+    userGroup: 'system' as 'system' | 'mobile',
+    mobileSectors: ['producao', 'rh', 'equipamentos', 'materiais', 'project_admin'] as MobileSector[],
+    assignedContractId: '',
     allowedModules: [] as AppModule[],
     keys: 5,
     keysExpiresAt: ''
@@ -998,13 +1002,19 @@ export function AdminView({
 
     const hashedPassword = await hashPassword(newUser.pass);
 
+    const isMobileGroup = newUser.userGroup === 'mobile';
+
     const created: User = {
       id: crypto.randomUUID(),
-      role: newUser.role,
+      role: isMobileGroup ? 'apontador' : newUser.role,
+      userGroup: newUser.userGroup,
+      mobileSectors: isMobileGroup 
+        ? (newUser.mobileSectors.length > 0 ? newUser.mobileSectors : ['producao', 'rh', 'equipamentos', 'materiais', 'project_admin'])
+        : undefined,
       name: newUser.name,
       username: newUser.username,
       password: hashedPassword,
-      jobFunction: newUser.jobFunction,
+      jobFunction: isMobileGroup ? (newUser.jobFunction || 'Apontador de Campo') : newUser.jobFunction,
       companyId: currentUser.role === 'master' && (newUser.role === 'admin' || newUser.companyId === 'NEW') 
         ? crypto.randomUUID() 
         : (currentUser.role === 'master' ? newUser.companyId : currentUser.companyId),
@@ -1014,8 +1024,8 @@ export function AdminView({
             ? companies.find(c => c[0] === newUser.companyId)?.[1] || newUser.companyName 
             : currentUser.companyName),
       allowedQuotationIds: [],
-      allowedContractIds: [],
-      allowedModules: newUser.allowedModules,
+      allowedContractIds: isMobileGroup ? (newUser.assignedContractId ? [newUser.assignedContractId] : []) : [],
+      allowedModules: isMobileGroup ? ['mobile'] : newUser.allowedModules,
       keys: newUser.role === 'admin' ? newUser.keys : undefined,
       keysExpiresAt: newUser.role === 'admin' ? newUser.keysExpiresAt : undefined,
       isApproved: true,
@@ -1053,7 +1063,7 @@ export function AdminView({
        alert('Usuário criado com sucesso (modo local)!');
     }
 
-    setNewUser({ name: '', username: '', pass: '', role: 'editor', companyId: '', companyName: '', jobFunction: '', allowedModules: [], keys: 5, keysExpiresAt: '' });
+    setNewUser({ name: '', username: '', pass: '', role: 'editor', companyId: '', companyName: '', jobFunction: '', userGroup: 'system', mobileSectors: ['producao', 'rh', 'equipamentos', 'materiais', 'project_admin'], assignedContractId: '', allowedModules: [], keys: 5, keysExpiresAt: '' });
   };
 
   // Helper for snake_case mapping
@@ -1135,13 +1145,59 @@ export function AdminView({
                 <CardDescription>Crie novas contas para sua equipe.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
+                {/* Grupo de Usuário Selector */}
+                <div className="space-y-2">
+                  <Label className="text-xs font-black uppercase text-slate-500 tracking-wider block">Grupo do Colaborador</Label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setNewUser({ ...newUser, userGroup: 'system', role: 'editor', allowedModules: [] })}
+                      className={cn(
+                        "p-3 rounded-xl border text-left flex flex-col justify-between transition-all",
+                        newUser.userGroup === 'system'
+                          ? "border-blue-600 bg-blue-50/70 ring-2 ring-blue-600/20 text-blue-900 font-bold"
+                          : "border-slate-200 hover:border-slate-300 text-slate-600 bg-white"
+                      )}
+                    >
+                      <div className="flex items-center gap-1.5 mb-1">
+                        <LayoutDashboard className="w-4 h-4 text-blue-600 shrink-0" />
+                        <span className="text-xs font-black">Usuário do Sistema</span>
+                      </div>
+                      <span className="text-[10px] text-slate-500 font-normal leading-tight">Acesso aos módulos ERP do computador</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setNewUser({ 
+                        ...newUser, 
+                        userGroup: 'mobile', 
+                        role: 'apontador', 
+                        allowedModules: ['mobile'],
+                        assignedContractId: newUser.assignedContractId || contracts[0]?.id || ''
+                      })}
+                      className={cn(
+                        "p-3 rounded-xl border text-left flex flex-col justify-between transition-all",
+                        newUser.userGroup === 'mobile'
+                          ? "border-emerald-600 bg-emerald-50/70 ring-2 ring-emerald-600/20 text-emerald-900 font-bold"
+                          : "border-slate-200 hover:border-slate-300 text-slate-600 bg-white"
+                      )}
+                    >
+                      <div className="flex items-center gap-1.5 mb-1">
+                        <Smartphone className="w-4 h-4 text-emerald-600 shrink-0" />
+                        <span className="text-xs font-black">Synera Mobile</span>
+                      </div>
+                      <span className="text-[10px] text-slate-500 font-normal leading-tight">Acesso exclusivo ao app de campo PWA</span>
+                    </button>
+                  </div>
+                </div>
+
                 <div className="space-y-2">
                   <Label>Nome Completo</Label>
                   <Input value={newUser.name} onChange={e => setNewUser({...newUser, name: e.target.value})} placeholder="João Silva" />
                 </div>
                 <div className="space-y-2">
                   <Label>Função / Cargo</Label>
-                  <Input value={newUser.jobFunction} onChange={e => setNewUser({...newUser, jobFunction: e.target.value})} placeholder="Ex: Engenheiro de Obra" />
+                  <Input value={newUser.jobFunction} onChange={e => setNewUser({...newUser, jobFunction: e.target.value})} placeholder={newUser.userGroup === 'mobile' ? "Ex: Apontador de Obra" : "Ex: Engenheiro de Obra"} />
                 </div>
                 <div className="space-y-2">
                   <Label>Usuário (Login)</Label>
@@ -1151,21 +1207,99 @@ export function AdminView({
                   <Label>Senha inicial</Label>
                   <Input type="password" value={newUser.pass} onChange={e => setNewUser({...newUser, pass: e.target.value})} placeholder="••••••" />
                 </div>
-                <div className="space-y-2">
-                  <Label>Nível de Acesso</Label>
-                  <Select value={newUser.role} onValueChange={(r: UserRole) => setNewUser({...newUser, role: r})}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {currentUser.role === 'master' && <SelectItem value="master">Admin Master</SelectItem>}
-                      {currentUser.role === 'master' && <SelectItem value="admin">Administrador (Empresa)</SelectItem>}
-                      <SelectItem value="editor">Editor</SelectItem>
-                      <SelectItem value="project_admin">Administrador da Obra</SelectItem>
-                      <SelectItem value="reader">Leitor</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+
+                {newUser.userGroup === 'system' ? (
+                  <div className="space-y-2">
+                    <Label>Nível de Acesso</Label>
+                    <Select value={newUser.role} onValueChange={(r: UserRole) => setNewUser({...newUser, role: r})}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {currentUser.role === 'master' && <SelectItem value="master">Admin Master</SelectItem>}
+                        {currentUser.role === 'master' && <SelectItem value="admin">Administrador (Empresa)</SelectItem>}
+                        <SelectItem value="editor">Editor</SelectItem>
+                        <SelectItem value="project_admin">Administrador da Obra</SelectItem>
+                        <SelectItem value="reader">Leitor</SelectItem>
+                        <SelectItem value="almoxarife">Almoxarife</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                ) : (
+                  <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-xl flex items-center gap-2">
+                    <Smartphone className="w-4 h-4 text-emerald-600 shrink-0" />
+                    <div className="text-xs font-bold text-emerald-800">
+                      <span>Nível: Apontador Synera Mobile</span>
+                      <span className="block text-[10px] font-normal text-emerald-700">Acesso exclusivo e restrito ao módulo mobile.</span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Single Contract Link for Mobile User */}
+                {newUser.userGroup === 'mobile' && (
+                  <div className="space-y-2 bg-emerald-50/50 p-3.5 rounded-xl border border-emerald-100">
+                    <div className="flex items-center gap-1.5 text-emerald-900">
+                      <Building2 className="w-4 h-4 text-emerald-600" />
+                      <Label className="font-extrabold text-xs">Obra Vinculada (Exclusiva)</Label>
+                    </div>
+                    <Select 
+                      value={newUser.assignedContractId} 
+                      onValueChange={(id) => setNewUser({ ...newUser, assignedContractId: id })}
+                    >
+                      <SelectTrigger className="bg-white border-emerald-200 text-xs font-bold">
+                        <SelectValue placeholder="Selecione a obra vinculada..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {contracts.map(c => (
+                          <SelectItem key={c.id} value={c.id} className="text-xs font-bold">
+                            {c.contractNumber ? `[${c.contractNumber}] ` : ''}{c.workName || c.name || c.client}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-[10px] text-emerald-700 font-medium">
+                      * O usuário do Synera Mobile é vinculado a <strong>uma única obra</strong> e não poderá alternar entre obras no app.
+                    </p>
+                  </div>
+                )}
+
+                {/* Mobile Sectors Checkboxes */}
+                {newUser.userGroup === 'mobile' && (
+                  <div className="space-y-2 bg-slate-50 p-3.5 rounded-xl border border-slate-200/80">
+                    <Label className="text-xs font-black uppercase tracking-wider text-slate-600 block">
+                      Setores de Atuação no Synera Mobile
+                    </Label>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                      {[
+                        { id: 'producao', label: 'Produção', desc: 'Vinculado à Sala Técnica', icon: <HardHat className="w-3.5 h-3.5 text-blue-600" /> },
+                        { id: 'rh', label: 'RH', desc: 'Vinculado ao RH', icon: <Users className="w-3.5 h-3.5 text-indigo-600" /> },
+                        { id: 'equipamentos', label: 'Equipamentos', desc: 'Vinculado ao Controlador', icon: <Wrench className="w-3.5 h-3.5 text-amber-600" /> },
+                        { id: 'materiais', label: 'Materiais', desc: 'Vinculado ao Almoxarife', icon: <FileText className="w-3.5 h-3.5 text-emerald-600" /> },
+                        { id: 'project_admin', label: 'Administrador da Obra', desc: 'Vinculado ao Admin da Obra', icon: <ShieldCheck className="w-3.5 h-3.5 text-purple-600" /> }
+                      ].map(sector => (
+                        <label 
+                          key={sector.id} 
+                          className="flex items-start gap-2.5 p-2.5 bg-white border rounded-xl cursor-pointer hover:bg-slate-50 text-xs font-bold text-slate-700 transition-colors"
+                        >
+                          <Checkbox 
+                            checked={newUser.mobileSectors.includes(sector.id as MobileSector)}
+                            onCheckedChange={(checked) => {
+                              const next = checked 
+                                ? [...newUser.mobileSectors, sector.id as MobileSector]
+                                : newUser.mobileSectors.filter(s => s !== sector.id);
+                              setNewUser({ ...newUser, mobileSectors: next });
+                            }}
+                            className="mt-0.5"
+                          />
+                          <div>
+                            <span className="flex items-center gap-1.5 font-bold text-slate-800">{sector.icon} {sector.label}</span>
+                            <span className="block text-[10px] font-normal text-slate-500">{sector.desc}</span>
+                          </div>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 {currentUser.role === 'master' && (
                   <div className="space-y-2">
@@ -1211,7 +1345,7 @@ export function AdminView({
                   </div>
                 )}
 
-                {(newUser.role === 'editor' || newUser.role === 'reader' || (newUser.role === 'admin' && currentUser.role === 'master')) && (
+                {newUser.userGroup === 'system' && (newUser.role === 'editor' || newUser.role === 'reader' || (newUser.role === 'admin' && currentUser.role === 'master')) && (
                   <div className="space-y-3 pt-2">
                     <Label className="text-sm text-gray-400 uppercase tracking-wider font-bold">Módulos que pode acessar</Label>
                     <div className="grid grid-cols-2 gap-2">
