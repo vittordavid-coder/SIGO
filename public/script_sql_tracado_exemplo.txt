@@ -1,0 +1,74 @@
+-- =========================================================
+-- SCRIPT SQL DE ATUALIZAÇÃO E SINCRONIZAÇÃO DO PROJETO DE TRAÇADO
+-- Sistema SYNERA ERP / Sala Técnica
+-- Data: 2026-08-03
+-- =========================================================
+
+-- 1. Tabela Principal de Traçados
+CREATE TABLE IF NOT EXISTS project_alignments (
+    id VARCHAR(255) PRIMARY KEY,
+    contract_id VARCHAR(255) NOT NULL,
+    contract_name VARCHAR(255),
+    title VARCHAR(255) NOT NULL,
+    highway_code VARCHAR(100),
+    file_name VARCHAR(255),
+    total_length_meters NUMERIC(12, 2) DEFAULT 0,
+    start_station VARCHAR(50),
+    end_station VARCHAR(50),
+    coordinate_type VARCHAR(20) DEFAULT 'UTM',
+    utm_zone INT DEFAULT 23,
+    datum VARCHAR(50) DEFAULT 'SIRGAS 2000',
+    imported_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 2. Tabela de Pontos e Vértices da Geometria do Traçado (Horizontal e Vertical)
+CREATE TABLE IF NOT EXISTS project_alignment_points (
+    id VARCHAR(255) PRIMARY KEY,
+    alignment_id VARCHAR(255) NOT NULL REFERENCES project_alignments(id) ON DELETE CASCADE,
+    sequence_order INT NOT NULL,
+    station VARCHAR(50) NOT NULL,
+    latitude NUMERIC(12, 8) NOT NULL,
+    longitude NUMERIC(12, 8) NOT NULL,
+    easting_utm NUMERIC(12, 3),
+    northing_utm NUMERIC(12, 3),
+    radius_meters NUMERIC(10, 2) DEFAULT 0,
+    deflection_deg NUMERIC(8, 4),
+    element_type VARCHAR(50) DEFAULT 'PI',
+    description TEXT,
+    elevation_meters NUMERIC(10, 3),
+    complementary_info TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 3. Tabela de Alfinetes e Ocorrências no Traçado
+CREATE TABLE IF NOT EXISTS project_pins (
+    id VARCHAR(255) PRIMARY KEY,
+    contract_id VARCHAR(255) NOT NULL,
+    alignment_id VARCHAR(255) REFERENCES project_alignments(id) ON DELETE SET NULL,
+    title VARCHAR(255) NOT NULL,
+    category VARCHAR(50) NOT NULL,
+    color VARCHAR(30) DEFAULT 'red',
+    latitude NUMERIC(12, 8) NOT NULL,
+    longitude NUMERIC(12, 8) NOT NULL,
+    station VARCHAR(50),
+    notes TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 4. Tabela de Medições e Réguas do Traçado
+CREATE TABLE IF NOT EXISTS project_measurements (
+    id VARCHAR(255) PRIMARY KEY,
+    contract_id VARCHAR(255) NOT NULL,
+    alignment_id VARCHAR(255) REFERENCES project_alignments(id) ON DELETE SET NULL,
+    title VARCHAR(255) NOT NULL,
+    total_distance_meters NUMERIC(12, 2) NOT NULL,
+    points_json JSONB NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 5. Índices de Desempenho
+CREATE INDEX IF NOT EXISTS idx_alignment_contract ON project_alignments(contract_id);
+CREATE INDEX IF NOT EXISTS idx_alignment_points_alignment ON project_alignment_points(alignment_id);
+CREATE INDEX IF NOT EXISTS idx_pins_contract ON project_pins(contract_id);
+CREATE INDEX IF NOT EXISTS idx_measurements_contract ON project_measurements(contract_id);

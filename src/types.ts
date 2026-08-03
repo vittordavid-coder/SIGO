@@ -1122,9 +1122,10 @@ export interface ProjectAlignmentPoint {
   northing?: number; // UTM Y
   radius?: number; // Raio de curva (m)
   deflection?: number;
-  type?: 'PI' | 'PC' | 'PT' | 'Tangente' | 'Ponto';
+  type?: string;
   description?: string;
-  elevation?: number;
+  elevation?: number; // Cota / Elevação
+  complementaryInfo?: string; // Informações Complementares
 }
 
 export interface ProjectPin {

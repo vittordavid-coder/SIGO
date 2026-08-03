@@ -160,6 +160,300 @@ function haversineDistance(lat1: number, lon1: number, lat2: number, lon2: numbe
   return R * c;
 }
 
+// Map Bounds Fitter & Interactive Zoom Control Helper
+function MapController({ 
+  selectedPoint, 
+  points,
+  zoomTrigger
+}: { 
+  selectedPoint: ProjectAlignmentPoint | null; 
+  points: ProjectAlignmentPoint[];
+  zoomTrigger: { type: 'in' | 'out' | 'fit' | 'selected'; id: number } | null;
+}) {
+  const map = useMap();
+
+  // Initial bounds fit
+  useEffect(() => {
+    if (!points || points.length === 0) return;
+    const bounds = L.latLngBounds(points.map(p => [p.lat, p.lng]));
+    if (bounds.isValid()) {
+      map.fitBounds(bounds, { padding: [50, 50], maxZoom: 16 });
+    }
+  }, [map, points]);
+
+  // Selected point fly-to
+  useEffect(() => {
+    if (selectedPoint) {
+      map.flyTo([selectedPoint.lat, selectedPoint.lng], Math.max(map.getZoom(), 17), { duration: 1 });
+    }
+  }, [selectedPoint, map]);
+
+  // Interactive zoom triggers
+  useEffect(() => {
+    if (!zoomTrigger) return;
+    if (zoomTrigger.type === 'in') {
+      map.zoomIn();
+    } else if (zoomTrigger.type === 'out') {
+      map.zoomOut();
+    } else if (zoomTrigger.type === 'fit') {
+      if (points && points.length > 0) {
+        const bounds = L.latLngBounds(points.map(p => [p.lat, p.lng]));
+        if (bounds.isValid()) {
+          map.fitBounds(bounds, { padding: [50, 50], maxZoom: 16 });
+        }
+      }
+    } else if (zoomTrigger.type === 'selected' && selectedPoint) {
+      map.flyTo([selectedPoint.lat, selectedPoint.lng], 18, { duration: 1 });
+    }
+  }, [zoomTrigger, map, points, selectedPoint]);
+
+  return null;
+}
+
+// VERTICAL PROFILE (PERFIL VERTICAL DO TRAÇADO CONFORME AS NORMAS)
+function VerticalProfileChart({
+  points,
+  selectedPointId,
+  onSelectPoint
+}: {
+  points: ProjectAlignmentPoint[];
+  selectedPointId: string | null;
+  onSelectPoint: (point: ProjectAlignmentPoint) => void;
+}) {
+  const profilePointsWithElev = useMemo(() => {
+    let currentDist = 0;
+    return points.map((p, idx) => {
+      if (idx > 0) {
+        const prev = points[idx - 1];
+        const distM = haversineDistance(prev.lat, prev.lng, p.lat, p.lng);
+        currentDist += distM;
+      }
+      return {
+        point: p,
+        cumulativeDistMeters: currentDist,
+        elevation: p.elevation !== undefined && !isNaN(p.elevation) ? p.elevation : null
+      };
+    }).filter(p => p.elevation !== null) as { point: ProjectAlignmentPoint; cumulativeDistMeters: number; elevation: number }[];
+  }, [points]);
+
+  if (profilePointsWithElev.length < 2) {
+    return (
+      <div className="bg-slate-900 rounded-[28px] border border-slate-800 p-8 text-center space-y-3">
+        <div className="w-12 h-12 rounded-2xl bg-slate-800 text-slate-400 flex items-center justify-center mx-auto">
+          <TrendingUp className="w-6 h-6" />
+        </div>
+        <h4 className="text-sm font-black text-white">Perfil Vertical / Altimétrico</h4>
+        <p className="text-xs text-slate-400 max-w-md mx-auto">
+          Se o arquivo importado mantiver a coluna de <strong>COTA</strong> (elevação em metros), o perfil vertical é gerado automaticamente aqui.
+        </p>
+      </div>
+    );
+  }
+
+  const minElev = Math.min(...profilePointsWithElev.map(p => p.elevation));
+  const maxElev = Math.max(...profilePointsWithElev.map(p => p.elevation));
+  const totalLength = profilePointsWithElev[profilePointsWithElev.length - 1].cumulativeDistMeters;
+
+  const svgWidth = 900;
+  const svgHeight = 260;
+  const padding = { top: 35, right: 40, bottom: 50, left: 65 };
+  const graphWidth = svgWidth - padding.left - padding.right;
+  const graphHeight = svgHeight - padding.top - padding.bottom;
+
+  const elevRange = Math.max(maxElev - minElev, 1);
+  const yPadding = elevRange * 0.15;
+  const yMin = minElev - yPadding;
+  const yMax = maxElev + yPadding;
+
+  const getX = (dist: number) => padding.left + (dist / (totalLength || 1)) * graphWidth;
+  const getY = (elev: number) => padding.top + graphHeight - ((elev - yMin) / ((yMax - yMin) || 1)) * graphHeight;
+
+  const linePath = profilePointsWithElev.reduce((acc, p, i) => {
+    const x = getX(p.cumulativeDistMeters);
+    const y = getY(p.elevation);
+    return i === 0 ? `M ${x} ${y}` : `${acc} L ${x} ${y}`;
+  }, '');
+
+  const areaPath = `${linePath} L ${getX(totalLength)} ${padding.top + graphHeight} L ${padding.left} ${padding.top + graphHeight} Z`;
+
+  const selectedProfilePt = profilePointsWithElev.find(p => p.point.id === selectedPointId);
+
+  return (
+    <div className="bg-slate-950 rounded-[32px] border border-slate-800 p-6 shadow-2xl space-y-4 relative overflow-hidden">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800/80 pb-4">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-2xl bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
+            <TrendingUp className="w-5 h-5" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h3 className="text-base font-black text-white">Perfil Altimétrico / Vertical do Traçado</h3>
+              <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 text-[10px] font-bold uppercase tracking-wider">
+                {profilePointsWithElev.length} Cotas Registradas
+              </span>
+            </div>
+            <p className="text-xs text-slate-400">Desenho altimétrico contínuo das estacas conforme normas de engenharia rodoviária</p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-4 text-xs font-bold text-slate-300 bg-slate-900 px-4 py-2 rounded-2xl border border-slate-800">
+          <div>Cota Mín: <strong className="text-emerald-400 font-black">{minElev.toFixed(2)} m</strong></div>
+          <div className="w-px h-4 bg-slate-800" />
+          <div>Cota Máx: <strong className="text-blue-400 font-black">{maxElev.toFixed(2)} m</strong></div>
+          <div className="w-px h-4 bg-slate-800" />
+          <div>Desnível Total: <strong className="text-purple-400 font-black">{(maxElev - minElev).toFixed(2)} m</strong></div>
+        </div>
+      </div>
+
+      <div className="relative overflow-x-auto custom-scrollbar">
+        <svg viewBox={`0 0 ${svgWidth} ${svgHeight}`} className="w-full h-auto min-w-[700px] select-none">
+          <defs>
+            <linearGradient id="profileAreaGrad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#10b981" stopOpacity="0.35" />
+              <stop offset="100%" stopColor="#06b6d4" stopOpacity="0.02" />
+            </linearGradient>
+            <linearGradient id="profileLineGrad" x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0%" stopColor="#10b981" />
+              <stop offset="50%" stopColor="#3b82f6" />
+              <stop offset="100%" stopColor="#8b5cf6" />
+            </linearGradient>
+          </defs>
+
+          {[0, 0.25, 0.5, 0.75, 1].map((ratio, i) => {
+            const elevVal = yMin + ratio * (yMax - yMin);
+            const yPos = getY(elevVal);
+            return (
+              <g key={i}>
+                <line
+                  x1={padding.left}
+                  y1={yPos}
+                  x2={padding.left + graphWidth}
+                  y2={yPos}
+                  stroke="#334155"
+                  strokeWidth="1"
+                  strokeDasharray="4 4"
+                />
+                <text
+                  x={padding.left - 10}
+                  y={yPos + 4}
+                  fill="#94a3b8"
+                  fontSize="10"
+                  fontWeight="bold"
+                  textAnchor="end"
+                  fontFamily="sans-serif"
+                >
+                  {elevVal.toFixed(1)} m
+                </text>
+              </g>
+            );
+          })}
+
+          {[0, 0.25, 0.5, 0.75, 1].map((ratio, i) => {
+            const distVal = ratio * totalLength;
+            const xPos = getX(distVal);
+            return (
+              <g key={`x-${i}`}>
+                <line
+                  x1={xPos}
+                  y1={padding.top}
+                  x2={xPos}
+                  y2={padding.top + graphHeight}
+                  stroke="#334155"
+                  strokeWidth="1"
+                  strokeDasharray="4 4"
+                />
+                <text
+                  x={xPos}
+                  y={padding.top + graphHeight + 18}
+                  fill="#94a3b8"
+                  fontSize="10"
+                  fontWeight="bold"
+                  textAnchor="middle"
+                  fontFamily="sans-serif"
+                >
+                  {(distVal / 1000).toFixed(2)} km
+                </text>
+              </g>
+            );
+          })}
+
+          <path d={areaPath} fill="url(#profileAreaGrad)" />
+          <path d={linePath} fill="none" stroke="url(#profileLineGrad)" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+
+          {profilePointsWithElev.map((p) => {
+            const x = getX(p.cumulativeDistMeters);
+            const y = getY(p.elevation);
+            const isSelected = p.point.id === selectedPointId;
+
+            return (
+              <g key={p.point.id} className="cursor-pointer group" onClick={() => onSelectPoint(p.point)}>
+                <circle
+                  cx={x}
+                  cy={y}
+                  r={isSelected ? 7 : 4}
+                  fill={isSelected ? '#ef4444' : '#10b981'}
+                  stroke="#ffffff"
+                  strokeWidth={isSelected ? 3 : 1.5}
+                />
+                {isSelected && (
+                  <circle
+                    cx={x}
+                    cy={y}
+                    r={14}
+                    fill="none"
+                    stroke="#ef4444"
+                    strokeWidth="2"
+                    className="animate-ping opacity-75"
+                  />
+                )}
+              </g>
+            );
+          })}
+
+          {selectedProfilePt && (
+            <g>
+              <line
+                x1={getX(selectedProfilePt.cumulativeDistMeters)}
+                y1={padding.top}
+                x2={getX(selectedProfilePt.cumulativeDistMeters)}
+                y2={padding.top + graphHeight}
+                stroke="#ef4444"
+                strokeWidth="2"
+                strokeDasharray="3 3"
+              />
+              <rect
+                x={Math.min(Math.max(getX(selectedProfilePt.cumulativeDistMeters) - 60, padding.left), svgWidth - 130)}
+                y={padding.top - 25}
+                width="120"
+                height="22"
+                rx="6"
+                fill="#1e293b"
+                stroke="#ef4444"
+                strokeWidth="1.5"
+              />
+              <text
+                x={Math.min(Math.max(getX(selectedProfilePt.cumulativeDistMeters) - 60, padding.left) + 60, svgWidth - 70)}
+                y={padding.top - 10}
+                fill="#ffffff"
+                fontSize="10"
+                fontWeight="black"
+                textAnchor="middle"
+              >
+                Estaca {selectedProfilePt.point.station} • {selectedProfilePt.elevation.toFixed(2)} m
+              </text>
+            </g>
+          )}
+        </svg>
+      </div>
+
+      <div className="flex items-center justify-between text-[11px] text-slate-400 font-medium pt-1">
+        <span>Clique em qualquer ponto do gráfico para destacar e focar a estaca correspondente no mapa horizontal e na tabela.</span>
+        <span className="text-emerald-400 font-bold">Escala Altimétrica Ampliada (Exagero Vertical Controlado)</span>
+      </div>
+    </div>
+  );
+}
+
 interface ProjectAlignmentViewProps {
   contract: Contract;
   projectAlignments?: ProjectAlignment[];
@@ -187,6 +481,15 @@ export function ProjectAlignmentView({
   const [showSqlModal, setShowSqlModal] = useState<boolean>(false);
   const [sqlCopied, setSqlCopied] = useState<boolean>(false);
   const [isMapExpanded, setIsMapExpanded] = useState<boolean>(false);
+
+  // Cross-highlighting & Zoom State
+  const [selectedPointId, setSelectedPointId] = useState<string | null>(null);
+  const [zoomTrigger, setZoomTrigger] = useState<{ type: 'in' | 'out' | 'fit' | 'selected'; id: number } | null>(null);
+
+  const selectedPoint = useMemo(() => {
+    if (!currentAlignment || !selectedPointId) return null;
+    return currentAlignment.points.find(p => p.id === selectedPointId) || null;
+  }, [currentAlignment, selectedPointId]);
 
   // Visual Importer Modal State (rh-like multi step)
   const [showImportModal, setShowImportModal] = useState<boolean>(false);
@@ -385,20 +688,32 @@ export function ProjectAlignmentView({
         setRawExcelRows(rawData);
 
         // Auto-detect columns
-        const autoMap = { station: '', lat: '', lng: '', utmx: '', utmy: '', radius: '', type: '', desc: '', elevation: '' };
+        const autoMap = { station: '', lat: '', lng: '', utmx: '', utmy: '', radius: '', type: '', desc: '', elevation: '', complementaryInfo: '' };
+        let detectedUtm = false;
+
         headers.forEach(h => {
           const lower = h.toLowerCase().replace(/[^a-z0-9]/g, '');
-          if (['estaca', 'station', 'st', 'km'].some(k => lower.includes(k)) && !autoMap.station) autoMap.station = h;
-          if (['latitude', 'lat', 'y', 'norte'].some(k => lower.includes(k)) && !autoMap.lat && !lower.includes('utm')) autoMap.lat = h;
-          if (['longitude', 'lng', 'lon', 'x', 'leste'].some(k => lower.includes(k)) && !autoMap.lng && !lower.includes('utm')) autoMap.lng = h;
-          if (['utmx', 'easting', 'leste'].some(k => lower.includes(k)) && !autoMap.utmx) autoMap.utmx = h;
-          if (['utmy', 'northing', 'norte'].some(k => lower.includes(k)) && !autoMap.utmy) autoMap.utmy = h;
+          if (['estaca', 'station', 'st', 'km', 'estacamento'].some(k => lower.includes(k)) && !autoMap.station) autoMap.station = h;
+          
+          if (['norte', 'northing', 'utmy'].some(k => lower.includes(k)) && !autoMap.utmy) {
+            autoMap.utmy = h;
+            detectedUtm = true;
+          }
+          if (['este', 'leste', 'easting', 'utmx'].some(k => lower.includes(k)) && !autoMap.utmx) {
+            autoMap.utmx = h;
+            detectedUtm = true;
+          }
+          if (['latitude', 'lat'].some(k => lower.includes(k)) && !autoMap.lat && !lower.includes('utm') && !lower.includes('norte')) autoMap.lat = h;
+          if (['longitude', 'lng', 'lon'].some(k => lower.includes(k)) && !autoMap.lng && !lower.includes('utm') && !lower.includes('este') && !lower.includes('leste')) autoMap.lng = h;
+          
           if (['raio', 'radius', 'r'].some(k => lower.includes(k)) && !autoMap.radius) autoMap.radius = h;
           if (['tipo', 'type', 'elemento'].some(k => lower.includes(k)) && !autoMap.type) autoMap.type = h;
-          if (['desc', 'descricao', 'obs'].some(k => lower.includes(k)) && !autoMap.desc) autoMap.desc = h;
-          if (['cota', 'elevacao', 'z', 'alt'].some(k => lower.includes(k)) && !autoMap.elevation) autoMap.elevation = h;
+          if (['info', 'complementar', 'complemento'].some(k => lower.includes(k)) && !autoMap.complementaryInfo) autoMap.complementaryInfo = h;
+          if (['desc', 'descricao', 'obs', 'observacao', 'notas'].some(k => lower.includes(k)) && !autoMap.desc) autoMap.desc = h;
+          if (['cota', 'elevacao', 'z', 'alt', 'altitude'].some(k => lower.includes(k)) && !autoMap.elevation) autoMap.elevation = h;
         });
 
+        if (detectedUtm) setCoordinateType('UTM');
         setColumnMapping(autoMap);
         setImportStep(2); // Move to Column Mapping Step
       } catch (err: any) {
@@ -413,6 +728,37 @@ export function ProjectAlignmentView({
     setImportError(null);
     const parsedPoints: ProjectAlignmentPoint[] = [];
 
+    // Robust PT-BR Decimal Formatting Helper
+    const parsePtBrFloat = (val: any): number => {
+      if (val === undefined || val === null || val === '') return NaN;
+      if (typeof val === 'number') return isFinite(val) ? val : NaN;
+      
+      let str = String(val).trim().replace(/\s+/g, '');
+      if (!str) return NaN;
+
+      const lastDot = str.lastIndexOf('.');
+      const lastComma = str.lastIndexOf(',');
+
+      if (lastDot !== -1 && lastComma !== -1) {
+        if (lastComma > lastDot) {
+          str = str.replace(/\./g, '').replace(',', '.');
+        } else {
+          str = str.replace(/,/g, '');
+        }
+      } else if (lastComma !== -1) {
+        str = str.replace(',', '.');
+      } else if (lastDot !== -1) {
+        const dotCount = (str.match(/\./g) || []).length;
+        if (dotCount > 1) {
+          str = str.replace(/\./g, '');
+        }
+      }
+
+      const match = str.match(/[-+]?[0-9]*\.?[0-9]+/);
+      if (!match) return NaN;
+      return parseFloat(match[0]);
+    };
+
     rawExcelRows.forEach((row, index) => {
       const rawStation = columnMapping.station ? row[columnMapping.station] : `E-${index}`;
       const rawLat = columnMapping.lat ? row[columnMapping.lat] : undefined;
@@ -423,20 +769,26 @@ export function ProjectAlignmentView({
       const rawType = columnMapping.type ? row[columnMapping.type] : undefined;
       const rawDesc = columnMapping.desc ? row[columnMapping.desc] : undefined;
       const rawElev = columnMapping.elevation ? row[columnMapping.elevation] : undefined;
+      const rawComp = columnMapping.complementaryInfo ? row[columnMapping.complementaryInfo] : undefined;
 
-      // PT-BR Decimal Formatting Helper (replaces ',' with '.')
-      const parsePtBrFloat = (val: any): number => {
-        if (val === undefined || val === null || val === '') return NaN;
-        const cleanStr = String(val).trim().replace(/\s+/g, '').replace(',', '.');
-        return parseFloat(cleanStr);
-      };
+      // Extract trailing suffix if present in Estaca (e.g. "0+8,359 PI" -> stationCode "0+8,359", suffix "PI")
+      const strStation = String(rawStation).trim();
+      const stationParts = strStation.split(/\s+/);
+      const stationCode = stationParts[0] || strStation;
+      const stationSuffix = stationParts.length > 1 ? stationParts.slice(1).join(' ') : '';
 
       let latNum = parsePtBrFloat(rawLat);
       let lngNum = parsePtBrFloat(rawLng);
       let eastingNum = parsePtBrFloat(rawUTMX);
       let northingNum = parsePtBrFloat(rawUTMY);
+      let elevNum = parsePtBrFloat(rawElev);
+      let radiusNum = parsePtBrFloat(rawRadius);
 
+      // Fallback if utmy/utmx mapped via lat/lng selects
       if (coordinateType === 'UTM') {
+        if (isNaN(eastingNum) && !isNaN(lngNum)) eastingNum = lngNum;
+        if (isNaN(northingNum) && !isNaN(latNum)) northingNum = latNum;
+
         if (!isNaN(eastingNum) && !isNaN(northingNum)) {
           const converted = utmToLatLng(eastingNum, northingNum, utmZone, true, selectedDatum);
           latNum = converted.lat;
@@ -445,23 +797,27 @@ export function ProjectAlignmentView({
       }
 
       if (!isNaN(latNum) && !isNaN(lngNum) && Math.abs(latNum) <= 90 && Math.abs(lngNum) <= 180) {
+        const compText = rawComp ? String(rawComp).trim() : stationSuffix;
+        const typeText = rawType ? String(rawType).toUpperCase().trim() : (stationSuffix || 'PI');
+
         parsedPoints.push({
           id: `pt-${index}-${Date.now()}`,
-          station: String(rawStation).trim(),
+          station: stationCode,
           lat: latNum,
           lng: lngNum,
           easting: !isNaN(eastingNum) ? eastingNum : undefined,
           northing: !isNaN(northingNum) ? northingNum : undefined,
-          radius: !isNaN(parsePtBrFloat(rawRadius)) ? parsePtBrFloat(rawRadius) : undefined,
-          type: (rawType ? String(rawType).toUpperCase().trim() : 'PI') as any,
+          radius: !isNaN(radiusNum) ? radiusNum : undefined,
+          type: typeText,
           description: rawDesc ? String(rawDesc).trim() : undefined,
-          elevation: !isNaN(parsePtBrFloat(rawElev)) ? parsePtBrFloat(rawElev) : undefined
+          elevation: !isNaN(elevNum) ? elevNum : undefined,
+          complementaryInfo: compText || undefined
         });
       }
     });
 
     if (parsedPoints.length === 0) {
-      setImportError(`Não foi possível identificar coordenadas válidas para o formato ${coordinateType === 'UTM' ? 'UTM (Metros)' : 'Lat/Lng (Graus)'}. Verifique se os números utilizam vírgula (,) ou ponto (.) decimal PT-BR.`);
+      setImportError(`Não foi possível identificar coordenadas válidas para o formato ${coordinateType === 'UTM' ? 'UTM (Metros)' : 'Lat/Lng (Graus)'}. Verifique se as colunas selecionadas contêm números válidos com vírgula (,) ou ponto (.) decimal.`);
       return;
     }
 
@@ -1294,6 +1650,41 @@ ${savedMeasurements.map(m => `INSERT INTO project_measurements (id, contract_id,
                 </div>
               )}
 
+              {/* CONTROLES DE ZOOM DO MAPA (ZOOM METODOS) */}
+              <div className="absolute top-4 right-4 z-[1000] flex flex-col gap-2 bg-slate-900/90 backdrop-blur-md p-1.5 rounded-2xl border border-slate-700/80 shadow-2xl">
+                <button
+                  onClick={() => setZoomTrigger({ type: 'in', id: Date.now() })}
+                  className="p-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white transition-colors"
+                  title="Aproximar Zoom (+)"
+                >
+                  <ZoomIn className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => setZoomTrigger({ type: 'out', id: Date.now() })}
+                  className="p-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white transition-colors"
+                  title="Afastar Zoom (-)"
+                >
+                  <ZoomOut className="w-4 h-4" />
+                </button>
+                <div className="w-full h-px bg-slate-700/60 my-0.5" />
+                <button
+                  onClick={() => setZoomTrigger({ type: 'fit', id: Date.now() })}
+                  className="p-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-emerald-400 transition-colors"
+                  title="Enquadrar Traçado Completo"
+                >
+                  <Maximize2 className="w-4 h-4" />
+                </button>
+                {selectedPoint && (
+                  <button
+                    onClick={() => setZoomTrigger({ type: 'selected', id: Date.now() })}
+                    className="p-2.5 rounded-xl bg-red-500/20 border border-red-500/50 text-red-400 hover:bg-red-500/30 transition-colors animate-pulse"
+                    title={`Focar Estaca Selecionada (${selectedPoint.station})`}
+                  >
+                    <MapPin className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+
               {/* MAPA INTERATIVO LEAFLET COM TILES GOOGLE MAPS */}
               <MapContainer
                 center={defaultCenter}
@@ -1307,7 +1698,11 @@ ${savedMeasurements.map(m => `INSERT INTO project_measurements (id, contract_id,
                   attribution="&copy; Google Maps Satellite Imagery"
                 />
 
-                <MapBoundsFitter points={currentAlignment.points} />
+                <MapController
+                  selectedPoint={selectedPoint}
+                  points={currentAlignment.points}
+                  zoomTrigger={zoomTrigger}
+                />
 
                 <MapEventsHandler
                   activeTool={activeTool}
@@ -1331,31 +1726,36 @@ ${savedMeasurements.map(m => `INSERT INTO project_measurements (id, contract_id,
                 {currentAlignment.points.map((pt, idx) => {
                   const isStart = idx === 0;
                   const isEnd = idx === currentAlignment.points.length - 1;
-                  const isCurve = Boolean(pt.radius && pt.radius > 0);
+                  const isSelected = pt.id === selectedPointId;
 
                   let markerColor = '#3b82f6';
                   if (isStart) markerColor = '#10b981';
                   if (isEnd) markerColor = '#ef4444';
-                  if (isCurve) markerColor = '#f59e0b';
+                  if (isSelected) markerColor = '#f59e0b';
 
                   return (
                     <Marker
                       key={pt.id}
                       position={[pt.lat, pt.lng]}
+                      eventHandlers={{
+                        click: () => setSelectedPointId(pt.id)
+                      }}
                       icon={L.divIcon({
                         className: 'custom-vertex-marker',
-                        html: `<div style="background-color: ${markerColor}; width: 12px; height: 12px; border-radius: 50%; border: 2px solid #ffffff; box-shadow: 0 0 4px rgba(0,0,0,0.5);"></div>`,
-                        iconSize: [12, 12],
-                        iconAnchor: [6, 6]
+                        html: `<div style="background-color: ${markerColor}; width: ${isSelected ? '18px' : '12px'}; height: ${isSelected ? '18px' : '12px'}; border-radius: 50%; border: ${isSelected ? '3px solid #ffffff' : '2px solid #ffffff'}; box-shadow: ${isSelected ? '0 0 12px #f59e0b' : '0 0 4px rgba(0,0,0,0.5)'};"></div>`,
+                        iconSize: [isSelected ? 18 : 12, isSelected ? 18 : 12],
+                        iconAnchor: [isSelected ? 9 : 6, isSelected ? 9 : 6]
                       })}
                     >
                       <Popup className="custom-leaflet-popup">
                         <div className="p-2 space-y-1 text-xs">
-                          <strong className="text-gray-900 block font-black">Estaca: {pt.station}</strong>
-                          <div className="text-gray-600">Tipo: {pt.type || 'PI'}</div>
-                          {pt.radius && pt.radius > 0 && <div className="text-amber-600 font-bold">Raio da Curva: {pt.radius} m</div>}
+                          <strong className="text-gray-900 block font-black text-sm">Estaca: {pt.station}</strong>
+                          <div className="text-gray-600 font-bold">Tipo: {pt.type || 'PI'}</div>
+                          {pt.elevation !== undefined && !isNaN(pt.elevation) && (
+                            <div className="text-emerald-700 font-black">Cota: {pt.elevation.toFixed(2)} m</div>
+                          )}
+                          {pt.complementaryInfo && <div className="text-purple-700 font-bold">{pt.complementaryInfo}</div>}
                           {pt.description && <div className="text-gray-500 italic">{pt.description}</div>}
-                          <div className="text-[10px] text-gray-400 pt-1">Lat: {pt.lat.toFixed(6)}, Lng: {pt.lng.toFixed(6)}</div>
                         </div>
                       </Popup>
                     </Marker>
@@ -1416,12 +1816,22 @@ ${savedMeasurements.map(m => `INSERT INTO project_measurements (id, contract_id,
             </div>
           </div>
 
+          {/* PERFIL VERTICAL / ALTIMÉTRICO DO TRAÇADO */}
+          <VerticalProfileChart
+            points={currentAlignment.points}
+            selectedPointId={selectedPointId}
+            onSelectPoint={(pt) => {
+              setSelectedPointId(pt.id);
+              setZoomTrigger({ type: 'selected', id: Date.now() });
+            }}
+          />
+
           {/* TABELA DE VÉRTICES E GEOMETRIA DO TRAÇADO */}
           <div className="bg-white rounded-[32px] border border-gray-200 shadow-sm p-6 space-y-4">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
               <div>
                 <h3 className="text-lg font-black text-gray-900">Vértices e Elementos Geométricos</h3>
-                <p className="text-xs text-gray-500">Lista completa de estacas, coordenadas e raios de curvatura.</p>
+                <p className="text-xs text-gray-500">Lista completa de estacas, coordenadas UTM/Geodésicas, cotas e raio de curvatura.</p>
               </div>
 
               <div className="relative w-full md:w-72">
@@ -1443,6 +1853,8 @@ ${savedMeasurements.map(m => `INSERT INTO project_measurements (id, contract_id,
                     <th className="py-3 px-4"># Order</th>
                     <th className="py-3 px-4">Estaca</th>
                     <th className="py-3 px-4">Tipo</th>
+                    <th className="py-3 px-4">Cota (m)</th>
+                    <th className="py-3 px-4">Info Comp.</th>
                     <th className="py-3 px-4">Latitude</th>
                     <th className="py-3 px-4">Longitude</th>
                     <th className="py-3 px-4">Raio (m)</th>
@@ -1450,27 +1862,48 @@ ${savedMeasurements.map(m => `INSERT INTO project_measurements (id, contract_id,
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100 font-medium">
-                  {filteredPoints.slice(0, 50).map((pt, idx) => (
-                    <tr key={pt.id} className="hover:bg-blue-50/50 transition-colors">
-                      <td className="py-2.5 px-4 text-gray-400 font-bold">{idx + 1}</td>
-                      <td className="py-2.5 px-4 font-black text-gray-900">{pt.station}</td>
-                      <td className="py-2.5 px-4">
-                        <span className={`px-2 py-0.5 rounded-md text-[10px] font-black ${
-                          pt.type === 'PC' ? 'bg-amber-100 text-amber-800' :
-                          pt.type === 'PT' ? 'bg-purple-100 text-purple-800' :
-                          'bg-blue-100 text-blue-800'
-                        }`}>
-                          {pt.type || 'PI'}
-                        </span>
-                      </td>
-                      <td className="py-2.5 px-4 text-gray-600 font-mono">{pt.lat.toFixed(6)}</td>
-                      <td className="py-2.5 px-4 text-gray-600 font-mono">{pt.lng.toFixed(6)}</td>
-                      <td className="py-2.5 px-4 font-bold text-gray-900">
-                        {pt.radius && pt.radius > 0 ? `${pt.radius} m` : '-'}
-                      </td>
-                      <td className="py-2.5 px-4 text-gray-500">{pt.description || '-'}</td>
-                    </tr>
-                  ))}
+                  {filteredPoints.slice(0, 100).map((pt, idx) => {
+                    const isSelected = pt.id === selectedPointId;
+                    return (
+                      <tr 
+                        key={pt.id} 
+                        onClick={() => {
+                          setSelectedPointId(pt.id);
+                          setZoomTrigger({ type: 'selected', id: Date.now() });
+                        }}
+                        className={`cursor-pointer transition-colors ${
+                          isSelected ? 'bg-amber-50 border-l-4 border-l-amber-500' : 'hover:bg-blue-50/50'
+                        }`}
+                      >
+                        <td className="py-2.5 px-4 text-gray-400 font-bold">{idx + 1}</td>
+                        <td className="py-2.5 px-4 font-black text-gray-900 flex items-center gap-1.5">
+                          {isSelected && <MapPin className="w-3.5 h-3.5 text-amber-500 animate-bounce" />}
+                          <span>{pt.station}</span>
+                        </td>
+                        <td className="py-2.5 px-4">
+                          <span className={`px-2 py-0.5 rounded-md text-[10px] font-black ${
+                            pt.type === 'PC' ? 'bg-amber-100 text-amber-800' :
+                            pt.type === 'PT' ? 'bg-purple-100 text-purple-800' :
+                            'bg-blue-100 text-blue-800'
+                          }`}>
+                            {pt.type || 'PI'}
+                          </span>
+                        </td>
+                        <td className="py-2.5 px-4 font-black text-emerald-700 font-mono">
+                          {pt.elevation !== undefined && !isNaN(pt.elevation) ? `${pt.elevation.toFixed(2)} m` : '-'}
+                        </td>
+                        <td className="py-2.5 px-4 text-purple-700 font-bold">
+                          {pt.complementaryInfo || '-'}
+                        </td>
+                        <td className="py-2.5 px-4 text-gray-600 font-mono">{pt.lat.toFixed(6)}</td>
+                        <td className="py-2.5 px-4 text-gray-600 font-mono">{pt.lng.toFixed(6)}</td>
+                        <td className="py-2.5 px-4 font-bold text-gray-900">
+                          {pt.radius && pt.radius > 0 ? `${pt.radius} m` : '-'}
+                        </td>
+                        <td className="py-2.5 px-4 text-gray-500">{pt.description || '-'}</td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
