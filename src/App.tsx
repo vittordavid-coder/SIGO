@@ -339,15 +339,86 @@ export default function App() {
   const [technicalSchedules, setTechnicalSchedules] = useLocalStorage<TechnicalSchedule[]>('sigo_technical_schedules', [], compId);
   const [projectAlignments, setProjectAlignments] = useLocalStorage<ProjectAlignment[]>('sigo_project_alignments', [], compId);
 
-  const handleSaveProjectAlignment = (alignment: ProjectAlignment) => {
+  const handleSaveProjectAlignment = async (alignment: ProjectAlignment) => {
     setProjectAlignments(prev => {
       const filtered = prev.filter(a => a.contractId !== alignment.contractId);
       return [alignment, ...filtered];
     });
+
+    // Directly persist to Supabase if enabled
+    const config = getSupabaseConfig();
+    if (config.enabled && compId) {
+      const supabase = createSupabaseClient(config.url, config.key);
+      if (supabase) {
+        try {
+          // Upsert to project_alignments table
+          const snakeAlignment = {
+            id: alignment.id,
+            contract_id: alignment.contractId,
+            contract_name: alignment.contractName || '',
+            title: alignment.title || '',
+            highway_code: alignment.highwayCode || '',
+            imported_at: alignment.importedAt || new Date().toISOString(),
+            file_name: alignment.fileName || '',
+            total_length_meters: alignment.totalLengthMeters || 0,
+            start_station: alignment.startStation || '',
+            end_station: alignment.endStation || '',
+            points: alignment.points || [],
+            pins: alignment.pins || [],
+            saved_measurements: alignment.savedMeasurements || [],
+            company_id: compId
+          };
+          const { error: tblErr } = await supabase.from('project_alignments').upsert(snakeAlignment, { onConflict: 'id' });
+          if (tblErr) {
+            if (tblErr.code === '42703' || tblErr.message?.includes('company_id')) {
+              console.warn('[Supabase] Table project_alignments lacks company_id column, retrying without company_id...');
+              const { company_id, ...snakeWithoutComp } = snakeAlignment;
+              const { error: retryErr } = await supabase.from('project_alignments').upsert(snakeWithoutComp, { onConflict: 'id' });
+              if (retryErr) {
+                console.warn('[Supabase] Table project_alignments upsert retry failed, fallback to app_state blob:', retryErr.message);
+              } else {
+                console.log('[Supabase] Project alignment saved to project_alignments table (without company_id) successfully!');
+              }
+            } else {
+              console.warn('[Supabase] Table project_alignments upsert failed, fallback to app_state blob:', tblErr.message);
+            }
+          } else {
+            console.log('[Supabase] Project alignment saved to project_alignments table successfully!');
+          }
+
+          // Fallback backup: save to app_state blob
+          const currentList = projectAlignments.filter(a => a.contractId !== alignment.contractId);
+          const updatedList = [alignment, ...currentList];
+          await supabase.from('app_state').upsert({
+            id: `${compId}_sigo_project_alignments`,
+            content: updatedList
+          });
+        } catch (err) {
+          console.error('[Supabase] Error saving project alignment:', err);
+        }
+      }
+    }
   };
 
-  const handleDeleteProjectAlignment = (alignmentId: string) => {
+  const handleDeleteProjectAlignment = async (alignmentId: string) => {
     setProjectAlignments(prev => prev.filter(a => a.id !== alignmentId));
+
+    const config = getSupabaseConfig();
+    if (config.enabled && compId) {
+      const supabase = createSupabaseClient(config.url, config.key);
+      if (supabase) {
+        try {
+          await supabase.from('project_alignments').delete().eq('id', alignmentId);
+          const updatedList = projectAlignments.filter(a => a.id !== alignmentId);
+          await supabase.from('app_state').upsert({
+            id: `${compId}_sigo_project_alignments`,
+            content: updatedList
+          });
+        } catch (err) {
+          console.error('[Supabase] Error deleting project alignment:', err);
+        }
+      }
+    }
   };
   const [schedules, setSchedules] = useLocalStorage<any[]>('sconet_schedules', [], compId);
   const [budgetItems, setBudgetItems] = useLocalStorage<{serviceId: string, quantity: number}[]>('sconet_current_budget', [], compId);
@@ -910,7 +981,7 @@ export default function App() {
             `${activeId}_sigo_aportes`, `${activeId}_sigo_ctrl_charges`, `${activeId}_sigo_ctrl_ot`, `${activeId}_sigo_warehouses`,
             `${activeId}_sigo_warehouse_items`, `${activeId}_sigo_warehouse_entries`, `${activeId}_sigo_assets`,
             `${activeId}_sigo_warehouse_transfers`, `${activeId}_sigo_warehouse_applications`, `${activeId}_sigo_company_logo_right`,
-            `${activeId}_sigo_work_movements`
+            `${activeId}_sigo_work_movements`, `${activeId}_sigo_project_alignments`
           ];
           blobQuery = blobQuery.in('id', expectedBlobIds);
           // Fetch users for this company (or everyone if master)
@@ -1005,6 +1076,7 @@ export default function App() {
           'warehouse_transfers': { key: 'sigo_warehouse_transfers', setter: setTransfers },
           'warehouse_applications': { key: 'sigo_warehouse_applications', setter: setApplications },
           'work_movements': { key: 'sigo_work_movements', setter: setWorkMovements },
+          'project_alignments': { key: 'sigo_project_alignments', setter: setProjectAlignments },
           'users': { key: 'sigo_users', setter: setUsers }
         };
 
@@ -1802,6 +1874,7 @@ export default function App() {
       { id: `${compId}_sigo_warehouse_transfers`, content: transfers },
       { id: `${compId}_sigo_warehouse_applications`, content: applications },
       { id: `${compId}_sigo_work_movements`, content: workMovements },
+      { id: `${compId}_sigo_project_alignments`, content: projectAlignments },
     ];
 
     const tableMap: Record<string, string> = {
@@ -1847,6 +1920,7 @@ export default function App() {
       'sigo_warehouse_transfers': 'warehouse_transfers',
       'sigo_warehouse_applications': 'warehouse_applications',
       'sigo_work_movements': 'work_movements',
+      'sigo_project_alignments': 'project_alignments',
       'sigo_users': 'users'
     };
 
@@ -1913,6 +1987,19 @@ export default function App() {
                   from = 0;
                   dbItems = [];
                   continue;
+                }
+                if (error.code === '42703' || error.message?.includes('company_id')) {
+                  console.info(`[Sync] Column "company_id" missing in table "${activeTable}", retrying query without company_id filter...`);
+                  const { data: noCompData, error: noCompErr } = await supabase
+                    .from(activeTable)
+                    .select('id')
+                    .range(from, from + pageSize - 1);
+                  if (!noCompErr && noCompData) {
+                    dbItems = [...dbItems, ...noCompData];
+                    if (noCompData.length < pageSize) keepFetching = false;
+                    else from += pageSize;
+                    continue;
+                  }
                 }
                 fetchError = error;
                 keepFetching = false;
@@ -2008,8 +2095,8 @@ export default function App() {
                   }
                   
                   if (tError) {
-                    console.warn(`[Sync] Upsert failed for chunk of ${activeTable}, retrying without new columns...`, tError);
-                    const saferChunk = chunkToUpsert.map(({ productive_price, unproductive_price, ...rest }: any) => rest);
+                    console.warn(`[Sync] Upsert failed for chunk of ${activeTable}, retrying without company_id / extra columns...`, tError);
+                    const saferChunk = chunkToUpsert.map(({ company_id, productive_price, unproductive_price, ...rest }: any) => rest);
                     const retryResult2 = await supabase.from(activeTable).upsert(saferChunk);
                     tError = retryResult2.error;
                   }

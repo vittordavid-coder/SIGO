@@ -112,7 +112,16 @@ function getAlignmentAngleDegrees(
   return (Math.atan2(-dy, dx) * 180) / Math.PI;
 }
 
-// Custom CAD Station Marker Generator (Perpendicular transversal tick + Station Text)
+// Format clean station text (omits +0,000 or +0.000 fractional zeros unless > 0)
+export function formatCleanStationText(stationRaw: string | number): string {
+  if (stationRaw === undefined || stationRaw === null) return '';
+  let s = String(stationRaw).trim();
+  // Strip fractional zeros after comma or dot, e.g. "10+00,000" -> "10+00" or "0+00.00" -> "0+00"
+  s = s.replace(/([,\.]0+)(\s*)$/, '');
+  return s;
+}
+
+// Custom CAD Station Marker Generator (Perpendicular transversal tick + Transversal Station Text alongside tick)
 function createCadStationIcon(
   pt: ProjectAlignmentPoint,
   prevPt: ProjectAlignmentPoint | undefined,
@@ -130,7 +139,7 @@ function createCadStationIcon(
   const textColor = settings.stationTextColor || '#22c55e';
   const fontSize = settings.stationFontSize || 12;
 
-  const stationText = pt.station || '';
+  const stationText = formatCleanStationText(pt.station || '');
 
   const html = `
     <div style="position: relative; width: 60px; height: 60px; display: flex; align-items: center; justify-content: center; pointer-events: auto;">
@@ -168,9 +177,9 @@ function createCadStationIcon(
 
       <div style="
         position: absolute;
-        top: 32px;
+        top: 50%;
         left: 50%;
-        transform: translateX(-50%);
+        transform: translate(-50%, -50%) rotate(${perpAngle}deg) translateX(18px);
         white-space: nowrap;
         font-family: 'JetBrains Mono', 'Courier New', monospace, sans-serif;
         font-size: ${fontSize}px;
@@ -331,7 +340,7 @@ function MapController({
   // Selected point fly-to
   useEffect(() => {
     if (selectedPoint) {
-      map.flyTo([selectedPoint.lat, selectedPoint.lng], 17, { duration: 1 });
+      map.flyTo([selectedPoint.lat, selectedPoint.lng], 20, { duration: 1 });
     }
   }, [selectedPoint, map]);
 
@@ -350,7 +359,7 @@ function MapController({
         }
       }
     } else if (zoomTrigger.type === 'selected' && selectedPoint) {
-      map.flyTo([selectedPoint.lat, selectedPoint.lng], 17, { duration: 1 });
+      map.flyTo([selectedPoint.lat, selectedPoint.lng], 20, { duration: 1 });
     }
   }, [zoomTrigger, map, points, selectedPoint]);
 
@@ -418,7 +427,7 @@ function StationSearchBox({
           </button>
         ) : (
           <span className="absolute right-3 text-[10px] font-black uppercase tracking-wider text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20">
-            Zoom 17
+            Zoom 20
           </span>
         )}
       </div>
@@ -512,7 +521,13 @@ function VerticalProfileChart({
 
   const selectedProfilePt = profilePointsWithElev.find(p => p.point.id === selectedPointId);
 
-  // Auto-scroll profile container when selectedPointId changes
+  // Auto-scroll and apply Zoom 10 on vertical profile when selectedPointId changes
+  useEffect(() => {
+    if (selectedPointId) {
+      setZoomX(10);
+    }
+  }, [selectedPointId]);
+
   useEffect(() => {
     if (selectedProfilePt && scrollContainerRef.current) {
       const selectedX = getX(selectedProfilePt.cumulativeDistMeters);
