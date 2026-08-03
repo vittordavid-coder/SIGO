@@ -224,7 +224,7 @@ export interface EmailConfig {
   smtpSecure?: boolean;
 }
 
-export type MobileSector = 'producao' | 'rh' | 'equipamentos' | 'materiais' | 'project_admin';
+export type MobileSector = 'producao' | 'rh' | 'equipamentos' | 'materiais' | 'project_admin' | 'galeria';
 
 export interface User {
   id: string;

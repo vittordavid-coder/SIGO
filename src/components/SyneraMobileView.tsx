@@ -457,13 +457,55 @@ export function SyneraMobileView({
     }
   };
 
-  const handleSavePhotoRecord = () => {
+  const handleSavePhotoRecord = async () => {
     if (!capturedPhotoUrl) return;
 
     const stationText = photoStation || (nearestStationInfo ? nearestStationInfo.station : 'Estaca N/I');
     const descText = photoDescription.trim() || 'Foto de inspeção em campo';
-
     const activeContractObj = contracts.find(c => c.id === selectedContractId) || contracts[0] || { id: 'c1', name: 'Obra Principal' };
+
+    let finalPhotoUrl = capturedPhotoUrl;
+    try {
+      const canvas = document.createElement('canvas');
+      const img = new Image();
+      img.src = capturedPhotoUrl;
+      await new Promise((resolve, reject) => { 
+        img.onload = resolve; 
+        img.onerror = reject;
+      });
+      
+      canvas.width = img.width;
+      canvas.height = img.height;
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.drawImage(img, 0, 0);
+        
+        const fontSize = Math.max(16, Math.floor(canvas.height * 0.03));
+        const padding = fontSize;
+        const boxHeight = fontSize * 7.5;
+        
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+        ctx.fillRect(0, canvas.height - boxHeight, canvas.width, boxHeight);
+        
+        ctx.fillStyle = 'white';
+        ctx.font = `bold ${fontSize}px sans-serif`;
+        
+        let y = canvas.height - boxHeight + padding * 1.5;
+        const dateText = new Date().toLocaleString('pt-BR');
+        
+        ctx.fillText(`Obra: ${activeContractObj.name || activeContractObj.workName || 'Obra Principal'}`, padding, y);
+        y += fontSize * 1.5;
+        ctx.fillText(`Data: ${dateText}`, padding, y);
+        y += fontSize * 1.5;
+        ctx.fillText(`Estaca: ${stationText}`, padding, y);
+        y += fontSize * 1.5;
+        ctx.fillText(`Obs: ${descText}`, padding, y);
+        
+        finalPhotoUrl = canvas.toDataURL('image/jpeg', 0.88);
+      }
+    } catch (err) {
+      console.error('Erro ao adicionar texto na foto:', err);
+    }
 
     const newReport: FieldProductionReport = {
       id: `photo-${Date.now()}`,
@@ -472,7 +514,7 @@ export function SyneraMobileView({
       date: new Date().toISOString().slice(0, 10),
       location: stationText,
       description: descText,
-      photoUrl: capturedPhotoUrl,
+      photoUrl: finalPhotoUrl,
       createdByName: currentUser.name || currentUser.username,
       synced: false,
       timestamp: new Date().toISOString()
@@ -888,7 +930,7 @@ export function SyneraMobileView({
     if (isOnline) {
       // Sincronizar fila pendente
       if (offlineQueue.length > 0) {
-        handleSyncOfflineQueue();
+        handleProcessSync();
       }
       try {
         const cachePayload = {
@@ -1038,6 +1080,15 @@ export function SyneraMobileView({
       icon: <ShieldCheck className="w-6 h-6 text-purple-400" />,
       cardBg: 'from-purple-900/60 to-slate-900 border-purple-500/40 hover:border-purple-400',
       badgeBg: 'bg-purple-500/20 text-purple-300 border-purple-500/40'
+    },
+    {
+      id: 'galeria',
+      name: 'Galeria de Fotos',
+      erpLink: 'Compartilhamento de Evidências',
+      description: 'Galeria de fotos tiradas pela câmera para compartilhamento via aplicativos do dispositivo (ex: WhatsApp).',
+      icon: <Eye className="w-6 h-6 text-fuchsia-400" />,
+      cardBg: 'from-fuchsia-900/60 to-slate-900 border-fuchsia-500/40 hover:border-fuchsia-400',
+      badgeBg: 'bg-fuchsia-500/20 text-fuchsia-300 border-fuchsia-500/40'
     }
   ];
 
@@ -3281,6 +3332,100 @@ export function SyneraMobileView({
                       <RefreshCw className={`w-4 h-4 ${isSyncing ? 'animate-spin' : ''}`} />
                       {isOnline ? 'Enviar Todos para o Servidor' : 'Aguardando Sinal de Conexão'}
                     </Button>
+                  )}
+                </div>
+              </motion.div>
+            )}
+
+            {/* ---------------------------------------------------- */}
+            {/* TELA DA GALERIA DE FOTOS */}
+            {/* ---------------------------------------------------- */}
+            {activeSector === 'galeria' && (
+              <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
+                <div className="bg-slate-800/80 border border-slate-700/80 rounded-3xl p-5 space-y-4 shadow-xl">
+                  <div className="flex items-center justify-between pb-2 border-b border-slate-700/60">
+                    <div className="flex items-center gap-2">
+                      <Eye className="w-5 h-5 text-fuchsia-400" />
+                      <h3 className="text-sm font-black text-white uppercase tracking-wide">Galeria de Fotos</h3>
+                    </div>
+                    <span className="text-xs font-bold text-slate-400">
+                      {fieldReports.filter(r => r.photoUrl).length} Foto(s)
+                    </span>
+                  </div>
+
+                  {fieldReports.filter(r => r.photoUrl).length === 0 ? (
+                    <div className="py-8 text-center space-y-3">
+                      <div className="w-16 h-16 bg-slate-800 rounded-full mx-auto flex items-center justify-center">
+                        <Camera className="w-8 h-8 text-slate-500" />
+                      </div>
+                      <p className="text-slate-400 text-xs font-bold px-8">Nenhuma foto registrada na galeria local.</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                        {fieldReports.filter(r => r.photoUrl).map(report => (
+                          <div 
+                            key={report.id} 
+                            onClick={() => setSelectedGalleryPhotos(prev => 
+                              prev.includes(report.photoUrl as string) 
+                                ? prev.filter(url => url !== report.photoUrl) 
+                                : [...prev, report.photoUrl as string]
+                            )}
+                            className={`relative aspect-[3/4] bg-slate-950 rounded-2xl overflow-hidden border-2 cursor-pointer transition-all ${
+                              selectedGalleryPhotos.includes(report.photoUrl as string) ? 'border-fuchsia-500 scale-95 shadow-lg shadow-fuchsia-500/30' : 'border-slate-700 hover:border-slate-500'
+                            }`}
+                          >
+                            <img src={report.photoUrl} alt="Foto Campo" className="w-full h-full object-cover" />
+                            {selectedGalleryPhotos.includes(report.photoUrl as string) && (
+                              <div className="absolute inset-0 bg-fuchsia-500/20 flex items-start justify-end p-2 backdrop-blur-[1px]">
+                                <div className="w-6 h-6 rounded-full bg-fuchsia-500 flex items-center justify-center shadow-md">
+                                  <CheckCircle2 className="w-4 h-4 text-white" />
+                                </div>
+                              </div>
+                            )}
+                            <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-slate-950 p-2 pt-8">
+                              <p className="text-[9px] font-bold text-white truncate">{report.description || 'Sem descrição'}</p>
+                              <p className="text-[8px] text-slate-400 truncate">{report.date.split('-').reverse().join('/')}</p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+
+                      {selectedGalleryPhotos.length > 0 && (
+                        <div className="pt-2 sticky bottom-4 z-10">
+                          <Button
+                            onClick={async () => {
+                              try {
+                                const files: File[] = [];
+                                for (let i = 0; i < selectedGalleryPhotos.length; i++) {
+                                  const url = selectedGalleryPhotos[i];
+                                  const res = await fetch(url);
+                                  const blob = await res.blob();
+                                  files.push(new File([blob], `evidencia_obra_${i+1}_${Date.now()}.jpg`, { type: blob.type || 'image/jpeg' }));
+                                }
+                                
+                                if (navigator.share && navigator.canShare && navigator.canShare({ files })) {
+                                  await navigator.share({
+                                    files,
+                                    title: 'Evidências Fotográficas - Synera Mobile',
+                                    text: 'Fotos registradas no campo via Synera Mobile.'
+                                  });
+                                } else {
+                                  alert('Seu dispositivo não suporta o compartilhamento múltiplo nativo de arquivos.');
+                                }
+                              } catch (err) {
+                                console.error('Erro ao compartilhar fotos:', err);
+                                alert('Ocorreu um erro ao tentar compartilhar as fotos.');
+                              }
+                            }}
+                            className="w-full h-12 rounded-2xl bg-fuchsia-600 hover:bg-fuchsia-500 text-white font-black text-xs uppercase tracking-widest gap-2 shadow-xl shadow-fuchsia-600/30"
+                          >
+                            <Share2 className="w-5 h-5" />
+                            Compartilhar {selectedGalleryPhotos.length} {selectedGalleryPhotos.length === 1 ? 'Foto' : 'Fotos'}
+                          </Button>
+                        </div>
+                      )}
+                    </div>
                   )}
                 </div>
               </motion.div>

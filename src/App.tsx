@@ -626,14 +626,9 @@ export default function App() {
     if (currentUser?.id) {
       const config = getSupabaseConfig();
       if (config.enabled) {
-        console.log('[App] Supabase enabled, clearing local data keys to ensure fresh sync...');
-        const keysToKeep = ['supabase_config'];
-        for (let i = localStorage.length - 1; i >= 0; i--) {
-          const key = localStorage.key(i);
-          if (key && !keysToKeep.some(k => key === k)) {
-            localStorage.removeItem(key);
-          }
-        }
+        console.log('[App] Supabase enabled, syncing data...');
+        // We no longer clear localStorage here to preserve offline capabilities.
+        // Data will be overwritten by fresh sync if online, or kept if offline.
       }
       setIsSupabaseSynced(false);
       setSupabaseSyncError(null);
