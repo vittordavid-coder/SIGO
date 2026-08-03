@@ -1190,8 +1190,11 @@ export default function App() {
             
             finalVal = deduplicateById(finalVal);
           } else if (!hasError && allData.length === 0) {
-            // If the table is empty in the database, check if we have local cached data.
-            finalVal = [];
+            if (tableName === 'project_alignments' && parsedBlobData.length > 0) {
+              finalVal = parsedBlobData;
+            } else {
+              finalVal = [];
+            }
           } else {
             // Table error (e.g. doesn't exist), fallback to blob
             finalVal = deduplicateById(parsedBlobData);
@@ -1207,6 +1210,11 @@ export default function App() {
             }
             if (!hasError && allData.length === 0) {
               // The database table is empty and was successfully queried.
+              if (tableName === 'project_alignments' && parsedBlobData.length > 0) {
+                console.warn(`[Sync] Database table ${tableName} is empty, but blob has data. Fallback to blob to prevent data loss.`);
+                finalVal = parsedBlobData;
+                return parsedBlobData;
+              }
               // To respect the database as the absolute source of truth and prevent deleted data from coming back,
               // we must clear the local cache instead of restoring/uploading it back.
               console.log(`[Sync] Database table ${tableName} is empty. Clearing local cache.`);

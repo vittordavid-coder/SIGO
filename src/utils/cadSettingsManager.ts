@@ -15,6 +15,7 @@ export interface CadViewSettings {
   stationFontSize: number;
   stationStep: number;
   showStationTicks: boolean;
+  stationTextRotation: number;
 }
 
 export const DEFAULT_CAD_SETTINGS: CadViewSettings = {
@@ -31,6 +32,7 @@ export const DEFAULT_CAD_SETTINGS: CadViewSettings = {
   stationFontSize: 13,
   stationStep: 1,
   showStationTicks: true,
+  stationTextRotation: 0,
 };
 
 const STORAGE_KEY = 'cad_visualization_settings_v2';

@@ -179,7 +179,7 @@ function createCadStationIcon(
         position: absolute;
         top: 50%;
         left: 50%;
-        transform: translate(-50%, -50%) rotate(${perpAngle}deg) translateX(18px);
+        transform: translate(-50%, -50%) rotate(${perpAngle}deg) translateY(-22px) rotate(${settings.stationTextRotation || 0}deg);
         white-space: nowrap;
         font-family: 'JetBrains Mono', 'Courier New', monospace, sans-serif;
         font-size: ${fontSize}px;
@@ -538,6 +538,24 @@ function VerticalProfileChart({
       });
     }
   }, [selectedPointId, zoomX, selectedProfilePt]);
+
+  // Handle mouse wheel zoom
+  useEffect(() => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+
+    const handleWheel = (e: WheelEvent) => {
+      if (e.shiftKey) return; // Allow horizontal scrolling with shift key
+      e.preventDefault();
+      
+      const delta = e.deltaY > 0 ? -0.25 : 0.25;
+      // Also adjust zoom sensitivity for trackpads (smaller deltaY means smaller steps if desired, but fixed steps are fine)
+      setZoomX(prev => Math.min(20, Math.max(0.75, parseFloat((prev + delta).toFixed(2)))));
+    };
+
+    container.addEventListener('wheel', handleWheel, { passive: false });
+    return () => container.removeEventListener('wheel', handleWheel);
+  }, []);
 
   if (profilePointsWithElev.length < 2) {
     return (
@@ -2241,6 +2259,23 @@ export function ProjectAlignmentView({
                             />
                             <p className="text-[10px] text-slate-500">As estacas só são mostradas quando o zoom do mapa estiver igual ou superior a este nível.</p>
                           </div>
+                          
+                          <div>
+                            <div className="flex justify-between items-center text-[10px] mb-1">
+                              <label className="text-slate-400 font-bold">Rotação Texto (Estacas)</label>
+                              <span className="text-amber-400 font-black">{cadSettings.stationTextRotation || 0}°</span>
+                            </div>
+                            <input
+                              type="range"
+                              min={-90}
+                              max={90}
+                              step={15}
+                              value={cadSettings.stationTextRotation || 0}
+                              onChange={e => setCadSettings(s => ({ ...s, stationTextRotation: Number(e.target.value) }))}
+                              className="w-full accent-amber-500"
+                            />
+                            <p className="text-[10px] text-slate-500">Ajusta a inclinação em relação à perpendicular.</p>
+                          </div>
                         </div>
                       </div>
 
@@ -3215,6 +3250,27 @@ export function ProjectAlignmentView({
                       />
                       <div className="w-11 h-6 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500"></div>
                     </label>
+                  </div>
+
+                  <div className="bg-slate-900 rounded-xl p-3 border border-slate-800 space-y-2">
+                    <div className="flex justify-between items-center text-xs">
+                      <span className="text-slate-300 font-bold">Rotação do Texto (Estacas)</span>
+                      <span className="text-amber-400 font-black">{cadSettings.stationTextRotation || 0}°</span>
+                    </div>
+                    <div>
+                      <input
+                        type="range"
+                        min={-90}
+                        max={90}
+                        step={15}
+                        value={cadSettings.stationTextRotation || 0}
+                        onChange={e => setCadSettings(s => ({ ...s, stationTextRotation: Number(e.target.value) }))}
+                        className="w-full accent-amber-500 mt-2"
+                      />
+                      <p className="text-[10px] text-slate-400">
+                        Ajusta a inclinação do texto em relação à linha perpendicular. (0 = perpendicular, 90 = paralelo)
+                      </p>
+                    </div>
                   </div>
                 </div>
 
