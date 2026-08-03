@@ -1,15 +1,26 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { 
   MapPin, Upload, Download, FileSpreadsheet, Layers, Compass, 
-  Ruler, Database, Eye, Trash2, CheckCircle2, AlertTriangle, 
+  Ruler, Eye, Trash2, CheckCircle2, AlertTriangle, 
   RefreshCw, ChevronRight, Info, Copy, Check, Maximize2, Minimize2, Map,
-  Plus, X, Edit3, Tag, Sliders, Filter, ArrowRight, Search, FileText, CheckCircle
+  Plus, X, Edit3, Tag, Sliders, Filter, ArrowRight, Search, FileText, CheckCircle,
+  ZoomIn, ZoomOut, TrendingUp, Settings, EyeOff, Palette, RotateCcw, SlidersHorizontal,
+  FileCode, Database, Share2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import * as XLSX from 'xlsx';
+import { saveAs } from 'file-saver';
 import { MapContainer, TileLayer, Polyline, Marker, Popup, useMap, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import { Contract, ProjectAlignment, ProjectAlignmentPoint, ProjectPin, ProjectMeasurement } from '../types';
+import {
+  CadViewSettings,
+  DEFAULT_CAD_SETTINGS,
+  loadCadSettings,
+  saveCadSettings,
+  resetCadSettings,
+  exportCadSettingsScript
+} from '../utils/cadSettingsManager';
 
 // Map Recenter Helper Component
 function MapBoundsFitter({ points }: { points: ProjectAlignmentPoint[] }) {
@@ -46,6 +57,142 @@ function MapEventsHandler({
     }
   });
   return null;
+}
+
+// Map Background Color Applier (Forces dynamic Leaflet canvas background updates)
+function MapBackgroundColorApplier({ color, enableGoogleMaps }: { color: string; enableGoogleMaps: boolean }) {
+  const map = useMap();
+
+  useEffect(() => {
+    const container = map.getContainer();
+    if (container) {
+      container.style.backgroundColor = color;
+      const leafletPane = container.querySelector('.leaflet-pane') as HTMLElement;
+      if (leafletPane) {
+        leafletPane.style.backgroundColor = enableGoogleMaps ? 'transparent' : color;
+      }
+      const tilePane = container.querySelector('.leaflet-tile-pane') as HTMLElement;
+      if (tilePane) {
+        tilePane.style.backgroundColor = enableGoogleMaps ? 'transparent' : color;
+      }
+    }
+  }, [map, color, enableGoogleMaps]);
+
+  return null;
+}
+
+// Leaflet Map Zoom Level Tracker (Optimized with rounded zoom integer)
+function ZoomLevelTracker({ onZoomChange }: { onZoomChange: (zoom: number) => void }) {
+  const map = useMapEvents({
+    zoomend() {
+      onZoomChange(Math.round(map.getZoom()));
+    }
+  });
+
+  useEffect(() => {
+    onZoomChange(Math.round(map.getZoom()));
+  }, [map, onZoomChange]);
+
+  return null;
+}
+
+// Calculate angle between points for perpendicular (transversal) station line
+function getAlignmentAngleDegrees(
+  prevPt?: { lat: number; lng: number },
+  currPt?: { lat: number; lng: number },
+  nextPt?: { lat: number; lng: number }
+): number {
+  if (!currPt) return 0;
+  const p1 = prevPt || currPt;
+  const p2 = nextPt || currPt;
+  const dy = p2.lat - p1.lat;
+  const dx = (p2.lng - p1.lng) * Math.cos((currPt.lat * Math.PI) / 180);
+  if (dx === 0 && dy === 0) return 0;
+  // Heading angle in screen coordinate space (clockwise from horizontal East)
+  return (Math.atan2(-dy, dx) * 180) / Math.PI;
+}
+
+// Custom CAD Station Marker Generator (Perpendicular transversal tick + Station Text)
+function createCadStationIcon(
+  pt: ProjectAlignmentPoint,
+  prevPt: ProjectAlignmentPoint | undefined,
+  nextPt: ProjectAlignmentPoint | undefined,
+  isSelected: boolean,
+  settings: CadViewSettings
+) {
+  // Heading angle of alignment trajectory
+  const headingAngle = getAlignmentAngleDegrees(prevPt, pt, nextPt);
+  
+  // Initial tick div is vertical (90 deg to horizontal). Rotating initial vertical div by headingAngle keeps it strictly transversal (perpendicular) to trajectory at all angles.
+  const perpAngle = headingAngle;
+
+  const tickColor = settings.stationTickColor || '#22c55e';
+  const textColor = settings.stationTextColor || '#22c55e';
+  const fontSize = settings.stationFontSize || 12;
+
+  const stationText = pt.station || '';
+
+  const html = `
+    <div style="position: relative; width: 60px; height: 60px; display: flex; align-items: center; justify-content: center; pointer-events: auto;">
+      ${settings.showStationTicks ? `
+        <div style="
+          position: absolute;
+          width: 2px;
+          height: 26px;
+          background-color: ${isSelected ? '#f59e0b' : tickColor};
+          top: 50%;
+          left: 50%;
+          margin-top: -13px;
+          margin-left: -1px;
+          transform: rotate(${perpAngle}deg);
+          box-shadow: 0 0 5px rgba(0,0,0,0.9);
+          border-radius: 1px;
+          z-index: 1;
+        "></div>
+      ` : ''}
+
+      <div style="
+        position: absolute;
+        width: ${isSelected ? '12px' : '6px'};
+        height: ${isSelected ? '12px' : '6px'};
+        background-color: ${isSelected ? '#f59e0b' : tickColor};
+        border-radius: 50%;
+        top: 50%;
+        left: 50%;
+        margin-top: ${isSelected ? '-6px' : '-3px'};
+        margin-left: ${isSelected ? '-6px' : '-3px'};
+        border: 1.5px solid #ffffff;
+        box-shadow: 0 0 6px rgba(0,0,0,0.8);
+        z-index: 2;
+      "></div>
+
+      <div style="
+        position: absolute;
+        top: 32px;
+        left: 50%;
+        transform: translateX(-50%);
+        white-space: nowrap;
+        font-family: 'JetBrains Mono', 'Courier New', monospace, sans-serif;
+        font-size: ${fontSize}px;
+        font-weight: 900;
+        color: ${isSelected ? '#f59e0b' : textColor};
+        text-shadow: 0 0 4px #000000, 0 0 2px #000000, 1px 1px 3px #000000;
+        user-select: none;
+        letter-spacing: -0.5px;
+        z-index: 3;
+      ">
+        ${stationText}
+      </div>
+    </div>
+  `;
+
+  return L.divIcon({
+    className: 'cad-station-marker',
+    html,
+    iconSize: [60, 60],
+    iconAnchor: [30, 30],
+    popupAnchor: [0, -30]
+  });
 }
 
 // Custom Leaflet Pin Icon Creator
@@ -184,7 +331,7 @@ function MapController({
   // Selected point fly-to
   useEffect(() => {
     if (selectedPoint) {
-      map.flyTo([selectedPoint.lat, selectedPoint.lng], Math.max(map.getZoom(), 17), { duration: 1 });
+      map.flyTo([selectedPoint.lat, selectedPoint.lng], 17, { duration: 1 });
     }
   }, [selectedPoint, map]);
 
@@ -203,14 +350,110 @@ function MapController({
         }
       }
     } else if (zoomTrigger.type === 'selected' && selectedPoint) {
-      map.flyTo([selectedPoint.lat, selectedPoint.lng], 18, { duration: 1 });
+      map.flyTo([selectedPoint.lat, selectedPoint.lng], 17, { duration: 1 });
     }
   }, [zoomTrigger, map, points, selectedPoint]);
 
   return null;
 }
 
-// VERTICAL PROFILE (PERFIL VERTICAL DO TRAÇADO CONFORME AS NORMAS)
+// Station Search Box Component (Buscar estaca e aplicar zoom 17 no Mapa e Perfil Vertical)
+function StationSearchBox({
+  points,
+  onSelectStation
+}: {
+  points: ProjectAlignmentPoint[];
+  onSelectStation: (point: ProjectAlignmentPoint) => void;
+}) {
+  const [searchTerm, setSearchTerm] = useState('');
+  const [isOpen, setIsOpen] = useState(false);
+
+  const matchedPoints = useMemo(() => {
+    if (!searchTerm.trim()) return [];
+    const term = searchTerm.toLowerCase().trim();
+    return points.filter(p => 
+      p.station.toLowerCase().includes(term) ||
+      (p.description && p.description.toLowerCase().includes(term)) ||
+      (p.type && p.type.toLowerCase().includes(term))
+    ).slice(0, 10);
+  }, [points, searchTerm]);
+
+  const handleSelect = (pt: ProjectAlignmentPoint) => {
+    onSelectStation(pt);
+    setSearchTerm(`Estaca ${pt.station}`);
+    setIsOpen(false);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && matchedPoints.length > 0) {
+      handleSelect(matchedPoints[0]);
+    }
+  };
+
+  return (
+    <div className="relative w-full sm:w-80">
+      <div className="relative flex items-center">
+        <Search className="w-4 h-4 absolute left-3.5 text-emerald-400 pointer-events-none" />
+        <input
+          type="text"
+          value={searchTerm}
+          onChange={e => {
+            setSearchTerm(e.target.value);
+            setIsOpen(true);
+          }}
+          onFocus={() => setIsOpen(true)}
+          onKeyDown={handleKeyDown}
+          placeholder="Buscar estaca (ex: 10+00, 15)..."
+          className="w-full pl-10 pr-9 py-2.5 rounded-2xl bg-slate-900/95 backdrop-blur-md border border-slate-700/90 text-xs font-black text-white placeholder-slate-400 shadow-2xl focus:outline-none focus:border-emerald-500 transition-all"
+        />
+        {searchTerm ? (
+          <button
+            onClick={() => {
+              setSearchTerm('');
+              setIsOpen(false);
+            }}
+            className="absolute right-3 p-1 text-slate-400 hover:text-white rounded-full bg-slate-800"
+          >
+            <X className="w-3 h-3" />
+          </button>
+        ) : (
+          <span className="absolute right-3 text-[10px] font-black uppercase tracking-wider text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20">
+            Zoom 17
+          </span>
+        )}
+      </div>
+
+      {/* Auto-complete Dropdown */}
+      {isOpen && matchedPoints.length > 0 && (
+        <div className="absolute top-full left-0 right-0 mt-1.5 z-[2000] bg-slate-900/98 backdrop-blur-xl border border-slate-700 rounded-2xl shadow-2xl overflow-hidden divide-y divide-slate-800/80 max-h-64 overflow-y-auto custom-scrollbar">
+          {matchedPoints.map(pt => (
+            <button
+              key={pt.id}
+              onClick={() => handleSelect(pt)}
+              className="w-full px-4 py-3 text-left hover:bg-slate-800 flex items-center justify-between transition-colors group"
+            >
+              <div className="flex items-center gap-2">
+                <MapPin className="w-4 h-4 text-amber-400 group-hover:scale-110 transition-transform" />
+                <div>
+                  <span className="font-black text-white text-xs block">Estaca {pt.station}</span>
+                  {pt.description && <span className="text-[10px] text-slate-400">{pt.description}</span>}
+                </div>
+              </div>
+              <div className="text-right">
+                {pt.elevation !== undefined && !isNaN(pt.elevation) && (
+                  <span className="text-xs text-emerald-400 font-mono font-black block">{pt.elevation.toFixed(2)} m</span>
+                )}
+                <span className="text-[9px] text-blue-400 uppercase font-extrabold">{pt.type || 'PI'}</span>
+              </div>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// VERTICAL PROFILE (PERFIL VERTICAL DO TRAÇADO COM ZOOM E AUTO-SCROLL)
 function VerticalProfileChart({
   points,
   selectedPointId,
@@ -220,6 +463,10 @@ function VerticalProfileChart({
   selectedPointId: string | null;
   onSelectPoint: (point: ProjectAlignmentPoint) => void;
 }) {
+  const [zoomX, setZoomX] = useState<number>(1);
+  const [zoomY, setZoomY] = useState<number>(1);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+
   const profilePointsWithElev = useMemo(() => {
     let currentDist = 0;
     return points.map((p, idx) => {
@@ -236,32 +483,19 @@ function VerticalProfileChart({
     }).filter(p => p.elevation !== null) as { point: ProjectAlignmentPoint; cumulativeDistMeters: number; elevation: number }[];
   }, [points]);
 
-  if (profilePointsWithElev.length < 2) {
-    return (
-      <div className="bg-slate-900 rounded-[28px] border border-slate-800 p-8 text-center space-y-3">
-        <div className="w-12 h-12 rounded-2xl bg-slate-800 text-slate-400 flex items-center justify-center mx-auto">
-          <TrendingUp className="w-6 h-6" />
-        </div>
-        <h4 className="text-sm font-black text-white">Perfil Vertical / Altimétrico</h4>
-        <p className="text-xs text-slate-400 max-w-md mx-auto">
-          Se o arquivo importado mantiver a coluna de <strong>COTA</strong> (elevação em metros), o perfil vertical é gerado automaticamente aqui.
-        </p>
-      </div>
-    );
-  }
+  const minElev = useMemo(() => profilePointsWithElev.length ? Math.min(...profilePointsWithElev.map(p => p.elevation)) : 0, [profilePointsWithElev]);
+  const maxElev = useMemo(() => profilePointsWithElev.length ? Math.max(...profilePointsWithElev.map(p => p.elevation)) : 10, [profilePointsWithElev]);
+  const totalLength = useMemo(() => profilePointsWithElev.length ? profilePointsWithElev[profilePointsWithElev.length - 1].cumulativeDistMeters : 1, [profilePointsWithElev]);
 
-  const minElev = Math.min(...profilePointsWithElev.map(p => p.elevation));
-  const maxElev = Math.max(...profilePointsWithElev.map(p => p.elevation));
-  const totalLength = profilePointsWithElev[profilePointsWithElev.length - 1].cumulativeDistMeters;
-
-  const svgWidth = 900;
-  const svgHeight = 260;
-  const padding = { top: 35, right: 40, bottom: 50, left: 65 };
+  const baseSvgWidth = 950;
+  const svgWidth = baseSvgWidth * zoomX;
+  const svgHeight = 280;
+  const padding = { top: 40, right: 50, bottom: 55, left: 70 };
   const graphWidth = svgWidth - padding.left - padding.right;
   const graphHeight = svgHeight - padding.top - padding.bottom;
 
   const elevRange = Math.max(maxElev - minElev, 1);
-  const yPadding = elevRange * 0.15;
+  const yPadding = (elevRange * 0.15) / zoomY;
   const yMin = minElev - yPadding;
   const yMax = maxElev + yPadding;
 
@@ -278,9 +512,36 @@ function VerticalProfileChart({
 
   const selectedProfilePt = profilePointsWithElev.find(p => p.point.id === selectedPointId);
 
+  // Auto-scroll profile container when selectedPointId changes
+  useEffect(() => {
+    if (selectedProfilePt && scrollContainerRef.current) {
+      const selectedX = getX(selectedProfilePt.cumulativeDistMeters);
+      const containerWidth = scrollContainerRef.current.clientWidth;
+      scrollContainerRef.current.scrollTo({
+        left: selectedX - containerWidth / 2,
+        behavior: 'smooth'
+      });
+    }
+  }, [selectedPointId, zoomX, selectedProfilePt]);
+
+  if (profilePointsWithElev.length < 2) {
+    return (
+      <div className="bg-slate-900 rounded-[28px] border border-slate-800 p-8 text-center space-y-3">
+        <div className="w-12 h-12 rounded-2xl bg-slate-800 text-slate-400 flex items-center justify-center mx-auto">
+          <TrendingUp className="w-6 h-6" />
+        </div>
+        <h4 className="text-sm font-black text-white">Perfil Vertical / Altimétrico</h4>
+        <p className="text-xs text-slate-400 max-w-md mx-auto">
+          Se o arquivo importado mantiver a coluna de <strong>COTA</strong> (elevação em metros), o perfil vertical é gerado automaticamente aqui.
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div className="bg-slate-950 rounded-[32px] border border-slate-800 p-6 shadow-2xl space-y-4 relative overflow-hidden">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800/80 pb-4">
+      {/* Header do Perfil Vertical com Controles de Zoom */}
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-slate-800/80 pb-4">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-2xl bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
             <TrendingUp className="w-5 h-5" />
@@ -289,24 +550,70 @@ function VerticalProfileChart({
             <div className="flex items-center gap-2">
               <h3 className="text-base font-black text-white">Perfil Altimétrico / Vertical do Traçado</h3>
               <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 text-[10px] font-bold uppercase tracking-wider">
-                {profilePointsWithElev.length} Cotas Registradas
+                {profilePointsWithElev.length} Cotas
               </span>
             </div>
-            <p className="text-xs text-slate-400">Desenho altimétrico contínuo das estacas conforme normas de engenharia rodoviária</p>
+            <p className="text-xs text-slate-400">Desenho altimétrico contínuo com suporte a Zoom e Exagero Vertical</p>
           </div>
         </div>
 
-        <div className="flex items-center gap-4 text-xs font-bold text-slate-300 bg-slate-900 px-4 py-2 rounded-2xl border border-slate-800">
-          <div>Cota Mín: <strong className="text-emerald-400 font-black">{minElev.toFixed(2)} m</strong></div>
-          <div className="w-px h-4 bg-slate-800" />
-          <div>Cota Máx: <strong className="text-blue-400 font-black">{maxElev.toFixed(2)} m</strong></div>
-          <div className="w-px h-4 bg-slate-800" />
-          <div>Desnível Total: <strong className="text-purple-400 font-black">{(maxElev - minElev).toFixed(2)} m</strong></div>
+        {/* Controles de Zoom do Perfil Vertical */}
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex items-center bg-slate-900 p-1 rounded-2xl border border-slate-800 text-xs font-bold text-slate-300">
+            <span className="px-2.5 text-[10px] font-black uppercase text-slate-400">Zoom Perfil (X):</span>
+            <button
+              onClick={() => setZoomX(prev => Math.max(0.75, parseFloat((prev - 0.25).toFixed(2))))}
+              className="p-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white"
+              title="Afastar Zoom Horizontal (-)"
+            >
+              <ZoomOut className="w-3.5 h-3.5" />
+            </button>
+            <span className="px-2 font-mono font-black text-emerald-400">{zoomX.toFixed(2)}x</span>
+            <button
+              onClick={() => setZoomX(prev => Math.min(4, parseFloat((prev + 0.25).toFixed(2))))}
+              className="p-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white"
+              title="Aproximar Zoom Horizontal (+)"
+            >
+              <ZoomIn className="w-3.5 h-3.5" />
+            </button>
+          </div>
+
+          <div className="flex items-center bg-slate-900 p-1 rounded-2xl border border-slate-800 text-xs font-bold text-slate-300">
+            <span className="px-2.5 text-[10px] font-black uppercase text-slate-400">Exagero (Y):</span>
+            {[1, 2, 4, 8].map(y => (
+              <button
+                key={y}
+                onClick={() => setZoomY(y)}
+                className={`px-2.5 py-1 rounded-xl text-[11px] font-black transition-all ${
+                  zoomY === y ? 'bg-emerald-500 text-slate-950 shadow' : 'hover:bg-slate-800 text-slate-400'
+                }`}
+              >
+                {y}x
+              </button>
+            ))}
+          </div>
+
+          {(zoomX !== 1 || zoomY !== 1) && (
+            <button
+              onClick={() => { setZoomX(1); setZoomY(1); }}
+              className="p-2 rounded-2xl bg-slate-900 border border-slate-800 hover:bg-slate-800 text-slate-400 hover:text-white transition-colors"
+              title="Redefinir Zoom do Perfil"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+            </button>
+          )}
+
+          <div className="hidden xl:flex items-center gap-3 text-xs font-bold text-slate-300 bg-slate-900 px-3 py-1.5 rounded-2xl border border-slate-800">
+            <div>Min: <strong className="text-emerald-400 font-black">{minElev.toFixed(1)}m</strong></div>
+            <div className="w-px h-3 bg-slate-800" />
+            <div>Max: <strong className="text-blue-400 font-black">{maxElev.toFixed(1)}m</strong></div>
+          </div>
         </div>
       </div>
 
-      <div className="relative overflow-x-auto custom-scrollbar">
-        <svg viewBox={`0 0 ${svgWidth} ${svgHeight}`} className="w-full h-auto min-w-[700px] select-none">
+      {/* SVG Container do Perfil com Scroll Horizontal Responsivo */}
+      <div ref={scrollContainerRef} className="relative overflow-x-auto custom-scrollbar">
+        <svg viewBox={`0 0 ${svgWidth} ${svgHeight}`} style={{ width: `${100 * zoomX}%`, minWidth: '700px' }} className="h-auto select-none">
           <defs>
             <linearGradient id="profileAreaGrad" x1="0" y1="0" x2="0" y2="1">
               <stop offset="0%" stopColor="#10b981" stopOpacity="0.35" />
@@ -319,6 +626,7 @@ function VerticalProfileChart({
             </linearGradient>
           </defs>
 
+          {/* Grade Horizontal de Elevações (Y) */}
           {[0, 0.25, 0.5, 0.75, 1].map((ratio, i) => {
             const elevVal = yMin + ratio * (yMax - yMin);
             const yPos = getY(elevVal);
@@ -348,7 +656,8 @@ function VerticalProfileChart({
             );
           })}
 
-          {[0, 0.25, 0.5, 0.75, 1].map((ratio, i) => {
+          {/* Grade Vertical de Estacas / Quilometragem (X) */}
+          {[0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1].map((ratio, i) => {
             const distVal = ratio * totalLength;
             const xPos = getX(distVal);
             return (
@@ -380,6 +689,7 @@ function VerticalProfileChart({
           <path d={areaPath} fill="url(#profileAreaGrad)" />
           <path d={linePath} fill="none" stroke="url(#profileLineGrad)" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
 
+          {/* Pontos de Vértice no Perfil Vertical */}
           {profilePointsWithElev.map((p) => {
             const x = getX(p.cumulativeDistMeters);
             const y = getY(p.elevation);
@@ -390,8 +700,8 @@ function VerticalProfileChart({
                 <circle
                   cx={x}
                   cy={y}
-                  r={isSelected ? 7 : 4}
-                  fill={isSelected ? '#ef4444' : '#10b981'}
+                  r={isSelected ? 8 : 4}
+                  fill={isSelected ? '#f59e0b' : '#10b981'}
                   stroke="#ffffff"
                   strokeWidth={isSelected ? 3 : 1.5}
                 />
@@ -399,9 +709,9 @@ function VerticalProfileChart({
                   <circle
                     cx={x}
                     cy={y}
-                    r={14}
+                    r={16}
                     fill="none"
-                    stroke="#ef4444"
+                    stroke="#f59e0b"
                     strokeWidth="2"
                     className="animate-ping opacity-75"
                   />
@@ -410,6 +720,7 @@ function VerticalProfileChart({
             );
           })}
 
+          {/* Linha de Destaque da Estaca Selecionada */}
           {selectedProfilePt && (
             <g>
               <line
@@ -417,24 +728,24 @@ function VerticalProfileChart({
                 y1={padding.top}
                 x2={getX(selectedProfilePt.cumulativeDistMeters)}
                 y2={padding.top + graphHeight}
-                stroke="#ef4444"
-                strokeWidth="2"
-                strokeDasharray="3 3"
+                stroke="#f59e0b"
+                strokeWidth="2.5"
+                strokeDasharray="4 4"
               />
               <rect
-                x={Math.min(Math.max(getX(selectedProfilePt.cumulativeDistMeters) - 60, padding.left), svgWidth - 130)}
-                y={padding.top - 25}
-                width="120"
-                height="22"
-                rx="6"
-                fill="#1e293b"
-                stroke="#ef4444"
+                x={Math.min(Math.max(getX(selectedProfilePt.cumulativeDistMeters) - 65, padding.left), svgWidth - 140)}
+                y={padding.top - 30}
+                width="130"
+                height="24"
+                rx="8"
+                fill="#0f172a"
+                stroke="#f59e0b"
                 strokeWidth="1.5"
               />
               <text
-                x={Math.min(Math.max(getX(selectedProfilePt.cumulativeDistMeters) - 60, padding.left) + 60, svgWidth - 70)}
-                y={padding.top - 10}
-                fill="#ffffff"
+                x={Math.min(Math.max(getX(selectedProfilePt.cumulativeDistMeters) - 65, padding.left) + 65, svgWidth - 75)}
+                y={padding.top - 14}
+                fill="#f59e0b"
                 fontSize="10"
                 fontWeight="black"
                 textAnchor="middle"
@@ -447,8 +758,8 @@ function VerticalProfileChart({
       </div>
 
       <div className="flex items-center justify-between text-[11px] text-slate-400 font-medium pt-1">
-        <span>Clique em qualquer ponto do gráfico para destacar e focar a estaca correspondente no mapa horizontal e na tabela.</span>
-        <span className="text-emerald-400 font-bold">Escala Altimétrica Ampliada (Exagero Vertical Controlado)</span>
+        <span>Clique em qualquer cota do perfil para sincronizar e focar a estaca no mapa (Zoom 17).</span>
+        <span className="text-emerald-400 font-bold">Zoom Horizontal ({zoomX.toFixed(2)}x) | Exagero Vertical ({zoomY}x)</span>
       </div>
     </div>
   );
@@ -472,14 +783,21 @@ export function ProjectAlignmentView({
     return projectAlignments.find(a => a.contractId === contract.id) || projectAlignments[0];
   }, [projectAlignments, contract.id]);
 
-  const [activeLayerType, setActiveLayerType] = useState<'google_satellite' | 'google_hybrid' | 'google_roadmap' | 'google_terrain'>('google_hybrid');
+  // CAD Visualization Settings (Loaded from localStorage)
+  const [cadSettings, setCadSettings] = useState<CadViewSettings>(loadCadSettings);
+  const [showSettingsModal, setShowSettingsModal] = useState<boolean>(false);
+  const [currentZoom, setCurrentZoom] = useState<number>(14);
+
+  // Automatically persist settings to localStorage whenever changed
+  useEffect(() => {
+    saveCadSettings(cadSettings);
+  }, [cadSettings]);
+
   const [utmZone, setUtmZone] = useState<number>(23);
   const [coordinateType, setCoordinateType] = useState<'UTM' | 'LAT_LNG'>('UTM');
   const [selectedDatum, setSelectedDatum] = useState<'SIRGAS 2000' | 'SAD-69'>('SIRGAS 2000');
   const [saveSuccessMessage, setSaveSuccessMessage] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState<string>('');
-  const [showSqlModal, setShowSqlModal] = useState<boolean>(false);
-  const [sqlCopied, setSqlCopied] = useState<boolean>(false);
   const [isMapExpanded, setIsMapExpanded] = useState<boolean>(false);
 
   // Cross-highlighting & Zoom State
@@ -521,9 +839,18 @@ export function ProjectAlignmentView({
   const [parsedPreviewPoints, setParsedPreviewPoints] = useState<ProjectAlignmentPoint[]>([]);
   const [importError, setImportError] = useState<string | null>(null);
 
+  // KML Export Modal State
+  const [showKmlModal, setShowKmlModal] = useState<boolean>(false);
+  const [kmlOptions, setKmlOptions] = useState({
+    includeAlignmentLine: true,
+    includeStations: true,
+    includePins: true,
+    includeMeasurements: true
+  });
+
   // Sidebar Tool States (Menu Lateral)
   const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(true);
-  const [sidebarTab, setSidebarTab] = useState<'pins' | 'measure' | 'layers' | 'points' | 'sql'>('pins');
+  const [sidebarTab, setSidebarTab] = useState<'pins' | 'measure' | 'layers' | 'settings'>('pins');
   const [activeTool, setActiveTool] = useState<'none' | 'pin' | 'measure'>('none');
 
   // Pins State
@@ -969,6 +1296,319 @@ export function ProjectAlignmentView({
     const updated = pins.filter(p => p.id !== pinId);
     setPins(updated);
     updateAlignmentData(updated, savedMeasurements);
+    setSaveSuccessMessage('✅ Alfinete removido com sucesso.');
+    setTimeout(() => setSaveSuccessMessage(null), 4000);
+  };
+
+  // Export SQL Script as .txt file for Sala Técnica / Database Persistence
+  const handleExportSqlScriptTxt = () => {
+    if (!currentAlignment) {
+      setSaveSuccessMessage('⚠️ Nenhum traçado horizontal está carregado no momento.');
+      return;
+    }
+
+    const sanitizeSql = (val: any): string => {
+      if (val === undefined || val === null) return 'NULL';
+      if (typeof val === 'number') return isFinite(val) ? String(val) : 'NULL';
+      if (typeof val === 'boolean') return val ? 'TRUE' : 'FALSE';
+      const str = String(val).replace(/'/g, "''");
+      return `'${str}'`;
+    };
+
+    const workName = contract.workName || contract.client || 'Obra';
+    const contractNo = contract.contractNumber || 'TRECHO-01';
+
+    let sql = `-- =============================================================================\n`;
+    sql += `-- SCRIPT DE BANCO DE DADOS - SALA TÉCNICA / PROJETO DE TRAÇADO HORIZONTAL\n`;
+    sql += `-- Obra: ${workName}\n`;
+    sql += `-- Contrato: ${contractNo}\n`;
+    sql += `-- Data de Geração: ${new Date().toLocaleString('pt-BR')}\n`;
+    sql += `-- =============================================================================\n\n`;
+
+    sql += `-- 1. CRIAÇÃO DA ESTRUTURA DE TABELAS (DDL)\n`;
+    sql += `CREATE TABLE IF NOT EXISTS project_alignments (\n`;
+    sql += `  id VARCHAR(64) PRIMARY KEY,\n`;
+    sql += `  contract_id VARCHAR(64) NOT NULL,\n`;
+    sql += `  contract_name VARCHAR(255),\n`;
+    sql += `  title VARCHAR(255) NOT NULL,\n`;
+    sql += `  highway_code VARCHAR(64),\n`;
+    sql += `  imported_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,\n`;
+    sql += `  file_name VARCHAR(255),\n`;
+    sql += `  total_length_meters NUMERIC(12,2),\n`;
+    sql += `  start_station VARCHAR(32),\n`;
+    sql += `  end_station VARCHAR(32)\n`;
+    sql += `);\n\n`;
+
+    sql += `CREATE TABLE IF NOT EXISTS project_alignment_points (\n`;
+    sql += `  id VARCHAR(64) PRIMARY KEY,\n`;
+    sql += `  alignment_id VARCHAR(64) REFERENCES project_alignments(id) ON DELETE CASCADE,\n`;
+    sql += `  point_order INT NOT NULL,\n`;
+    sql += `  station VARCHAR(32) NOT NULL,\n`;
+    sql += `  latitude NUMERIC(10,8) NOT NULL,\n`;
+    sql += `  longitude NUMERIC(11,8) NOT NULL,\n`;
+    sql += `  easting NUMERIC(12,3),\n`;
+    sql += `  northing NUMERIC(12,3),\n`;
+    sql += `  elevation NUMERIC(8,3),\n`;
+    sql += `  radius NUMERIC(10,2),\n`;
+    sql += `  element_type VARCHAR(16),\n`;
+    sql += `  description TEXT,\n`;
+    sql += `  complementary_info TEXT\n`;
+    sql += `);\n\n`;
+
+    sql += `CREATE TABLE IF NOT EXISTS project_pins (\n`;
+    sql += `  id VARCHAR(64) PRIMARY KEY,\n`;
+    sql += `  contract_id VARCHAR(64) NOT NULL,\n`;
+    sql += `  alignment_id VARCHAR(64),\n`;
+    sql += `  title VARCHAR(255) NOT NULL,\n`;
+    sql += `  category VARCHAR(64),\n`;
+    sql += `  color VARCHAR(32),\n`;
+    sql += `  latitude NUMERIC(10,8) NOT NULL,\n`;
+    sql += `  longitude NUMERIC(11,8) NOT NULL,\n`;
+    sql += `  station VARCHAR(32),\n`;
+    sql += `  notes TEXT,\n`;
+    sql += `  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP\n`;
+    sql += `);\n\n`;
+
+    sql += `CREATE TABLE IF NOT EXISTS project_measurements (\n`;
+    sql += `  id VARCHAR(64) PRIMARY KEY,\n`;
+    sql += `  contract_id VARCHAR(64) NOT NULL,\n`;
+    sql += `  alignment_id VARCHAR(64),\n`;
+    sql += `  title VARCHAR(255) NOT NULL,\n`;
+    sql += `  total_distance_meters NUMERIC(12,2),\n`;
+    sql += `  points_json TEXT,\n`;
+    sql += `  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP\n`;
+    sql += `);\n\n`;
+
+    sql += `CREATE TABLE IF NOT EXISTS cad_visualization_settings (\n`;
+    sql += `  contract_id VARCHAR(64) PRIMARY KEY,\n`;
+    sql += `  enable_google_maps BOOLEAN,\n`;
+    sql += `  google_maps_layer_type VARCHAR(32),\n`;
+    sql += `  canvas_bg_color VARCHAR(16),\n`;
+    sql += `  centerline_color VARCHAR(16),\n`;
+    sql += `  centerline_weight INT,\n`;
+    sql += `  centerline_dash_array VARCHAR(32),\n`;
+    sql += `  show_stations BOOLEAN,\n`;
+    sql += `  min_station_zoom INT,\n`;
+    sql += `  station_tick_color VARCHAR(16),\n`;
+    sql += `  station_text_color VARCHAR(16),\n`;
+    sql += `  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP\n`;
+    sql += `);\n\n`;
+
+    sql += `-- 2. INSERÇÃO E SINCRO DE DADOS DO PROJETO (DML)\n`;
+    sql += `INSERT INTO project_alignments (\n`;
+    sql += `  id, contract_id, contract_name, title, highway_code, imported_at, file_name, total_length_meters, start_station, end_station\n`;
+    sql += `) VALUES (\n`;
+    sql += `  ${sanitizeSql(currentAlignment.id)}, ${sanitizeSql(contract.id)}, ${sanitizeSql(workName)}, ${sanitizeSql(currentAlignment.title)}, ${sanitizeSql(currentAlignment.highwayCode)},\n`;
+    sql += `  ${sanitizeSql(currentAlignment.importedAt)}, ${sanitizeSql(currentAlignment.fileName)}, ${sanitizeSql(currentAlignment.totalLengthMeters)}, ${sanitizeSql(currentAlignment.startStation)}, ${sanitizeSql(currentAlignment.endStation)}\n`;
+    sql += `) ON CONFLICT (id) DO UPDATE SET\n`;
+    sql += `  title = EXCLUDED.title,\n`;
+    sql += `  total_length_meters = EXCLUDED.total_length_meters,\n`;
+    sql += `  start_station = EXCLUDED.start_station,\n`;
+    sql += `  end_station = EXCLUDED.end_station;\n\n`;
+
+    if (currentAlignment.points && currentAlignment.points.length > 0) {
+      sql += `-- Estacas do Traçado Horizontal (${currentAlignment.points.length} pontos)\n`;
+      sql += `DELETE FROM project_alignment_points WHERE alignment_id = ${sanitizeSql(currentAlignment.id)};\n`;
+      currentAlignment.points.forEach((pt, idx) => {
+        sql += `INSERT INTO project_alignment_points (id, alignment_id, point_order, station, latitude, longitude, easting, northing, elevation, radius, element_type, description, complementary_info) VALUES (`;
+        sql += `${sanitizeSql(pt.id)}, ${sanitizeSql(currentAlignment.id)}, ${idx + 1}, ${sanitizeSql(pt.station)}, ${sanitizeSql(pt.lat)}, ${sanitizeSql(pt.lng)}, ${sanitizeSql(pt.easting)}, ${sanitizeSql(pt.northing)}, ${sanitizeSql(pt.elevation)}, ${sanitizeSql(pt.radius)}, ${sanitizeSql(pt.type)}, ${sanitizeSql(pt.description)}, ${sanitizeSql(pt.complementaryInfo)}`;
+        sql += `);\n`;
+      });
+      sql += `\n`;
+    }
+
+    if (pins && pins.length > 0) {
+      sql += `-- Alfinetes e Ocorrências Marcadas (${pins.length} registros)\n`;
+      sql += `DELETE FROM project_pins WHERE contract_id = ${sanitizeSql(contract.id)};\n`;
+      pins.forEach(pin => {
+        sql += `INSERT INTO project_pins (id, contract_id, alignment_id, title, category, color, latitude, longitude, station, notes, created_at) VALUES (`;
+        sql += `${sanitizeSql(pin.id)}, ${sanitizeSql(contract.id)}, ${sanitizeSql(currentAlignment.id)}, ${sanitizeSql(pin.title)}, ${sanitizeSql(pin.category)}, ${sanitizeSql(pin.color)}, ${sanitizeSql(pin.lat)}, ${sanitizeSql(pin.lng)}, ${sanitizeSql(pin.station)}, ${sanitizeSql(pin.notes)}, ${sanitizeSql(pin.createdAt)}`;
+        sql += `);\n`;
+      });
+      sql += `\n`;
+    }
+
+    if (savedMeasurements && savedMeasurements.length > 0) {
+      sql += `-- Medições Salvas no Desenho (${savedMeasurements.length} registros)\n`;
+      sql += `DELETE FROM project_measurements WHERE contract_id = ${sanitizeSql(contract.id)};\n`;
+      savedMeasurements.forEach(m => {
+        sql += `INSERT INTO project_measurements (id, contract_id, alignment_id, title, total_distance_meters, points_json, created_at) VALUES (`;
+        sql += `${sanitizeSql(m.id)}, ${sanitizeSql(contract.id)}, ${sanitizeSql(currentAlignment.id)}, ${sanitizeSql(m.title)}, ${sanitizeSql(m.totalDistanceMeters)}, ${sanitizeSql(JSON.stringify(m.points))}, ${sanitizeSql(m.createdAt)}`;
+        sql += `);\n`;
+      });
+      sql += `\n`;
+    }
+
+    sql += `-- Configurações de Visualização CAD\n`;
+    sql += `INSERT INTO cad_visualization_settings (\n`;
+    sql += `  contract_id, enable_google_maps, google_maps_layer_type, canvas_bg_color, centerline_color, centerline_weight, centerline_dash_array, show_stations, min_station_zoom, station_tick_color, station_text_color\n`;
+    sql += `) VALUES (\n`;
+    sql += `  ${sanitizeSql(contract.id)}, ${sanitizeSql(cadSettings.enableGoogleMaps)}, ${sanitizeSql(cadSettings.googleMapsLayerType)}, ${sanitizeSql(cadSettings.canvasBgColor)}, ${sanitizeSql(cadSettings.centerlineColor)}, ${sanitizeSql(cadSettings.centerlineWeight)}, ${sanitizeSql(cadSettings.centerlineDashArray)}, ${sanitizeSql(cadSettings.showStations)}, ${sanitizeSql(cadSettings.minStationZoom)}, ${sanitizeSql(cadSettings.stationTickColor)}, ${sanitizeSql(cadSettings.stationTextColor)}\n`;
+    sql += `) ON CONFLICT (contract_id) DO UPDATE SET\n`;
+    sql += `  enable_google_maps = EXCLUDED.enable_google_maps,\n`;
+    sql += `  canvas_bg_color = EXCLUDED.canvas_bg_color,\n`;
+    sql += `  centerline_color = EXCLUDED.centerline_color,\n`;
+    sql += `  station_tick_color = EXCLUDED.station_tick_color;\n`;
+
+    const blob = new Blob([sql], { type: 'text/plain;charset=utf-8' });
+    const cleanFileName = `script_sql_sala_tecnica_${workName.toLowerCase().replace(/[^a-z0-9]/g, '_')}_${Date.now()}.txt`;
+    saveAs(blob, cleanFileName);
+
+    setSaveSuccessMessage(`✅ Script SQL (.txt) criado com sucesso! Contém ${currentAlignment.points.length} estacas, ${pins.length} alfinetes e parâmetros CAD.`);
+    setTimeout(() => setSaveSuccessMessage(null), 8000);
+  };
+
+  // Export Alignment & Pins to Google Earth KML format
+  const handleExportKml = () => {
+    if (!currentAlignment) {
+      setSaveSuccessMessage('⚠️ Nenhum traçado horizontal está disponível para exportação KML.');
+      return;
+    }
+
+    const escapeXml = (str: any) => {
+      if (!str) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&apos;');
+    };
+
+    const workName = contract.workName || contract.client || 'Obra';
+
+    let kml = `<?xml version="1.0" encoding="UTF-8"?>\n`;
+    kml += `<kml xmlns="http://www.opengis.net/kml/2.2">\n`;
+    kml += `  <Document>\n`;
+    kml += `    <name>${escapeXml(currentAlignment.title)}</name>\n`;
+    kml += `    <description>Projeto de Traçado Horizontal - Sala Técnica - ${escapeXml(workName)}</description>\n\n`;
+
+    // Line Style (Yellow centerline ff00ffff)
+    kml += `    <Style id="centerlineStyle">\n`;
+    kml += `      <LineStyle>\n`;
+    kml += `        <color>ff00ffff</color>\n`;
+    kml += `        <width>4</width>\n`;
+    kml += `      </LineStyle>\n`;
+    kml += `    </Style>\n\n`;
+
+    // Station Style
+    kml += `    <Style id="stationStyle">\n`;
+    kml += `      <IconStyle>\n`;
+    kml += `        <scale>0.8</scale>\n`;
+    kml += `        <Icon>\n`;
+    kml += `          <href>http://maps.google.com/mapfiles/kml/paddle/grn-circle.png</href>\n`;
+    kml += `        </Icon>\n`;
+    kml += `      </IconStyle>\n`;
+    kml += `    </Style>\n\n`;
+
+    // Pin Style
+    kml += `    <Style id="pinStyle">\n`;
+    kml += `      <IconStyle>\n`;
+    kml += `        <scale>1.1</scale>\n`;
+    kml += `        <Icon>\n`;
+    kml += `          <href>http://maps.google.com/mapfiles/kml/pushpin/red-pushpin.png</href>\n`;
+    kml += `        </Icon>\n`;
+    kml += `      </IconStyle>\n`;
+    kml += `    </Style>\n\n`;
+
+    // Folder: Alignment Line
+    if (kmlOptions.includeAlignmentLine && currentAlignment.points.length > 0) {
+      kml += `    <Folder>\n`;
+      kml += `      <name>Eixo do Traçado Horizontal</name>\n`;
+      kml += `      <Placemark>\n`;
+      kml += `        <name>${escapeXml(currentAlignment.title)}</name>\n`;
+      kml += `        <styleUrl>#centerlineStyle</styleUrl>\n`;
+      kml += `        <LineString>\n`;
+      kml += `          <extrude>1</extrude>\n`;
+      kml += `          <tessellate>1</tessellate>\n`;
+      kml += `          <altitudeMode>clampToGround</altitudeMode>\n`;
+      kml += `          <coordinates>\n`;
+      currentAlignment.points.forEach(pt => {
+        const elev = pt.elevation !== undefined && !isNaN(pt.elevation) ? pt.elevation : 0;
+        kml += `            ${pt.lng},${pt.lat},${elev}\n`;
+      });
+      kml += `          </coordinates>\n`;
+      kml += `        </LineString>\n`;
+      kml += `      </Placemark>\n`;
+      kml += `    </Folder>\n\n`;
+    }
+
+    // Folder: Station Points
+    if (kmlOptions.includeStations && currentAlignment.points.length > 0) {
+      kml += `    <Folder>\n`;
+      kml += `      <name>Estacas do Traçado (${currentAlignment.points.length})</name>\n`;
+      currentAlignment.points.forEach(pt => {
+        const elev = pt.elevation !== undefined && !isNaN(pt.elevation) ? pt.elevation : 0;
+        kml += `      <Placemark>\n`;
+        kml += `        <name>Estaca ${escapeXml(pt.station)}</name>\n`;
+        kml += `        <description><![CDATA[\n`;
+        kml += `          <b>Estaca:</b> ${escapeXml(pt.station)}<br/>\n`;
+        kml += `          <b>Tipo:</b> ${escapeXml(pt.type || 'PI')}<br/>\n`;
+        kml += `          <b>Cota:</b> ${elev.toFixed(2)} m<br/>\n`;
+        if (pt.radius) kml += `          <b>Raio de Curva:</b> ${pt.radius} m<br/>\n`;
+        if (pt.description) kml += `          <b>Descrição:</b> ${escapeXml(pt.description)}<br/>\n`;
+        if (pt.complementaryInfo) kml += `          <b>Info Comp:</b> ${escapeXml(pt.complementaryInfo)}<br/>\n`;
+        kml += `        ]]></description>\n`;
+        kml += `        <styleUrl>#stationStyle</styleUrl>\n`;
+        kml += `        <Point>\n`;
+        kml += `          <coordinates>${pt.lng},${pt.lat},${elev}</coordinates>\n`;
+        kml += `        </Point>\n`;
+        kml += `      </Placemark>\n`;
+      });
+      kml += `    </Folder>\n\n`;
+    }
+
+    // Folder: Pins / Alfinetes
+    if (kmlOptions.includePins && pins.length > 0) {
+      kml += `    <Folder>\n`;
+      kml += `      <name>Alfinetes e Ocorrências (${pins.length})</name>\n`;
+      pins.forEach(pin => {
+        kml += `      <Placemark>\n`;
+        kml += `        <name>${escapeXml(pin.title)}</name>\n`;
+        kml += `        <description><![CDATA[\n`;
+        kml += `          <b>Categoria:</b> ${escapeXml(pin.category)}<br/>\n`;
+        if (pin.station) kml += `          <b>Estaca:</b> ${escapeXml(pin.station)}<br/>\n`;
+        if (pin.notes) kml += `          <b>Observações:</b> ${escapeXml(pin.notes)}<br/>\n`;
+        kml += `          <b>Data:</b> ${new Date(pin.createdAt).toLocaleString('pt-BR')}<br/>\n`;
+        kml += `        ]]></description>\n`;
+        kml += `        <styleUrl>#pinStyle</styleUrl>\n`;
+        kml += `        <Point>\n`;
+        kml += `          <coordinates>${pin.lng},${pin.lat},0</coordinates>\n`;
+        kml += `        </Point>\n`;
+        kml += `      </Placemark>\n`;
+      });
+      kml += `    </Folder>\n\n`;
+    }
+
+    // Folder: Measurements
+    if (kmlOptions.includeMeasurements && savedMeasurements.length > 0) {
+      kml += `    <Folder>\n`;
+      kml += `      <name>Medições de Régua (${savedMeasurements.length})</name>\n`;
+      savedMeasurements.forEach(m => {
+        kml += `      <Placemark>\n`;
+        kml += `        <name>${escapeXml(m.title)} - ${m.totalDistanceMeters.toLocaleString('pt-BR')} m</name>\n`;
+        kml += `        <LineString>\n`;
+        kml += `          <coordinates>\n`;
+        m.points.forEach(p => {
+          kml += `            ${p.lng},${p.lat},0\n`;
+        });
+        kml += `          </coordinates>\n`;
+        kml += `        </LineString>\n`;
+        kml += `      </Placemark>\n`;
+      });
+      kml += `    </Folder>\n\n`;
+    }
+
+    kml += `  </Document>\n`;
+    kml += `</kml>`;
+
+    const blob = new Blob([kml], { type: 'application/vnd.google-earth.kml+xml;charset=utf-8' });
+    const cleanFileName = `tracado_${workName.toLowerCase().replace(/[^a-z0-9]/g, '_')}_${Date.now()}.kml`;
+    saveAs(blob, cleanFileName);
+
+    setShowKmlModal(false);
+    setSaveSuccessMessage(`✅ Arquivo KML exportado com sucesso! Pronto para abrir no Google Earth com traçado e alfinetes.`);
+    setTimeout(() => setSaveSuccessMessage(null), 8000);
   };
 
   // Filtered Points in Table
@@ -1005,138 +1645,9 @@ export function ProjectAlignmentView({
     };
   }, [currentAlignment]);
 
-  // Generate Comprehensive SQL Script
-  // Generate Comprehensive SQL Script
-  const generatedSql = useMemo(() => {
-    if (!currentAlignment) return '';
-
-    const esc = (val: any): string => {
-      if (val === null || val === undefined) return "''";
-      const s = String(val).replace(/'/g, "''").replace(/\\/g, "\\\\");
-      return `'${s}'`;
-    };
-
-    const escNum = (val: any, defaultVal: number = 0): string => {
-      if (val === null || val === undefined || val === '') return String(defaultVal);
-      const n = Number(val);
-      return Number.isFinite(n) ? String(n) : String(defaultVal);
-    };
-
-    const escNullableNum = (val: any): string => {
-      if (val === null || val === undefined || val === '') return 'NULL';
-      const n = Number(val);
-      return Number.isFinite(n) ? String(n) : 'NULL';
-    };
-
-    return `-- =========================================================
--- SCRIPT SQL DE ATUALIZAÇÃO E SINCRONIZAÇÃO DO PROJETO
--- Sistema SYNERA ERP / Sala Técnica
--- Obra: ${esc(contract.workName || contract.client || 'Obra Principal')}
--- Data de Geração: ${new Date().toLocaleDateString('pt-BR')}
--- =========================================================
-
--- 1. Tabela Principal de Traçados Horizontais
-CREATE TABLE IF NOT EXISTS project_alignments (
-    id VARCHAR(255) PRIMARY KEY,
-    contract_id VARCHAR(255) NOT NULL,
-    contract_name VARCHAR(255),
-    title VARCHAR(255) NOT NULL,
-    highway_code VARCHAR(100),
-    file_name VARCHAR(255),
-    total_length_meters NUMERIC(12, 2) DEFAULT 0,
-    start_station VARCHAR(50),
-    end_station VARCHAR(50),
-    imported_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-);
-
--- 2. Tabela de Pontos e Vértices da Geometria do Traçado
-CREATE TABLE IF NOT EXISTS project_alignment_points (
-    id VARCHAR(255) PRIMARY KEY,
-    alignment_id VARCHAR(255) NOT NULL REFERENCES project_alignments(id) ON DELETE CASCADE,
-    sequence_order INT NOT NULL,
-    station VARCHAR(50) NOT NULL,
-    latitude NUMERIC(10, 7) NOT NULL,
-    longitude NUMERIC(10, 7) NOT NULL,
-    easting_utm NUMERIC(12, 3),
-    northing_utm NUMERIC(12, 3),
-    radius_meters NUMERIC(10, 2) DEFAULT 0,
-    deflection_deg NUMERIC(8, 4),
-    element_type VARCHAR(20) DEFAULT 'PI',
-    description TEXT,
-    elevation_meters NUMERIC(10, 2)
-);
-
--- 3. Tabela de Alfinetes e Pontos de Interesse (Pins no Desenho)
-CREATE TABLE IF NOT EXISTS project_pins (
-    id VARCHAR(255) PRIMARY KEY,
-    contract_id VARCHAR(255) NOT NULL,
-    alignment_id VARCHAR(255) REFERENCES project_alignments(id) ON DELETE SET NULL,
-    title VARCHAR(255) NOT NULL,
-    category VARCHAR(50) NOT NULL,
-    color VARCHAR(30) DEFAULT 'red',
-    latitude NUMERIC(10, 7) NOT NULL,
-    longitude NUMERIC(10, 7) NOT NULL,
-    station VARCHAR(50),
-    notes TEXT,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-);
-
--- 4. Tabela de Medições Efetuadas no Desenho (Réguas)
-CREATE TABLE IF NOT EXISTS project_measurements (
-    id VARCHAR(255) PRIMARY KEY,
-    contract_id VARCHAR(255) NOT NULL,
-    alignment_id VARCHAR(255) REFERENCES project_alignments(id) ON DELETE SET NULL,
-    title VARCHAR(255) NOT NULL,
-    total_distance_meters NUMERIC(12, 2) NOT NULL,
-    points_json JSONB NOT NULL,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-);
-
--- 5. Índices para Otimização de Consultas Geoespaciais
-CREATE INDEX IF NOT EXISTS idx_alignment_contract ON project_alignments(contract_id);
-CREATE INDEX IF NOT EXISTS idx_alignment_points_alignment ON project_alignment_points(alignment_id);
-CREATE INDEX IF NOT EXISTS idx_pins_contract ON project_pins(contract_id);
-CREATE INDEX IF NOT EXISTS idx_measurements_contract ON project_measurements(contract_id);
-
--- 6. Inserção / Upsert do Traçado Principal
-INSERT INTO project_alignments (
-    id, contract_id, contract_name, title, highway_code, file_name, total_length_meters, start_station, end_station, imported_at
-) VALUES (
-    ${esc(currentAlignment.id)},
-    ${esc(currentAlignment.contractId)},
-    ${esc(currentAlignment.contractName || '')},
-    ${esc(currentAlignment.title)},
-    ${esc(currentAlignment.highwayCode || '')},
-    ${esc(currentAlignment.fileName || '')},
-    ${escNum(currentAlignment.totalLengthMeters, 0)},
-    ${esc(currentAlignment.startStation || '0+000')},
-    ${esc(currentAlignment.endStation || 'FIM')},
-    ${esc(currentAlignment.importedAt || new Date().toISOString())}
-) ON CONFLICT (id) DO UPDATE SET 
-    total_length_meters = EXCLUDED.total_length_meters,
-    imported_at = EXCLUDED.imported_at;
-
--- 7. Inserção dos Vértices do Traçado (${currentAlignment.points.length} registros)
-${currentAlignment.points.map((p, idx) => `INSERT INTO project_alignment_points (id, alignment_id, sequence_order, station, latitude, longitude, easting_utm, northing_utm, radius_meters, element_type, description, elevation_meters) VALUES (${esc(p.id)}, ${esc(currentAlignment.id)}, ${idx + 1}, ${esc(p.station)}, ${escNum(p.lat, 0)}, ${escNum(p.lng, 0)}, ${escNullableNum(p.easting)}, ${escNullableNum(p.northing)}, ${escNum(p.radius, 0)}, ${esc(p.type || 'PI')}, ${p.description ? esc(p.description) : 'NULL'}, ${escNullableNum(p.elevation)}) ON CONFLICT (id) DO NOTHING;`).join('\n')}
-
--- 8. Inserção dos Alfinetes / Pontos de Interesse (${pins.length} registros)
-${pins.map(p => `INSERT INTO project_pins (id, contract_id, alignment_id, title, category, color, latitude, longitude, station, notes, created_at) VALUES (${esc(p.id)}, ${esc(p.contractId)}, ${esc(currentAlignment.id)}, ${esc(p.title)}, ${esc(p.category)}, ${esc(p.color)}, ${escNum(p.lat, 0)}, ${escNum(p.lng, 0)}, ${p.station ? esc(p.station) : 'NULL'}, ${p.notes ? esc(p.notes) : 'NULL'}, ${esc(p.createdAt)}) ON CONFLICT (id) DO UPDATE SET title = EXCLUDED.title, category = EXCLUDED.category, color = EXCLUDED.color, notes = EXCLUDED.notes;`).join('\n')}
-
--- 9. Inserção das Medições Realizadas (${savedMeasurements.length} registros)
-${savedMeasurements.map(m => `INSERT INTO project_measurements (id, contract_id, alignment_id, title, total_distance_meters, points_json, created_at) VALUES (${esc(m.id)}, ${esc(m.contractId)}, ${esc(currentAlignment.id)}, ${esc(m.title)}, ${escNum(m.totalDistanceMeters, 0)}, ${esc(JSON.stringify(m.points))}::jsonb, ${esc(m.createdAt)}) ON CONFLICT (id) DO UPDATE SET title = EXCLUDED.title, total_distance_meters = EXCLUDED.total_distance_meters, points_json = EXCLUDED.points_json;`).join('\n')}
-`;
-  }, [currentAlignment, contract, pins, savedMeasurements]);
-
-  const copySqlToClipboard = () => {
-    navigator.clipboard.writeText(generatedSql);
-    setSqlCopied(true);
-    setTimeout(() => setSqlCopied(false), 2500);
-  };
-
   // Map Tile URL Provider
   const mapTileUrl = useMemo(() => {
-    switch (activeLayerType) {
+    switch (cadSettings.googleMapsLayerType) {
       case 'google_satellite':
         return 'https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}';
       case 'google_hybrid':
@@ -1148,7 +1659,7 @@ ${savedMeasurements.map(m => `INSERT INTO project_measurements (id, contract_id,
       default:
         return 'https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}';
     }
-  }, [activeLayerType]);
+  }, [cadSettings.googleMapsLayerType]);
 
   const defaultCenter = useMemo<[number, number]>(() => {
     if (currentAlignment && currentAlignment.points.length > 0) {
@@ -1186,17 +1697,27 @@ ${savedMeasurements.map(m => `INSERT INTO project_measurements (id, contract_id,
             </p>
           </div>
 
-          {/* APENAS UM BOTÃO PRINCIPAL DE IMPORTAÇÃO DA PLANILHA */}
-          <div className="flex items-center gap-3">
+          {/* BOTOES DE AÇÃO DA SALA TÉCNICA (IMPORTAÇÃO E KML) */}
+          <div className="flex flex-wrap items-center gap-3">
             <button
               onClick={() => {
                 setImportStep(1);
                 setShowImportModal(true);
               }}
-              className="px-6 py-4 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-black text-sm uppercase tracking-wider flex items-center gap-3 shadow-xl shadow-emerald-500/25 transition-all hover:scale-[1.02] active:scale-[0.98]"
+              className="px-5 py-3.5 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-black text-xs uppercase tracking-wider flex items-center gap-2.5 shadow-xl shadow-emerald-500/20 transition-all hover:scale-[1.02] active:scale-[0.98]"
             >
-              <Upload className="w-5 h-5 stroke-[2.5]" />
-              Importar Planilha de Traçado
+              <Upload className="w-4 h-4 stroke-[2.5]" />
+              Importar Planilha (.xlsx)
+            </button>
+
+            <button
+              onClick={() => setShowKmlModal(true)}
+              disabled={!currentAlignment}
+              className="px-4 py-3.5 rounded-2xl bg-slate-900 hover:bg-slate-800 text-blue-300 font-bold text-xs uppercase tracking-wider flex items-center gap-2 border border-blue-500/30 shadow-lg disabled:opacity-50 transition-all hover:scale-[1.02] active:scale-[0.98]"
+              title="Exportar traçado, estacas e alfinetes em formato Google Earth KML"
+            >
+              <Share2 className="w-4 h-4 text-blue-400" />
+              Exportar KML
             </button>
           </div>
         </div>
@@ -1371,16 +1892,16 @@ ${savedMeasurements.map(m => `INSERT INTO project_measurements (id, contract_id,
                 </button>
 
                 <button
-                  onClick={() => { setSidebarTab('sql'); setIsSidebarOpen(true); }}
+                  onClick={() => { setSidebarTab('settings'); setIsSidebarOpen(true); }}
                   className={`p-2.5 rounded-xl text-xs font-bold flex flex-col items-center justify-center gap-1 transition-all ${
-                    sidebarTab === 'sql' 
-                      ? 'bg-indigo-500/20 text-indigo-400 border border-indigo-500/40' 
+                    sidebarTab === 'settings' 
+                      ? 'bg-amber-500/20 text-amber-400 border border-amber-500/40' 
                       : 'text-slate-400 hover:bg-slate-900'
                   }`}
-                  title="Script SQL de Atualização"
+                  title="Configurações de Visualização CAD"
                 >
-                  <Database className="w-4 h-4" />
-                  {isSidebarOpen && <span className="text-[10px]">SQL</span>}
+                  <Settings className="w-4 h-4" />
+                  {isSidebarOpen && <span className="text-[10px]">Ajustes</span>}
                 </button>
               </div>
 
@@ -1545,81 +2066,187 @@ ${savedMeasurements.map(m => `INSERT INTO project_measurements (id, contract_id,
                     </div>
                   )}
 
-                  {/* ABA: CAMADAS DO MAPA */}
+                  {/* ABA: CAMADAS DO MAPA & GOOGLE MAPS TOGGLE */}
                   {sidebarTab === 'layers' && (
-                    <div className="space-y-3">
-                      <span className="text-[10px] font-black uppercase text-slate-500 tracking-wider">
-                        Provedor de Imagens
-                      </span>
+                    <div className="space-y-4">
+                      <div className="bg-slate-900 p-3.5 rounded-2xl border border-slate-800 space-y-3">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-black uppercase text-slate-200 flex items-center gap-2">
+                            <Map className="w-4 h-4 text-emerald-400" /> Google Maps
+                          </span>
+                          <label className="relative inline-flex items-center cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={cadSettings.enableGoogleMaps}
+                              onChange={e => setCadSettings(s => ({ ...s, enableGoogleMaps: e.target.checked }))}
+                              className="sr-only peer"
+                            />
+                            <div className="w-9 h-5 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-500"></div>
+                          </label>
+                        </div>
+                        <p className="text-[11px] text-slate-400 leading-tight">
+                          {cadSettings.enableGoogleMaps
+                            ? 'Imagens de satélite do Google ativas.'
+                            : 'Google Maps desativado por padrão para deixar o sistema mais leve e rápido.'}
+                        </p>
 
-                      <div className="space-y-1.5">
-                        <button
-                          onClick={() => setActiveLayerType('google_hybrid')}
-                          className={`w-full p-3 rounded-2xl text-left text-xs font-bold flex items-center justify-between transition-all ${
-                            activeLayerType === 'google_hybrid' 
-                              ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40' 
-                              : 'bg-slate-900 text-slate-300 border border-slate-800 hover:border-slate-700'
-                          }`}
-                        >
-                          <span>Google Satélite Híbrido</span>
-                          {activeLayerType === 'google_hybrid' && <CheckCircle className="w-4 h-4 text-emerald-400" />}
-                        </button>
-
-                        <button
-                          onClick={() => setActiveLayerType('google_satellite')}
-                          className={`w-full p-3 rounded-2xl text-left text-xs font-bold flex items-center justify-between transition-all ${
-                            activeLayerType === 'google_satellite' 
-                              ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40' 
-                              : 'bg-slate-900 text-slate-300 border border-slate-800 hover:border-slate-700'
-                          }`}
-                        >
-                          <span>Google Satélite Puro</span>
-                          {activeLayerType === 'google_satellite' && <CheckCircle className="w-4 h-4 text-emerald-400" />}
-                        </button>
-
-                        <button
-                          onClick={() => setActiveLayerType('google_roadmap')}
-                          className={`w-full p-3 rounded-2xl text-left text-xs font-bold flex items-center justify-between transition-all ${
-                            activeLayerType === 'google_roadmap' 
-                              ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40' 
-                              : 'bg-slate-900 text-slate-300 border border-slate-800 hover:border-slate-700'
-                          }`}
-                        >
-                          <span>Google Vetorial</span>
-                          {activeLayerType === 'google_roadmap' && <CheckCircle className="w-4 h-4 text-emerald-400" />}
-                        </button>
-
-                        <button
-                          onClick={() => setActiveLayerType('google_terrain')}
-                          className={`w-full p-3 rounded-2xl text-left text-xs font-bold flex items-center justify-between transition-all ${
-                            activeLayerType === 'google_terrain' 
-                              ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40' 
-                              : 'bg-slate-900 text-slate-300 border border-slate-800 hover:border-slate-700'
-                          }`}
-                        >
-                          <span>Google Terreno</span>
-                          {activeLayerType === 'google_terrain' && <CheckCircle className="w-4 h-4 text-emerald-400" />}
-                        </button>
+                        {cadSettings.enableGoogleMaps && (
+                          <div className="space-y-1.5 pt-2 border-t border-slate-800">
+                            {[
+                              { id: 'google_hybrid', label: 'Satélite Híbrido' },
+                              { id: 'google_satellite', label: 'Satélite Puro' },
+                              { id: 'google_roadmap', label: 'Vetorial / Ruas' },
+                              { id: 'google_terrain', label: 'Terreno' },
+                            ].map(l => (
+                              <button
+                                key={l.id}
+                                onClick={() => setCadSettings(s => ({ ...s, googleMapsLayerType: l.id as any }))}
+                                className={`w-full p-2.5 rounded-xl text-left text-xs font-bold flex items-center justify-between transition-all ${
+                                  cadSettings.googleMapsLayerType === l.id 
+                                    ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40' 
+                                    : 'bg-slate-950 text-slate-400 border border-slate-800 hover:border-slate-700'
+                                }`}
+                              >
+                                <span>{l.label}</span>
+                                {cadSettings.googleMapsLayerType === l.id && <CheckCircle className="w-3.5 h-3.5 text-emerald-400" />}
+                              </button>
+                            ))}
+                          </div>
+                        )}
                       </div>
+
+                      {/* COR DE FUNDO DO CANVAS CAD */}
+                      <div className="bg-slate-900 p-3.5 rounded-2xl border border-slate-800 space-y-3">
+                        <span className="text-xs font-black uppercase text-slate-200 flex items-center gap-2">
+                          <Palette className="w-4 h-4 text-purple-400" /> Cor de Fundo do Canvas CAD
+                        </span>
+                        <div className="grid grid-cols-2 gap-2">
+                          {[
+                            { color: '#12161f', label: 'Escuro CAD' },
+                            { color: '#0f172a', label: 'Pretonite' },
+                            { color: '#1e293b', label: 'Grafite' },
+                            { color: '#f8fafc', label: 'Branco' },
+                          ].map(bg => (
+                            <button
+                              key={bg.color}
+                              onClick={() => setCadSettings(s => ({ ...s, canvasBgColor: bg.color }))}
+                              className={`p-2.5 rounded-xl text-xs font-bold border flex items-center gap-2 transition-all ${
+                                cadSettings.canvasBgColor === bg.color
+                                  ? 'border-emerald-500 bg-slate-800 text-white'
+                                  : 'border-slate-800 bg-slate-950 text-slate-400 hover:border-slate-700'
+                              }`}
+                            >
+                              <div className="w-4 h-4 rounded-full border border-white/20" style={{ backgroundColor: bg.color }} />
+                              <span>{bg.label}</span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      <button
+                        onClick={() => setShowSettingsModal(true)}
+                        className="w-full py-3 rounded-2xl bg-slate-800 hover:bg-slate-700 text-amber-400 border border-slate-700 text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 transition-all"
+                      >
+                        <Settings className="w-4 h-4" />
+                        Abrir Configurações CAD
+                      </button>
                     </div>
                   )}
 
-                  {/* ABA: SCRIPT SQL */}
-                  {sidebarTab === 'sql' && (
-                    <div className="space-y-3">
-                      <span className="text-[10px] font-black uppercase text-slate-500 tracking-wider">
-                        Sincronização com Banco de Dados
-                      </span>
-                      <p className="text-xs text-slate-400 leading-relaxed">
-                        Gere o script SQL DDL + DML contendo as tabelas do projeto, vértices, alfinetes e medições para atualizar o PostgreSQL / Supabase.
-                      </p>
-                      <button
-                        onClick={() => setShowSqlModal(true)}
-                        className="w-full py-3 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-indigo-500/20 transition-all"
-                      >
-                        <Database className="w-4 h-4" />
-                        Visualizar Script SQL
-                      </button>
+                  {/* ABA: CONFIGURAÇÕES DE VISUALIZAÇÃO CAD */}
+                  {sidebarTab === 'settings' && (
+                    <div className="space-y-4">
+                      <div className="bg-slate-900 p-3.5 rounded-2xl border border-slate-800 space-y-3">
+                        <span className="text-xs font-black uppercase text-amber-400 flex items-center gap-2">
+                          <Settings className="w-4 h-4" /> Visualização do Desenho
+                        </span>
+                        
+                        <div className="space-y-3 text-xs">
+                          <div>
+                            <label className="text-slate-400 font-bold block mb-1">Cor do Eixo Principal</label>
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="color"
+                                value={cadSettings.centerlineColor}
+                                onChange={e => setCadSettings(s => ({ ...s, centerlineColor: e.target.value }))}
+                                className="w-8 h-8 rounded bg-transparent border-0 cursor-pointer"
+                              />
+                              <span className="font-mono text-slate-300">{cadSettings.centerlineColor}</span>
+                              <button
+                                onClick={() => setCadSettings(s => ({ ...s, centerlineColor: '#facc15' }))}
+                                className="ml-auto text-[10px] text-amber-400 bg-amber-500/10 px-2 py-1 rounded"
+                              >
+                                Amarelo Padrão
+                              </button>
+                            </div>
+                          </div>
+
+                          <div>
+                            <label className="text-slate-400 font-bold block mb-1">Cor das Estacas e Tiques</label>
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="color"
+                                value={cadSettings.stationTickColor}
+                                onChange={e => setCadSettings(s => ({ 
+                                  ...s, 
+                                  stationTickColor: e.target.value,
+                                  stationTextColor: e.target.value 
+                                }))}
+                                className="w-8 h-8 rounded bg-transparent border-0 cursor-pointer"
+                              />
+                              <span className="font-mono text-slate-300">{cadSettings.stationTickColor}</span>
+                              <button
+                                onClick={() => setCadSettings(s => ({ 
+                                  ...s, 
+                                  stationTickColor: '#22c55e',
+                                  stationTextColor: '#22c55e'
+                                }))}
+                                className="ml-auto text-[10px] text-emerald-400 bg-emerald-500/10 px-2 py-1 rounded"
+                              >
+                                Verde Padrão
+                              </button>
+                            </div>
+                          </div>
+
+                          <div>
+                            <div className="flex justify-between items-center mb-1">
+                              <label className="text-slate-400 font-bold">Zoom Mínimo p/ Estacas</label>
+                              <span className="text-amber-400 font-black">Nível {cadSettings.minStationZoom}</span>
+                            </div>
+                            <input
+                              type="range"
+                              min={12}
+                              max={18}
+                              step={1}
+                              value={cadSettings.minStationZoom}
+                              onChange={e => setCadSettings(s => ({ ...s, minStationZoom: Number(e.target.value) }))}
+                              className="w-full accent-amber-500"
+                            />
+                            <p className="text-[10px] text-slate-500">As estacas só são mostradas quando o zoom do mapa estiver igual ou superior a este nível.</p>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-col gap-2">
+                        <button
+                          onClick={() => exportCadSettingsScript(cadSettings)}
+                          className="w-full py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold flex items-center justify-center gap-2 border border-slate-700"
+                        >
+                          <Download className="w-3.5 h-3.5" />
+                          Exportar Script de Configuração (.json)
+                        </button>
+
+                        <button
+                          onClick={() => {
+                            const res = resetCadSettings();
+                            setCadSettings(res);
+                          }}
+                          className="w-full py-2.5 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-400 text-xs font-bold flex items-center justify-center gap-2 border border-red-500/20"
+                        >
+                          <RotateCcw className="w-3.5 h-3.5" />
+                          Restaurar Padrões de Fábrica
+                        </button>
+                      </div>
                     </div>
                   )}
 
@@ -1630,18 +2257,42 @@ ${savedMeasurements.map(m => `INSERT INTO project_measurements (id, contract_id,
             {/* CONTÊINER DO MAPA GEOESPACIAL */}
             <div className="flex-1 relative h-full">
               
+              {/* CAIXA DE BUSCA DE ESTACAS E STATUS NO TOPO ESQUERDO DO MAPA */}
+              <div className="absolute top-4 left-4 z-[1000] flex flex-col gap-2 max-w-sm">
+                <StationSearchBox
+                  points={currentAlignment.points}
+                  onSelectStation={(pt) => {
+                    setSelectedPointId(pt.id);
+                    setZoomTrigger({ type: 'selected', id: Date.now() });
+                  }}
+                />
+
+                {!cadSettings.enableGoogleMaps && (
+                  <div className="px-3.5 py-2 rounded-2xl bg-slate-950/90 backdrop-blur-md border border-amber-500/30 text-amber-300 text-xs font-black shadow-2xl flex items-center gap-2">
+                    <EyeOff className="w-4 h-4 text-amber-400" />
+                    <span>Google Maps Desativado (Modo CAD Leve)</span>
+                    <button
+                      onClick={() => setCadSettings(s => ({ ...s, enableGoogleMaps: true }))}
+                      className="ml-2 px-2.5 py-1 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 border border-amber-500/40 text-[10px] font-bold transition-all"
+                    >
+                      Ativar
+                    </button>
+                  </div>
+                )}
+              </div>
+
               {/* STATUS DE FERRAMENTA ATIVA NO TOPO DO MAPA */}
               {activeTool !== 'none' && (
-                <div className="absolute top-4 left-4 z-[1000] px-4 py-2 rounded-2xl bg-slate-900/95 backdrop-blur-md border border-slate-700 text-white text-xs font-black shadow-2xl flex items-center gap-2 animate-bounce">
+                <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[1000] px-4 py-2 rounded-2xl bg-slate-900/95 backdrop-blur-md border border-slate-700 text-white text-xs font-black shadow-2xl flex items-center gap-2 animate-bounce">
                   {activeTool === 'pin' ? (
                     <>
                       <MapPin className="w-4 h-4 text-red-400 animate-pulse" />
-                      <span>Modo Alfinete Ativo: Clique no local desejado do mapa</span>
+                      <span>Modo Alfinete Ativo: Clique no mapa</span>
                     </>
                   ) : (
                     <>
                       <Ruler className="w-4 h-4 text-blue-400 animate-pulse" />
-                      <span>Modo Régua Ativo: Clique no mapa para adicionar pontos de medição</span>
+                      <span>Modo Régua Ativo: Clique no mapa</span>
                     </>
                   )}
                   <button onClick={() => setActiveTool('none')} className="ml-2 p-1 rounded-full hover:bg-slate-800">
@@ -1650,8 +2301,16 @@ ${savedMeasurements.map(m => `INSERT INTO project_measurements (id, contract_id,
                 </div>
               )}
 
-              {/* CONTROLES DE ZOOM DO MAPA (ZOOM METODOS) */}
+              {/* CONTROLES DE ZOOM DO MAPA E BOTÃO DE AJUSTES */}
               <div className="absolute top-4 right-4 z-[1000] flex flex-col gap-2 bg-slate-900/90 backdrop-blur-md p-1.5 rounded-2xl border border-slate-700/80 shadow-2xl">
+                <button
+                  onClick={() => setShowSettingsModal(true)}
+                  className="p-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-400 transition-colors"
+                  title="Configurações de Visualização CAD"
+                >
+                  <Settings className="w-4 h-4" />
+                </button>
+                <div className="w-full h-px bg-slate-700/60 my-0.5" />
                 <button
                   onClick={() => setZoomTrigger({ type: 'in', id: Date.now() })}
                   className="p-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white transition-colors"
@@ -1685,18 +2344,23 @@ ${savedMeasurements.map(m => `INSERT INTO project_measurements (id, contract_id,
                 )}
               </div>
 
-              {/* MAPA INTERATIVO LEAFLET COM TILES GOOGLE MAPS */}
+              {/* MAPA INTERATIVO LEAFLET COM TILES GOOGLE MAPS E SUPORTE A MODO CAD LEVE */}
               <MapContainer
                 center={defaultCenter}
                 zoom={14}
-                style={{ width: '100%', height: '100%' }}
+                style={{ width: '100%', height: '100%', backgroundColor: cadSettings.canvasBgColor }}
                 zoomControl={false}
               >
-                <TileLayer
-                  url={mapTileUrl}
-                  maxZoom={20}
-                  attribution="&copy; Google Maps Satellite Imagery"
-                />
+                <MapBackgroundColorApplier color={cadSettings.canvasBgColor} enableGoogleMaps={cadSettings.enableGoogleMaps} />
+                <ZoomLevelTracker onZoomChange={setCurrentZoom} />
+
+                {cadSettings.enableGoogleMaps && (
+                  <TileLayer
+                    url={mapTileUrl}
+                    maxZoom={20}
+                    attribution="&copy; Google Maps"
+                  />
+                )}
 
                 <MapController
                   selectedPoint={selectedPoint}
@@ -1710,57 +2374,89 @@ ${savedMeasurements.map(m => `INSERT INTO project_measurements (id, contract_id,
                   onAddMeasureClick={handleAddMeasurePoint}
                 />
 
-                {/* LINHA POLILINHA DO TRAÇADO HORIZONTAL */}
+                {/* LINHA POLILINHA DO TRAÇADO HORIZONTAL (LINHA DE EIXO AMARELA) */}
                 <Polyline
                   positions={currentAlignment.points.map(p => [p.lat, p.lng])}
                   pathOptions={{
-                    color: '#06b6d4',
-                    weight: 5,
-                    opacity: 0.9,
+                    color: cadSettings.centerlineColor || '#facc15',
+                    weight: cadSettings.centerlineWeight || 3,
+                    dashArray: cadSettings.centerlineDashArray || undefined,
+                    opacity: 0.95,
                     lineCap: 'round',
                     lineJoin: 'round'
                   }}
                 />
 
-                {/* VÉRTICES / MARCADORES DO TRAÇADO */}
-                {currentAlignment.points.map((pt, idx) => {
-                  const isStart = idx === 0;
-                  const isEnd = idx === currentAlignment.points.length - 1;
-                  const isSelected = pt.id === selectedPointId;
+                {/* EXIBIÇÃO DAS ESTACAS APENAS QUANDO O ZOOM ESTIVER PRÓXIMO */}
+                {cadSettings.showStations && currentZoom >= cadSettings.minStationZoom ? (
+                  currentAlignment.points.map((pt, idx) => {
+                    if (idx % (cadSettings.stationStep || 1) !== 0 && idx !== currentAlignment.points.length - 1) {
+                      return null;
+                    }
 
-                  let markerColor = '#3b82f6';
-                  if (isStart) markerColor = '#10b981';
-                  if (isEnd) markerColor = '#ef4444';
-                  if (isSelected) markerColor = '#f59e0b';
+                    const prevPt = currentAlignment.points[idx - 1];
+                    const nextPt = currentAlignment.points[idx + 1];
+                    const isSelected = pt.id === selectedPointId;
 
-                  return (
-                    <Marker
-                      key={pt.id}
-                      position={[pt.lat, pt.lng]}
-                      eventHandlers={{
-                        click: () => setSelectedPointId(pt.id)
-                      }}
-                      icon={L.divIcon({
-                        className: 'custom-vertex-marker',
-                        html: `<div style="background-color: ${markerColor}; width: ${isSelected ? '18px' : '12px'}; height: ${isSelected ? '18px' : '12px'}; border-radius: 50%; border: ${isSelected ? '3px solid #ffffff' : '2px solid #ffffff'}; box-shadow: ${isSelected ? '0 0 12px #f59e0b' : '0 0 4px rgba(0,0,0,0.5)'};"></div>`,
-                        iconSize: [isSelected ? 18 : 12, isSelected ? 18 : 12],
-                        iconAnchor: [isSelected ? 9 : 6, isSelected ? 9 : 6]
-                      })}
-                    >
-                      <Popup className="custom-leaflet-popup">
-                        <div className="p-2 space-y-1 text-xs">
-                          <strong className="text-gray-900 block font-black text-sm">Estaca: {pt.station}</strong>
-                          <div className="text-gray-600 font-bold">Tipo: {pt.type || 'PI'}</div>
-                          {pt.elevation !== undefined && !isNaN(pt.elevation) && (
-                            <div className="text-emerald-700 font-black">Cota: {pt.elevation.toFixed(2)} m</div>
-                          )}
-                          {pt.complementaryInfo && <div className="text-purple-700 font-bold">{pt.complementaryInfo}</div>}
-                          {pt.description && <div className="text-gray-500 italic">{pt.description}</div>}
-                        </div>
-                      </Popup>
-                    </Marker>
-                  );
-                })}
+                    return (
+                      <Marker
+                        key={`st-marker-${pt.id}`}
+                        position={[pt.lat, pt.lng]}
+                        eventHandlers={{
+                          click: () => setSelectedPointId(pt.id)
+                        }}
+                        icon={createCadStationIcon(pt, prevPt, nextPt, isSelected, cadSettings)}
+                      >
+                        <Popup className="custom-leaflet-popup">
+                          <div className="p-2 space-y-1 text-xs">
+                            <strong className="text-gray-900 block font-black text-sm">Estaca: {pt.station}</strong>
+                            <div className="text-gray-600 font-bold">Tipo: {pt.type || 'PI'}</div>
+                            {pt.elevation !== undefined && !isNaN(pt.elevation) && (
+                              <div className="text-emerald-700 font-black">Cota: {pt.elevation.toFixed(2)} m</div>
+                            )}
+                            {pt.complementaryInfo && <div className="text-purple-700 font-bold">{pt.complementaryInfo}</div>}
+                            {pt.description && <div className="text-gray-500 italic">{pt.description}</div>}
+                          </div>
+                        </Popup>
+                      </Marker>
+                    );
+                  })
+                ) : (
+                  /* Quando o zoom estiver distante, mostra apenas pequenos vértices discretos */
+                  currentAlignment.points.map((pt, idx) => {
+                    const isStart = idx === 0;
+                    const isEnd = idx === currentAlignment.points.length - 1;
+                    const isSelected = pt.id === selectedPointId;
+
+                    let markerColor = cadSettings.stationTickColor || '#22c55e';
+                    if (isStart) markerColor = '#10b981';
+                    if (isEnd) markerColor = '#ef4444';
+                    if (isSelected) markerColor = '#f59e0b';
+
+                    return (
+                      <Marker
+                        key={`vtx-marker-${pt.id}`}
+                        position={[pt.lat, pt.lng]}
+                        eventHandlers={{
+                          click: () => setSelectedPointId(pt.id)
+                        }}
+                        icon={L.divIcon({
+                          className: 'custom-vertex-marker',
+                          html: `<div style="background-color: ${markerColor}; width: ${isSelected ? '14px' : '8px'}; height: ${isSelected ? '14px' : '8px'}; border-radius: 50%; border: 2px solid #ffffff; box-shadow: 0 0 6px rgba(0,0,0,0.6);"></div>`,
+                          iconSize: [isSelected ? 14 : 8, isSelected ? 14 : 8],
+                          iconAnchor: [isSelected ? 7 : 4, isSelected ? 7 : 4]
+                        })}
+                      >
+                        <Popup className="custom-leaflet-popup">
+                          <div className="p-2 space-y-1 text-xs">
+                            <strong className="text-gray-900 block font-black text-sm">Estaca: {pt.station}</strong>
+                            <p className="text-[10px] text-gray-500 font-bold">Aproxime o zoom (nível {cadSettings.minStationZoom}+) para exibir a rotulagem das estacas em CAD</p>
+                          </div>
+                        </Popup>
+                      </Marker>
+                    );
+                  })
+                )}
 
                 {/* MARCADORES DE ALFINETES / PONTOS DE INTERESSE (PINS) */}
                 {pins.map(pin => (
@@ -2078,7 +2774,7 @@ ${savedMeasurements.map(m => `INSERT INTO project_measurements (id, contract_id,
                           className="w-full px-3 py-2 rounded-xl bg-gray-50 border border-gray-200 text-xs font-bold text-gray-900"
                         >
                           <option value="">-- Selecionar Coluna --</option>
-                          {rawExcelHeaders.map(h => <option key={h} value={h}>{h}</option>)}
+                          {rawExcelHeaders.map((h, i) => <option key={`st-${i}-${h}`} value={h}>{h}</option>)}
                         </select>
                       </div>
 
@@ -2092,7 +2788,7 @@ ${savedMeasurements.map(m => `INSERT INTO project_measurements (id, contract_id,
                               className="w-full px-3 py-2 rounded-xl bg-gray-50 border border-emerald-300 text-xs font-bold text-gray-900"
                             >
                               <option value="">-- Selecionar Coluna --</option>
-                              {rawExcelHeaders.map(h => <option key={h} value={h}>{h}</option>)}
+                              {rawExcelHeaders.map((h, i) => <option key={`lat-${i}-${h}`} value={h}>{h}</option>)}
                             </select>
                           </div>
 
@@ -2104,7 +2800,7 @@ ${savedMeasurements.map(m => `INSERT INTO project_measurements (id, contract_id,
                               className="w-full px-3 py-2 rounded-xl bg-gray-50 border border-emerald-300 text-xs font-bold text-gray-900"
                             >
                               <option value="">-- Selecionar Coluna --</option>
-                              {rawExcelHeaders.map(h => <option key={h} value={h}>{h}</option>)}
+                              {rawExcelHeaders.map((h, i) => <option key={`lng-${i}-${h}`} value={h}>{h}</option>)}
                             </select>
                           </div>
                         </>
@@ -2118,7 +2814,7 @@ ${savedMeasurements.map(m => `INSERT INTO project_measurements (id, contract_id,
                               className="w-full px-3 py-2 rounded-xl bg-gray-50 border border-emerald-300 text-xs font-bold text-gray-900"
                             >
                               <option value="">-- Selecionar Coluna --</option>
-                              {rawExcelHeaders.map(h => <option key={h} value={h}>{h}</option>)}
+                              {rawExcelHeaders.map((h, i) => <option key={`utmx-${i}-${h}`} value={h}>{h}</option>)}
                             </select>
                           </div>
 
@@ -2130,7 +2826,7 @@ ${savedMeasurements.map(m => `INSERT INTO project_measurements (id, contract_id,
                               className="w-full px-3 py-2 rounded-xl bg-gray-50 border border-emerald-300 text-xs font-bold text-gray-900"
                             >
                               <option value="">-- Selecionar Coluna --</option>
-                              {rawExcelHeaders.map(h => <option key={h} value={h}>{h}</option>)}
+                              {rawExcelHeaders.map((h, i) => <option key={`utmy-${i}-${h}`} value={h}>{h}</option>)}
                             </select>
                           </div>
                         </>
@@ -2144,7 +2840,7 @@ ${savedMeasurements.map(m => `INSERT INTO project_measurements (id, contract_id,
                           className="w-full px-3 py-2 rounded-xl bg-gray-50 border border-gray-200 text-xs font-bold text-gray-900"
                         >
                           <option value="">-- Nenhuma / Selecionar --</option>
-                          {rawExcelHeaders.map(h => <option key={h} value={h}>{h}</option>)}
+                          {rawExcelHeaders.map((h, i) => <option key={`rad-${i}-${h}`} value={h}>{h}</option>)}
                         </select>
                       </div>
                     </div>
@@ -2170,7 +2866,7 @@ ${savedMeasurements.map(m => `INSERT INTO project_measurements (id, contract_id,
                           <thead className="bg-gray-100 text-gray-700 font-bold sticky top-0 border-b border-gray-200">
                             <tr>
                               <th className="py-2 px-3 text-[10px] uppercase text-gray-400 w-10">#</th>
-                              {rawExcelHeaders.map((header) => {
+                              {rawExcelHeaders.map((header, hIdx) => {
                                 const isStation = columnMapping.station === header;
                                 const isLat = columnMapping.lat === header;
                                 const isLng = columnMapping.lng === header;
@@ -2181,7 +2877,7 @@ ${savedMeasurements.map(m => `INSERT INTO project_measurements (id, contract_id,
 
                                 return (
                                   <th
-                                    key={header}
+                                    key={`th-${header}-${hIdx}`}
                                     className={`py-2 px-3 font-extrabold whitespace-nowrap border-r border-gray-200 last:border-0 ${
                                       isMapped ? 'bg-emerald-100/80 text-emerald-950' : 'text-gray-700'
                                     }`}
@@ -2204,7 +2900,7 @@ ${savedMeasurements.map(m => `INSERT INTO project_measurements (id, contract_id,
                             {rawExcelRows.slice(0, 8).map((row, rowIdx) => (
                               <tr key={rowIdx} className={rowIdx % 2 === 0 ? 'bg-white' : 'bg-gray-50/60'}>
                                 <td className="py-2 px-3 text-[10px] text-gray-400 font-bold border-r border-gray-100">{rowIdx + 1}</td>
-                                {rawExcelHeaders.map((header) => {
+                                {rawExcelHeaders.map((header, hIdx) => {
                                   const isStation = columnMapping.station === header;
                                   const isLat = columnMapping.lat === header;
                                   const isLng = columnMapping.lng === header;
@@ -2216,7 +2912,7 @@ ${savedMeasurements.map(m => `INSERT INTO project_measurements (id, contract_id,
                                   const cellVal = row[header];
                                   return (
                                     <td
-                                      key={header}
+                                      key={`td-${rowIdx}-${header}-${hIdx}`}
                                       className={`py-2 px-3 whitespace-nowrap border-r border-gray-100 last:border-0 ${
                                         isMapped ? 'bg-emerald-50/60 font-bold text-emerald-950' : 'text-gray-700'
                                       }`}
@@ -2314,46 +3010,231 @@ ${savedMeasurements.map(m => `INSERT INTO project_measurements (id, contract_id,
         )}
       </AnimatePresence>
 
-      {/* MODAL DO SCRIPT SQL COMPLETO */}
+      {/* MODAL DE CONFIGURAÇÕES DE VISUALIZAÇÃO CAD E TRAÇADO */}
       <AnimatePresence>
-        {showSqlModal && (
+        {showSettingsModal && (
           <div className="fixed inset-0 z-[2000] bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-slate-900 text-white rounded-[32px] shadow-2xl border border-slate-800 w-full max-w-4xl overflow-hidden flex flex-col max-h-[90vh]"
+              className="bg-slate-900 text-white rounded-[32px] shadow-2xl border border-slate-800 w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]"
             >
-              <div className="p-6 border-b border-slate-800 flex items-center justify-between">
+              <div className="p-6 border-b border-slate-800 flex items-center justify-between shrink-0">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-2xl bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center text-indigo-400">
-                    <Database className="w-5 h-5" />
+                  <div className="w-10 h-10 rounded-2xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-amber-400">
+                    <Settings className="w-5 h-5" />
                   </div>
                   <div>
-                    <h3 className="text-lg font-black text-white">Script SQL de Atualização do Banco</h3>
-                    <p className="text-xs text-slate-400">DDL + DML para PostgreSQL / Supabase</p>
+                    <h3 className="text-lg font-black text-white">Configurações de Visualização CAD</h3>
+                    <p className="text-xs text-slate-400">Estilo de Linhas, Estacas, Cores e Modos Leves</p>
                   </div>
                 </div>
+
+                <button
+                  onClick={() => setShowSettingsModal(false)}
+                  className="p-2 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="p-6 overflow-y-auto flex-1 space-y-6 text-xs custom-scrollbar">
+                
+                {/* SEÇÃO 1: DESEMPENHO E MAPA DE FUNDO */}
+                <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800 space-y-3">
+                  <h4 className="font-black text-amber-400 uppercase tracking-wider text-[11px] flex items-center gap-2">
+                    <Layers className="w-4 h-4" /> Desempenho e Imagens de Fundo
+                  </h4>
+
+                  <div className="flex items-center justify-between p-3 rounded-xl bg-slate-900 border border-slate-800">
+                    <div>
+                      <strong className="text-white font-bold block">Google Maps (Imagem de Satélite)</strong>
+                      <span className="text-[11px] text-slate-400">Desative para deixar a renderização do sistema mais leve.</span>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={cadSettings.enableGoogleMaps}
+                        onChange={e => setCadSettings(s => ({ ...s, enableGoogleMaps: e.target.checked }))}
+                        className="sr-only peer"
+                      />
+                      <div className="w-11 h-6 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500"></div>
+                    </label>
+                  </div>
+
+                  {/* SELEÇÃO DE COR DE FUNDO */}
+                  <div className="space-y-2">
+                    <label className="font-bold text-slate-300 block">Cor de Fundo da Tela de Desenho (Canvas)</label>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                      {[
+                        { color: '#12161f', label: 'Escuro CAD' },
+                        { color: '#0f172a', label: 'Pretonite' },
+                        { color: '#1e293b', label: 'Grafite' },
+                        { color: '#000000', label: 'Preto Puro' },
+                        { color: '#f8fafc', label: 'Branco CAD' },
+                      ].map(bg => (
+                        <button
+                          key={bg.color}
+                          onClick={() => setCadSettings(s => ({ ...s, canvasBgColor: bg.color }))}
+                          className={`p-2.5 rounded-xl text-xs font-bold border flex items-center gap-2 transition-all ${
+                            cadSettings.canvasBgColor === bg.color
+                              ? 'border-amber-500 bg-slate-800 text-white shadow-lg'
+                              : 'border-slate-800 bg-slate-900 text-slate-400 hover:border-slate-700'
+                          }`}
+                        >
+                          <div className="w-4 h-4 rounded-full border border-white/20" style={{ backgroundColor: bg.color }} />
+                          <span className="truncate">{bg.label}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* SEÇÃO 2: EIXO CENTRAL DO PROJETO */}
+                <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800 space-y-3">
+                  <h4 className="font-black text-amber-400 uppercase tracking-wider text-[11px] flex items-center gap-2">
+                    <Sliders className="w-4 h-4" /> Linha de Eixo do Traçado
+                  </h4>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <label className="font-bold text-slate-300 block">Cor do Eixo Principal</label>
+                      <div className="flex items-center gap-3 bg-slate-900 p-2 rounded-xl border border-slate-800">
+                        <input
+                          type="color"
+                          value={cadSettings.centerlineColor}
+                          onChange={e => setCadSettings(s => ({ ...s, centerlineColor: e.target.value }))}
+                          className="w-8 h-8 rounded bg-transparent border-0 cursor-pointer"
+                        />
+                        <span className="font-mono text-slate-200 font-bold">{cadSettings.centerlineColor}</span>
+                        <button
+                          onClick={() => setCadSettings(s => ({ ...s, centerlineColor: '#facc15' }))}
+                          className="ml-auto px-2 py-1 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 rounded text-[10px] font-bold"
+                        >
+                          Amarelo
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <label className="font-bold text-slate-300 block">Espessura da Linha ({cadSettings.centerlineWeight}px)</label>
+                      <input
+                        type="range"
+                        min={1}
+                        max={10}
+                        value={cadSettings.centerlineWeight}
+                        onChange={e => setCadSettings(s => ({ ...s, centerlineWeight: Number(e.target.value) }))}
+                        className="w-full accent-amber-500 mt-2"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* SEÇÃO 3: ESTACAS E TEXTOS CAD */}
+                <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800 space-y-3">
+                  <h4 className="font-black text-amber-400 uppercase tracking-wider text-[11px] flex items-center gap-2">
+                    <Tag className="w-4 h-4" /> Configuração de Estacas
+                  </h4>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <label className="font-bold text-slate-300 block">Cor do Ponto e Linha da Estaca</label>
+                      <div className="flex items-center gap-3 bg-slate-900 p-2 rounded-xl border border-slate-800">
+                        <input
+                          type="color"
+                          value={cadSettings.stationTickColor}
+                          onChange={e => setCadSettings(s => ({ 
+                            ...s, 
+                            stationTickColor: e.target.value,
+                            stationTextColor: e.target.value 
+                          }))}
+                          className="w-8 h-8 rounded bg-transparent border-0 cursor-pointer"
+                        />
+                        <span className="font-mono text-slate-200 font-bold">{cadSettings.stationTickColor}</span>
+                        <button
+                          onClick={() => setCadSettings(s => ({ 
+                            ...s, 
+                            stationTickColor: '#22c55e',
+                            stationTextColor: '#22c55e'
+                          }))}
+                          className="ml-auto px-2 py-1 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 rounded text-[10px] font-bold"
+                        >
+                          Verde
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <div className="flex justify-between items-center">
+                        <label className="font-bold text-slate-300">Zoom Mínimo para Exibir Estacas</label>
+                        <span className="font-black text-amber-400">Nível {cadSettings.minStationZoom}</span>
+                      </div>
+                      <input
+                        type="range"
+                        min={10}
+                        max={19}
+                        value={cadSettings.minStationZoom}
+                        onChange={e => setCadSettings(s => ({ ...s, minStationZoom: Number(e.target.value) }))}
+                        className="w-full accent-amber-500 mt-2"
+                      />
+                      <p className="text-[10px] text-slate-400">
+                        Apenas mostra os textos e tiques verdes das estacas quando o zoom for ≥ Nível {cadSettings.minStationZoom}.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between p-3 rounded-xl bg-slate-900 border border-slate-800 pt-2">
+                    <div>
+                      <strong className="text-white font-bold block">Exibir Estacas no Desenho</strong>
+                      <span className="text-[11px] text-slate-400">Mostrar rótulos e perpendiculares de estacas.</span>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={cadSettings.showStations}
+                        onChange={e => setCadSettings(s => ({ ...s, showStations: e.target.checked }))}
+                        className="sr-only peer"
+                      />
+                      <div className="w-11 h-6 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500"></div>
+                    </label>
+                  </div>
+                </div>
+
+              </div>
+
+              {/* RODAPÉ DO MODAL */}
+              <div className="p-6 bg-slate-950 border-t border-slate-800 flex items-center justify-between shrink-0">
+                <button
+                  onClick={() => {
+                    const def = resetCadSettings();
+                    setCadSettings(def);
+                  }}
+                  className="px-4 py-2.5 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 text-xs font-bold flex items-center gap-2"
+                >
+                  <RotateCcw className="w-4 h-4" />
+                  Restaurar Padrões
+                </button>
 
                 <div className="flex items-center gap-2">
                   <button
-                    onClick={copySqlToClipboard}
-                    className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-xs uppercase tracking-wider flex items-center gap-2 transition-all"
+                    onClick={() => exportCadSettingsScript(cadSettings)}
+                    className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold flex items-center gap-2 border border-slate-700"
                   >
-                    {sqlCopied ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
-                    <span>{sqlCopied ? 'Copiado!' : 'Copiar Script SQL'}</span>
+                    <Download className="w-4 h-4" />
+                    Script JSON
                   </button>
                   <button
-                    onClick={() => setShowSqlModal(false)}
-                    className="p-2 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white"
+                    onClick={() => {
+                      saveCadSettings(cadSettings);
+                      setShowSettingsModal(false);
+                    }}
+                    className="px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black uppercase tracking-wider flex items-center gap-2 shadow-lg shadow-emerald-600/20"
                   >
-                    <X className="w-5 h-5" />
+                    <CheckCircle className="w-4 h-4" />
+                    Salvar e Aplicar
                   </button>
                 </div>
-              </div>
-
-              <div className="p-6 overflow-y-auto flex-1 bg-slate-950 font-mono text-xs text-slate-300">
-                <pre className="whitespace-pre-wrap leading-relaxed">{generatedSql}</pre>
               </div>
             </motion.div>
           </div>
@@ -2465,6 +3346,122 @@ ${savedMeasurements.map(m => `INSERT INTO project_measurements (id, contract_id,
                   className="flex-1 py-2.5 rounded-xl bg-red-600 hover:bg-red-500 text-white font-black text-xs uppercase tracking-wider disabled:opacity-50"
                 >
                   Salvar Alfinete
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* MODAL DE OPÇÕES DE EXPORTAÇÃO KML */}
+      <AnimatePresence>
+        {showKmlModal && (
+          <div className="fixed inset-0 z-[2000] bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-slate-900 text-white rounded-[32px] shadow-2xl border border-slate-800 w-full max-w-lg overflow-hidden p-6 space-y-5"
+            >
+              <div className="flex items-center justify-between border-b border-slate-800 pb-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-2xl bg-blue-500/10 border border-blue-500/20 text-blue-400 flex items-center justify-center">
+                    <Share2 className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h4 className="text-base font-black text-white">Exportar Projeto para KML</h4>
+                    <p className="text-xs text-slate-400">Gere um arquivo compatível com Google Earth e GPS de campo</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowKmlModal(false)}
+                  className="p-1 rounded-full text-slate-400 hover:text-white"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="space-y-3">
+                <p className="text-xs font-bold text-slate-300 uppercase tracking-wider">Selecione as camadas para incluir no KML:</p>
+
+                <label className="flex items-center justify-between p-3.5 rounded-2xl bg-slate-950 border border-slate-800 cursor-pointer hover:border-blue-500/40 transition-all">
+                  <div className="flex items-center gap-3">
+                    <div className="w-3 h-3 rounded-full bg-amber-400" />
+                    <div>
+                      <strong className="text-xs text-slate-200 block">Eixo do Traçado Horizontal</strong>
+                      <span className="text-[11px] text-slate-400">Linha contínua amarela do eixos com coordenadas e cotas</span>
+                    </div>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={kmlOptions.includeAlignmentLine}
+                    onChange={e => setKmlOptions(o => ({ ...o, includeAlignmentLine: e.target.checked }))}
+                    className="w-4 h-4 accent-blue-500 rounded cursor-pointer"
+                  />
+                </label>
+
+                <label className="flex items-center justify-between p-3.5 rounded-2xl bg-slate-950 border border-slate-800 cursor-pointer hover:border-blue-500/40 transition-all">
+                  <div className="flex items-center gap-3">
+                    <div className="w-3 h-3 rounded-full bg-emerald-400" />
+                    <div>
+                      <strong className="text-xs text-slate-200 block">Pontos e Estacas do Traçado ({currentAlignment?.points.length || 0})</strong>
+                      <span className="text-[11px] text-slate-400">Placemarks individuais com numéro de estaca e raio de curva</span>
+                    </div>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={kmlOptions.includeStations}
+                    onChange={e => setKmlOptions(o => ({ ...o, includeStations: e.target.checked }))}
+                    className="w-4 h-4 accent-blue-500 rounded cursor-pointer"
+                  />
+                </label>
+
+                <label className="flex items-center justify-between p-3.5 rounded-2xl bg-slate-950 border border-slate-800 cursor-pointer hover:border-blue-500/40 transition-all">
+                  <div className="flex items-center gap-3">
+                    <div className="w-3 h-3 rounded-full bg-red-400" />
+                    <div>
+                      <strong className="text-xs text-slate-200 block">Alfinetes e Ocorrências ({pins.length})</strong>
+                      <span className="text-[11px] text-slate-400">Marcadores de obras de arte, patologias e pontos cadastrados</span>
+                    </div>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={kmlOptions.includePins}
+                    onChange={e => setKmlOptions(o => ({ ...o, includePins: e.target.checked }))}
+                    className="w-4 h-4 accent-blue-500 rounded cursor-pointer"
+                  />
+                </label>
+
+                <label className="flex items-center justify-between p-3.5 rounded-2xl bg-slate-950 border border-slate-800 cursor-pointer hover:border-blue-500/40 transition-all">
+                  <div className="flex items-center gap-3">
+                    <div className="w-3 h-3 rounded-full bg-cyan-400" />
+                    <div>
+                      <strong className="text-xs text-slate-200 block">Medições da Régua ({savedMeasurements.length})</strong>
+                      <span className="text-[11px] text-slate-400">Linhas de distância e áreas medidas no desenho</span>
+                    </div>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={kmlOptions.includeMeasurements}
+                    onChange={e => setKmlOptions(o => ({ ...o, includeMeasurements: e.target.checked }))}
+                    className="w-4 h-4 accent-blue-500 rounded cursor-pointer"
+                  />
+                </label>
+              </div>
+
+              <div className="flex items-center gap-3 pt-3 border-t border-slate-800">
+                <button
+                  onClick={() => setShowKmlModal(false)}
+                  className="px-4 py-3 rounded-2xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs uppercase"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={handleExportKml}
+                  className="flex-1 py-3 rounded-2xl bg-blue-600 hover:bg-blue-500 text-white font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-blue-600/20"
+                >
+                  <Download className="w-4 h-4" />
+                  Gerar e Baixar .KML
                 </button>
               </div>
             </motion.div>
