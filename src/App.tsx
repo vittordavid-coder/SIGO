@@ -120,18 +120,14 @@ export default function App() {
     }
   };
 
-  // Connection monitoring with auto-logout
+  // Connection monitoring (Offline notification without destructive auto-logout)
   React.useEffect(() => {
     const handleOffline = () => {
-      if (currentUser) {
-        console.warn('[Segurança] Conexão perdida. Desconectando por segurança.');
-        setAndSaveCurrentUser(null);
-        alert('Conexão com a internet perdida. Você foi desconectado por segurança.');
-      }
+      console.log('[PWA] Conexão offline detectada. Mantendo sessão do usuário para trabalho de campo.');
     };
 
     const handleOnline = () => {
-      console.log('Conexão restabelecida.');
+      console.log('[PWA] Conexão com a internet restabelecida.');
     };
 
     window.addEventListener('offline', handleOffline);
@@ -141,7 +137,7 @@ export default function App() {
       window.removeEventListener('offline', handleOffline);
       window.removeEventListener('online', handleOnline);
     };
-  }, [currentUser]);
+  }, []);
 
   const compId = currentUser?.companyId;
 
@@ -643,28 +639,43 @@ export default function App() {
 
 
 
-  const filteredResources = currentUser?.role === 'master' ? resources : resources.filter(r => !r.companyId || r.companyId === 'default' || r.companyId === currentUser?.companyId);
-  const filteredServices = currentUser?.role === 'master' ? services : services.filter(s => !s.companyId || s.companyId === 'default' || s.companyId === currentUser?.companyId);
-  const filteredQuotationsList = currentUser?.role === 'master' ? quotations : quotations.filter(q => !q.companyId || q.companyId === currentUser?.companyId);
-  const filteredAuditLogs = currentUser?.role === 'master' ? auditLogs : auditLogs.filter(log => !log.companyId || log.companyId === currentUser?.companyId);
-  const filteredContracts = currentUser?.role === 'master' ? contracts : contracts.filter(c => !c.companyId || c.companyId === currentUser?.companyId);
-  const filteredMeasurements = currentUser?.role === 'master' ? measurements : measurements.filter(m => !m.companyId || m.companyId === currentUser?.companyId);
-  const filteredUsers = currentUser?.role === 'master' ? users : users.filter(u => u.companyId === currentUser?.companyId);
-  const filteredDailyReports = currentUser?.role === 'master' ? dailyReports : dailyReports.filter(r => !r.companyId || r.companyId === currentUser?.companyId);
-  const filteredEmployees = currentUser?.role === 'master' ? employees : employees.filter(e => !e.companyId || e.companyId === currentUser?.companyId);
-  const filteredTimeRecords = currentUser?.role === 'master' ? timeRecords : timeRecords.filter(t => !t.companyId || t.companyId === currentUser?.companyId);
+  function dedupeById<T extends { id?: string }>(arr: T[]): T[] {
+    if (!Array.isArray(arr)) return [];
+    const map = new Map<string, T>();
+    arr.forEach((item, idx) => {
+      if (!item) return;
+      const key = item.id || `fallback-key-${idx}`;
+      if (!map.has(key)) {
+        map.set(key, item);
+      }
+    });
+    return Array.from(map.values());
+  }
 
-  const finalQuotations = (currentUser?.role === 'master' || currentUser?.role === 'admin') 
+  const filteredResources = dedupeById(currentUser?.role === 'master' ? resources : resources.filter(r => !r.companyId || r.companyId === 'default' || r.companyId === currentUser?.companyId));
+  const filteredServices = dedupeById(currentUser?.role === 'master' ? services : services.filter(s => !s.companyId || s.companyId === 'default' || s.companyId === currentUser?.companyId));
+  const filteredQuotationsList = dedupeById(currentUser?.role === 'master' ? quotations : quotations.filter(q => !q.companyId || q.companyId === currentUser?.companyId));
+  const filteredAuditLogs = dedupeById(currentUser?.role === 'master' ? auditLogs : auditLogs.filter(log => !log.companyId || log.companyId === currentUser?.companyId));
+  const filteredContracts = dedupeById(currentUser?.role === 'master' ? contracts : contracts.filter(c => !c.companyId || c.companyId === currentUser?.companyId));
+  const filteredMeasurements = dedupeById(currentUser?.role === 'master' ? measurements : measurements.filter(m => !m.companyId || m.companyId === currentUser?.companyId));
+  const filteredUsers = dedupeById(currentUser?.role === 'master' ? users : users.filter(u => u.companyId === currentUser?.companyId));
+  const filteredDailyReports = dedupeById(currentUser?.role === 'master' ? dailyReports : dailyReports.filter(r => !r.companyId || r.companyId === currentUser?.companyId));
+  const filteredEmployees = dedupeById(currentUser?.role === 'master' ? employees : employees.filter(e => !e.companyId || e.companyId === currentUser?.companyId));
+  const filteredTimeRecords = dedupeById(currentUser?.role === 'master' ? timeRecords : timeRecords.filter(t => !t.companyId || t.companyId === currentUser?.companyId));
+
+  const rawFinalQuotations = (currentUser?.role === 'master' || currentUser?.role === 'admin') 
     ? filteredQuotationsList 
     : (currentUser?.allowedQuotationIds && currentUser.allowedQuotationIds.length > 0)
       ? filteredQuotationsList.filter(q => currentUser?.allowedQuotationIds?.includes(q.id))
       : filteredQuotationsList;
+  const finalQuotations = dedupeById(rawFinalQuotations);
 
-  const finalContracts = (currentUser?.role === 'master' || currentUser?.role === 'admin')
+  const rawFinalContracts = (currentUser?.role === 'master' || currentUser?.role === 'admin')
     ? filteredContracts 
     : (currentUser?.allowedContractIds && currentUser.allowedContractIds.length > 0)
       ? filteredContracts.filter(c => currentUser?.allowedContractIds?.includes(c.id))
       : filteredContracts;
+  const finalContracts = dedupeById(rawFinalContracts);
 
   // Auto-select contract if only one is available
   useEffect(() => {
@@ -2476,7 +2487,7 @@ export default function App() {
           }
         }
 
-        setAndSaveCurrentUser(updatedUser);
+        setAndSaveCurrentUser(updatedUser, rememberMe);
       } else {
         alert('Usuário ou senha incorretos');
       }
@@ -4444,7 +4455,9 @@ export default function App() {
           serviceProductions={serviceProductions}
           equipments={finalControllerEquipments}
           employees={employees}
+          users={users}
           currentUser={currentUser}
+          projectAlignments={projectAlignments}
           onUpdateServiceProduction={updateServiceProduction}
           onAddWorkMovement={addWorkMovement}
           onSaveDailyReport={(r) => addDailyReport(r)}
@@ -5414,7 +5427,9 @@ export default function App() {
                   serviceProductions={serviceProductions}
                   equipments={finalControllerEquipments}
                   employees={employees}
+                  users={users}
                   currentUser={currentUser}
+                  projectAlignments={projectAlignments}
                   onUpdateServiceProduction={updateServiceProduction}
                   onAddWorkMovement={addWorkMovement}
                   onSaveDailyReport={(r) => addDailyReport(r)}

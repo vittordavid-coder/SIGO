@@ -6,6 +6,7 @@ import {
   Calendar,
   FileText,
   Download,
+  Copy,
   Search,
   Building2,
   Home,
@@ -280,6 +281,12 @@ export default function RHView({
   const [editingCostId, setEditingCostId] = useState<string | null>(null);
   const [editingCostName, setEditingCostName] = useState("");
   const [editingCostPercentage, setEditingCostPercentage] = useState("");
+  const [showSqlScriptModal, setShowSqlScriptModal] = useState(false);
+
+  // --- Mobile Responsibles Parameters State ---
+  const [selectedRespEmpId, setSelectedRespEmpId] = useState("");
+  const [selectedRespScope, setSelectedRespScope] = useState<'ALL' | 'TEAM'>("ALL");
+  const [selectedRespTeam, setSelectedRespTeam] = useState("");
 
   // --- Employee Transfer States ---
   const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
@@ -5557,6 +5564,151 @@ export default function RHView({
                     <div className="text-2xl font-black font-mono">
                       +{totalExtraCostsPercentage.toFixed(2)}%
                     </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Card 4: Responsáveis de RH pelo Synera Mobile */}
+              <Card className="border-none shadow-sm rounded-3xl overflow-hidden bg-white">
+                <CardHeader className="bg-indigo-500/5 pb-4 border-b border-indigo-100/30">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-indigo-100 text-indigo-600 rounded-xl">
+                      <Smartphone className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <CardTitle className="text-lg font-bold text-gray-900">Responsáveis por Informar Dados no Synera Mobile</CardTitle>
+                      <CardDescription className="text-gray-500 text-xs">Defina qual funcionário será responsável por registrar presença, horários e transferências no celular (por equipe específica ou para todas as equipes).</CardDescription>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent className="p-6 space-y-5">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3 bg-indigo-50/50 p-4 rounded-2xl border border-indigo-100/60">
+                    <div className="space-y-1">
+                      <Label className="text-gray-700 font-bold text-xs">Selecione o Colaborador *</Label>
+                      <select
+                        value={selectedRespEmpId}
+                        onChange={(e) => setSelectedRespEmpId(e.target.value)}
+                        className="w-full h-10 rounded-xl border-gray-200 bg-white text-xs font-semibold text-gray-900 px-3 focus:border-indigo-500"
+                      >
+                        <option value="">-- Escolha um Funcionário --</option>
+                        {employees.map((e) => (
+                          <option key={e.id} value={e.id}>
+                            {e.name} {e.role ? `(${e.role})` : ''} {e.team ? `[Equipe: ${e.team}]` : ''}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className="space-y-1">
+                      <Label className="text-gray-700 font-bold text-xs">Abrangência / Escopo *</Label>
+                      <select
+                        value={selectedRespScope}
+                        onChange={(e) => setSelectedRespScope(e.target.value as 'ALL' | 'TEAM')}
+                        className="w-full h-10 rounded-xl border-gray-200 bg-white text-xs font-semibold text-gray-900 px-3 focus:border-indigo-500"
+                      >
+                        <option value="ALL">Todas as Equipes (Responsável Geral)</option>
+                        <option value="TEAM">Equipe Específica</option>
+                      </select>
+                    </div>
+
+                    {selectedRespScope === 'TEAM' ? (
+                      <div className="space-y-1">
+                        <Label className="text-gray-700 font-bold text-xs">Nome da Equipe *</Label>
+                        <Input
+                          placeholder="Ex: Equipe Terraplenagem"
+                          value={selectedRespTeam}
+                          onChange={(e) => setSelectedRespTeam(e.target.value)}
+                          className="h-10 rounded-xl border-gray-200 bg-white text-xs font-semibold text-gray-900"
+                        />
+                      </div>
+                    ) : (
+                      <div className="flex items-end">
+                        <div className="text-[11px] text-indigo-700 font-semibold bg-indigo-100/80 px-3 py-2 rounded-xl w-full">
+                          Permissão total em todas as equipes no Synera Mobile.
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="md:col-span-3 flex justify-end pt-1">
+                      <Button
+                        type="button"
+                        onClick={() => {
+                          if (!selectedRespEmpId) {
+                            alert("Selecione um funcionário da lista.");
+                            return;
+                          }
+                          if (selectedRespScope === 'TEAM' && !selectedRespTeam.trim()) {
+                            alert("Informe o nome da equipe específica.");
+                            return;
+                          }
+                          const emp = employees.find(e => e.id === selectedRespEmpId);
+                          const newResp = {
+                            id: `resp-${Date.now()}`,
+                            employeeId: selectedRespEmpId,
+                            employeeName: emp ? emp.name : 'Funcionário',
+                            scope: selectedRespScope,
+                            teamName: selectedRespScope === 'TEAM' ? selectedRespTeam.trim() : undefined
+                          };
+                          const currentList = rhParams.mobileResponsibles || [];
+                          setRhParams({
+                            ...rhParams,
+                            mobileResponsibles: [...currentList, newResp]
+                          });
+                          setSelectedRespEmpId("");
+                          setSelectedRespTeam("");
+                        }}
+                        className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold h-10 px-5 rounded-xl text-xs gap-1.5 shadow-md"
+                      >
+                        <Plus className="w-4 h-4" />
+                        Definir Responsável Mobile
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* List of Configured Responsibles */}
+                  <div className="space-y-2">
+                    <h5 className="text-xs font-black text-gray-900 uppercase tracking-wider flex items-center gap-1.5">
+                      <Users className="w-4 h-4 text-indigo-600" />
+                      Responsáveis Configurados ({rhParams.mobileResponsibles?.length || 0})
+                    </h5>
+
+                    {(!rhParams.mobileResponsibles || rhParams.mobileResponsibles.length === 0) ? (
+                      <div className="p-4 rounded-2xl bg-gray-50 border border-gray-200 text-center text-xs text-gray-500 font-medium">
+                        Nenhum responsável atribuído especificamente. Todos os encarregados ativos possuem acesso padrão no Synera Mobile.
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        {rhParams.mobileResponsibles.map((resp: any) => (
+                          <div key={resp.id} className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 flex items-center justify-between">
+                            <div className="space-y-1">
+                              <h6 className="text-xs font-extrabold text-slate-900">{resp.employeeName}</h6>
+                              <div className="flex items-center gap-1.5">
+                                {resp.scope === 'ALL' ? (
+                                  <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-bold">
+                                    Todas as Equipes
+                                  </span>
+                                ) : (
+                                  <span className="px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-800 text-[10px] font-bold">
+                                    Equipe: {resp.teamName || 'Específica'}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => {
+                                const updated = (rhParams.mobileResponsibles || []).filter((r: any) => r.id !== resp.id);
+                                setRhParams({ ...rhParams, mobileResponsibles: updated });
+                              }}
+                              className="h-8 w-8 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-xl"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </CardContent>
               </Card>

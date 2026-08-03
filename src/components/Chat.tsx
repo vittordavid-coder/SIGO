@@ -22,9 +22,10 @@ interface ChatProps {
   currentUser: User;
   users: User[];
   contracts: Contract[];
+  isMobileView?: boolean;
 }
 
-export function Chat({ currentUser, users, contracts }: ChatProps) {
+export function Chat({ currentUser, users, contracts, isMobileView }: ChatProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
   const [activeChat, setActiveChat] = useState<User | null>(null);
@@ -212,6 +213,7 @@ export function Chat({ currentUser, users, contracts }: ChatProps) {
 
       // Presence Management
       const presenceChannel = supabase.channel('online-users');
+      const isCurrentMobile = Boolean(isMobileView || currentUser.userGroup === 'mobile' || currentUser.role === 'apontador');
       
       presenceChannel
         .on('presence', { event: 'sync' }, () => {
@@ -237,6 +239,7 @@ export function Chat({ currentUser, users, contracts }: ChatProps) {
             await presenceChannel.track({
               user_id: currentUser.id,
               online_at: new Date().toISOString(),
+              is_mobile: isCurrentMobile
             });
           }
         });
@@ -628,8 +631,12 @@ export function Chat({ currentUser, users, contracts }: ChatProps) {
                       {activeChat ? activeChat.name : 'Mensagens'}
                     </span>
                     {activeChat && (
-                      <span className="text-xs text-blue-100 font-medium truncate">
-                        {onlineUsers[activeChat.id] ? "ONLINE AGORA" : "OFFLINE"}
+                      <span className="text-xs text-blue-100 font-bold truncate flex items-center gap-1">
+                        {onlineUsers[activeChat.id] ? (
+                          (activeChat.userGroup === 'mobile' || activeChat.role === 'apontador') ? "Mobile - ONLINE" : "ONLINE AGORA"
+                        ) : (
+                          (activeChat.userGroup === 'mobile' || activeChat.role === 'apontador') ? "Mobile - OFFLINE" : "OFFLINE"
+                        )}
                       </span>
                     )}
                   </div>
@@ -805,9 +812,9 @@ export function Chat({ currentUser, users, contracts }: ChatProps) {
                                 </span>
                                 <div className="h-[1px] flex-1 bg-gray-100" />
                               </div>
-                              {group.users.map(user => (
+                              {group.users.map((user, userIdx) => (
                                 <div
-                                  key={user.id}
+                                  key={`${gid}-${user.id}-${userIdx}`}
                                   onClick={() => setActiveChat(user)}
                                   className="w-full flex items-center gap-3 p-3 hover:bg-blue-50 rounded-2xl transition-all group text-left cursor-pointer"
                                 >
@@ -821,6 +828,11 @@ export function Chat({ currentUser, users, contracts }: ChatProps) {
                                   <div className="flex-1 min-w-0">
                                     <div className="flex items-center gap-1.5">
                                       <p className="font-bold text-base text-gray-900 truncate">{user.name}</p>
+                                      {(user.userGroup === 'mobile' || user.role === 'apontador') && (
+                                        <span className="text-[10px] font-black px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-700 border border-indigo-200">
+                                          Mobile
+                                        </span>
+                                      )}
                                       <button 
                                         onClick={(e) => {
                                           e.stopPropagation();
@@ -843,7 +855,7 @@ export function Chat({ currentUser, users, contracts }: ChatProps) {
                                     <div className={cn(
                                       "w-2.5 h-2.5 rounded-full border-2 border-white shadow-sm",
                                       onlineUsers[user.id] ? "bg-green-500" : "bg-gray-300"
-                                    )} title={onlineUsers[user.id] ? "Online" : "Offline"} />
+                                    )} title={onlineUsers[user.id] ? ((user.userGroup === 'mobile' || user.role === 'apontador') ? "Mobile - Online" : "Online") : "Offline"} />
                                   </div>
                                 </div>
                               ))}

@@ -1127,6 +1127,31 @@ export interface ProjectAlignmentPoint {
   elevation?: number;
 }
 
+export interface ProjectPin {
+  id: string;
+  contractId: string;
+  alignmentId?: string;
+  title: string;
+  category: 'obras_arte' | 'patologia' | 'bueiro' | 'estaca' | 'corte_aterro' | 'outro';
+  color: string;
+  lat: number;
+  lng: number;
+  station?: string;
+  notes?: string;
+  createdAt: string;
+  createdBy?: string;
+}
+
+export interface ProjectMeasurement {
+  id: string;
+  contractId: string;
+  alignmentId?: string;
+  title: string;
+  totalDistanceMeters: number;
+  points: { lat: number; lng: number }[];
+  createdAt: string;
+}
+
 export interface ProjectAlignment {
   id: string;
   companyId?: string;
@@ -1139,5 +1164,39 @@ export interface ProjectAlignment {
   totalLengthMeters: number;
   startStation?: string;
   endStation?: string;
+  coordinateType?: 'UTM' | 'LAT_LNG';
+  utmZone?: number;
+  datum?: 'SIRGAS 2000' | 'SAD-69';
   points: ProjectAlignmentPoint[];
+  pins?: ProjectPin[];
+  savedMeasurements?: ProjectMeasurement[];
+}
+
+export interface FieldProductionReport {
+  id: string;
+  contractId: string;
+  contractName?: string;
+  serviceId?: string;
+  serviceName?: string;
+  unit?: string;
+  qty?: number;
+  productionDate?: string;
+  startStation?: string;
+  endStation?: string;
+  trecho?: string;
+  notes?: string;
+  photo?: string;
+  location?: string;
+  description?: string;
+  photoUrl?: string;
+  sector?: string;
+  date?: string;
+  createdByName?: string;
+  reportedBy?: string;
+  reportedByEmail?: string;
+  status?: 'pending' | 'approved' | 'rejected';
+  synced?: boolean;
+  syncedAt?: string;
+  createdAt?: string;
+  timestamp?: string;
 }
