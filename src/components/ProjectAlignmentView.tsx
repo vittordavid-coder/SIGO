@@ -795,7 +795,9 @@ export function ProjectAlignmentView({
 }: ProjectAlignmentViewProps) {
   // Current active alignment for this contract or newly uploaded
   const currentAlignment = useMemo(() => {
-    return projectAlignments.find(a => a.contractId === contract.id) || projectAlignments[0];
+    const a = projectAlignments.find(a => a.contractId === contract.id) || projectAlignments[0];
+    if (a && !a.points) return { ...a, points: [] };
+    return a;
   }, [projectAlignments, contract.id]);
 
   // CAD Visualization Settings (Loaded from localStorage)
@@ -1421,8 +1423,8 @@ export function ProjectAlignmentView({
     sql += `  start_station = EXCLUDED.start_station,\n`;
     sql += `  end_station = EXCLUDED.end_station;\n\n`;
 
-    if (currentAlignment.points && currentAlignment.points.length > 0) {
-      sql += `-- Estacas do Traçado Horizontal (${currentAlignment.points.length} pontos)\n`;
+    if (currentAlignment.points && currentAlignment.points?.length > 0) {
+      sql += `-- Estacas do Traçado Horizontal (${currentAlignment.points?.length} pontos)\n`;
       sql += `DELETE FROM project_alignment_points WHERE alignment_id = ${sanitizeSql(currentAlignment.id)};\n`;
       currentAlignment.points.forEach((pt, idx) => {
         sql += `INSERT INTO project_alignment_points (id, alignment_id, point_order, station, latitude, longitude, easting, northing, elevation, radius, element_type, description, complementary_info) VALUES (`;
@@ -1469,7 +1471,7 @@ export function ProjectAlignmentView({
     const cleanFileName = `script_sql_sala_tecnica_${workName.toLowerCase().replace(/[^a-z0-9]/g, '_')}_${Date.now()}.txt`;
     saveAs(blob, cleanFileName);
 
-    setSaveSuccessMessage(`✅ Script SQL (.txt) criado com sucesso! Contém ${currentAlignment.points.length} estacas, ${pins.length} alfinetes e parâmetros CAD.`);
+    setSaveSuccessMessage(`✅ Script SQL (.txt) criado com sucesso! Contém ${currentAlignment.points?.length} estacas, ${pins.length} alfinetes e parâmetros CAD.`);
     setTimeout(() => setSaveSuccessMessage(null), 8000);
   };
 
@@ -1527,7 +1529,7 @@ export function ProjectAlignmentView({
     kml += `    </Style>\n\n`;
 
     // Folder: Alignment Line
-    if (kmlOptions.includeAlignmentLine && currentAlignment.points.length > 0) {
+    if (kmlOptions.includeAlignmentLine && currentAlignment.points?.length > 0) {
       kml += `    <Folder>\n`;
       kml += `      <name>Eixo do Traçado Horizontal</name>\n`;
       kml += `      <Placemark>\n`;
@@ -1549,9 +1551,9 @@ export function ProjectAlignmentView({
     }
 
     // Folder: Station Points
-    if (kmlOptions.includeStations && currentAlignment.points.length > 0) {
+    if (kmlOptions.includeStations && currentAlignment.points?.length > 0) {
       kml += `    <Folder>\n`;
-      kml += `      <name>Estacas do Traçado (${currentAlignment.points.length})</name>\n`;
+      kml += `      <name>Estacas do Traçado (${currentAlignment.points?.length})</name>\n`;
       currentAlignment.points.forEach(pt => {
         const elev = pt.elevation !== undefined && !isNaN(pt.elevation) ? pt.elevation : 0;
         kml += `      <Placemark>\n`;
@@ -1640,7 +1642,7 @@ export function ProjectAlignmentView({
 
   // Alignment Summary Stats
   const stats = useMemo(() => {
-    if (!currentAlignment || currentAlignment.points.length === 0) return null;
+    if (!currentAlignment || !currentAlignment.points || currentAlignment.points.length === 0) return null;
     const pts = currentAlignment.points;
     const totalKm = (currentAlignment.totalLengthMeters / 1000).toFixed(3);
     const totalMeters = currentAlignment.totalLengthMeters.toLocaleString('pt-BR');
@@ -1677,8 +1679,8 @@ export function ProjectAlignmentView({
   }, [cadSettings.googleMapsLayerType]);
 
   const defaultCenter = useMemo<[number, number]>(() => {
-    if (currentAlignment && currentAlignment.points.length > 0) {
-      const midIdx = Math.floor(currentAlignment.points.length / 2);
+    if (currentAlignment && currentAlignment.points?.length > 0) {
+      const midIdx = Math.floor(currentAlignment.points?.length / 2);
       return [currentAlignment.points[midIdx].lat, currentAlignment.points[midIdx].lng];
     }
     return [-23.55052, -46.633308];
@@ -2405,7 +2407,7 @@ export function ProjectAlignmentView({
                 {/* EXIBIÇÃO DAS ESTACAS APENAS QUANDO O ZOOM ESTIVER PRÓXIMO */}
                 {cadSettings.showStations && currentZoom >= cadSettings.minStationZoom ? (
                   currentAlignment.points.map((pt, idx) => {
-                    if (idx % (cadSettings.stationStep || 1) !== 0 && idx !== currentAlignment.points.length - 1) {
+                    if (idx % (cadSettings.stationStep || 1) !== 0 && idx !== currentAlignment.points?.length - 1) {
                       return null;
                     }
 
@@ -2440,7 +2442,7 @@ export function ProjectAlignmentView({
                   /* Quando o zoom estiver distante, mostra apenas pequenos vértices discretos */
                   currentAlignment.points.map((pt, idx) => {
                     const isStart = idx === 0;
-                    const isEnd = idx === currentAlignment.points.length - 1;
+                    const isEnd = idx === currentAlignment.points?.length - 1;
                     const isSelected = pt.id === selectedPointId;
 
                     let markerColor = cadSettings.stationTickColor || '#22c55e';
@@ -3419,7 +3421,7 @@ export function ProjectAlignmentView({
                   <div className="flex items-center gap-3">
                     <div className="w-3 h-3 rounded-full bg-emerald-400" />
                     <div>
-                      <strong className="text-xs text-slate-200 block">Pontos e Estacas do Traçado ({currentAlignment?.points.length || 0})</strong>
+                      <strong className="text-xs text-slate-200 block">Pontos e Estacas do Traçado ({currentAlignment?.points?.length || 0})</strong>
                       <span className="text-[11px] text-slate-400">Placemarks individuais com numéro de estaca e raio de curva</span>
                     </div>
                   </div>
