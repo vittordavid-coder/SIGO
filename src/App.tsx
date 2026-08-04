@@ -4560,6 +4560,7 @@ export default function App() {
           selectedContractId={selectedContractId}
           onUpdateContractId={setSelectedContractId}
           onLogout={handleLogout}
+          onSyncRequest={() => syncFromSupabase()}
         />
       </div>
     );

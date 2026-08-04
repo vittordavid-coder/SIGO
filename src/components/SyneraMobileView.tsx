@@ -5,7 +5,7 @@ import {
   MapPin, CloudSun, Plus, Trash2, ShieldCheck, Download, Share2, 
   ChevronRight, Calendar, ArrowUpRight, Zap, Building2, Package, ArrowLeft, Layers,
   Search, Edit3, X, Eye, LogOut, LayoutDashboard, Sliders, Grid, ZapOff, RefreshCcw,
-  Upload, Navigation, Crosshair, Sparkles, BarChart2, XCircle, ArrowRightLeft, UserCheck, Save, MessageCircle
+  Upload, Navigation, Crosshair, Sparkles, BarChart2, XCircle, ArrowRightLeft, UserCheck, Save, MessageCircle, Settings
 } from 'lucide-react';
 import { Button } from './ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "./ui/dialog";
@@ -35,6 +35,7 @@ export interface SyneraMobileViewProps {
   onLogout?: () => void;
   selectedContractId?: string;
   onUpdateContractId?: (id: string) => void;
+  onSyncRequest?: () => Promise<void>;
 }
 
 export interface OfflinePendingItem {
@@ -537,7 +538,7 @@ export function SyneraMobileView({
 
     const stationText = photoStation || (nearestStationInfo ? nearestStationInfo.station : 'Estaca N/I');
     const descText = photoDescription.trim() || 'Foto de inspeção em campo';
-    const activeContractObj = contracts.find(c => c.id === selectedContractId) || contracts[0] || { id: 'c1', name: 'Obra Principal' };
+    const activeContract = contracts.find(c => c.id === selectedContractId) || contracts[0] || { id: 'c1', name: 'Obra Principal' };
 
     let finalPhotoUrl = capturedPhotoUrl;
     try {
@@ -582,7 +583,7 @@ export function SyneraMobileView({
         let y = canvas.height - boxHeight + padding * 1.5;
         const dateText = new Date().toLocaleString('pt-BR');
         
-        ctx.fillText(`Obra: ${activeContractObj.name || activeContractObj.workName || 'Obra Principal'}`, padding, y);
+        ctx.fillText(`Obra: ${activeContract.name || activeContract.workName || 'Obra Principal'}`, padding, y);
         y += fontSize * 1.5;
         ctx.fillText(`Data: ${dateText}`, padding, y);
         y += fontSize * 1.5;
@@ -598,7 +599,7 @@ export function SyneraMobileView({
 
     const newReport: FieldProductionReport = {
       id: `photo-${Date.now()}`,
-      contractId: activeContractObj.id,
+      contractId: activeContract.id,
       sector: 'project_admin',
       date: new Date().toISOString().slice(0, 10),
       location: stationText,
@@ -617,8 +618,8 @@ export function SyneraMobileView({
       id: newReport.id,
       type: 'production',
       timestamp: newReport.timestamp,
-      contractId: activeContractObj.id,
-      contractName: activeContractObj.name || activeContractObj.workName || 'Obra Principal',
+      contractId: activeContract.id,
+      contractName: activeContract.name || activeContract.workName || 'Obra Principal',
       data: newReport,
       synced: false
     };
@@ -653,6 +654,7 @@ export function SyneraMobileView({
     );
   });
   const [showPwaGuide, setShowPwaGuide] = useState<boolean>(false);
+  const [showOptionsMenu, setShowOptionsMenu] = useState<boolean>(false);
 
   // Sync animation state
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
@@ -3432,7 +3434,8 @@ export function SyneraMobileView({
                     </DialogHeader>
                     <div className="flex flex-col gap-3 py-4">
                       <Button 
-                        onClick={() => { if(!isCamOnly) { handleInstallPwa(); } else { window.location.href = "/"; } }}
+                        onClick={() => { if (onSyncRequest) { onSyncRequest(); }
+                    if(!isCamOnly) { handleInstallPwa(); } else { window.location.href = '/'; } }}
                         className="h-14 bg-slate-900 border border-slate-700 hover:border-blue-500 hover:bg-slate-800 text-white justify-start gap-4"
                       >
                         <div className="w-8 h-8 rounded-full bg-blue-500/20 flex items-center justify-center shrink-0">
@@ -3444,7 +3447,8 @@ export function SyneraMobileView({
                         </div>
                       </Button>
                       <Button 
-                        onClick={() => { if(isCamOnly) { handleInstallPwa(); } else { window.location.href = "/cam.html"; } }}
+                        onClick={() => { if (onSyncRequest) { onSyncRequest(); }
+                    if(isCamOnly) { handleInstallPwa(); } else { window.location.href = '/cam.html'; } }}
                         className="h-14 bg-slate-900 border border-slate-700 hover:border-emerald-500 hover:bg-slate-800 text-white justify-start gap-4"
                       >
                         <div className="w-8 h-8 rounded-full bg-emerald-500/20 flex items-center justify-center shrink-0">
@@ -3593,6 +3597,15 @@ export function SyneraMobileView({
                       <div className="border border-white/10" />
                     </div>
                   )}
+
+                  {/* Overlay Info (Timestamp Camera Style) */}
+                  <div className="absolute bottom-4 left-4 right-4 pointer-events-none drop-shadow-[0_2px_2px_rgba(0,0,0,1)] bg-black/30 p-2 rounded-lg backdrop-blur-sm border border-white/10 z-10">
+                    <p className="text-white text-xs font-bold leading-tight">{activeContract?.name || activeContract?.workName || 'Obra Principal'}</p>
+                    <p className="text-amber-400 text-xs font-black leading-tight mt-0.5">{photoStation || (nearestStationInfo?.station || 'Aguardando GPS...')}</p>
+                    <p className="text-emerald-400 text-[10px] font-bold leading-tight mt-0.5">{new Date().toLocaleString('pt-BR')}</p>
+                    <p className="text-white text-[10px] leading-tight italic mt-0.5 line-clamp-2 break-words">{photoDescription || 'Sem descrição'}</p>
+                  </div>
+
                 </>
               )}
             </div>
@@ -3601,7 +3614,7 @@ export function SyneraMobileView({
             <div className="p-4 bg-gradient-to-t from-slate-950 via-slate-950 to-slate-950/90 border-t border-slate-800 space-y-3 shrink-0 z-20">
               
               
-              {capturedPhotoUrl ? (
+              
                 <div className="space-y-3">
                   {/* DESCRIÇÃO DA FOTO */}
                   <div className="space-y-1.5">
@@ -3641,7 +3654,11 @@ export function SyneraMobileView({
                     )}
                   </div>
 
+                
+                </div>
+              {capturedPhotoUrl ? (
                 <div className="grid grid-cols-2 gap-3 pt-1">
+
                   <Button
                     onClick={() => {
                       setCapturedPhotoUrl(null);
@@ -3690,10 +3707,9 @@ export function SyneraMobileView({
                       className="w-12 h-12 rounded-2xl bg-slate-800 hover:bg-slate-700 flex items-center justify-center border border-slate-700 text-white shrink-0"
                     >
                       <Share2 className="w-5 h-5 text-emerald-400" />
-                                        </button>
+                                                            </button>
                   </div>
                 </div>
-              </div>
               ) : (
                 <Button
                   onClick={handleTakePhoto}
@@ -3756,7 +3772,110 @@ export function SyneraMobileView({
             </span>
           )}
         </button>
+
+        <button
+          onClick={() => setShowOptionsMenu(true)}
+          className="flex flex-col items-center gap-1 text-slate-400 hover:text-slate-200 transition-colors relative"
+        >
+          <Settings className="w-5 h-5" />
+          <span className="text-[10px]">Opções</span>
+        </button>
+
       </div>
+      
+      {/* MENU DE OPÇÕES (FOOTER) */}
+      <AnimatePresence>
+        {showOptionsMenu && (
+          <motion.div 
+            initial={{ opacity: 0 }} 
+            animate={{ opacity: 1 }} 
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex items-end sm:items-center justify-center p-4"
+          >
+            <motion.div 
+              initial={{ y: 100 }} 
+              animate={{ y: 0 }} 
+              exit={{ y: 100 }}
+              className="bg-slate-900 border border-slate-800 w-full max-w-sm rounded-3xl p-6 text-white space-y-4 shadow-2xl"
+            >
+              <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                <div className="flex items-center gap-2 font-black text-base text-slate-200">
+                  <Settings className="w-5 h-5" />
+                  <span>Opções</span>
+                </div>
+                <button onClick={() => setShowOptionsMenu(false)} className="text-slate-400 text-xs font-bold px-2 py-1 bg-slate-800 rounded-lg">
+                  Fechar
+                </button>
+              </div>
+
+              
+              <div className="flex flex-col gap-3 py-2">
+                <Button 
+                  onClick={() => { setShowOptionsMenu(false); if(!isCamOnly) { handleInstallPwa(); } else { window.location.href = "/"; } }}
+                  className="h-14 bg-slate-950 border border-slate-700 hover:border-blue-500 hover:bg-slate-800 text-white justify-start gap-4"
+                >
+                  <div className="w-8 h-8 rounded-full bg-blue-500/20 flex items-center justify-center shrink-0">
+                    <Download className="w-4 h-4 text-blue-400" />
+                  </div>
+                  <div className="flex flex-col items-start">
+                    <span className="font-bold text-sm">Instalar Synera Mobile</span>
+                    <span className="text-[10px] text-slate-400 font-normal">Apontamentos, diários e requisições</span>
+                  </div>
+                </Button>
+
+                <Button 
+                  onClick={() => { setShowOptionsMenu(false); if(isCamOnly) { handleInstallPwa(); } else { window.location.href = "/cam.html"; } }}
+                  className="h-14 bg-slate-950 border border-slate-700 hover:border-emerald-500 hover:bg-slate-800 text-white justify-start gap-4"
+                >
+                  <div className="w-8 h-8 rounded-full bg-emerald-500/20 flex items-center justify-center shrink-0">
+                    <Camera className="w-4 h-4 text-emerald-400" />
+                  </div>
+                  <div className="flex flex-col items-start">
+                    <span className="font-bold text-sm">Instalar Synera Cam</span>
+                    <span className="text-[10px] text-slate-400 font-normal">Fotos com coordenadas e dados da obra</span>
+                  </div>
+                </Button>
+
+                <Button 
+                  onClick={() => { 
+                    setShowOptionsMenu(false); 
+                    if (onSyncRequest) {
+                       onSyncRequest().then(() => alert('Dados baixados com sucesso!'));
+                    } else {
+                       alert('O sistema já está sincronizando em segundo plano.');
+                    }
+                  }}
+                  className="h-14 bg-slate-950 border border-slate-700 hover:border-amber-500 hover:bg-slate-800 text-white justify-start gap-4"
+                >
+                  <div className="w-8 h-8 rounded-full bg-amber-500/20 flex items-center justify-center shrink-0">
+                    <RefreshCw className="w-4 h-4 text-amber-400" />
+                  </div>
+                  <div className="flex flex-col items-start">
+                    <span className="font-bold text-sm">Baixar Dados da Obra</span>
+                    <span className="text-[10px] text-slate-400 font-normal">Baixar serviços e controles para offline</span>
+                  </div>
+                </Button>
+
+
+                {onLogout && (
+                  <Button 
+                    onClick={() => { setShowOptionsMenu(false); onLogout(); }}
+                    className="h-14 bg-slate-950 border border-slate-700 hover:border-rose-500 hover:bg-slate-800 text-rose-400 justify-start gap-4 mt-2"
+                  >
+                    <div className="w-8 h-8 rounded-full bg-rose-500/10 flex items-center justify-center shrink-0">
+                      <LogOut className="w-4 h-4 text-rose-400" />
+                    </div>
+                    <div className="flex flex-col items-start">
+                      <span className="font-bold text-sm text-rose-400">Sair do Sistema</span>
+                      <span className="text-[10px] text-rose-500/70 font-normal">Fazer logout da conta atual</span>
+                    </div>
+                  </Button>
+                )}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* MODAL DE CHAT SYNERA MOBILE */}
       <AnimatePresence>
