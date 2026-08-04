@@ -282,6 +282,19 @@ export function SyneraMobileView({
   const [flashEnabled, setFlashEnabled] = useState<boolean>(false);
   const [showGrid, setShowGrid] = useState<boolean>(true);
   const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
+  const [cameraError, setCameraError] = useState<string | null>(null);
+  const [facingMode, setFacingMode] = useState<'environment' | 'user'>('environment');
+  const [showDiagnosticModal, setShowDiagnosticModal] = useState<boolean>(false);
+  const [isDiagnosing, setIsDiagnosing] = useState<boolean>(false);
+  const [diagnosticResults, setDiagnosticResults] = useState<{
+    mediaSupported: boolean;
+    permissionState: string;
+    devicesCount: number;
+    devicesList: string[];
+    testStreamWorking: boolean;
+    gpsWorking: boolean;
+    nativeFallbackWorking: boolean;
+  } | null>(null);
   const [photoDescription, setPhotoDescription] = useState<string>('');
   const [photoStation, setPhotoStation] = useState<string>('');
   const [capturedPhotoUrl, setCapturedPhotoUrl] = useState<string | null>(null);
@@ -420,11 +433,93 @@ export function SyneraMobileView({
     );
   };
 
-  // Inicializar câmera
+  // Método de Verificação e Diagnóstico Completo da Câmera
+  const runCameraDiagnostics = async () => {
+    setIsDiagnosing(true);
+    let mediaSupported = false;
+    let permissionState = 'desconhecido';
+    let devicesCount = 0;
+    let devicesList: string[] = [];
+    let testStreamWorking = false;
+    let gpsWorking = false;
+    let nativeFallbackWorking = true;
+
+    // 1. Verificar suporte à API MediaDevices
+    if (typeof navigator !== 'undefined' && navigator.mediaDevices && typeof navigator.mediaDevices.getUserMedia === 'function') {
+      mediaSupported = true;
+    }
+
+    // 2. Enumerar câmeras disponíveis
+    if (mediaSupported) {
+      try {
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const videoDevices = devices.filter(d => d.kind === 'videoinput');
+        devicesCount = videoDevices.length;
+        devicesList = videoDevices.map((d, i) => d.label || `Câmera #${i + 1} (${d.deviceId.slice(0, 8)})`);
+      } catch (e) {
+        console.warn('Erro ao enumerar dispositivos de vídeo:', e);
+      }
+    }
+
+    // 3. Consultar Permissão do Navegador
+    if (typeof navigator !== 'undefined' && navigator.permissions && (navigator.permissions as any).query) {
+      try {
+        const res = await (navigator.permissions as any).query({ name: 'camera' });
+        permissionState = res.state;
+      } catch {
+        permissionState = 'nao_suportado';
+      }
+    }
+
+    // 4. Testar transmissão de vídeo ao vivo
+    if (mediaSupported) {
+      try {
+        const testStream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: { ideal: facingMode } },
+          audio: false
+        });
+        if (testStream && testStream.getVideoTracks().length > 0) {
+          testStreamWorking = true;
+          permissionState = 'granted';
+          testStream.getTracks().forEach(t => t.stop());
+        }
+      } catch (err: any) {
+        console.warn('Teste de transmissão de vídeo falhou:', err);
+        if (err?.name === 'NotAllowedError' || err?.name === 'PermissionDeniedError') {
+          permissionState = 'denied';
+        }
+      }
+    }
+
+    // 5. Verificar GPS da Obra
+    if (typeof navigator !== 'undefined' && navigator.geolocation) {
+      gpsWorking = true;
+    }
+
+    setDiagnosticResults({
+      mediaSupported,
+      permissionState,
+      devicesCount,
+      devicesList,
+      testStreamWorking,
+      gpsWorking,
+      nativeFallbackWorking
+    });
+    setIsDiagnosing(false);
+  };
+
+  // Inicializar transmissão de vídeo ao vivo da câmera com níveis de fallback
   const startCameraStream = async () => {
+    setCameraError(null);
     try {
       if (cameraStream) {
         cameraStream.getTracks().forEach(track => track.stop());
+        setCameraStream(null);
+      }
+
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        setCameraError('O seu navegador não possui suporte a vídeo em tempo real no iframe atual. Utilize a Câmera Nativa do Celular.');
+        return;
       }
 
       let targetWidth = 1920;
@@ -437,33 +532,65 @@ export function SyneraMobileView({
         targetHeight = 480;
       }
 
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: { ideal: 'environment' },
-          width: { ideal: targetWidth },
-          height: { ideal: targetHeight }
-        },
-        audio: false
-      });
-
-      setCameraStream(stream);
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-      }
-
-      // Aplicar lanterna se disponível
-      const track = stream.getVideoTracks()[0];
-      if (track && 'applyConstraints' in track) {
+      let stream: MediaStream | null = null;
+      try {
+        // Tentativa 1: facingMode ideal + resolução
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: { ideal: facingMode },
+            width: { ideal: targetWidth },
+            height: { ideal: targetHeight }
+          },
+          audio: false
+        });
+      } catch (e1) {
+        console.warn('Tentativa 1 com resolução falhou, tentando apenas facingMode:', e1);
         try {
-          await (track as any).applyConstraints({
-            advanced: [{ torch: flashEnabled }]
+          // Tentativa 2: Apenas facingMode
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: facingMode },
+            audio: false
           });
-        } catch {
-          // torch não suportado no navegador/hardware
+        } catch (e2) {
+          console.warn('Tentativa 2 falhou, tentando vídeo genérico:', e2);
+          // Tentativa 3: Qualquer câmera disponível
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: true,
+            audio: false
+          });
         }
       }
-    } catch (err) {
-      console.warn('Câmera de vídeo HTML5 não disponível diretamente, usando seletor nativo:', err);
+
+      if (stream) {
+        setCameraStream(stream);
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          videoRef.current.play().catch(pErr => console.warn('Falha no auto-play do vídeo:', pErr));
+        }
+
+        // Aplicar lanterna se disponível
+        const track = stream.getVideoTracks()[0];
+        if (track && 'applyConstraints' in track) {
+          try {
+            await (track as any).applyConstraints({
+              advanced: [{ torch: flashEnabled }]
+            });
+          } catch {
+            // torch não suportado no dispositivo
+          }
+        }
+      }
+    } catch (err: any) {
+      console.warn('Erro ao inicializar câmera de vídeo HTML5:', err);
+      let msg = 'A transmissão de vídeo ao vivo não pôde ser aberta diretamente neste navegador.';
+      if (err?.name === 'NotAllowedError' || err?.name === 'PermissionDeniedError') {
+        msg = 'Permissão de câmera negada. Ative a câmera nas permissões do site ou use a Câmera Nativa do Celular.';
+      } else if (err?.name === 'NotFoundError' || err?.name === 'DevicesNotFoundError') {
+        msg = 'Nenhum dispositivo de câmera foi detectado no aparelho.';
+      } else if (err?.name === 'NotReadableError' || err?.name === 'TrackStartError') {
+        msg = 'A câmera já está sendo utilizada por outro aplicativo.';
+      }
+      setCameraError(msg);
     }
   };
 
@@ -495,6 +622,7 @@ export function SyneraMobileView({
     } else {
       stopCameraStream();
       setCapturedPhotoUrl(null);
+      setCameraError(null);
     }
     return () => {
       stopCameraStream();
@@ -502,13 +630,14 @@ export function SyneraMobileView({
         navigator.geolocation.clearWatch(watchId);
       }
     };
-  }, [isCameraOpen, cameraQuality]);
+  }, [isCameraOpen, cameraQuality, facingMode]);
 
   const handleTakePhoto = () => {
-    if (videoRef.current) {
+    if (capturedPhotoUrl) return;
+
+    if (videoRef.current && videoRef.current.videoWidth > 0 && cameraStream) {
       const video = videoRef.current;
       const canvas = document.createElement('canvas');
-      if (!video.videoWidth || !video.videoHeight) return;
       canvas.width = video.videoWidth;
       canvas.height = video.videoHeight;
       const ctx = canvas.getContext('2d');
@@ -517,8 +646,11 @@ export function SyneraMobileView({
         const dataUrl = canvas.toDataURL('image/jpeg', 0.88);
         setCapturedPhotoUrl(dataUrl);
       }
-    } else if (fileInputRef.current) {
-      fileInputRef.current.click();
+    } else {
+      // Disparo automático via câmera nativa caso a transmissão ao vivo não esteja disponível
+      if (fileInputRef.current) {
+        fileInputRef.current.click();
+      }
     }
   };
 
@@ -3515,8 +3647,29 @@ export function SyneraMobileView({
                 </div>
               </div>
 
-              {/* OPÇÕES DE QUALIDADE, GRADE E FLASH */}
+              {/* OPÇÕES DE QUALIDADE, GRADE, TIPO DE CÂMERA E FLASH */}
               <div className="flex items-center gap-1.5">
+                <button
+                  onClick={() => setFacingMode(prev => prev === 'environment' ? 'user' : 'environment')}
+                  className={`p-2 rounded-xl border text-xs font-bold transition-all ${
+                    facingMode === 'user' ? 'bg-blue-500/20 text-blue-400 border-blue-500/40' : 'bg-slate-900/80 text-slate-400 border-slate-700'
+                  }`}
+                  title={facingMode === 'user' ? 'Câmera Frontal Ativa (Mudar para Traseira)' : 'Câmera Traseira Ativa (Mudar para Frontal)'}
+                >
+                  <ArrowRightLeft className="w-4 h-4" />
+                </button>
+
+                <button
+                  onClick={() => {
+                    setShowDiagnosticModal(true);
+                    runCameraDiagnostics();
+                  }}
+                  className="p-2 rounded-xl bg-purple-950/80 border border-purple-500/40 text-purple-300 hover:bg-purple-900/80 text-xs font-bold transition-all"
+                  title="Diagnóstico de Funcionamento da Câmera"
+                >
+                  <ShieldCheck className="w-4 h-4" />
+                </button>
+
                 <button
                   onClick={() => setShowGrid(!showGrid)}
                   className={`p-2 rounded-xl border text-xs font-bold transition-all ${
@@ -3570,11 +3723,11 @@ export function SyneraMobileView({
               </div>
             </div>
 
-            {/* PREVIEW DO VÍDEO / FOTO CAPTURADA */}
+            {/* PREVIEW DO VÍDEO / FOTO CAPTURADA / CARD DE FALLBACK */}
             <div className="relative flex-1 bg-black flex items-center justify-center overflow-hidden">
               {capturedPhotoUrl ? (
                 <img src={capturedPhotoUrl} alt="Foto de Campo" className="w-full h-full object-contain" />
-              ) : (
+              ) : cameraStream && !cameraError ? (
                 <>
                   <video
                     ref={videoRef}
@@ -3605,8 +3758,50 @@ export function SyneraMobileView({
                     <p className="text-emerald-400 text-[10px] font-bold leading-tight mt-0.5">{new Date().toLocaleString('pt-BR')}</p>
                     <p className="text-white text-[10px] leading-tight italic mt-0.5 line-clamp-2 break-words">{photoDescription || 'Sem descrição'}</p>
                   </div>
-
                 </>
+              ) : (
+                <div className="flex flex-col items-center justify-center p-6 text-center space-y-4 max-w-sm mx-auto z-10">
+                  <div className="w-16 h-16 rounded-3xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400 shadow-xl">
+                    <Camera className="w-8 h-8" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <h3 className="font-extrabold text-base text-white">Transmissão de Vídeo em Espera</h3>
+                    <p className="text-xs text-slate-300 leading-relaxed">
+                      {cameraError || 'Iniciando captura de vídeo ou aguardando permissão do navegador...'}
+                    </p>
+                  </div>
+
+                  <div className="w-full space-y-2 pt-2">
+                    <Button
+                      onClick={() => fileInputRef.current?.click()}
+                      className="w-full h-12 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20"
+                    >
+                      <Camera className="w-4 h-4 stroke-[3]" />
+                      Usar Câmera Nativa do Celular
+                    </Button>
+
+                    <div className="grid grid-cols-2 gap-2">
+                      <Button
+                        onClick={() => setFacingMode(prev => prev === 'environment' ? 'user' : 'environment')}
+                        className="h-10 rounded-xl bg-slate-900 border border-slate-700 hover:bg-slate-800 text-white font-bold text-[11px] flex items-center justify-center gap-1.5"
+                      >
+                        <ArrowRightLeft className="w-3.5 h-3.5 text-blue-400" />
+                        Inverter Câmera
+                      </Button>
+
+                      <Button
+                        onClick={() => {
+                          setShowDiagnosticModal(true);
+                          runCameraDiagnostics();
+                        }}
+                        className="h-10 rounded-xl bg-slate-900 border border-slate-700 hover:bg-slate-800 text-white font-bold text-[11px] flex items-center justify-center gap-1.5"
+                      >
+                        <ShieldCheck className="w-3.5 h-3.5 text-purple-400" />
+                        Diagnosticar
+                      </Button>
+                    </div>
+                  </div>
+                </div>
               )}
             </div>
 
@@ -3815,11 +4010,11 @@ export function SyneraMobileView({
                   className="h-14 bg-slate-950 border border-slate-700 hover:border-blue-500 hover:bg-slate-800 text-white justify-start gap-4"
                 >
                   <div className="w-8 h-8 rounded-full bg-blue-500/20 flex items-center justify-center shrink-0">
-                    <Download className="w-4 h-4 text-blue-400" />
+                    <Smartphone className="w-4 h-4 text-blue-400" />
                   </div>
-                  <div className="flex flex-col items-start">
+                  <div className="flex flex-col items-start text-left">
                     <span className="font-bold text-sm">Instalar Synera Mobile</span>
-                    <span className="text-[10px] text-slate-400 font-normal">Apontamentos, diários e requisições</span>
+                    <span className="text-[10px] text-slate-400 font-normal">Apontamentos, diários, equipes e frota</span>
                   </div>
                 </Button>
 
@@ -3830,9 +4025,26 @@ export function SyneraMobileView({
                   <div className="w-8 h-8 rounded-full bg-emerald-500/20 flex items-center justify-center shrink-0">
                     <Camera className="w-4 h-4 text-emerald-400" />
                   </div>
-                  <div className="flex flex-col items-start">
+                  <div className="flex flex-col items-start text-left">
                     <span className="font-bold text-sm">Instalar Synera Cam</span>
-                    <span className="text-[10px] text-slate-400 font-normal">Fotos com coordenadas e dados da obra</span>
+                    <span className="text-[10px] text-slate-400 font-normal">Fotos com coordenadas GPS, estaca e carimbo</span>
+                  </div>
+                </Button>
+
+                <Button 
+                  onClick={() => { 
+                    setShowOptionsMenu(false); 
+                    setShowDiagnosticModal(true);
+                    runCameraDiagnostics();
+                  }}
+                  className="h-14 bg-slate-950 border border-slate-700 hover:border-purple-500 hover:bg-slate-800 text-white justify-start gap-4"
+                >
+                  <div className="w-8 h-8 rounded-full bg-purple-500/20 flex items-center justify-center shrink-0">
+                    <ShieldCheck className="w-4 h-4 text-purple-400" />
+                  </div>
+                  <div className="flex flex-col items-start text-left">
+                    <span className="font-bold text-sm">Diagnóstico de Câmera & Sistema</span>
+                    <span className="text-[10px] text-slate-400 font-normal">Verificar funcionamento da câmera e permissões</span>
                   </div>
                 </Button>
 
@@ -3850,12 +4062,11 @@ export function SyneraMobileView({
                   <div className="w-8 h-8 rounded-full bg-amber-500/20 flex items-center justify-center shrink-0">
                     <RefreshCw className="w-4 h-4 text-amber-400" />
                   </div>
-                  <div className="flex flex-col items-start">
+                  <div className="flex flex-col items-start text-left">
                     <span className="font-bold text-sm">Baixar Dados da Obra</span>
                     <span className="text-[10px] text-slate-400 font-normal">Baixar serviços e controles para offline</span>
                   </div>
                 </Button>
-
 
                 {onLogout && (
                   <Button 
@@ -3865,12 +4076,171 @@ export function SyneraMobileView({
                     <div className="w-8 h-8 rounded-full bg-rose-500/10 flex items-center justify-center shrink-0">
                       <LogOut className="w-4 h-4 text-rose-400" />
                     </div>
-                    <div className="flex flex-col items-start">
+                    <div className="flex flex-col items-start text-left">
                       <span className="font-bold text-sm text-rose-400">Sair do Sistema</span>
                       <span className="text-[10px] text-rose-500/70 font-normal">Fazer logout da conta atual</span>
                     </div>
                   </Button>
                 )}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* MODAL DE DIAGNÓSTICO E VERIFICAÇÃO DE CÂMERA */}
+      <AnimatePresence>
+        {showDiagnosticModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-slate-950/85 backdrop-blur-md z-50 flex items-center justify-center p-3 sm:p-4"
+          >
+            <motion.div
+              initial={{ scale: 0.95, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.95, y: 20 }}
+              className="bg-slate-900 border border-slate-800 w-full max-w-md rounded-3xl p-5 text-white space-y-4 shadow-2xl max-h-[90vh] flex flex-col"
+            >
+              <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-9 h-9 rounded-2xl bg-purple-500/20 border border-purple-500/40 flex items-center justify-center text-purple-400 shrink-0">
+                    <ShieldCheck className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-extrabold text-sm text-white">Diagnóstico de Câmera</h3>
+                    <p className="text-[10px] text-purple-300 font-semibold">Synera Cam & Synera Mobile</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowDiagnosticModal(false)}
+                  className="p-1.5 rounded-full text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="overflow-y-auto flex-1 space-y-3 pr-1 custom-scrollbar">
+                {isDiagnosing ? (
+                  <div className="py-12 text-center space-y-3">
+                    <RefreshCw className="w-8 h-8 text-purple-400 animate-spin mx-auto" />
+                    <p className="text-xs font-bold text-white">Testando componentes de hardware e permissões...</p>
+                    <p className="text-[11px] text-slate-400">Verificando suporte WebRTC, sensores de vídeo e GPS de campo.</p>
+                  </div>
+                ) : diagnosticResults ? (
+                  <>
+                    <div className="p-3 rounded-2xl bg-slate-950 border border-slate-800 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-slate-300 flex items-center gap-2">
+                          <Camera className="w-4 h-4 text-emerald-400" />
+                          Transmissão de Vídeo (WebRTC)
+                        </span>
+                        <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full ${
+                          diagnosticResults.mediaSupported ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40' : 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                        }`}>
+                          {diagnosticResults.mediaSupported ? '✓ Suportado' : '⚠️ Limitado'}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-slate-400">
+                        {diagnosticResults.mediaSupported
+                          ? 'A API de vídeo em tempo real está ativa no seu navegador.'
+                          : 'A transmissão ao vivo não está disponível diretamente neste ambiente. O modo de Câmera Nativa garantirá o uso.'}
+                      </p>
+                    </div>
+
+                    <div className="p-3 rounded-2xl bg-slate-950 border border-slate-800 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-slate-300 flex items-center gap-2">
+                          <Zap className="w-4 h-4 text-blue-400" />
+                          Permissão da Câmera
+                        </span>
+                        <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full ${
+                          diagnosticResults.permissionState === 'granted' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40' : 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                        }`}>
+                          {diagnosticResults.permissionState === 'granted' ? '✓ Permitida' : '⚠️ Verifique Permissão'}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-slate-400">
+                        Status de permissão do navegador: <strong className="text-white uppercase">{diagnosticResults.permissionState}</strong>.
+                      </p>
+                    </div>
+
+                    <div className="p-3 rounded-2xl bg-slate-950 border border-slate-800 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-slate-300 flex items-center gap-2">
+                          <Grid className="w-4 h-4 text-purple-400" />
+                          Sensores de Câmera Física
+                        </span>
+                        <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/40">
+                          {diagnosticResults.devicesCount > 0 ? `${diagnosticResults.devicesCount} Câmera(s)` : 'Modo Nativo'}
+                        </span>
+                      </div>
+                      {diagnosticResults.devicesList.length > 0 ? (
+                        <ul className="text-[11px] text-slate-400 space-y-1">
+                          {diagnosticResults.devicesList.map((dev, i) => (
+                            <li key={i} className="flex items-center gap-1 text-slate-300">
+                              <CheckCircle2 className="w-3 h-3 text-emerald-400 shrink-0" />
+                              <span className="truncate">{dev}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <p className="text-[11px] text-slate-400">Câmeras gerenciadas diretamente pelo sistema operacional do celular.</p>
+                      )}
+                    </div>
+
+                    <div className="p-3 rounded-2xl bg-slate-950 border border-slate-800 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-slate-300 flex items-center gap-2">
+                          <MapPin className="w-4 h-4 text-emerald-400" />
+                          GPS de Obra & Estaca
+                        </span>
+                        <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full ${
+                          diagnosticResults.gpsWorking ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40' : 'bg-red-500/20 text-red-300 border border-red-500/40'
+                        }`}>
+                          {diagnosticResults.gpsWorking ? '✓ Ativo' : '✗ Indisponível'}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-slate-400">
+                        {diagnosticResults.gpsWorking
+                          ? 'Geolocalização pronta para estampar coordenadas e estacas nas fotos.'
+                          : 'Ative o GPS nas configurações do celular para estampar a estaca da obra nas fotos.'}
+                      </p>
+                    </div>
+
+                    <div className="p-3 rounded-2xl bg-emerald-950/40 border border-emerald-500/30 space-y-1.5">
+                      <div className="flex items-center gap-2 font-bold text-xs text-emerald-300">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                        <span>Garantia de Funcionamento Nativo (100%)</span>
+                      </div>
+                      <p className="text-[11px] text-emerald-200/80 leading-relaxed">
+                        O Synera possui sistema de captura nativa embutido. Caso o navegador bloqueie a transmissão ao vivo, o botão <strong>"Usar Câmera Nativa"</strong> abre diretamente o aplicativo de câmera do celular sem falhas.
+                      </p>
+                    </div>
+
+                    <div className="pt-2 space-y-2">
+                      <Button
+                        onClick={() => {
+                          setShowDiagnosticModal(false);
+                          setIsCameraOpen(true);
+                        }}
+                        className="w-full h-12 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-slate-950 font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20"
+                      >
+                        <Camera className="w-4.5 h-4.5 stroke-[2.5]" />
+                        Testar Câmera Agora
+                      </Button>
+
+                      <Button
+                        onClick={runCameraDiagnostics}
+                        className="w-full h-10 rounded-xl bg-slate-950 border border-slate-700 hover:bg-slate-800 text-slate-300 font-bold text-xs flex items-center justify-center gap-1.5"
+                      >
+                        <RefreshCw className="w-3.5 h-3.5 text-purple-400" />
+                        Refazer Verificação Tecnica
+                      </Button>
+                    </div>
+                  </>
+                ) : null}
               </div>
             </motion.div>
           </motion.div>

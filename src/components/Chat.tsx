@@ -118,9 +118,27 @@ export function Chat({ currentUser, users, contracts, isMobileView }: ChatProps)
       
       fetchNotifications();
 
+      // Helper to remove any existing channels with the given topic before creating a new one
+      const removeExistingChannel = (topicName: string) => {
+        if (!supabase) return;
+        try {
+          const channels = (supabase as any).getChannels ? (supabase as any).getChannels() : [];
+          channels.forEach((c: any) => {
+            if (c && c.topic && (c.topic === topicName || c.topic === `realtime:${topicName}`)) {
+              supabase.removeChannel(c);
+            }
+          });
+        } catch (e) {
+          console.warn('Error removing existing channel:', e);
+        }
+      };
+
+      const chatTopic = `chat_global_${currentUser.id}`;
+      removeExistingChannel(chatTopic);
+
       // Optimize: Listen to all changes and filter in JS for better reliability (sometimes postgres filters are flaky in v2)
       const channel = supabase
-        .channel(`chat_global_${currentUser.id}`)
+        .channel(chatTopic)
         .on(
           'postgres_changes', 
           { 
@@ -212,7 +230,9 @@ export function Chat({ currentUser, users, contracts, isMobileView }: ChatProps)
         });
 
       // Presence Management
-      const presenceChannel = supabase.channel('online-users');
+      const presenceTopic = 'online-users';
+      removeExistingChannel(presenceTopic);
+      const presenceChannel = supabase.channel(presenceTopic);
       const isCurrentMobile = Boolean(isMobileView || currentUser.userGroup === 'mobile' || currentUser.role === 'apontador');
       
       presenceChannel
