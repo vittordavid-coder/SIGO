@@ -1,0 +1,18 @@
+{
+  "short_name": "SYNERA CAM",
+  "name": "SYNERA CAM - Câmera de Campo",
+  "icons": [
+    {
+      "src": "/icon-cam.svg",
+      "sizes": "192x192 512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "start_url": "/cam.html",
+  "background_color": "#0f172a",
+  "theme_color": "#10b981",
+  "display": "standalone",
+  "orientation": "portrait",
+  "description": "Câmera de campo vinculada a obra para envio de evidências fotográficas."
+}

@@ -273,7 +273,7 @@ export function useLocalStorage<T>(key: string, initialValue: T, companyId?: str
         if (!(window as any).sigoLastSyncedHashes) (window as any).sigoLastSyncedHashes = {};
         (window as any).sigoLastSyncedHashes[namespacedKey] = currentHash;
       } catch (e) {
-        console.error(`[Supabase] Erro de Sincronização:`, e);
+        console.warn(`[Supabase] Erro de Sincronização:`, e.message);
       } finally {
         isSyncingRef.current = false;
         // Se houver uma sincronização pendente, executa agora

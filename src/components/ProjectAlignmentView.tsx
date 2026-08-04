@@ -47,6 +47,47 @@ function MapEventsHandler({
   onAddPinClick: (lat: number, lng: number) => void;
   onAddMeasureClick: (lat: number, lng: number) => void;
 }) {
+  const map = useMap();
+  useEffect(() => {
+    let isPanning = false;
+    let startPoint;
+
+    const onMouseDown = (e) => {
+      if (e.originalEvent.button === 1) { // Middle click
+        e.originalEvent.preventDefault();
+        isPanning = true;
+        startPoint = map.mouseEventToContainerPoint(e.originalEvent);
+        map.getContainer().style.cursor = "grabbing";
+      }
+    };
+
+    const onMouseMove = (e) => {
+      if (!isPanning) return;
+      e.originalEvent.preventDefault();
+      const currentPoint = map.mouseEventToContainerPoint(e.originalEvent);
+      const offset = [startPoint.x - currentPoint.x, startPoint.y - currentPoint.y];
+      map.panBy(offset, { animate: false });
+      startPoint = currentPoint;
+    };
+
+    const onMouseUp = (e) => {
+      if (e.originalEvent.button === 1 && isPanning) {
+        isPanning = false;
+        map.getContainer().style.cursor = "";
+      }
+    };
+
+    map.on("mousedown", onMouseDown);
+    map.on("mousemove", onMouseMove);
+    map.on("mouseup", onMouseUp);
+
+    return () => {
+      map.off("mousedown", onMouseDown);
+      map.off("mousemove", onMouseMove);
+      map.off("mouseup", onMouseUp);
+    };
+  }, [map]);
+
   useMapEvents({
     click(e) {
       if (activeTool === 'pin') {
@@ -521,6 +562,58 @@ function VerticalProfileChart({
 
   const selectedProfilePt = profilePointsWithElev.find(p => p.point.id === selectedPointId);
 
+  useEffect(() => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+
+    const handleWheel = (e) => {
+      e.preventDefault();
+      const zoomFactor = e.deltaY < 0 ? 1.1 : 0.9;
+      setZoomX(prev => Math.min(20, Math.max(0.5, prev * zoomFactor)));
+    };
+
+    let isPanning = false;
+    let startX = 0;
+    let scrollLeft = 0;
+
+    const handleMouseDown = (e) => {
+      if (e.button === 1) {
+        e.preventDefault();
+        isPanning = true;
+        startX = e.pageX - container.offsetLeft;
+        scrollLeft = container.scrollLeft;
+        container.style.cursor = "grabbing";
+      }
+    };
+
+    const handleMouseMove = (e) => {
+      if (!isPanning) return;
+      e.preventDefault();
+      const x = e.pageX - container.offsetLeft;
+      const walk = (x - startX) * 1.5;
+      container.scrollLeft = scrollLeft - walk;
+    };
+
+    const handleMouseUp = (e) => {
+      if (e.button === 1 && isPanning) {
+        isPanning = false;
+        container.style.cursor = "auto";
+      }
+    };
+
+    container.addEventListener("wheel", handleWheel, { passive: false });
+    container.addEventListener("mousedown", handleMouseDown);
+    window.addEventListener("mousemove", handleMouseMove);
+    window.addEventListener("mouseup", handleMouseUp);
+
+    return () => {
+      container.removeEventListener("wheel", handleWheel);
+      container.removeEventListener("mousedown", handleMouseDown);
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", handleMouseUp);
+    };
+  }, []);
+
   // Auto-scroll and apply Zoom 10 on vertical profile when selectedPointId changes
   useEffect(() => {
     if (selectedPointId) {
@@ -733,10 +826,10 @@ function VerticalProfileChart({
                 <circle
                   cx={x}
                   cy={y}
-                  r={isSelected ? 8 : 4}
+                  r={isSelected ? 6 : 1.5}
                   fill={isSelected ? '#f59e0b' : '#10b981'}
                   stroke="#ffffff"
-                  strokeWidth={isSelected ? 3 : 1.5}
+                  strokeWidth={isSelected ? 2 : 1}
                 />
                 {isSelected && (
                   <circle
@@ -2402,6 +2495,8 @@ export function ProjectAlignmentView({
                 zoom={14}
                 style={{ width: '100%', height: '100%', backgroundColor: cadSettings.canvasBgColor }}
                 zoomControl={false}
+                zoomSnap={0.1}
+                wheelPxPerZoomLevel={60}
               >
                 <MapBackgroundColorApplier color={cadSettings.canvasBgColor} enableGoogleMaps={cadSettings.enableGoogleMaps} />
                 <ZoomLevelTracker onZoomChange={setCurrentZoom} />

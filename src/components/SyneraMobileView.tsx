@@ -8,6 +8,7 @@ import {
   Upload, Navigation, Crosshair, Sparkles, BarChart2, XCircle, ArrowRightLeft, UserCheck, Save, MessageCircle
 } from 'lucide-react';
 import { Button } from './ui/button';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "./ui/dialog";
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
@@ -16,6 +17,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Chat } from './Chat';
 
 export interface SyneraMobileViewProps {
+  isCamOnly?: boolean;
   contracts: Contract[];
   services: ServiceItem[];
   serviceProductions: ServiceProduction[];
@@ -259,6 +261,7 @@ export function SyneraMobileView({
   onAddWorkMovement,
   onSaveDailyReport,
   onLogout,
+  isCamOnly = false,
 }: SyneraMobileViewProps) {
   const [isOnline, setIsOnline] = useState<boolean>(() => navigator.onLine);
   
@@ -1053,12 +1056,7 @@ export function SyneraMobileView({
         .map(p => p.serviceId)
     );
 
-    if (controlledServiceIds.size > 0) {
-      const filtered = baseServices.filter(s => controlledServiceIds.has(s.id));
-      if (filtered.length > 0) return filtered;
-    }
-
-    return baseServices;
+    return baseServices.filter(s => controlledServiceIds.has(s.id));
   }, [services, serviceProductions, activeContract.id]);
 
   // Filtered equipments
@@ -1165,11 +1163,12 @@ export function SyneraMobileView({
 
   // Filter sectors based on user permissions (if specific sectors are assigned)
   const visibleSectors = useMemo(() => {
+    if (isCamOnly) return ALL_SECTORS.filter(s => s.id === "camera" || s.id === "galeria");
     if (!currentUser?.mobileSectors || currentUser.mobileSectors.length === 0 || currentUser.role === 'master' || currentUser.role === 'admin') {
       return ALL_SECTORS;
     }
     return ALL_SECTORS.filter(s => currentUser.mobileSectors?.includes(s.id));
-  }, [currentUser]);
+  }, [currentUser, isCamOnly]);
 
   // Process sync offline queue
   const handleProcessSync = async () => {
@@ -1738,6 +1737,16 @@ export function SyneraMobileView({
                 )}
               </div>
 
+              {!isCamOnly && (
+                <button
+                  onClick={() => window.open("/cam.html", "_blank")}
+                  className="p-1.5 rounded-xl bg-slate-800 hover:bg-emerald-500/20 text-slate-300 hover:text-emerald-400 border border-slate-700 transition-colors"
+                  title="Abrir Synera Cam"
+                >
+                  <Camera className="w-3.5 h-3.5" />
+                </button>
+              )}
+
               {onLogout && (
                 <button
                   onClick={onLogout}
@@ -1799,7 +1808,7 @@ export function SyneraMobileView({
                   </div>
                   <div className="space-y-1">
                     <div className="flex items-center gap-1.5">
-                      <h2 className="font-black text-sm text-white tracking-tight">Aplicativo Synera Mobile</h2>
+                      <h2 className="font-black text-sm text-white tracking-tight">{isCamOnly ? "Aplicativo Synera Cam" : "Aplicativo Synera Mobile"}</h2>
                       <span className="text-[9px] font-extrabold px-1.5 py-0.5 rounded bg-amber-400 text-slate-950 uppercase">
                         PWA
                       </span>
@@ -1811,13 +1820,48 @@ export function SyneraMobileView({
                 </div>
 
                 {/* BOTÃO PRINCIPAL DE INSTALAÇÃO DO PWA */}
-                <Button
-                  onClick={handleInstallPwa}
-                  className="w-full h-12 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-slate-950 font-black text-xs uppercase tracking-wider gap-2 shadow-lg shadow-emerald-500/25 mt-1"
-                >
-                  <Download className="w-4 h-4 text-slate-950 stroke-[3]" />
-                  Instalar PWA SYNERA MOBILE
-                </Button>
+                <Dialog>
+                  <DialogTrigger asChild>
+                    <Button className="w-full h-12 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-slate-950 font-black text-xs uppercase tracking-wider gap-2 shadow-lg shadow-emerald-500/25 mt-1">
+                      <Download className="w-4 h-4 text-slate-950 stroke-[3]" />
+                      Instalar Synera Mobile
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="sm:max-w-md bg-slate-950 border-slate-800 text-white rounded-2xl">
+                    <DialogHeader>
+                      <DialogTitle className="text-lg font-black text-white">Instalar Aplicativo</DialogTitle>
+                      <DialogDescription className="text-slate-400 text-xs">
+                        Escolha qual aplicativo do pacote Synera você deseja instalar neste dispositivo.
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className="flex flex-col gap-3 py-4">
+                      <Button 
+                        onClick={() => { if(!isCamOnly) { handleInstallPwa(); } else { window.location.href = "/"; } }}
+                        className="h-14 bg-slate-900 border border-slate-700 hover:border-blue-500 hover:bg-slate-800 text-white justify-start gap-4"
+                      >
+                        <div className="w-8 h-8 rounded-full bg-blue-500/20 flex items-center justify-center shrink-0">
+                          <LayoutDashboard className="w-4 h-4 text-blue-400" />
+                        </div>
+                        <div className="flex flex-col items-start">
+                          <span className="font-bold text-sm">Synera Mobile (Campo)</span>
+                          <span className="text-[10px] text-slate-400 font-normal">Apontamentos, diários e requisições</span>
+                        </div>
+                      </Button>
+                      <Button 
+                        onClick={() => { if(isCamOnly) { handleInstallPwa(); } else { window.location.href = "/cam.html"; } }}
+                        className="h-14 bg-slate-900 border border-slate-700 hover:border-emerald-500 hover:bg-slate-800 text-white justify-start gap-4"
+                      >
+                        <div className="w-8 h-8 rounded-full bg-emerald-500/20 flex items-center justify-center shrink-0">
+                          <Camera className="w-4 h-4 text-emerald-400" />
+                        </div>
+                        <div className="flex flex-col items-start">
+                          <span className="font-bold text-sm">Synera Cam</span>
+                          <span className="text-[10px] text-slate-400 font-normal">Fotos com coordenadas e dados da obra</span>
+                        </div>
+                      </Button>
+                    </div>
+                  </DialogContent>
+                </Dialog>
               </div>
             )}
 
@@ -1897,14 +1941,48 @@ export function SyneraMobileView({
           <div className="space-y-4">
             {/* Top Bar para Voltar à Home do PWA */}
             <div className="flex items-center justify-between bg-slate-800/90 border border-slate-700/80 p-2.5 rounded-2xl shadow-md">
-              <Button
-                onClick={() => setActiveSector(null)}
-                variant="ghost"
-                className="h-9 px-3 text-xs font-bold text-slate-300 hover:text-white hover:bg-slate-700/80 rounded-xl gap-1.5"
-              >
-                <ArrowLeft className="w-4 h-4" />
-                Voltar aos Setores
-              </Button>
+                <Dialog>
+                  <DialogTrigger asChild>
+                    <Button className="w-full h-12 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-slate-950 font-black text-xs uppercase tracking-wider gap-2 shadow-lg shadow-emerald-500/25 mt-1">
+                      <Download className="w-4 h-4 text-slate-950 stroke-[3]" />
+                      Instalar Synera Mobile
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="sm:max-w-md bg-slate-950 border-slate-800 text-white rounded-2xl">
+                    <DialogHeader>
+                      <DialogTitle className="text-lg font-black text-white">Instalar Aplicativo</DialogTitle>
+                      <DialogDescription className="text-slate-400 text-xs">
+                        Escolha qual aplicativo do pacote Synera você deseja instalar neste dispositivo.
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className="flex flex-col gap-3 py-4">
+                      <Button 
+                        onClick={() => { if(!isCamOnly) { handleInstallPwa(); } else { window.location.href = "/"; } }}
+                        className="h-14 bg-slate-900 border border-slate-700 hover:border-blue-500 hover:bg-slate-800 text-white justify-start gap-4"
+                      >
+                        <div className="w-8 h-8 rounded-full bg-blue-500/20 flex items-center justify-center shrink-0">
+                          <LayoutDashboard className="w-4 h-4 text-blue-400" />
+                        </div>
+                        <div className="flex flex-col items-start">
+                          <span className="font-bold text-sm">Synera Mobile (Campo)</span>
+                          <span className="text-[10px] text-slate-400 font-normal">Apontamentos, diários e requisições</span>
+                        </div>
+                      </Button>
+                      <Button 
+                        onClick={() => { if(isCamOnly) { handleInstallPwa(); } else { window.location.href = "/cam.html"; } }}
+                        className="h-14 bg-slate-900 border border-slate-700 hover:border-emerald-500 hover:bg-slate-800 text-white justify-start gap-4"
+                      >
+                        <div className="w-8 h-8 rounded-full bg-emerald-500/20 flex items-center justify-center shrink-0">
+                          <Camera className="w-4 h-4 text-emerald-400" />
+                        </div>
+                        <div className="flex flex-col items-start">
+                          <span className="font-bold text-sm">Synera Cam</span>
+                          <span className="text-[10px] text-slate-400 font-normal">Fotos com coordenadas e dados da obra</span>
+                        </div>
+                      </Button>
+                    </div>
+                  </DialogContent>
+                </Dialog>
 
               <div className="text-right">
                 <span className="text-[9px] font-black uppercase tracking-wider text-slate-400 block">Setor de Atuação</span>
@@ -2040,22 +2118,91 @@ export function SyneraMobileView({
                   </div>
 
                   <div className="space-y-2 pt-2">
-                    <Button
-                      onClick={handleSaveProduction}
-                      className="w-full h-12 rounded-2xl bg-blue-600 hover:bg-blue-500 text-white font-black text-sm gap-2 shadow-lg shadow-blue-600/30"
-                    >
-                      <Send className="w-4 h-4" />
-                      Registrar Produção no Celular
+                <Dialog>
+                  <DialogTrigger asChild>
+                    <Button className="w-full h-12 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-slate-950 font-black text-xs uppercase tracking-wider gap-2 shadow-lg shadow-emerald-500/25 mt-1">
+                      <Download className="w-4 h-4 text-slate-950 stroke-[3]" />
+                      Instalar Synera Mobile
                     </Button>
+                  </DialogTrigger>
+                  <DialogContent className="sm:max-w-md bg-slate-950 border-slate-800 text-white rounded-2xl">
+                    <DialogHeader>
+                      <DialogTitle className="text-lg font-black text-white">Instalar Aplicativo</DialogTitle>
+                      <DialogDescription className="text-slate-400 text-xs">
+                        Escolha qual aplicativo do pacote Synera você deseja instalar neste dispositivo.
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className="flex flex-col gap-3 py-4">
+                      <Button 
+                        onClick={() => { if(!isCamOnly) { handleInstallPwa(); } else { window.location.href = "/"; } }}
+                        className="h-14 bg-slate-900 border border-slate-700 hover:border-blue-500 hover:bg-slate-800 text-white justify-start gap-4"
+                      >
+                        <div className="w-8 h-8 rounded-full bg-blue-500/20 flex items-center justify-center shrink-0">
+                          <LayoutDashboard className="w-4 h-4 text-blue-400" />
+                        </div>
+                        <div className="flex flex-col items-start">
+                          <span className="font-bold text-sm">Synera Mobile (Campo)</span>
+                          <span className="text-[10px] text-slate-400 font-normal">Apontamentos, diários e requisições</span>
+                        </div>
+                      </Button>
+                      <Button 
+                        onClick={() => { if(isCamOnly) { handleInstallPwa(); } else { window.location.href = "/cam.html"; } }}
+                        className="h-14 bg-slate-900 border border-slate-700 hover:border-emerald-500 hover:bg-slate-800 text-white justify-start gap-4"
+                      >
+                        <div className="w-8 h-8 rounded-full bg-emerald-500/20 flex items-center justify-center shrink-0">
+                          <Camera className="w-4 h-4 text-emerald-400" />
+                        </div>
+                        <div className="flex flex-col items-start">
+                          <span className="font-bold text-sm">Synera Cam</span>
+                          <span className="text-[10px] text-slate-400 font-normal">Fotos com coordenadas e dados da obra</span>
+                        </div>
+                      </Button>
+                    </div>
+                  </DialogContent>
+                </Dialog>
 
-                    <Button
-                      variant="outline"
-                      onClick={() => setIsMyRecordsOpen(true)}
-                      className="w-full h-10 rounded-2xl bg-slate-900 border-slate-700 text-slate-200 hover:bg-slate-800 font-bold text-xs gap-2"
-                    >
-                      <FileText className="w-4 h-4 text-emerald-400" />
-                      Ver Meus Registros ({fieldReports.length})
+                <Dialog>
+                  <DialogTrigger asChild>
+                    <Button className="w-full h-12 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-slate-950 font-black text-xs uppercase tracking-wider gap-2 shadow-lg shadow-emerald-500/25 mt-1">
+                      <Download className="w-4 h-4 text-slate-950 stroke-[3]" />
+                      Instalar Synera Mobile
                     </Button>
+                  </DialogTrigger>
+                  <DialogContent className="sm:max-w-md bg-slate-950 border-slate-800 text-white rounded-2xl">
+                    <DialogHeader>
+                      <DialogTitle className="text-lg font-black text-white">Instalar Aplicativo</DialogTitle>
+                      <DialogDescription className="text-slate-400 text-xs">
+                        Escolha qual aplicativo do pacote Synera você deseja instalar neste dispositivo.
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className="flex flex-col gap-3 py-4">
+                      <Button 
+                        onClick={() => { if(!isCamOnly) { handleInstallPwa(); } else { window.location.href = "/"; } }}
+                        className="h-14 bg-slate-900 border border-slate-700 hover:border-blue-500 hover:bg-slate-800 text-white justify-start gap-4"
+                      >
+                        <div className="w-8 h-8 rounded-full bg-blue-500/20 flex items-center justify-center shrink-0">
+                          <LayoutDashboard className="w-4 h-4 text-blue-400" />
+                        </div>
+                        <div className="flex flex-col items-start">
+                          <span className="font-bold text-sm">Synera Mobile (Campo)</span>
+                          <span className="text-[10px] text-slate-400 font-normal">Apontamentos, diários e requisições</span>
+                        </div>
+                      </Button>
+                      <Button 
+                        onClick={() => { if(isCamOnly) { handleInstallPwa(); } else { window.location.href = "/cam.html"; } }}
+                        className="h-14 bg-slate-900 border border-slate-700 hover:border-emerald-500 hover:bg-slate-800 text-white justify-start gap-4"
+                      >
+                        <div className="w-8 h-8 rounded-full bg-emerald-500/20 flex items-center justify-center shrink-0">
+                          <Camera className="w-4 h-4 text-emerald-400" />
+                        </div>
+                        <div className="flex flex-col items-start">
+                          <span className="font-bold text-sm">Synera Cam</span>
+                          <span className="text-[10px] text-slate-400 font-normal">Fotos com coordenadas e dados da obra</span>
+                        </div>
+                      </Button>
+                    </div>
+                  </DialogContent>
+                </Dialog>
                   </div>
                 </div>
 
@@ -2120,9 +2267,48 @@ export function SyneraMobileView({
                           )}
                         </div>
 
-                        <Button onClick={() => setIsMyRecordsOpen(false)} className="w-full bg-slate-800 text-white rounded-2xl h-10 font-bold text-xs">
-                          Fechar
-                        </Button>
+                <Dialog>
+                  <DialogTrigger asChild>
+                    <Button className="w-full h-12 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-slate-950 font-black text-xs uppercase tracking-wider gap-2 shadow-lg shadow-emerald-500/25 mt-1">
+                      <Download className="w-4 h-4 text-slate-950 stroke-[3]" />
+                      Instalar Synera Mobile
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="sm:max-w-md bg-slate-950 border-slate-800 text-white rounded-2xl">
+                    <DialogHeader>
+                      <DialogTitle className="text-lg font-black text-white">Instalar Aplicativo</DialogTitle>
+                      <DialogDescription className="text-slate-400 text-xs">
+                        Escolha qual aplicativo do pacote Synera você deseja instalar neste dispositivo.
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className="flex flex-col gap-3 py-4">
+                      <Button 
+                        onClick={() => { if(!isCamOnly) { handleInstallPwa(); } else { window.location.href = "/"; } }}
+                        className="h-14 bg-slate-900 border border-slate-700 hover:border-blue-500 hover:bg-slate-800 text-white justify-start gap-4"
+                      >
+                        <div className="w-8 h-8 rounded-full bg-blue-500/20 flex items-center justify-center shrink-0">
+                          <LayoutDashboard className="w-4 h-4 text-blue-400" />
+                        </div>
+                        <div className="flex flex-col items-start">
+                          <span className="font-bold text-sm">Synera Mobile (Campo)</span>
+                          <span className="text-[10px] text-slate-400 font-normal">Apontamentos, diários e requisições</span>
+                        </div>
+                      </Button>
+                      <Button 
+                        onClick={() => { if(isCamOnly) { handleInstallPwa(); } else { window.location.href = "/cam.html"; } }}
+                        className="h-14 bg-slate-900 border border-slate-700 hover:border-emerald-500 hover:bg-slate-800 text-white justify-start gap-4"
+                      >
+                        <div className="w-8 h-8 rounded-full bg-emerald-500/20 flex items-center justify-center shrink-0">
+                          <Camera className="w-4 h-4 text-emerald-400" />
+                        </div>
+                        <div className="flex flex-col items-start">
+                          <span className="font-bold text-sm">Synera Cam</span>
+                          <span className="text-[10px] text-slate-400 font-normal">Fotos com coordenadas e dados da obra</span>
+                        </div>
+                      </Button>
+                    </div>
+                  </DialogContent>
+                </Dialog>
                       </motion.div>
                     </div>
                   )}
@@ -2188,20 +2374,90 @@ export function SyneraMobileView({
                         </div>
 
                         <div className="flex gap-2 pt-2">
-                          <Button variant="outline" onClick={() => setEditingMyRecord(null)} className="flex-1 bg-slate-800 text-slate-300 border-none rounded-xl text-xs font-bold">
-                            Cancelar
-                          </Button>
-                          <Button
-                            onClick={() => {
-                              if (onUpdateFieldReport) {
-                                onUpdateFieldReport(editingMyRecord);
-                              }
-                              setEditingMyRecord(null);
-                            }}
-                            className="flex-1 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-black"
-                          >
-                            Salvar Alterações
-                          </Button>
+                <Dialog>
+                  <DialogTrigger asChild>
+                    <Button className="w-full h-12 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-slate-950 font-black text-xs uppercase tracking-wider gap-2 shadow-lg shadow-emerald-500/25 mt-1">
+                      <Download className="w-4 h-4 text-slate-950 stroke-[3]" />
+                      Instalar Synera Mobile
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="sm:max-w-md bg-slate-950 border-slate-800 text-white rounded-2xl">
+                    <DialogHeader>
+                      <DialogTitle className="text-lg font-black text-white">Instalar Aplicativo</DialogTitle>
+                      <DialogDescription className="text-slate-400 text-xs">
+                        Escolha qual aplicativo do pacote Synera você deseja instalar neste dispositivo.
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className="flex flex-col gap-3 py-4">
+                      <Button 
+                        onClick={() => { if(!isCamOnly) { handleInstallPwa(); } else { window.location.href = "/"; } }}
+                        className="h-14 bg-slate-900 border border-slate-700 hover:border-blue-500 hover:bg-slate-800 text-white justify-start gap-4"
+                      >
+                        <div className="w-8 h-8 rounded-full bg-blue-500/20 flex items-center justify-center shrink-0">
+                          <LayoutDashboard className="w-4 h-4 text-blue-400" />
+                        </div>
+                        <div className="flex flex-col items-start">
+                          <span className="font-bold text-sm">Synera Mobile (Campo)</span>
+                          <span className="text-[10px] text-slate-400 font-normal">Apontamentos, diários e requisições</span>
+                        </div>
+                      </Button>
+                      <Button 
+                        onClick={() => { if(isCamOnly) { handleInstallPwa(); } else { window.location.href = "/cam.html"; } }}
+                        className="h-14 bg-slate-900 border border-slate-700 hover:border-emerald-500 hover:bg-slate-800 text-white justify-start gap-4"
+                      >
+                        <div className="w-8 h-8 rounded-full bg-emerald-500/20 flex items-center justify-center shrink-0">
+                          <Camera className="w-4 h-4 text-emerald-400" />
+                        </div>
+                        <div className="flex flex-col items-start">
+                          <span className="font-bold text-sm">Synera Cam</span>
+                          <span className="text-[10px] text-slate-400 font-normal">Fotos com coordenadas e dados da obra</span>
+                        </div>
+                      </Button>
+                    </div>
+                  </DialogContent>
+                </Dialog>
+                <Dialog>
+                  <DialogTrigger asChild>
+                    <Button className="w-full h-12 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-slate-950 font-black text-xs uppercase tracking-wider gap-2 shadow-lg shadow-emerald-500/25 mt-1">
+                      <Download className="w-4 h-4 text-slate-950 stroke-[3]" />
+                      Instalar Synera Mobile
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="sm:max-w-md bg-slate-950 border-slate-800 text-white rounded-2xl">
+                    <DialogHeader>
+                      <DialogTitle className="text-lg font-black text-white">Instalar Aplicativo</DialogTitle>
+                      <DialogDescription className="text-slate-400 text-xs">
+                        Escolha qual aplicativo do pacote Synera você deseja instalar neste dispositivo.
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className="flex flex-col gap-3 py-4">
+                      <Button 
+                        onClick={() => { if(!isCamOnly) { handleInstallPwa(); } else { window.location.href = "/"; } }}
+                        className="h-14 bg-slate-900 border border-slate-700 hover:border-blue-500 hover:bg-slate-800 text-white justify-start gap-4"
+                      >
+                        <div className="w-8 h-8 rounded-full bg-blue-500/20 flex items-center justify-center shrink-0">
+                          <LayoutDashboard className="w-4 h-4 text-blue-400" />
+                        </div>
+                        <div className="flex flex-col items-start">
+                          <span className="font-bold text-sm">Synera Mobile (Campo)</span>
+                          <span className="text-[10px] text-slate-400 font-normal">Apontamentos, diários e requisições</span>
+                        </div>
+                      </Button>
+                      <Button 
+                        onClick={() => { if(isCamOnly) { handleInstallPwa(); } else { window.location.href = "/cam.html"; } }}
+                        className="h-14 bg-slate-900 border border-slate-700 hover:border-emerald-500 hover:bg-slate-800 text-white justify-start gap-4"
+                      >
+                        <div className="w-8 h-8 rounded-full bg-emerald-500/20 flex items-center justify-center shrink-0">
+                          <Camera className="w-4 h-4 text-emerald-400" />
+                        </div>
+                        <div className="flex flex-col items-start">
+                          <span className="font-bold text-sm">Synera Cam</span>
+                          <span className="text-[10px] text-slate-400 font-normal">Fotos com coordenadas e dados da obra</span>
+                        </div>
+                      </Button>
+                    </div>
+                  </DialogContent>
+                </Dialog>
                         </div>
                       </motion.div>
                     </div>
@@ -2306,13 +2562,48 @@ export function SyneraMobileView({
                             </div>
 
                             {/* Botão de Atalho para Apontamento de Ponto */}
-                            <Button
-                              onClick={() => setMobileRhSubView('colaboradores')}
-                              className="w-full h-13 rounded-2xl bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-500 hover:to-blue-500 text-white font-black text-xs gap-2.5 shadow-xl shadow-indigo-600/30"
-                            >
-                              <Users className="w-5 h-5" />
-                              Abrir Lista de Colaboradores ({allowedRhEmployees.length})
-                            </Button>
+                <Dialog>
+                  <DialogTrigger asChild>
+                    <Button className="w-full h-12 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-slate-950 font-black text-xs uppercase tracking-wider gap-2 shadow-lg shadow-emerald-500/25 mt-1">
+                      <Download className="w-4 h-4 text-slate-950 stroke-[3]" />
+                      Instalar Synera Mobile
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="sm:max-w-md bg-slate-950 border-slate-800 text-white rounded-2xl">
+                    <DialogHeader>
+                      <DialogTitle className="text-lg font-black text-white">Instalar Aplicativo</DialogTitle>
+                      <DialogDescription className="text-slate-400 text-xs">
+                        Escolha qual aplicativo do pacote Synera você deseja instalar neste dispositivo.
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className="flex flex-col gap-3 py-4">
+                      <Button 
+                        onClick={() => { if(!isCamOnly) { handleInstallPwa(); } else { window.location.href = "/"; } }}
+                        className="h-14 bg-slate-900 border border-slate-700 hover:border-blue-500 hover:bg-slate-800 text-white justify-start gap-4"
+                      >
+                        <div className="w-8 h-8 rounded-full bg-blue-500/20 flex items-center justify-center shrink-0">
+                          <LayoutDashboard className="w-4 h-4 text-blue-400" />
+                        </div>
+                        <div className="flex flex-col items-start">
+                          <span className="font-bold text-sm">Synera Mobile (Campo)</span>
+                          <span className="text-[10px] text-slate-400 font-normal">Apontamentos, diários e requisições</span>
+                        </div>
+                      </Button>
+                      <Button 
+                        onClick={() => { if(isCamOnly) { handleInstallPwa(); } else { window.location.href = "/cam.html"; } }}
+                        className="h-14 bg-slate-900 border border-slate-700 hover:border-emerald-500 hover:bg-slate-800 text-white justify-start gap-4"
+                      >
+                        <div className="w-8 h-8 rounded-full bg-emerald-500/20 flex items-center justify-center shrink-0">
+                          <Camera className="w-4 h-4 text-emerald-400" />
+                        </div>
+                        <div className="flex flex-col items-start">
+                          <span className="font-bold text-sm">Synera Cam</span>
+                          <span className="text-[10px] text-slate-400 font-normal">Fotos com coordenadas e dados da obra</span>
+                        </div>
+                      </Button>
+                    </div>
+                  </DialogContent>
+                </Dialog>
                           </div>
                         );
                       })()}
@@ -2373,13 +2664,48 @@ export function SyneraMobileView({
                         </div>
                       </div>
 
-                      <Button
-                        onClick={handleSaveHeadcount}
-                        className="w-full h-11 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white font-black text-xs gap-2 shadow-lg"
+                <Dialog>
+                  <DialogTrigger asChild>
+                    <Button className="w-full h-12 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-slate-950 font-black text-xs uppercase tracking-wider gap-2 shadow-lg shadow-emerald-500/25 mt-1">
+                      <Download className="w-4 h-4 text-slate-950 stroke-[3]" />
+                      Instalar Synera Mobile
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="sm:max-w-md bg-slate-950 border-slate-800 text-white rounded-2xl">
+                    <DialogHeader>
+                      <DialogTitle className="text-lg font-black text-white">Instalar Aplicativo</DialogTitle>
+                      <DialogDescription className="text-slate-400 text-xs">
+                        Escolha qual aplicativo do pacote Synera você deseja instalar neste dispositivo.
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className="flex flex-col gap-3 py-4">
+                      <Button 
+                        onClick={() => { if(!isCamOnly) { handleInstallPwa(); } else { window.location.href = "/"; } }}
+                        className="h-14 bg-slate-900 border border-slate-700 hover:border-blue-500 hover:bg-slate-800 text-white justify-start gap-4"
                       >
-                        <Send className="w-4 h-4" />
-                        Registrar Resumo no Celular
+                        <div className="w-8 h-8 rounded-full bg-blue-500/20 flex items-center justify-center shrink-0">
+                          <LayoutDashboard className="w-4 h-4 text-blue-400" />
+                        </div>
+                        <div className="flex flex-col items-start">
+                          <span className="font-bold text-sm">Synera Mobile (Campo)</span>
+                          <span className="text-[10px] text-slate-400 font-normal">Apontamentos, diários e requisições</span>
+                        </div>
                       </Button>
+                      <Button 
+                        onClick={() => { if(isCamOnly) { handleInstallPwa(); } else { window.location.href = "/cam.html"; } }}
+                        className="h-14 bg-slate-900 border border-slate-700 hover:border-emerald-500 hover:bg-slate-800 text-white justify-start gap-4"
+                      >
+                        <div className="w-8 h-8 rounded-full bg-emerald-500/20 flex items-center justify-center shrink-0">
+                          <Camera className="w-4 h-4 text-emerald-400" />
+                        </div>
+                        <div className="flex flex-col items-start">
+                          <span className="font-bold text-sm">Synera Cam</span>
+                          <span className="text-[10px] text-slate-400 font-normal">Fotos com coordenadas e dados da obra</span>
+                        </div>
+                      </Button>
+                    </div>
+                  </DialogContent>
+                </Dialog>
                     </div>
                   </div>
                 )}
@@ -2623,35 +2949,48 @@ export function SyneraMobileView({
 
                     {/* Botão Flutuante de Salvamento Geral */}
                     <div className="sticky bottom-4 z-20 pt-2">
-                      <Button
-                        onClick={() => {
-                          const todayStr = new Date().toISOString().slice(0, 10);
-                          localStorage.setItem(`synera_mobile_rh_records_${todayStr}`, JSON.stringify(rhEmployeeRecords));
-
-                          const activeContractObj = contracts.find(c => c.id === selectedContractId) || contracts[0] || { id: 'c1', name: 'Obra Principal' };
-
-                          const queueItem: OfflinePendingItem = {
-                            id: `rh-attendance-${Date.now()}`,
-                            type: 'headcount',
-                            timestamp: new Date().toISOString(),
-                            contractId: activeContractObj.id,
-                            contractName: activeContractObj.name || 'Obra Principal',
-                            data: {
-                              date: todayStr,
-                              records: rhEmployeeRecords,
-                              totalCount: allowedRhEmployees.length
-                            },
-                            synced: false
-                          };
-
-                          setOfflineQueue(prev => [queueItem, ...prev]);
-                          alert("✅ SUCESSO! Apontamento de Ponto, Presença e Transferências do RH salvo com sucesso no celular!");
-                        }}
-                        className="w-full h-14 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-black text-sm gap-2.5 shadow-2xl shadow-emerald-500/30"
+                <Dialog>
+                  <DialogTrigger asChild>
+                    <Button className="w-full h-12 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-slate-950 font-black text-xs uppercase tracking-wider gap-2 shadow-lg shadow-emerald-500/25 mt-1">
+                      <Download className="w-4 h-4 text-slate-950 stroke-[3]" />
+                      Instalar Synera Mobile
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="sm:max-w-md bg-slate-950 border-slate-800 text-white rounded-2xl">
+                    <DialogHeader>
+                      <DialogTitle className="text-lg font-black text-white">Instalar Aplicativo</DialogTitle>
+                      <DialogDescription className="text-slate-400 text-xs">
+                        Escolha qual aplicativo do pacote Synera você deseja instalar neste dispositivo.
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className="flex flex-col gap-3 py-4">
+                      <Button 
+                        onClick={() => { if(!isCamOnly) { handleInstallPwa(); } else { window.location.href = "/"; } }}
+                        className="h-14 bg-slate-900 border border-slate-700 hover:border-blue-500 hover:bg-slate-800 text-white justify-start gap-4"
                       >
-                        <Save className="w-5 h-5 stroke-[2.5]" />
-                        Salvar Apontamentos do RH no Celular
+                        <div className="w-8 h-8 rounded-full bg-blue-500/20 flex items-center justify-center shrink-0">
+                          <LayoutDashboard className="w-4 h-4 text-blue-400" />
+                        </div>
+                        <div className="flex flex-col items-start">
+                          <span className="font-bold text-sm">Synera Mobile (Campo)</span>
+                          <span className="text-[10px] text-slate-400 font-normal">Apontamentos, diários e requisições</span>
+                        </div>
                       </Button>
+                      <Button 
+                        onClick={() => { if(isCamOnly) { handleInstallPwa(); } else { window.location.href = "/cam.html"; } }}
+                        className="h-14 bg-slate-900 border border-slate-700 hover:border-emerald-500 hover:bg-slate-800 text-white justify-start gap-4"
+                      >
+                        <div className="w-8 h-8 rounded-full bg-emerald-500/20 flex items-center justify-center shrink-0">
+                          <Camera className="w-4 h-4 text-emerald-400" />
+                        </div>
+                        <div className="flex flex-col items-start">
+                          <span className="font-bold text-sm">Synera Cam</span>
+                          <span className="text-[10px] text-slate-400 font-normal">Fotos com coordenadas e dados da obra</span>
+                        </div>
+                      </Button>
+                    </div>
+                  </DialogContent>
+                </Dialog>
                     </div>
                   </div>
                 )}
@@ -2774,13 +3113,48 @@ export function SyneraMobileView({
                     />
                   </div>
 
-                  <Button
-                    onClick={handleSaveEquipment}
-                    className="w-full h-12 rounded-2xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-sm gap-2 shadow-lg shadow-amber-500/30"
-                  >
-                    <Send className="w-4 h-4" />
-                    Enviar Medição para Aprovação do Controlador
-                  </Button>
+                <Dialog>
+                  <DialogTrigger asChild>
+                    <Button className="w-full h-12 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-slate-950 font-black text-xs uppercase tracking-wider gap-2 shadow-lg shadow-emerald-500/25 mt-1">
+                      <Download className="w-4 h-4 text-slate-950 stroke-[3]" />
+                      Instalar Synera Mobile
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="sm:max-w-md bg-slate-950 border-slate-800 text-white rounded-2xl">
+                    <DialogHeader>
+                      <DialogTitle className="text-lg font-black text-white">Instalar Aplicativo</DialogTitle>
+                      <DialogDescription className="text-slate-400 text-xs">
+                        Escolha qual aplicativo do pacote Synera você deseja instalar neste dispositivo.
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className="flex flex-col gap-3 py-4">
+                      <Button 
+                        onClick={() => { if(!isCamOnly) { handleInstallPwa(); } else { window.location.href = "/"; } }}
+                        className="h-14 bg-slate-900 border border-slate-700 hover:border-blue-500 hover:bg-slate-800 text-white justify-start gap-4"
+                      >
+                        <div className="w-8 h-8 rounded-full bg-blue-500/20 flex items-center justify-center shrink-0">
+                          <LayoutDashboard className="w-4 h-4 text-blue-400" />
+                        </div>
+                        <div className="flex flex-col items-start">
+                          <span className="font-bold text-sm">Synera Mobile (Campo)</span>
+                          <span className="text-[10px] text-slate-400 font-normal">Apontamentos, diários e requisições</span>
+                        </div>
+                      </Button>
+                      <Button 
+                        onClick={() => { if(isCamOnly) { handleInstallPwa(); } else { window.location.href = "/cam.html"; } }}
+                        className="h-14 bg-slate-900 border border-slate-700 hover:border-emerald-500 hover:bg-slate-800 text-white justify-start gap-4"
+                      >
+                        <div className="w-8 h-8 rounded-full bg-emerald-500/20 flex items-center justify-center shrink-0">
+                          <Camera className="w-4 h-4 text-emerald-400" />
+                        </div>
+                        <div className="flex flex-col items-start">
+                          <span className="font-bold text-sm">Synera Cam</span>
+                          <span className="text-[10px] text-slate-400 font-normal">Fotos com coordenadas e dados da obra</span>
+                        </div>
+                      </Button>
+                    </div>
+                  </DialogContent>
+                </Dialog>
                 </div>
               </motion.div>
             )}
@@ -2862,13 +3236,48 @@ export function SyneraMobileView({
                     />
                   </div>
 
-                  <Button
-                    onClick={handleSaveMaterials}
-                    className="w-full h-12 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-black text-sm gap-2 shadow-lg shadow-emerald-600/30"
-                  >
-                    <Send className="w-4 h-4" />
-                    Registrar Material no Celular
-                  </Button>
+                <Dialog>
+                  <DialogTrigger asChild>
+                    <Button className="w-full h-12 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-slate-950 font-black text-xs uppercase tracking-wider gap-2 shadow-lg shadow-emerald-500/25 mt-1">
+                      <Download className="w-4 h-4 text-slate-950 stroke-[3]" />
+                      Instalar Synera Mobile
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="sm:max-w-md bg-slate-950 border-slate-800 text-white rounded-2xl">
+                    <DialogHeader>
+                      <DialogTitle className="text-lg font-black text-white">Instalar Aplicativo</DialogTitle>
+                      <DialogDescription className="text-slate-400 text-xs">
+                        Escolha qual aplicativo do pacote Synera você deseja instalar neste dispositivo.
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className="flex flex-col gap-3 py-4">
+                      <Button 
+                        onClick={() => { if(!isCamOnly) { handleInstallPwa(); } else { window.location.href = "/"; } }}
+                        className="h-14 bg-slate-900 border border-slate-700 hover:border-blue-500 hover:bg-slate-800 text-white justify-start gap-4"
+                      >
+                        <div className="w-8 h-8 rounded-full bg-blue-500/20 flex items-center justify-center shrink-0">
+                          <LayoutDashboard className="w-4 h-4 text-blue-400" />
+                        </div>
+                        <div className="flex flex-col items-start">
+                          <span className="font-bold text-sm">Synera Mobile (Campo)</span>
+                          <span className="text-[10px] text-slate-400 font-normal">Apontamentos, diários e requisições</span>
+                        </div>
+                      </Button>
+                      <Button 
+                        onClick={() => { if(isCamOnly) { handleInstallPwa(); } else { window.location.href = "/cam.html"; } }}
+                        className="h-14 bg-slate-900 border border-slate-700 hover:border-emerald-500 hover:bg-slate-800 text-white justify-start gap-4"
+                      >
+                        <div className="w-8 h-8 rounded-full bg-emerald-500/20 flex items-center justify-center shrink-0">
+                          <Camera className="w-4 h-4 text-emerald-400" />
+                        </div>
+                        <div className="flex flex-col items-start">
+                          <span className="font-bold text-sm">Synera Cam</span>
+                          <span className="text-[10px] text-slate-400 font-normal">Fotos com coordenadas e dados da obra</span>
+                        </div>
+                      </Button>
+                    </div>
+                  </DialogContent>
+                </Dialog>
                 </div>
               </motion.div>
             )}
@@ -3028,13 +3437,48 @@ export function SyneraMobileView({
                           </div>
                         </div>
 
-                        <Button
-                          onClick={handleSaveMovimentacao}
-                          className="w-full h-11 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-black text-xs gap-2 shadow-lg shadow-purple-600/30"
-                        >
-                          <Save className="w-4 h-4" />
-                          Salvar Movimentação em Cache ({viewMonth})
-                        </Button>
+                <Dialog>
+                  <DialogTrigger asChild>
+                    <Button className="w-full h-12 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-slate-950 font-black text-xs uppercase tracking-wider gap-2 shadow-lg shadow-emerald-500/25 mt-1">
+                      <Download className="w-4 h-4 text-slate-950 stroke-[3]" />
+                      Instalar Synera Mobile
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="sm:max-w-md bg-slate-950 border-slate-800 text-white rounded-2xl">
+                    <DialogHeader>
+                      <DialogTitle className="text-lg font-black text-white">Instalar Aplicativo</DialogTitle>
+                      <DialogDescription className="text-slate-400 text-xs">
+                        Escolha qual aplicativo do pacote Synera você deseja instalar neste dispositivo.
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className="flex flex-col gap-3 py-4">
+                      <Button 
+                        onClick={() => { if(!isCamOnly) { handleInstallPwa(); } else { window.location.href = "/"; } }}
+                        className="h-14 bg-slate-900 border border-slate-700 hover:border-blue-500 hover:bg-slate-800 text-white justify-start gap-4"
+                      >
+                        <div className="w-8 h-8 rounded-full bg-blue-500/20 flex items-center justify-center shrink-0">
+                          <LayoutDashboard className="w-4 h-4 text-blue-400" />
+                        </div>
+                        <div className="flex flex-col items-start">
+                          <span className="font-bold text-sm">Synera Mobile (Campo)</span>
+                          <span className="text-[10px] text-slate-400 font-normal">Apontamentos, diários e requisições</span>
+                        </div>
+                      </Button>
+                      <Button 
+                        onClick={() => { if(isCamOnly) { handleInstallPwa(); } else { window.location.href = "/cam.html"; } }}
+                        className="h-14 bg-slate-900 border border-slate-700 hover:border-emerald-500 hover:bg-slate-800 text-white justify-start gap-4"
+                      >
+                        <div className="w-8 h-8 rounded-full bg-emerald-500/20 flex items-center justify-center shrink-0">
+                          <Camera className="w-4 h-4 text-emerald-400" />
+                        </div>
+                        <div className="flex flex-col items-start">
+                          <span className="font-bold text-sm">Synera Cam</span>
+                          <span className="text-[10px] text-slate-400 font-normal">Fotos com coordenadas e dados da obra</span>
+                        </div>
+                      </Button>
+                    </div>
+                  </DialogContent>
+                </Dialog>
                       </div>
 
                       {/* Card de Resumo do Mês Visualizado */}
@@ -3177,13 +3621,48 @@ export function SyneraMobileView({
                           />
                         </div>
 
-                        <Button
-                          onClick={handleSaveSolicitacao}
-                          className="w-full h-11 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-black text-xs gap-2 shadow-lg shadow-purple-600/30"
-                        >
-                          <Send className="w-4 h-4" />
-                          Cadastrar Solicitação do Administrador
-                        </Button>
+                <Dialog>
+                  <DialogTrigger asChild>
+                    <Button className="w-full h-12 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-slate-950 font-black text-xs uppercase tracking-wider gap-2 shadow-lg shadow-emerald-500/25 mt-1">
+                      <Download className="w-4 h-4 text-slate-950 stroke-[3]" />
+                      Instalar Synera Mobile
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="sm:max-w-md bg-slate-950 border-slate-800 text-white rounded-2xl">
+                    <DialogHeader>
+                      <DialogTitle className="text-lg font-black text-white">Instalar Aplicativo</DialogTitle>
+                      <DialogDescription className="text-slate-400 text-xs">
+                        Escolha qual aplicativo do pacote Synera você deseja instalar neste dispositivo.
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className="flex flex-col gap-3 py-4">
+                      <Button 
+                        onClick={() => { if(!isCamOnly) { handleInstallPwa(); } else { window.location.href = "/"; } }}
+                        className="h-14 bg-slate-900 border border-slate-700 hover:border-blue-500 hover:bg-slate-800 text-white justify-start gap-4"
+                      >
+                        <div className="w-8 h-8 rounded-full bg-blue-500/20 flex items-center justify-center shrink-0">
+                          <LayoutDashboard className="w-4 h-4 text-blue-400" />
+                        </div>
+                        <div className="flex flex-col items-start">
+                          <span className="font-bold text-sm">Synera Mobile (Campo)</span>
+                          <span className="text-[10px] text-slate-400 font-normal">Apontamentos, diários e requisições</span>
+                        </div>
+                      </Button>
+                      <Button 
+                        onClick={() => { if(isCamOnly) { handleInstallPwa(); } else { window.location.href = "/cam.html"; } }}
+                        className="h-14 bg-slate-900 border border-slate-700 hover:border-emerald-500 hover:bg-slate-800 text-white justify-start gap-4"
+                      >
+                        <div className="w-8 h-8 rounded-full bg-emerald-500/20 flex items-center justify-center shrink-0">
+                          <Camera className="w-4 h-4 text-emerald-400" />
+                        </div>
+                        <div className="flex flex-col items-start">
+                          <span className="font-bold text-sm">Synera Cam</span>
+                          <span className="text-[10px] text-slate-400 font-normal">Fotos com coordenadas e dados da obra</span>
+                        </div>
+                      </Button>
+                    </div>
+                  </DialogContent>
+                </Dialog>
                       </div>
 
                       {/* Lista de Solicitações do Administrador */}
@@ -3326,13 +3805,48 @@ export function SyneraMobileView({
                         />
                       </div>
 
-                      <Button
-                        onClick={handleSaveDailyLog}
-                        className="w-full h-12 rounded-2xl bg-purple-600 hover:bg-purple-500 text-white font-black text-sm gap-2 shadow-lg shadow-purple-600/30"
+                <Dialog>
+                  <DialogTrigger asChild>
+                    <Button className="w-full h-12 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-slate-950 font-black text-xs uppercase tracking-wider gap-2 shadow-lg shadow-emerald-500/25 mt-1">
+                      <Download className="w-4 h-4 text-slate-950 stroke-[3]" />
+                      Instalar Synera Mobile
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="sm:max-w-md bg-slate-950 border-slate-800 text-white rounded-2xl">
+                    <DialogHeader>
+                      <DialogTitle className="text-lg font-black text-white">Instalar Aplicativo</DialogTitle>
+                      <DialogDescription className="text-slate-400 text-xs">
+                        Escolha qual aplicativo do pacote Synera você deseja instalar neste dispositivo.
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className="flex flex-col gap-3 py-4">
+                      <Button 
+                        onClick={() => { if(!isCamOnly) { handleInstallPwa(); } else { window.location.href = "/"; } }}
+                        className="h-14 bg-slate-900 border border-slate-700 hover:border-blue-500 hover:bg-slate-800 text-white justify-start gap-4"
                       >
-                        <Send className="w-4 h-4" />
-                        Registrar Diário no Celular
+                        <div className="w-8 h-8 rounded-full bg-blue-500/20 flex items-center justify-center shrink-0">
+                          <LayoutDashboard className="w-4 h-4 text-blue-400" />
+                        </div>
+                        <div className="flex flex-col items-start">
+                          <span className="font-bold text-sm">Synera Mobile (Campo)</span>
+                          <span className="text-[10px] text-slate-400 font-normal">Apontamentos, diários e requisições</span>
+                        </div>
                       </Button>
+                      <Button 
+                        onClick={() => { if(isCamOnly) { handleInstallPwa(); } else { window.location.href = "/cam.html"; } }}
+                        className="h-14 bg-slate-900 border border-slate-700 hover:border-emerald-500 hover:bg-slate-800 text-white justify-start gap-4"
+                      >
+                        <div className="w-8 h-8 rounded-full bg-emerald-500/20 flex items-center justify-center shrink-0">
+                          <Camera className="w-4 h-4 text-emerald-400" />
+                        </div>
+                        <div className="flex flex-col items-start">
+                          <span className="font-bold text-sm">Synera Cam</span>
+                          <span className="text-[10px] text-slate-400 font-normal">Fotos com coordenadas e dados da obra</span>
+                        </div>
+                      </Button>
+                    </div>
+                  </DialogContent>
+                </Dialog>
                     </div>
                   )}
 
@@ -3395,14 +3909,48 @@ export function SyneraMobileView({
                   )}
 
                   {offlineQueue.length > 0 && (
-                    <Button
-                      disabled={!isOnline || isSyncing}
-                      onClick={handleProcessSync}
-                      className="w-full h-12 rounded-2xl bg-amber-500 hover:bg-amber-600 text-slate-950 font-black text-sm gap-2 shadow-lg shadow-amber-500/30"
-                    >
-                      <RefreshCw className={`w-4 h-4 ${isSyncing ? 'animate-spin' : ''}`} />
-                      {isOnline ? 'Enviar Todos para o Servidor' : 'Aguardando Sinal de Conexão'}
+                <Dialog>
+                  <DialogTrigger asChild>
+                    <Button className="w-full h-12 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-slate-950 font-black text-xs uppercase tracking-wider gap-2 shadow-lg shadow-emerald-500/25 mt-1">
+                      <Download className="w-4 h-4 text-slate-950 stroke-[3]" />
+                      Instalar Synera Mobile
                     </Button>
+                  </DialogTrigger>
+                  <DialogContent className="sm:max-w-md bg-slate-950 border-slate-800 text-white rounded-2xl">
+                    <DialogHeader>
+                      <DialogTitle className="text-lg font-black text-white">Instalar Aplicativo</DialogTitle>
+                      <DialogDescription className="text-slate-400 text-xs">
+                        Escolha qual aplicativo do pacote Synera você deseja instalar neste dispositivo.
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className="flex flex-col gap-3 py-4">
+                      <Button 
+                        onClick={() => { if(!isCamOnly) { handleInstallPwa(); } else { window.location.href = "/"; } }}
+                        className="h-14 bg-slate-900 border border-slate-700 hover:border-blue-500 hover:bg-slate-800 text-white justify-start gap-4"
+                      >
+                        <div className="w-8 h-8 rounded-full bg-blue-500/20 flex items-center justify-center shrink-0">
+                          <LayoutDashboard className="w-4 h-4 text-blue-400" />
+                        </div>
+                        <div className="flex flex-col items-start">
+                          <span className="font-bold text-sm">Synera Mobile (Campo)</span>
+                          <span className="text-[10px] text-slate-400 font-normal">Apontamentos, diários e requisições</span>
+                        </div>
+                      </Button>
+                      <Button 
+                        onClick={() => { if(isCamOnly) { handleInstallPwa(); } else { window.location.href = "/cam.html"; } }}
+                        className="h-14 bg-slate-900 border border-slate-700 hover:border-emerald-500 hover:bg-slate-800 text-white justify-start gap-4"
+                      >
+                        <div className="w-8 h-8 rounded-full bg-emerald-500/20 flex items-center justify-center shrink-0">
+                          <Camera className="w-4 h-4 text-emerald-400" />
+                        </div>
+                        <div className="flex flex-col items-start">
+                          <span className="font-bold text-sm">Synera Cam</span>
+                          <span className="text-[10px] text-slate-400 font-normal">Fotos com coordenadas e dados da obra</span>
+                        </div>
+                      </Button>
+                    </div>
+                  </DialogContent>
+                </Dialog>
                   )}
                 </div>
               </motion.div>
@@ -3464,36 +4012,48 @@ export function SyneraMobileView({
 
                       {selectedGalleryPhotos.length > 0 && (
                         <div className="pt-2 sticky bottom-4 z-10">
-                          <Button
-                            onClick={async () => {
-                              try {
-                                const files: File[] = [];
-                                for (let i = 0; i < selectedGalleryPhotos.length; i++) {
-                                  const url = selectedGalleryPhotos[i];
-                                  const res = await fetch(url);
-                                  const blob = await res.blob();
-                                  files.push(new File([blob], `evidencia_obra_${i+1}_${Date.now()}.jpg`, { type: blob.type || 'image/jpeg' }));
-                                }
-                                
-                                if (navigator.share && navigator.canShare && navigator.canShare({ files })) {
-                                  await navigator.share({
-                                    files,
-                                    title: 'Evidências Fotográficas - Synera Mobile',
-                                    text: 'Fotos registradas no campo via Synera Mobile.'
-                                  });
-                                } else {
-                                  alert('Seu dispositivo não suporta o compartilhamento múltiplo nativo de arquivos.');
-                                }
-                              } catch (err) {
-                                console.error('Erro ao compartilhar fotos:', err);
-                                alert('Ocorreu um erro ao tentar compartilhar as fotos.');
-                              }
-                            }}
-                            className="w-full h-12 rounded-2xl bg-fuchsia-600 hover:bg-fuchsia-500 text-white font-black text-xs uppercase tracking-widest gap-2 shadow-xl shadow-fuchsia-600/30"
-                          >
-                            <Share2 className="w-5 h-5" />
-                            Compartilhar {selectedGalleryPhotos.length} {selectedGalleryPhotos.length === 1 ? 'Foto' : 'Fotos'}
-                          </Button>
+                <Dialog>
+                  <DialogTrigger asChild>
+                    <Button className="w-full h-12 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-slate-950 font-black text-xs uppercase tracking-wider gap-2 shadow-lg shadow-emerald-500/25 mt-1">
+                      <Download className="w-4 h-4 text-slate-950 stroke-[3]" />
+                      Instalar Synera Mobile
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="sm:max-w-md bg-slate-950 border-slate-800 text-white rounded-2xl">
+                    <DialogHeader>
+                      <DialogTitle className="text-lg font-black text-white">Instalar Aplicativo</DialogTitle>
+                      <DialogDescription className="text-slate-400 text-xs">
+                        Escolha qual aplicativo do pacote Synera você deseja instalar neste dispositivo.
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className="flex flex-col gap-3 py-4">
+                      <Button 
+                        onClick={() => { if(!isCamOnly) { handleInstallPwa(); } else { window.location.href = "/"; } }}
+                        className="h-14 bg-slate-900 border border-slate-700 hover:border-blue-500 hover:bg-slate-800 text-white justify-start gap-4"
+                      >
+                        <div className="w-8 h-8 rounded-full bg-blue-500/20 flex items-center justify-center shrink-0">
+                          <LayoutDashboard className="w-4 h-4 text-blue-400" />
+                        </div>
+                        <div className="flex flex-col items-start">
+                          <span className="font-bold text-sm">Synera Mobile (Campo)</span>
+                          <span className="text-[10px] text-slate-400 font-normal">Apontamentos, diários e requisições</span>
+                        </div>
+                      </Button>
+                      <Button 
+                        onClick={() => { if(isCamOnly) { handleInstallPwa(); } else { window.location.href = "/cam.html"; } }}
+                        className="h-14 bg-slate-900 border border-slate-700 hover:border-emerald-500 hover:bg-slate-800 text-white justify-start gap-4"
+                      >
+                        <div className="w-8 h-8 rounded-full bg-emerald-500/20 flex items-center justify-center shrink-0">
+                          <Camera className="w-4 h-4 text-emerald-400" />
+                        </div>
+                        <div className="flex flex-col items-start">
+                          <span className="font-bold text-sm">Synera Cam</span>
+                          <span className="text-[10px] text-slate-400 font-normal">Fotos com coordenadas e dados da obra</span>
+                        </div>
+                      </Button>
+                    </div>
+                  </DialogContent>
+                </Dialog>
                         </div>
                       )}
                     </div>
@@ -3546,9 +4106,48 @@ export function SyneraMobileView({
                 </div>
               </div>
 
-              <Button onClick={() => setShowPwaGuide(false)} className="w-full h-11 rounded-2xl bg-emerald-600 hover:bg-emerald-500 font-bold text-xs text-slate-950">
-                Entendi
-              </Button>
+                <Dialog>
+                  <DialogTrigger asChild>
+                    <Button className="w-full h-12 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-slate-950 font-black text-xs uppercase tracking-wider gap-2 shadow-lg shadow-emerald-500/25 mt-1">
+                      <Download className="w-4 h-4 text-slate-950 stroke-[3]" />
+                      Instalar Synera Mobile
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="sm:max-w-md bg-slate-950 border-slate-800 text-white rounded-2xl">
+                    <DialogHeader>
+                      <DialogTitle className="text-lg font-black text-white">Instalar Aplicativo</DialogTitle>
+                      <DialogDescription className="text-slate-400 text-xs">
+                        Escolha qual aplicativo do pacote Synera você deseja instalar neste dispositivo.
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className="flex flex-col gap-3 py-4">
+                      <Button 
+                        onClick={() => { if(!isCamOnly) { handleInstallPwa(); } else { window.location.href = "/"; } }}
+                        className="h-14 bg-slate-900 border border-slate-700 hover:border-blue-500 hover:bg-slate-800 text-white justify-start gap-4"
+                      >
+                        <div className="w-8 h-8 rounded-full bg-blue-500/20 flex items-center justify-center shrink-0">
+                          <LayoutDashboard className="w-4 h-4 text-blue-400" />
+                        </div>
+                        <div className="flex flex-col items-start">
+                          <span className="font-bold text-sm">Synera Mobile (Campo)</span>
+                          <span className="text-[10px] text-slate-400 font-normal">Apontamentos, diários e requisições</span>
+                        </div>
+                      </Button>
+                      <Button 
+                        onClick={() => { if(isCamOnly) { handleInstallPwa(); } else { window.location.href = "/cam.html"; } }}
+                        className="h-14 bg-slate-900 border border-slate-700 hover:border-emerald-500 hover:bg-slate-800 text-white justify-start gap-4"
+                      >
+                        <div className="w-8 h-8 rounded-full bg-emerald-500/20 flex items-center justify-center shrink-0">
+                          <Camera className="w-4 h-4 text-emerald-400" />
+                        </div>
+                        <div className="flex flex-col items-start">
+                          <span className="font-bold text-sm">Synera Cam</span>
+                          <span className="text-[10px] text-slate-400 font-normal">Fotos com coordenadas e dados da obra</span>
+                        </div>
+                      </Button>
+                    </div>
+                  </DialogContent>
+                </Dialog>
             </motion.div>
           </motion.div>
         )}
@@ -3732,41 +4331,40 @@ export function SyneraMobileView({
               {capturedPhotoUrl ? (
                 <div className="grid grid-cols-2 gap-3 pt-1">
                   <Button
-                    onClick={() => setCapturedPhotoUrl(null)}
-                    className="h-12 rounded-2xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs uppercase"
+                    onClick={() => {
+                      setCapturedPhotoUrl(null);
+                      setPhotoDescription('');
+                    }}
+                    className="w-full h-12 rounded-2xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white font-bold text-xs uppercase tracking-wider"
                   >
-                    Tirar Outra Foto
+                    Descartar
                   </Button>
-                  <Button
-                    onClick={handleSavePhotoRecord}
-                    className="h-12 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 text-slate-950 font-black text-xs uppercase tracking-wider shadow-lg shadow-emerald-500/25 gap-2"
-                  >
-                    <CheckCircle2 className="w-4 h-4 text-slate-950" />
-                    Salvar Registro
-                  </Button>
+                  
+                  <div className="flex gap-2">
+                    <Button
+                      onClick={handleSavePhotoRecord}
+                      className="flex-1 h-12 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-slate-950 font-black text-xs uppercase tracking-wider gap-2 shadow-lg shadow-emerald-500/25"
+                    >
+                      <Check className="w-4 h-4 stroke-[3]" />
+                      Salvar
+                    </Button>
+                    <a 
+                      href={capturedPhotoUrl} 
+                      download={`synera_cam_${Date.now()}.jpg`}
+                      className="w-12 h-12 rounded-2xl bg-slate-800 hover:bg-slate-700 flex items-center justify-center border border-slate-700 text-white shrink-0"
+                    >
+                      <Download className="w-5 h-5 text-blue-400" />
+                    </a>
+                  </div>
                 </div>
               ) : (
-                <div className="flex items-center justify-between pt-1">
-                  <button
-                    onClick={() => fileInputRef.current?.click()}
-                    className="p-3 rounded-2xl bg-slate-900 border border-slate-800 text-slate-400 hover:text-white"
-                    title="Carregar da Galeria"
-                  >
-                    <Upload className="w-5 h-5" />
-                  </button>
-
-                  <button
-                    onClick={handleTakePhoto}
-                    className="w-16 h-16 rounded-full bg-gradient-to-tr from-emerald-500 via-teal-400 to-blue-500 p-1 shadow-2xl shadow-emerald-500/50 hover:scale-105 active:scale-95 transition-all flex items-center justify-center"
-                    title="Disparar Foto"
-                  >
-                    <div className="w-full h-full bg-slate-950 rounded-full border-2 border-white/80 flex items-center justify-center">
-                      <div className="w-10 h-10 rounded-full bg-white" />
-                    </div>
-                  </button>
-
-                  <div className="w-11" />
-                </div>
+                <Button
+                  onClick={handleTakePhoto}
+                  className="w-full h-14 rounded-3xl bg-blue-600 hover:bg-blue-500 text-white font-black text-sm uppercase tracking-wider shadow-lg shadow-blue-500/30 gap-2 mt-1"
+                >
+                  <Camera className="w-6 h-6" />
+                  CAPTURAR FOTO
+                </Button>
               )}
             </div>
           </motion.div>

@@ -1,0 +1,1 @@
+sed -i -e 's/const visibleSectors = useMemo(() => {/const visibleSectors = useMemo(() => {\n    if (isCamOnly) return ALL_SECTORS.filter(s => s.id === "camera" || s.id === "galeria");/' src/components/SyneraMobileView.tsx

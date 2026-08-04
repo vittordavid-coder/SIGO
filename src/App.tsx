@@ -6,7 +6,7 @@ import {
   ClipboardList, Users, Calculator, BarChart3, Landmark,
   BookOpen, CloudRain, Cloud, HardHat, Truck, Users2, Activity, Layers,
   RefreshCw, ShoppingCart, GripVertical, AlertCircle, Database, XCircle, MoreHorizontal, Filter, HelpCircle, Menu, Smartphone, ChevronDown, CheckCircle2
-} from 'lucide-react';
+, Camera } from 'lucide-react';
 import { motion, AnimatePresence, Reorder } from 'motion/react';
 import { v4 as uuidv4 } from 'uuid';
 import { useLocalStorage } from './lib/useLocalStorage';
@@ -519,7 +519,7 @@ export default function App() {
       createdAt: new Date().toISOString()
     };
 
-    setServiceProductions(prev => [newProd, ...prev]);
+    updateServiceProduction(newProd);
   };
 
   const handleRejectFieldReport = (reportId: string) => {
@@ -647,6 +647,7 @@ export default function App() {
     { id: 'schedule', label: 'Cronograma', icon: 'Calendar' },
     { id: 'teams', label: 'Equipes', icon: 'Users2' },
     { id: 'controls', label: 'Controles', icon: 'BarChart3' },
+    { id: 'campo', label: 'Campo', icon: 'Smartphone' },
     { id: 'projeto', label: 'Projeto', icon: 'Compass' },
     { id: 'physical_progress', label: 'Avanço Físico', icon: 'Activity' },
     { id: 'reports', label: 'Relatório', icon: 'FileText' }
@@ -1839,6 +1840,7 @@ export default function App() {
       { id: `${compId}_sigo_logo_mode`, content: logoMode },
       { id: `${compId}_sconet_contracts`, content: contracts },
       { id: `${compId}_sconet_measurements`, content: measurements },
+      { id: `${compId}_sigo_field_reports`, content: fieldReports },
       { id: `${compId}_sigo_service_productions`, content: serviceProductions },
       { id: `${compId}_sigo_measurement_templates`, content: measurementTemplates },
       { id: `${compId}_sigo_calc_memories`, content: calculationMemories },
@@ -4540,6 +4542,7 @@ export default function App() {
     return (
       <div className="min-h-screen bg-slate-950 text-slate-100 font-sans">
         <SyneraMobileView
+          isCamOnly={window.location.pathname.includes("cam.html")}
           contracts={finalContracts}
           services={filteredServices}
           serviceProductions={serviceProductions}
@@ -4742,6 +4745,10 @@ export default function App() {
                 <HelpCircle className="w-4 h-4 text-blue-500" />
                 <span className="text-sm font-medium">Ajuda</span>
               </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => window.open("/cam.html", "_blank")} className="flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer text-emerald-600 hover:bg-emerald-50">
+                <Camera className="w-4 h-4" />
+                <span className="text-sm font-bold">Synera Cam (PWA)</span>
+              </DropdownMenuItem>
               <DropdownMenuSeparator className="bg-gray-100 my-1" />
               <DropdownMenuItem onClick={handleLogout} className="flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer hover:bg-red-50 text-red-600">
                 <LogOut className="w-4 h-4" />
@@ -4844,6 +4851,7 @@ export default function App() {
                             case 'Calendar': return <Calendar />;
                             case 'Users2': return <Users2 />;
                             case 'BarChart3': return <BarChart3 />;
+                            case 'Smartphone': return <Smartphone />;
                             case 'Activity': return <Activity />;
                             case 'FileText': return <FileText />;
                             default: return <Package />;
@@ -5512,6 +5520,7 @@ export default function App() {
 
               {mainTab === 'mobile' && currentUser && (
                 <SyneraMobileView
+          isCamOnly={window.location.pathname.includes("cam.html")}
                   contracts={finalContracts}
                   services={filteredServices}
                   serviceProductions={serviceProductions}
