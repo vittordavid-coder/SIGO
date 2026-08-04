@@ -281,6 +281,7 @@ export function SyneraMobileView({
   const [photoDescription, setPhotoDescription] = useState<string>('');
   const [photoStation, setPhotoStation] = useState<string>('');
   const [capturedPhotoUrl, setCapturedPhotoUrl] = useState<string | null>(null);
+  const [selectedGalleryPhotos, setSelectedGalleryPhotos] = useState<string[]>([]);
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [nearestStationInfo, setNearestStationInfo] = useState<{ station: string; distanceMeters: number } | null>(null);
   const [isLocating, setIsLocating] = useState<boolean>(false);
@@ -307,7 +308,7 @@ export function SyneraMobileView({
     return projectAlignments.find(a => a.contractId === selectedContractId) || projectAlignments[0] || null;
   }, [projectAlignments, selectedContractId]);
 
-  // Função para calcular estaca mais próxima com base no georreferenciamento do projeto da Sala Técnica
+  // Função para calcular estaca mais próxima e interpolar valor fracionário
   const updateNearestStation = (lat: number, lng: number) => {
     setUserLocation({ lat, lng });
 
@@ -316,36 +317,87 @@ export function SyneraMobileView({
       return;
     }
 
-    let minDistance = Infinity;
-    let closestPoint = activeAlignment.points[0];
+    const parseStationToMeters = (station: string): number => {
+      if (!station) return 0;
+      const clean = station.replace(/[^\d+.,]/g, '');
+      const parts = clean.split('+');
+      if (parts.length === 2) {
+        const estaca = parseInt(parts[0], 10) || 0;
+        const metros = parseFloat(parts[1].replace(',', '.')) || 0;
+        return estaca * 20 + metros;
+      }
+      return parseFloat(clean.replace(',', '.')) || 0;
+    };
+
+    const formatMetersToStation = (meters: number): string => {
+      const estaca = Math.floor(meters / 20);
+      const remainder = meters % 20;
+      return `${estaca}+${remainder.toFixed(2).replace('.', ',').padStart(5, '0')}`;
+    };
 
     const toRad = (x: number) => (x * Math.PI) / 180;
-    const R = 6371000; // Raio da Terra em metros
+    const R = 6371000;
 
-    activeAlignment.points.forEach(pt => {
+    let minDistanceToAxis = Infinity;
+    let interpolatedStationMeters = 0;
+
+    if (activeAlignment.points.length === 1) {
+      const pt = activeAlignment.points[0];
       const dLat = toRad(pt.lat - lat);
       const dLng = toRad(pt.lng - lng);
-      const a =
-        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-        Math.cos(toRad(lat)) * Math.cos(toRad(pt.lat)) *
-        Math.sin(dLng / 2) * Math.sin(dLng / 2);
+      const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                Math.cos(toRad(lat)) * Math.cos(toRad(pt.lat)) *
+                Math.sin(dLng / 2) * Math.sin(dLng / 2);
       const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-      const dist = R * c;
+      minDistanceToAxis = R * c;
+      interpolatedStationMeters = parseStationToMeters(pt.station);
+    } else {
+      const latMetersPerDeg = 111320;
+      const lngMetersPerDeg = 111320 * Math.cos(lat * Math.PI / 180);
 
-      if (dist < minDistance) {
-        minDistance = dist;
-        closestPoint = pt;
-      }
-    });
-
-    if (closestPoint) {
-      const formattedDist = Math.round(minDistance * 10) / 10;
-      setNearestStationInfo({
-        station: closestPoint.station,
-        distanceMeters: formattedDist
+      const getFlatCoords = (l: number, g: number) => ({
+        x: g * lngMetersPerDeg,
+        y: l * latMetersPerDeg
       });
-      setPhotoStation(closestPoint.station);
+
+      const C = getFlatCoords(lat, lng);
+
+      for (let i = 0; i < activeAlignment.points.length - 1; i++) {
+        const pt1 = activeAlignment.points[i];
+        const pt2 = activeAlignment.points[i+1];
+        
+        const A = getFlatCoords(pt1.lat, pt1.lng);
+        const B = getFlatCoords(pt2.lat, pt2.lng);
+        
+        const dx = B.x - A.x;
+        const dy = B.y - A.y;
+        const lenSq = dx * dx + dy * dy;
+        
+        let t = 0;
+        if (lenSq !== 0) {
+          t = ((C.x - A.x) * dx + (C.y - A.y) * dy) / lenSq;
+          t = Math.max(0, Math.min(1, t));
+        }
+        
+        const projX = A.x + t * dx;
+        const projY = A.y + t * dy;
+        
+        const distToSegment = Math.sqrt((C.x - projX)**2 + (C.y - projY)**2);
+        
+        if (distToSegment < minDistanceToAxis) {
+          minDistanceToAxis = distToSegment;
+          const m1 = parseStationToMeters(pt1.station);
+          const m2 = parseStationToMeters(pt2.station);
+          interpolatedStationMeters = m1 + t * (m2 - m1);
+        }
+      }
     }
+
+    const formattedDist = Math.round(minDistanceToAxis * 10) / 10;
+    setNearestStationInfo({
+      station: formatMetersToStation(interpolatedStationMeters),
+      distanceMeters: formattedDist
+    });
   };
 
   const fetchUserGps = () => {
@@ -419,14 +471,33 @@ export function SyneraMobileView({
   };
 
   useEffect(() => {
+    let watchId: number | null = null;
     if (isCameraOpen) {
-      fetchUserGps();
+      if (navigator.geolocation) {
+        setIsLocating(true);
+        watchId = navigator.geolocation.watchPosition(
+          pos => {
+            setIsLocating(false);
+            updateNearestStation(pos.coords.latitude, pos.coords.longitude);
+          },
+          err => {
+            setIsLocating(false);
+            console.warn('GPS não disponível ou negado:', err);
+          },
+          { enableHighAccuracy: true, maximumAge: 0, timeout: 5000 }
+        );
+      }
       startCameraStream();
     } else {
       stopCameraStream();
       setCapturedPhotoUrl(null);
     }
-    return () => stopCameraStream();
+    return () => {
+      stopCameraStream();
+      if (watchId !== null && navigator.geolocation) {
+        navigator.geolocation.clearWatch(watchId);
+      }
+    };
   }, [isCameraOpen, cameraQuality]);
 
   const handleTakePhoto = () => {
@@ -3385,7 +3456,7 @@ export function SyneraMobileView({
                             )}
                             <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-slate-950 p-2 pt-8">
                               <p className="text-[9px] font-bold text-white truncate">{report.description || 'Sem descrição'}</p>
-                              <p className="text-[8px] text-slate-400 truncate">{report.date.split('-').reverse().join('/')}</p>
+                              <p className="text-[8px] text-slate-400 truncate">{report.date ? report.date.split('-').reverse().join('/') : ''}</p>
                             </div>
                           </div>
                         ))}

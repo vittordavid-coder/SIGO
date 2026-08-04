@@ -94,6 +94,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
+import { Combobox } from "@/components/ui/combobox";
 import {
   Select,
   SelectContent,
@@ -5585,18 +5586,17 @@ export default function RHView({
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-3 bg-indigo-50/50 p-4 rounded-2xl border border-indigo-100/60">
                     <div className="space-y-1">
                       <Label className="text-gray-700 font-bold text-xs">Selecione o Colaborador *</Label>
-                      <select
+                      <Combobox
+                        options={employees.map((e) => ({
+                          value: e.id,
+                          label: `${e.name} ${e.role ? `(${e.role})` : ''} ${e.team ? `[Equipe: ${e.team}]` : ''}`
+                        }))}
                         value={selectedRespEmpId}
-                        onChange={(e) => setSelectedRespEmpId(e.target.value)}
-                        className="w-full h-10 rounded-xl border-gray-200 bg-white text-xs font-semibold text-gray-900 px-3 focus:border-indigo-500"
-                      >
-                        <option value="">-- Escolha um Funcionário --</option>
-                        {employees.map((e) => (
-                          <option key={e.id} value={e.id}>
-                            {e.name} {e.role ? `(${e.role})` : ''} {e.team ? `[Equipe: ${e.team}]` : ''}
-                          </option>
-                        ))}
-                      </select>
+                        onChange={(val) => setSelectedRespEmpId(val)}
+                        placeholder="-- Escolha um Funcionário --"
+                        emptyText="Nenhum funcionário encontrado"
+                        className="h-10 rounded-xl border-gray-200 bg-white text-xs font-semibold text-gray-900"
+                      />
                     </div>
 
                     <div className="space-y-1">
@@ -5614,10 +5614,15 @@ export default function RHView({
                     {selectedRespScope === 'TEAM' ? (
                       <div className="space-y-1">
                         <Label className="text-gray-700 font-bold text-xs">Nome da Equipe *</Label>
-                        <Input
-                          placeholder="Ex: Equipe Terraplenagem"
+                        <Combobox
+                          options={(controllerTeams || []).map((t) => ({
+                            value: t.name,
+                            label: t.name
+                          }))}
                           value={selectedRespTeam}
-                          onChange={(e) => setSelectedRespTeam(e.target.value)}
+                          onChange={(val) => setSelectedRespTeam(val)}
+                          placeholder="Ex: Equipe Terraplenagem"
+                          emptyText="Nenhuma equipe encontrada"
                           className="h-10 rounded-xl border-gray-200 bg-white text-xs font-semibold text-gray-900"
                         />
                       </div>
