@@ -80,7 +80,7 @@ const mapToCamel = (obj: any): any => {
 export default function App() {
   const [rememberMe, setRememberMe] = useState(() => {
     try {
-      return window.localStorage.getItem('sigo_remember_me') === 'true';
+      const stored = window.localStorage.getItem('sigo_remember_me'); return stored !== 'false';
     } catch {
       return false;
     }
@@ -4538,7 +4538,7 @@ export default function App() {
     );
   }
 
-  if (currentUser && (isMobileDevice || currentUser.userGroup === 'mobile' || currentUser.role === 'apontador')) {
+  if (currentUser && (window.location.pathname.includes("cam.html") || isMobileDevice || currentUser.userGroup === 'mobile' || currentUser.role === 'apontador')) {
     return (
       <div className="min-h-screen bg-slate-950 text-slate-100 font-sans">
         <SyneraMobileView
