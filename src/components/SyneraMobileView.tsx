@@ -601,6 +601,14 @@ export function SyneraMobileView({
     }
   };
 
+  // Garantir vinculação do stream de vídeo ao elemento <video> quando este é renderizado
+  useEffect(() => {
+    if (videoRef.current && cameraStream && isCameraOpen) {
+      videoRef.current.srcObject = cameraStream;
+      videoRef.current.play().catch(pErr => console.warn('Falha no auto-play do vídeo:', pErr));
+    }
+  }, [cameraStream, isCameraOpen]);
+
   useEffect(() => {
     let watchId: number | null = null;
     if (isCameraOpen) {
@@ -632,6 +640,43 @@ export function SyneraMobileView({
     };
   }, [isCameraOpen, cameraQuality, facingMode]);
 
+  // Função para comprimir e redimensionar fotos brutas de câmeras de celular (evita estouro de memória e tela branca)
+  const compressAndResizeImage = (file: File | Blob, maxDimension = 1920, quality = 0.85): Promise<string> => {
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onload = (evt) => {
+        const img = new Image();
+        img.onload = () => {
+          let width = img.width;
+          let height = img.height;
+          if (width > maxDimension || height > maxDimension) {
+            if (width > height) {
+              height = Math.round(height * (maxDimension / width));
+              width = maxDimension;
+            } else {
+              width = Math.round(width * (maxDimension / height));
+              height = maxDimension;
+            }
+          }
+          const canvas = document.createElement('canvas');
+          canvas.width = width || 1280;
+          canvas.height = height || 720;
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+            resolve(canvas.toDataURL('image/jpeg', quality));
+          } else {
+            resolve((evt.target?.result as string) || '');
+          }
+        };
+        img.onerror = () => resolve((evt.target?.result as string) || '');
+        img.src = (evt.target?.result as string) || '';
+      };
+      reader.onerror = () => resolve('');
+      reader.readAsDataURL(file);
+    });
+  };
+
   const handleTakePhoto = () => {
     if (capturedPhotoUrl) return;
 
@@ -654,14 +699,19 @@ export function SyneraMobileView({
     }
   };
 
-  const handleFileUploadFallback = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUploadFallback = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      const reader = new FileReader();
-      reader.onload = (evt) => {
-        setCapturedPhotoUrl(evt.target?.result as string);
-      };
-      reader.readAsDataURL(file);
+      try {
+        const resized = await compressAndResizeImage(file, 1920, 0.85);
+        if (resized) {
+          setCapturedPhotoUrl(resized);
+        }
+      } catch (err) {
+        console.error('Erro ao processar foto da câmera nativa:', err);
+      } finally {
+        if (e.target) e.target.value = '';
+      }
     }
   };
 
@@ -3740,11 +3790,26 @@ export function SyneraMobileView({
             {/* PREVIEW DO VÍDEO / FOTO CAPTURADA / CARD DE FALLBACK */}
             <div className="relative flex-1 bg-black flex items-center justify-center overflow-hidden">
               {capturedPhotoUrl ? (
-                <img src={capturedPhotoUrl} alt="Foto de Campo" className="w-full h-full object-contain" />
+                <div className="relative w-full h-full flex items-center justify-center bg-black">
+                  <img src={capturedPhotoUrl} alt="Foto de Campo" className="w-full h-full object-contain" />
+                  {/* Overlay Stamp Info Preview */}
+                  <div className="absolute bottom-4 left-4 right-4 pointer-events-none drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)] bg-black/60 p-3 rounded-2xl backdrop-blur-md border border-white/20 z-10 text-left">
+                    <p className="text-white text-xs font-black leading-tight">{activeContract?.name || activeContract?.workName || 'Obra Principal'}</p>
+                    <p className="text-amber-400 text-xs font-black leading-tight mt-0.5">Estaca: {photoStation || (nearestStationInfo?.station || 'Estaca N/I')}</p>
+                    <p className="text-emerald-400 text-[10px] font-bold leading-tight mt-0.5">{new Date().toLocaleString('pt-BR')}</p>
+                    <p className="text-white text-[11px] leading-tight italic mt-1 font-medium">{photoDescription || 'Sem observações'}</p>
+                  </div>
+                </div>
               ) : cameraStream && !cameraError ? (
                 <>
                   <video
-                    ref={videoRef}
+                    ref={(el) => {
+                      videoRef.current = el;
+                      if (el && cameraStream && el.srcObject !== cameraStream) {
+                        el.srcObject = cameraStream;
+                        el.play().catch(() => {});
+                      }
+                    }}
                     autoPlay
                     playsInline
                     muted
