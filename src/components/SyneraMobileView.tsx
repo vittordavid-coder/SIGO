@@ -5,7 +5,8 @@ import {
   MapPin, CloudSun, Plus, Trash2, ShieldCheck, Download, Share2, 
   ChevronRight, Calendar, ArrowUpRight, Zap, Building2, Package, ArrowLeft, Layers,
   Search, Edit3, X, Eye, LogOut, LayoutDashboard, Sliders, Grid, ZapOff, RefreshCcw,
-  Upload, Navigation, Crosshair, Sparkles, BarChart2, XCircle, ArrowRightLeft, UserCheck, Save, MessageCircle, Settings
+  Upload, Navigation, Crosshair, Sparkles, BarChart2, XCircle, ArrowRightLeft, UserCheck, Save, MessageCircle, Settings,
+  RotateCw, Maximize2, Filter, CheckSquare, Square
 } from 'lucide-react';
 import { Button } from './ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "./ui/dialog";
@@ -29,6 +30,7 @@ export interface SyneraMobileViewProps {
   fieldReports?: FieldProductionReport[];
   onSaveFieldReport?: (report: FieldProductionReport) => void;
   onUpdateFieldReport?: (report: FieldProductionReport) => void;
+  onDeleteFieldReport?: (reportId: string) => void;
   onUpdateServiceProduction: (p: ServiceProduction) => void;
   onAddWorkMovement?: (movement: any) => void;
   onSaveDailyReport?: (report: DailyReport) => void;
@@ -50,6 +52,399 @@ export interface OfflinePendingItem {
 
 const CACHE_KEY = 'synera_mobile_cached_data_v1';
 const OFFLINE_QUEUE_KEY = 'synera_mobile_offline_queue_v1';
+export const STAMP_CONFIG_KEY = 'synera_stamp_config_v1';
+
+/**
+ * Interface de Configuração Profissional do Carimbo Técnico de Fotos Synera Cam
+ */
+export interface StampConfig {
+  style: 'hud_banner' | 'corner_badge' | 'subtle_bottom' | 'full_watermark';
+  position: 'bottom' | 'bottom_left' | 'bottom_right' | 'top_left';
+  fontSize: 'sm' | 'md' | 'lg';
+  bgOpacity: number; // 0.0 a 1.0
+  themeColor: string; // Cor de acento (Hex: #10B981, #F59E0B, #38BDF8, #D946EF, #E11D48, #FFFFFF)
+  showWorkName: boolean;
+  showStation: boolean;
+  showDateTime: boolean;
+  showCoordinates: boolean;
+  showDescription: boolean;
+  showLogoBadge: boolean;
+  customHeaderTitle: string;
+}
+
+export const DEFAULT_STAMP_CONFIG: StampConfig = {
+  style: 'hud_banner',
+  position: 'bottom',
+  fontSize: 'md',
+  bgOpacity: 0.85,
+  themeColor: '#10B981',
+  showWorkName: true,
+  showStation: true,
+  showDateTime: true,
+  showCoordinates: true,
+  showDescription: true,
+  showLogoBadge: true,
+  customHeaderTitle: 'SYNERA CAM • REGISTRO DE CAMPO',
+};
+
+/**
+ * Detecta e remove bordas/faixas pretas de pillarbox/letterbox geradas por drivers de vídeo de navegadores mobile em WebRTC.
+ */
+export const removeBlackBordersFromCanvas = (canvas: HTMLCanvasElement): HTMLCanvasElement => {
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
+  if (!ctx) return canvas;
+
+  const width = canvas.width;
+  const height = canvas.height;
+  if (width < 100 || height < 100) return canvas;
+
+  let imgData: ImageData;
+  try {
+    imgData = ctx.getImageData(0, 0, width, height);
+  } catch (e) {
+    return canvas;
+  }
+
+  const data = imgData.data;
+
+  // Função para checar se um pixel é preto (R, G, B muito baixos)
+  const isBlackPixel = (x: number, y: number): boolean => {
+    const idx = (y * width + x) * 4;
+    const r = data[idx];
+    const g = data[idx + 1];
+    const b = data[idx + 2];
+    return r + g + b < 30; // limiar de preto
+  };
+
+  // Amostragem de linhas para verificar se uma coluna x inteira é faixa preta
+  const isColumnBlack = (x: number): boolean => {
+    const steps = 12;
+    for (let i = 1; i < steps; i++) {
+      const sampleY = Math.floor((height * i) / steps);
+      if (!isBlackPixel(x, sampleY)) {
+        return false; // Tem conteúdo visível
+      }
+    }
+    return true;
+  };
+
+  // Amostragem de colunas para verificar se uma linha y inteira é faixa preta
+  const isRowBlack = (y: number): boolean => {
+    const steps = 12;
+    for (let i = 1; i < steps; i++) {
+      const sampleX = Math.floor((width * i) / steps);
+      if (!isBlackPixel(sampleX, y)) {
+        return false; // Tem conteúdo visível
+      }
+    }
+    return true;
+  };
+
+  let minX = 0;
+  while (minX < width / 2 && isColumnBlack(minX)) {
+    minX++;
+  }
+
+  let maxX = width - 1;
+  while (maxX > width / 2 && isColumnBlack(maxX)) {
+    maxX--;
+  }
+
+  let minY = 0;
+  while (minY < height / 2 && isRowBlack(minY)) {
+    minY++;
+  }
+
+  let maxY = height - 1;
+  while (maxY > height / 2 && isRowBlack(maxY)) {
+    maxY--;
+  }
+
+  const hasLeftBar = minX > 12;
+  const hasRightBar = (width - 1 - maxX) > 12;
+  const hasTopBar = minY > 12;
+  const hasBottomBar = (height - 1 - maxY) > 12;
+
+  if (!hasLeftBar && !hasRightBar && !hasTopBar && !hasBottomBar) {
+    return canvas; // Sem bordas pretas
+  }
+
+  const cropW = Math.max(100, maxX - minX + 1);
+  const cropH = Math.max(100, maxY - minY + 1);
+
+  const croppedCanvas = document.createElement('canvas');
+  croppedCanvas.width = cropW;
+  croppedCanvas.height = cropH;
+
+  const croppedCtx = croppedCanvas.getContext('2d');
+  if (croppedCtx) {
+    croppedCtx.drawImage(canvas, minX, minY, cropW, cropH, 0, 0, cropW, cropH);
+    return croppedCanvas;
+  }
+
+  return canvas;
+};
+
+/**
+ * Função para estampar carimbo técnico altamente configurável (Obra, Estaca, Data/Hora, GPS, Obs, Synera Logo)
+ * diretamente no bitmap canvas da foto de forma precisa.
+ */
+export const stampPhotoWithMetadata = async (
+  rawImageSrc: string,
+  options: {
+    contractName?: string;
+    station?: string;
+    description?: string;
+    locationText?: string;
+    dateText?: string;
+    rotationDegrees?: number; // 0, 90, 180, 270
+    isMirrored?: boolean;
+    stampConfig?: StampConfig;
+  }
+): Promise<string> => {
+  return new Promise((resolve) => {
+    if (!rawImageSrc) {
+      resolve('');
+      return;
+    }
+
+    const config = options.stampConfig || DEFAULT_STAMP_CONFIG;
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      try {
+        const rot = ((options.rotationDegrees || 0) % 360 + 360) % 360;
+        const isSwapped = rot === 90 || rot === 270;
+        
+        let origW = img.width || 1920;
+        let origH = img.height || 1080;
+        
+        const MAX_DIM = 1920;
+        if (origW > MAX_DIM || origH > MAX_DIM) {
+          if (origW > origH) {
+            origH = Math.round(origH * (MAX_DIM / origW));
+            origW = MAX_DIM;
+          } else {
+            origW = Math.round(origW * (MAX_DIM / origH));
+            origH = MAX_DIM;
+          }
+        }
+
+        let rawCanvas = document.createElement('canvas');
+        const canvasWInitial = isSwapped ? origH : origW;
+        const canvasHInitial = isSwapped ? origW : origH;
+        rawCanvas.width = canvasWInitial;
+        rawCanvas.height = canvasHInitial;
+
+        let ctx = rawCanvas.getContext('2d', { willReadFrequently: true });
+        if (!ctx) {
+          resolve(rawImageSrc);
+          return;
+        }
+
+        ctx.save();
+        ctx.translate(canvasWInitial / 2, canvasHInitial / 2);
+        if (rot !== 0) {
+          ctx.rotate((rot * Math.PI) / 180);
+        }
+        if (options.isMirrored) {
+          ctx.scale(-1, 1);
+        }
+        ctx.drawImage(img, -origW / 2, -origH / 2, origW, origH);
+        ctx.restore();
+
+        // Limpeza automática de qualquer faixa preta (pillarbox/letterbox)
+        const canvas = removeBlackBordersFromCanvas(rawCanvas);
+        const canvasW = canvas.width;
+        const canvasH = canvas.height;
+        ctx = canvas.getContext('2d', { willReadFrequently: true });
+        if (!ctx) {
+          resolve(rawImageSrc);
+          return;
+        }
+
+        // Calculo proporcional de fontes baseado na menor dimensão da imagem
+        const minDim = Math.min(canvasW, canvasH);
+        const scaleMult = config.fontSize === 'sm' ? 0.025 : config.fontSize === 'lg' ? 0.040 : 0.032;
+        const baseFontSize = Math.max(14, Math.floor(minDim * scaleMult));
+        const padding = baseFontSize * 0.85;
+        const margin = Math.max(16, Math.floor(minDim * 0.03));
+        const accentColor = config.themeColor || '#10B981';
+
+        // Preparar linhas de informação conforme configuração ativada
+        const lines: { text: string; color: string; fontStyle?: string }[] = [];
+        
+        if (config.showWorkName && options.contractName) {
+          lines.push({
+            text: `OBRA: ${options.contractName}`,
+            color: '#FFFFFF',
+            fontStyle: `900 ${baseFontSize}px sans-serif`
+          });
+        }
+
+        if (config.showStation || config.showDateTime) {
+          const parts: string[] = [];
+          if (config.showStation) parts.push(`ESTACA: ${options.station || 'Estaca N/I'}`);
+          if (config.showDateTime) parts.push(`DATA: ${options.dateText || new Date().toLocaleString('pt-BR')}`);
+          lines.push({
+            text: parts.join('   |   '),
+            color: '#F59E0B',
+            fontStyle: `700 ${Math.floor(baseFontSize * 0.9)}px sans-serif`
+          });
+        }
+
+        if (config.showCoordinates && options.locationText) {
+          lines.push({
+            text: `GPS: ${options.locationText}`,
+            color: '#38BDF8',
+            fontStyle: `600 ${Math.floor(baseFontSize * 0.82)}px sans-serif`
+          });
+        }
+
+        if (config.showDescription && options.description) {
+          lines.push({
+            text: `OBS: ${options.description}`,
+            color: '#E2E8F0',
+            fontStyle: `italic 500 ${Math.floor(baseFontSize * 0.82)}px sans-serif`
+          });
+        }
+
+        if (lines.length === 0 && !config.showLogoBadge) {
+          resolve(canvas.toDataURL('image/jpeg', 0.88));
+          return;
+        }
+
+        ctx.save();
+        
+        // Função auxiliar para retângulo arredondado
+        const drawRoundedBox = (x: number, y: number, w: number, h: number, r: number | number[]) => {
+          ctx.beginPath();
+          if (typeof ctx.roundRect === 'function') {
+            ctx.roundRect(x, y, w, h, r);
+          } else {
+            const rad = typeof r === 'number' ? r : r[0] || 0;
+            ctx.moveTo(x + rad, y);
+            ctx.lineTo(x + w - rad, y);
+            ctx.quadraticCurveTo(x + w, y, x + w, y + rad);
+            ctx.lineTo(x + w, y + h - rad);
+            ctx.quadraticCurveTo(x + w, y + h, x + w - rad, y + h);
+            ctx.lineTo(x + rad, y + h);
+            ctx.quadraticCurveTo(x, y + h, x, y + h - rad);
+            ctx.lineTo(x, y + rad);
+            ctx.quadraticCurveTo(x, y, x + rad, y);
+            ctx.closePath();
+          }
+        };
+
+        const badgeHeaderHeight = config.showLogoBadge ? baseFontSize * 1.5 : 0;
+        const lineHeight = baseFontSize * 1.35;
+        const boxContentHeight = badgeHeaderHeight + (lines.length * lineHeight) + (padding * 2);
+
+        // Medição e posiciamento do Box do Carimbo
+        let maxTextW = 0;
+        ctx.font = `bold ${baseFontSize}px sans-serif`;
+        if (config.showLogoBadge) {
+          maxTextW = Math.max(maxTextW, ctx.measureText(config.customHeaderTitle || 'SYNERA CAM').width);
+        }
+        for (const l of lines) {
+          ctx.font = l.fontStyle || `bold ${baseFontSize}px sans-serif`;
+          maxTextW = Math.max(maxTextW, ctx.measureText(l.text).width);
+        }
+
+        let boxWidth = canvasW - (margin * 2);
+        if (config.style === 'corner_badge') {
+          boxWidth = Math.min(canvasW - (margin * 2), maxTextW + (padding * 2.5) + 16);
+        }
+
+        let boxX = margin;
+        if (config.position === 'bottom_right') {
+          boxX = canvasW - margin - boxWidth;
+        } else if (config.position === 'bottom_left' || config.position === 'bottom') {
+          boxX = margin;
+        } else if (config.position === 'top_left') {
+          boxX = margin;
+        }
+
+        let boxY = canvasH - margin - boxContentHeight;
+        if (config.position === 'top_left') {
+          boxY = margin;
+        }
+
+        const borderRadius = Math.max(12, Math.floor(baseFontSize * 0.8));
+        const bgAlpha = Math.max(0, Math.min(1, config.bgOpacity ?? 0.85));
+
+        // Estilos de fundo
+        if (config.style === 'hud_banner' || config.style === 'corner_badge' || config.style === 'full_watermark') {
+          if (bgAlpha > 0) {
+            drawRoundedBox(boxX, boxY, boxWidth, boxContentHeight, borderRadius);
+            ctx.fillStyle = `rgba(2, 6, 23, ${bgAlpha})`;
+            ctx.fill();
+
+            ctx.lineWidth = 2;
+            ctx.strokeStyle = `${accentColor}40`;
+            ctx.stroke();
+
+            // Barra de acento lateral
+            drawRoundedBox(boxX, boxY, Math.max(4, Math.floor(baseFontSize * 0.3)), boxContentHeight, [borderRadius, 0, 0, borderRadius]);
+            ctx.fillStyle = accentColor;
+            ctx.fill();
+          }
+        } else if (config.style === 'subtle_bottom') {
+          const gradY = canvasH - boxContentHeight - margin;
+          const grad = ctx.createLinearGradient(0, gradY, 0, canvasH);
+          grad.addColorStop(0, 'rgba(0,0,0,0)');
+          grad.addColorStop(1, `rgba(0,0,0,${Math.min(0.9, bgAlpha + 0.2)})`);
+          ctx.fillStyle = grad;
+          ctx.fillRect(0, gradY, canvasW, boxContentHeight + margin * 2);
+        }
+
+        // Sombras para garantir legibilidade dos textos
+        ctx.shadowColor = 'rgba(0, 0, 0, 0.95)';
+        ctx.shadowBlur = 5;
+        ctx.shadowOffsetX = 1.5;
+        ctx.shadowOffsetY = 1.5;
+
+        // Cabeçalho Synera Cam
+        let curY = boxY + padding + baseFontSize * 0.65;
+        if (config.showLogoBadge) {
+          const badgeText = config.customHeaderTitle || '📷 SYNERA CAM • REGISTRO DE CAMPO GPS';
+          ctx.font = `900 ${Math.floor(baseFontSize * 0.78)}px sans-serif`;
+          ctx.fillStyle = accentColor;
+          ctx.fillText(badgeText, boxX + padding + 6, curY);
+
+          curY += baseFontSize * 0.9;
+          if (lines.length > 0) {
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(boxX + padding, curY);
+            ctx.lineTo(boxX + boxWidth - padding, curY);
+            ctx.stroke();
+            curY += padding * 0.5;
+          }
+        }
+
+        // Desenhar Linhas de Informação
+        const textX = boxX + padding + 6;
+        for (const line of lines) {
+          curY += baseFontSize * 0.8;
+          ctx.font = line.fontStyle || `bold ${baseFontSize}px sans-serif`;
+          ctx.fillStyle = line.color;
+          ctx.fillText(line.text, textX, curY, boxWidth - padding * 2 - 12);
+          curY += lineHeight - (baseFontSize * 0.8);
+        }
+
+        ctx.restore();
+        resolve(canvas.toDataURL('image/jpeg', 0.88));
+      } catch (e) {
+        console.error('Erro ao estampar imagem:', e);
+        resolve(rawImageSrc);
+      }
+    };
+    img.onerror = () => resolve(rawImageSrc);
+    img.src = rawImageSrc;
+  });
+};
 
 function ServiceAutoComplete({
   services,
@@ -258,6 +653,7 @@ export function SyneraMobileView({
   fieldReports = [],
   onSaveFieldReport,
   onUpdateFieldReport,
+  onDeleteFieldReport,
   onUpdateServiceProduction,
   onAddWorkMovement,
   onSaveDailyReport,
@@ -284,6 +680,52 @@ export function SyneraMobileView({
   const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [facingMode, setFacingMode] = useState<'environment' | 'user'>('environment');
+  const [cameraRotation, setCameraRotation] = useState<number>(0); // 0, 90, 180, 270 deg
+
+  // ----------------------------------------------------
+  // CONFIGURAÇÃO DO CARIMBO TÉCNICO (CONFIGURABLE STAMP)
+  // ----------------------------------------------------
+  const [stampConfig, setStampConfig] = useState<StampConfig>(() => {
+    try {
+      const saved = localStorage.getItem(STAMP_CONFIG_KEY);
+      if (saved) return JSON.parse(saved);
+    } catch (e) {
+      console.warn('Erro ao carregar stampConfig do localStorage:', e);
+    }
+    return DEFAULT_STAMP_CONFIG;
+  });
+
+  const [showStampSettingsModal, setShowStampSettingsModal] = useState<boolean>(false);
+
+  const updateStampConfig = (newConfig: Partial<StampConfig>) => {
+    setStampConfig(prev => {
+      const updated = { ...prev, ...newConfig };
+      try {
+        localStorage.setItem(STAMP_CONFIG_KEY, JSON.stringify(updated));
+      } catch (e) {
+        console.warn('Erro ao salvar stampConfig:', e);
+      }
+      return updated;
+    });
+  };
+
+  const [isLandscape, setIsLandscape] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    return window.innerWidth > window.innerHeight;
+  });
+
+  useEffect(() => {
+    const handleOrientation = () => {
+      setIsLandscape(window.innerWidth > window.innerHeight);
+    };
+    window.addEventListener('resize', handleOrientation);
+    window.addEventListener('orientationchange', handleOrientation);
+    return () => {
+      window.removeEventListener('resize', handleOrientation);
+      window.removeEventListener('orientationchange', handleOrientation);
+    };
+  }, []);
+
   const [showDiagnosticModal, setShowDiagnosticModal] = useState<boolean>(false);
   const [isDiagnosing, setIsDiagnosing] = useState<boolean>(false);
   const [diagnosticResults, setDiagnosticResults] = useState<{
@@ -303,6 +745,14 @@ export function SyneraMobileView({
   const [nearestStationInfo, setNearestStationInfo] = useState<{ station: string; distanceMeters: number } | null>(null);
   const [isLocating, setIsLocating] = useState<boolean>(false);
   const [showQualityMenu, setShowQualityMenu] = useState<boolean>(false);
+
+  // Estados da Galeria de Fotos (Filtro, Busca, Ampliar, Editar, Excluir)
+  const [galleryFilterContract, setGalleryFilterContract] = useState<string>('all');
+  const [gallerySearchQuery, setGallerySearchQuery] = useState<string>('');
+  const [previewingReport, setPreviewingReport] = useState<FieldProductionReport | null>(null);
+  const [editingPhotoReport, setEditingPhotoReport] = useState<FieldProductionReport | null>(null);
+  const [editStation, setEditStation] = useState<string>('');
+  const [editDescription, setEditDescription] = useState<string>('');
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -681,10 +1131,11 @@ export function SyneraMobileView({
           const canvas = document.createElement('canvas');
           canvas.width = width;
           canvas.height = height;
-          const ctx = canvas.getContext('2d');
+          const ctx = canvas.getContext('2d', { willReadFrequently: true });
           if (ctx) {
             ctx.drawImage(img, 0, 0, width, height);
-            const compressed = canvas.toDataURL('image/jpeg', quality);
+            const cleanCanvas = removeBlackBordersFromCanvas(canvas);
+            const compressed = cleanCanvas.toDataURL('image/jpeg', quality);
             cleanup();
             resolve(compressed);
           } else {
@@ -709,12 +1160,17 @@ export function SyneraMobileView({
   const handleTakePhoto = async () => {
     if (capturedPhotoUrl) return;
 
+    const activeContract = contracts.find(c => c.id === selectedContractId) || contracts[0] || { id: 'c1', name: 'Obra Principal' };
+    const stationText = photoStation || (nearestStationInfo ? nearestStationInfo.station : 'Estaca N/I');
+    const descText = photoDescription.trim() || 'Foto de inspeção em campo';
+    const locText = userLocation ? `${userLocation.lat.toFixed(6)}, ${userLocation.lng.toFixed(6)}` : '';
+
     if (videoRef.current && videoRef.current.readyState >= 2) {
       try {
         const video = videoRef.current;
-        const origW = video.videoWidth || 1280;
-        const origH = video.videoHeight || 720;
-        const maxDim = 1024;
+        const origW = video.videoWidth || 1920;
+        const origH = video.videoHeight || 1080;
+        const maxDim = 1920;
         let w = origW;
         let h = origH;
         if (w > maxDim || h > maxDim) {
@@ -726,15 +1182,33 @@ export function SyneraMobileView({
             h = maxDim;
           }
         }
-        const canvas = document.createElement('canvas');
-        canvas.width = w;
-        canvas.height = h;
-        const ctx = canvas.getContext('2d', { willReadFrequently: true });
+        const rawCanvas = document.createElement('canvas');
+        rawCanvas.width = w;
+        rawCanvas.height = h;
+        const ctx = rawCanvas.getContext('2d', { willReadFrequently: true });
         if (ctx) {
+          if (facingMode === 'user') {
+            ctx.translate(w, 0);
+            ctx.scale(-1, 1);
+          }
           ctx.drawImage(video, 0, 0, w, h);
-          const dataUrl = canvas.toDataURL('image/jpeg', 0.75);
-          if (dataUrl && dataUrl.length > 100) {
-            setCapturedPhotoUrl(dataUrl);
+
+          // Remover bordas/faixas pretas caso o stream WebRTC tenha gerado pillarbox
+          const cleanCanvas = removeBlackBordersFromCanvas(rawCanvas);
+          const rawDataUrl = cleanCanvas.toDataURL('image/jpeg', 0.90);
+
+          if (rawDataUrl && rawDataUrl.length > 100) {
+            const stampedUrl = await stampPhotoWithMetadata(rawDataUrl, {
+              contractName: activeContract.name || activeContract.workName || 'Obra Principal',
+              station: stationText,
+              description: descText,
+              locationText: locText,
+              dateText: new Date().toLocaleString('pt-BR'),
+              rotationDegrees: cameraRotation,
+              isMirrored: false,
+              stampConfig: stampConfig
+            });
+            setCapturedPhotoUrl(stampedUrl || rawDataUrl);
           } else {
             fileInputRef.current?.click();
           }
@@ -746,7 +1220,6 @@ export function SyneraMobileView({
         fileInputRef.current?.click();
       }
     } else {
-      // Disparo via câmera nativa do celular
       fileInputRef.current?.click();
     }
   };
@@ -755,9 +1228,23 @@ export function SyneraMobileView({
     const file = e.target.files?.[0];
     if (file) {
       try {
-        const resized = await compressAndResizeImage(file, 1024, 0.75);
+        const resized = await compressAndResizeImage(file, 1920, 0.90);
         if (resized) {
-          setCapturedPhotoUrl(resized);
+          const activeContract = contracts.find(c => c.id === selectedContractId) || contracts[0] || { id: 'c1', name: 'Obra Principal' };
+          const stationText = photoStation || (nearestStationInfo ? nearestStationInfo.station : 'Estaca N/I');
+          const descText = photoDescription.trim() || 'Foto de inspeção em campo';
+          const locText = userLocation ? `${userLocation.lat.toFixed(6)}, ${userLocation.lng.toFixed(6)}` : '';
+
+          const stampedUrl = await stampPhotoWithMetadata(resized, {
+            contractName: activeContract.name || activeContract.workName || 'Obra Principal',
+            station: stationText,
+            description: descText,
+            locationText: locText,
+            dateText: new Date().toLocaleString('pt-BR'),
+            rotationDegrees: cameraRotation,
+            stampConfig: stampConfig
+          });
+          setCapturedPhotoUrl(stampedUrl || resized);
         }
       } catch (err) {
         console.error('Erro ao processar foto da câmera nativa:', err);
@@ -801,66 +1288,17 @@ export function SyneraMobileView({
     const stationText = photoStation || (nearestStationInfo ? nearestStationInfo.station : 'Estaca N/I');
     const descText = photoDescription.trim() || 'Foto de inspeção em campo';
     const activeContract = contracts.find(c => c.id === selectedContractId) || contracts[0] || { id: 'c1', name: 'Obra Principal' };
+    const locText = userLocation ? `${userLocation.lat.toFixed(6)}, ${userLocation.lng.toFixed(6)}` : '';
 
-    let finalPhotoUrl = capturedPhotoUrl;
-    try {
-      const canvas = document.createElement('canvas');
-      const img = new Image();
-      
-      const isLoaded = await new Promise<boolean>((resolve) => {
-        const timer = setTimeout(() => resolve(false), 3000);
-        img.onload = () => { clearTimeout(timer); resolve(true); };
-        img.onerror = () => { clearTimeout(timer); resolve(false); };
-        img.src = capturedPhotoUrl;
-      });
-
-      if (isLoaded && img.width > 0 && img.height > 0) {
-        const MAX_DIMENSION = 1024;
-        let targetW = img.width;
-        let targetH = img.height;
-        if (targetW > MAX_DIMENSION || targetH > MAX_DIMENSION) {
-          if (targetW > targetH) {
-            targetH = Math.round(targetH * (MAX_DIMENSION / targetW));
-            targetW = MAX_DIMENSION;
-          } else {
-            targetW = Math.round(targetW * (MAX_DIMENSION / targetH));
-            targetH = MAX_DIMENSION;
-          }
-        }
-        canvas.width = targetW;
-        canvas.height = targetH;
-        const ctx = canvas.getContext('2d');
-
-        if (ctx) {
-          ctx.drawImage(img, 0, 0, targetW, targetH);
-          
-          const fontSize = Math.max(14, Math.floor(canvas.height * 0.035));
-          const padding = fontSize;
-          const boxHeight = fontSize * 7.5;
-          
-          ctx.fillStyle = 'rgba(0, 0, 0, 0.65)';
-          ctx.fillRect(0, canvas.height - boxHeight, canvas.width, boxHeight);
-          
-          ctx.fillStyle = 'white';
-          ctx.font = `bold ${fontSize}px sans-serif`;
-          
-          let y = canvas.height - boxHeight + padding * 1.5;
-          const dateText = new Date().toLocaleString('pt-BR');
-          
-          ctx.fillText(`Obra: ${activeContract.name || activeContract.workName || 'Obra Principal'}`, padding, y);
-          y += fontSize * 1.4;
-          ctx.fillText(`Data: ${dateText}`, padding, y);
-          y += fontSize * 1.4;
-          ctx.fillText(`Estaca: ${stationText}`, padding, y);
-          y += fontSize * 1.4;
-          ctx.fillText(`Obs: ${descText}`, padding, y);
-          
-          finalPhotoUrl = canvas.toDataURL('image/jpeg', 0.75);
-        }
-      }
-    } catch (err) {
-      console.error('Erro ao adicionar texto na foto:', err);
-    }
+    const finalPhotoUrl = await stampPhotoWithMetadata(capturedPhotoUrl, {
+      contractName: activeContract.name || activeContract.workName || 'Obra Principal',
+      station: stationText,
+      description: descText,
+      locationText: locText,
+      dateText: new Date().toLocaleString('pt-BR'),
+      rotationDegrees: cameraRotation,
+      stampConfig: stampConfig
+    });
 
     const newReport: FieldProductionReport = {
       id: `photo-${Date.now()}`,
@@ -903,7 +1341,92 @@ export function SyneraMobileView({
     setPhotoDescription('');
     setIsCameraOpen(false);
 
-    alert(`📸 Foto de campo registrada com sucesso!\nEstaca: ${stationText}\nDescrição: ${descText}`);
+    alert(`📸 Foto de campo registrada e salva na galeria!\nEstaca: ${stationText}\nDescrição: ${descText}`);
+  };
+
+  // ----------------------------------------------------
+  // FUNÇÕES DA GALERIA DE FOTOS (Visualizar, Editar, Excluir)
+  // ----------------------------------------------------
+  const handleDeleteReport = (reportId: string) => {
+    if (!window.confirm('Tem certeza de que deseja excluir esta foto da galeria?')) return;
+
+    if (onDeleteFieldReport) {
+      onDeleteFieldReport(reportId);
+    } else {
+      try {
+        const stored = localStorage.getItem('sigo_field_reports');
+        if (stored) {
+          const parsed: FieldProductionReport[] = JSON.parse(stored);
+          const filtered = parsed.filter(r => r.id !== reportId);
+          localStorage.setItem('sigo_field_reports', JSON.stringify(filtered));
+        }
+      } catch (e) {
+        console.error('Erro ao excluir foto local:', e);
+      }
+    }
+
+    setSelectedGalleryPhotos(prev => {
+      const rep = fieldReports.find(r => r.id === reportId);
+      return rep ? prev.filter(url => url !== rep.photoUrl) : prev;
+    });
+
+    if (previewingReport?.id === reportId) setPreviewingReport(null);
+    if (editingPhotoReport?.id === reportId) setEditingPhotoReport(null);
+  };
+
+  const handleBatchDeletePhotos = () => {
+    if (selectedGalleryPhotos.length === 0) return;
+    if (!window.confirm(`Tem certeza de que deseja excluir ${selectedGalleryPhotos.length} foto(s) selecionada(s)?`)) return;
+
+    const reportsToDelete = fieldReports.filter(r => r.photoUrl && selectedGalleryPhotos.includes(r.photoUrl));
+    reportsToDelete.forEach(rep => {
+      if (onDeleteFieldReport) {
+        onDeleteFieldReport(rep.id);
+      }
+    });
+
+    setSelectedGalleryPhotos([]);
+  };
+
+  const handleOpenEditModal = (report: FieldProductionReport) => {
+    setEditingPhotoReport(report);
+    setEditStation(report.location || '');
+    setEditDescription(report.description || '');
+  };
+
+  const handleSavePhotoEdit = async () => {
+    if (!editingPhotoReport) return;
+
+    const activeContract = contracts.find(c => c.id === editingPhotoReport.contractId) || contracts[0];
+    let updatedPhotoUrl = editingPhotoReport.photoUrl;
+
+    if (editingPhotoReport.photoUrl) {
+      updatedPhotoUrl = await stampPhotoWithMetadata(editingPhotoReport.photoUrl, {
+        contractName: activeContract?.name || activeContract?.workName || 'Obra Principal',
+        station: editStation || 'Estaca N/I',
+        description: editDescription || 'Sem descrição',
+        dateText: editingPhotoReport.timestamp ? new Date(editingPhotoReport.timestamp).toLocaleString('pt-BR') : new Date().toLocaleString('pt-BR'),
+        stampConfig: stampConfig
+      });
+    }
+
+    const updatedReport: FieldProductionReport = {
+      ...editingPhotoReport,
+      location: editStation,
+      description: editDescription,
+      photoUrl: updatedPhotoUrl
+    };
+
+    if (onUpdateFieldReport) {
+      onUpdateFieldReport(updatedReport);
+    }
+
+    if (previewingReport?.id === updatedReport.id) {
+      setPreviewingReport(updatedReport);
+    }
+
+    setEditingPhotoReport(null);
+    alert('Foto e carimbo técnico atualizados com sucesso!');
   };
 
   // Offline Pending Queue State
@@ -3599,68 +4122,403 @@ export function SyneraMobileView({
             )}
 
             {/* ---------------------------------------------------- */}
-            {/* TELA DA GALERIA DE FOTOS */}
+            {/* TELA DA GALERIA DE FOTOS (VISUALIZAR, SELECIONAR, EDITAR, EXCLUIR) */}
             {/* ---------------------------------------------------- */}
             {activeSector === 'galeria' && (
-              <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
-                <div className="bg-slate-800/80 border border-slate-700/80 rounded-3xl p-5 space-y-4 shadow-xl">
-                  <div className="flex items-center justify-between pb-2 border-b border-slate-700/60">
-                    <div className="flex items-center gap-2">
-                      <Eye className="w-5 h-5 text-fuchsia-400" />
-                      <h3 className="text-sm font-black text-white uppercase tracking-wide">Galeria de Fotos</h3>
+              <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-4 pb-12">
+                <div className="bg-slate-800/80 border border-slate-700/80 rounded-3xl p-4 sm:p-5 space-y-4 shadow-xl">
+                  
+                  {/* Cabeçalho da Galeria */}
+                  <div className="flex items-center justify-between pb-3 border-b border-slate-700/60">
+                    <div className="flex items-center gap-3">
+                      <button 
+                        onClick={() => setActiveSector(null)} 
+                        className="p-2 rounded-xl bg-slate-700/60 hover:bg-slate-600 text-slate-200 transition-colors"
+                      >
+                        <ArrowLeft className="w-5 h-5" />
+                      </button>
+                      <div>
+                        <h3 className="text-sm font-black text-white uppercase tracking-wide flex items-center gap-2">
+                          <Eye className="w-4 h-4 text-fuchsia-400" />
+                          Galeria de Fotos Synera Cam
+                        </h3>
+                        <p className="text-[10px] font-bold text-slate-400">
+                          {fieldReports.filter(r => r.photoUrl).length} foto(s) de campo cadastradas
+                        </p>
+                      </div>
                     </div>
-                    <span className="text-xs font-bold text-slate-400">
-                      {fieldReports.filter(r => r.photoUrl).length} Foto(s)
-                    </span>
+
+                    <div className="flex items-center gap-2">
+                      <Button
+                        onClick={() => setShowStampSettingsModal(true)}
+                        variant="outline"
+                        className="h-9 px-3 border-slate-700 bg-slate-900 text-emerald-400 hover:text-emerald-300 hover:bg-slate-800 font-bold text-xs rounded-xl flex items-center gap-1.5"
+                        title="Configurar Estilo e Posição do Carimbo Técnico"
+                      >
+                        <Sliders className="w-3.5 h-3.5" />
+                        <span className="hidden sm:inline">Carimbo</span>
+                      </Button>
+
+                      <Button
+                        onClick={() => fileInputRef.current?.click()}
+                        variant="outline"
+                        className="h-9 px-3 border-emerald-500/50 bg-emerald-950/40 text-emerald-300 hover:bg-emerald-900/60 font-black text-xs rounded-xl flex items-center gap-1.5 shadow-sm"
+                        title="Tirar foto diretamente pela Câmera Nativa em Máxima Resolução HD/4K"
+                      >
+                        <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
+                        <span className="hidden sm:inline">Câmera HD Nativa</span>
+                      </Button>
+
+                      <Button
+                        onClick={() => setIsCameraOpen(true)}
+                        className="h-9 px-3 bg-blue-600 hover:bg-blue-500 text-white font-black text-xs rounded-xl flex items-center gap-1.5 shadow-md shadow-blue-500/20"
+                      >
+                        <Camera className="w-4 h-4" />
+                        <span className="hidden sm:inline">Ao Vivo PWA</span>
+                      </Button>
+                    </div>
                   </div>
 
-                  {fieldReports.filter(r => r.photoUrl).length === 0 ? (
-                    <div className="py-8 text-center space-y-3">
-                      <div className="w-16 h-16 bg-slate-800 rounded-full mx-auto flex items-center justify-center">
+                  {/* Filtros e Busca de Fotos */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <div className="relative">
+                      <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
+                      <Input
+                        placeholder="Buscar por estaca ou descrição..."
+                        value={gallerySearchQuery}
+                        onChange={e => setGallerySearchQuery(e.target.value)}
+                        className="pl-9 h-10 rounded-xl bg-slate-900 border-slate-700 text-white text-xs"
+                      />
+                    </div>
+
+                    <Select value={galleryFilterContract} onValueChange={setGalleryFilterContract}>
+                      <SelectTrigger className="h-10 rounded-xl bg-slate-900 border-slate-700 text-white text-xs">
+                        <SelectValue placeholder="Filtrar por Obra" />
+                      </SelectTrigger>
+                      <SelectContent className="bg-slate-800 border-slate-700 text-white">
+                        <SelectItem value="all">Todas as Obras ({fieldReports.filter(r => r.photoUrl).length})</SelectItem>
+                        {contracts.map(c => (
+                          <SelectItem key={c.id} value={c.id}>
+                            {c.name || c.workName || 'Obra'} ({fieldReports.filter(r => r.photoUrl && r.contractId === c.id).length})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Barra de Ações em Lote (quando houver seleção) */}
+                  {selectedGalleryPhotos.length > 0 && (
+                    <div className="p-3 bg-fuchsia-950/80 border border-fuchsia-500/50 rounded-2xl flex items-center justify-between text-xs animate-in fade-in">
+                      <div className="flex items-center gap-2 text-fuchsia-300 font-bold">
+                        <CheckSquare className="w-4 h-4 text-fuchsia-400" />
+                        <span>{selectedGalleryPhotos.length} foto(s) selecionada(s)</span>
+                      </div>
+
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          onClick={() => {
+                            selectedGalleryPhotos.forEach(url => handleDownloadPhoto(url));
+                          }}
+                          className="px-2.5 py-1.5 bg-slate-900 hover:bg-slate-800 text-white font-bold text-[11px] rounded-lg border border-slate-700 flex items-center gap-1"
+                        >
+                          <Download className="w-3.5 h-3.5 text-blue-400" />
+                          Baixar
+                        </button>
+
+                        <button
+                          onClick={handleBatchDeletePhotos}
+                          className="px-2.5 py-1.5 bg-rose-600 hover:bg-rose-500 text-white font-black text-[11px] rounded-lg flex items-center gap-1 shadow-md shadow-rose-600/30"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                          Excluir
+                        </button>
+
+                        <button
+                          onClick={() => setSelectedGalleryPhotos([])}
+                          className="p-1.5 text-slate-400 hover:text-white"
+                          title="Desmarcar"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Lista/Grid de Fotos da Galeria */}
+                  {fieldReports.filter(r => {
+                    if (!r.photoUrl) return false;
+                    if (galleryFilterContract !== 'all' && r.contractId !== galleryFilterContract) return false;
+                    if (gallerySearchQuery.trim()) {
+                      const q = gallerySearchQuery.toLowerCase();
+                      const descMatch = (r.description || '').toLowerCase().includes(q);
+                      const locMatch = (r.location || '').toLowerCase().includes(q);
+                      return descMatch || locMatch;
+                    }
+                    return true;
+                  }).length === 0 ? (
+                    <div className="py-12 text-center space-y-3">
+                      <div className="w-16 h-16 bg-slate-800/80 rounded-full mx-auto flex items-center justify-center">
                         <Camera className="w-8 h-8 text-slate-500" />
                       </div>
-                      <p className="text-slate-400 text-xs font-bold px-8">Nenhuma foto registrada na galeria local.</p>
+                      <p className="text-slate-300 text-xs font-bold px-8">Nenhuma foto encontrada para os filtros selecionados.</p>
+                      <Button
+                        onClick={() => {
+                          setGalleryFilterContract('all');
+                          setGallerySearchQuery('');
+                        }}
+                        className="h-8 px-3 text-[11px] bg-slate-700 hover:bg-slate-600 text-white rounded-lg"
+                      >
+                        Limpar Filtros
+                      </Button>
                     </div>
                   ) : (
-                    <div className="space-y-4">
-                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                        {fieldReports.filter(r => r.photoUrl).map(report => (
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                      {fieldReports.filter(r => {
+                        if (!r.photoUrl) return false;
+                        if (galleryFilterContract !== 'all' && r.contractId !== galleryFilterContract) return false;
+                        if (gallerySearchQuery.trim()) {
+                          const q = gallerySearchQuery.toLowerCase();
+                          const descMatch = (r.description || '').toLowerCase().includes(q);
+                          const locMatch = (r.location || '').toLowerCase().includes(q);
+                          return descMatch || locMatch;
+                        }
+                        return true;
+                      }).map(report => {
+                        const isSelected = selectedGalleryPhotos.includes(report.photoUrl as string);
+                        return (
                           <div 
                             key={report.id} 
-                            onClick={() => setSelectedGalleryPhotos(prev => 
-                              prev.includes(report.photoUrl as string) 
-                                ? prev.filter(url => url !== report.photoUrl) 
-                                : [...prev, report.photoUrl as string]
-                            )}
-                            className={`relative aspect-[3/4] bg-slate-950 rounded-2xl overflow-hidden border-2 cursor-pointer transition-all ${
-                              selectedGalleryPhotos.includes(report.photoUrl as string) ? 'border-fuchsia-500 scale-95 shadow-lg shadow-fuchsia-500/30' : 'border-slate-700 hover:border-slate-500'
+                            className={`group relative aspect-[3/4] bg-slate-950 rounded-2xl overflow-hidden border-2 transition-all ${
+                              isSelected ? 'border-fuchsia-500 ring-2 ring-fuchsia-500/50 scale-[0.98]' : 'border-slate-700/80 hover:border-slate-500'
                             }`}
                           >
                             <img src={report.photoUrl} alt="Foto Campo" className="w-full h-full object-cover" />
-                            {selectedGalleryPhotos.includes(report.photoUrl as string) && (
-                              <div className="absolute inset-0 bg-fuchsia-500/20 flex items-start justify-end p-2 backdrop-blur-[1px]">
-                                <div className="w-6 h-6 rounded-full bg-fuchsia-500 flex items-center justify-center shadow-md">
-                                  <CheckCircle2 className="w-4 h-4 text-white" />
-                                </div>
-                              </div>
-                            )}
-                            <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-slate-950 p-2 pt-8">
-                              <p className="text-[9px] font-bold text-white truncate">{report.description || 'Sem descrição'}</p>
-                              <p className="text-[8px] text-slate-400 truncate">{report.date ? report.date.split('-').reverse().join('/') : ''}</p>
+                            
+                            {/* Checkbox de seleção superior */}
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedGalleryPhotos(prev => 
+                                  prev.includes(report.photoUrl as string) 
+                                    ? prev.filter(url => url !== report.photoUrl) 
+                                    : [...prev, report.photoUrl as string]
+                                );
+                              }}
+                              className={`absolute top-2 right-2 w-7 h-7 rounded-full flex items-center justify-center shadow-lg transition-transform ${
+                                isSelected ? 'bg-fuchsia-500 text-white scale-110' : 'bg-slate-900/80 text-slate-400 border border-slate-600 hover:text-white'
+                              }`}
+                              title={isSelected ? 'Desmarcar foto' : 'Selecionar foto'}
+                            >
+                              {isSelected ? <Check className="w-4 h-4 stroke-[3]" /> : <Square className="w-4 h-4" />}
+                            </button>
+
+                            {/* Badge de Estaca no canto superior esquerdo */}
+                            <div className="absolute top-2 left-2 px-2 py-0.5 rounded-md bg-slate-950/80 border border-amber-500/40 backdrop-blur text-[9px] font-black text-amber-300">
+                              {report.location || 'Estaca N/I'}
+                            </div>
+
+                            {/* Botoes de Ação Rápida (Visualizar, Editar, Excluir) */}
+                            <div className="absolute inset-x-2 top-10 flex items-center justify-center gap-1.5 opacity-90 sm:opacity-0 group-hover:opacity-100 transition-opacity z-10">
+                              <button
+                                onClick={() => setPreviewingReport(report)}
+                                className="p-2 rounded-xl bg-slate-900/90 hover:bg-slate-800 border border-slate-700 text-blue-400 shadow-xl"
+                                title="Visualizar foto ampliada"
+                              >
+                                <Eye className="w-4 h-4" />
+                              </button>
+                              
+                              <button
+                                onClick={() => handleOpenEditModal(report)}
+                                className="p-2 rounded-xl bg-slate-900/90 hover:bg-slate-800 border border-slate-700 text-amber-400 shadow-xl"
+                                title="Editar dados da foto"
+                              >
+                                <Edit3 className="w-4 h-4" />
+                              </button>
+
+                              <button
+                                onClick={() => handleDeleteReport(report.id)}
+                                className="p-2 rounded-xl bg-rose-950/90 hover:bg-rose-900 border border-rose-500/50 text-rose-300 shadow-xl"
+                                title="Excluir foto"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
+
+                            {/* Banner Inferior com dados rápidos */}
+                            <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-slate-950 via-slate-950/90 to-transparent p-2.5 pt-6">
+                              <p className="text-[10px] font-extrabold text-white truncate">{report.description || 'Sem descrição'}</p>
+                              <p className="text-[9px] text-slate-400 font-medium">
+                                {report.timestamp ? new Date(report.timestamp).toLocaleDateString('pt-BR') : report.date}
+                              </p>
                             </div>
                           </div>
-                        ))}
-                      </div>
-
-                      {selectedGalleryPhotos.length > 0 && (
-                        <div className="pt-2 sticky bottom-4 z-10">
-                <button onClick={() => setActiveSector(null)} className="p-2 rounded-xl bg-slate-700/50 hover:bg-slate-600/50 text-slate-300 transition-colors"><ArrowLeft className="w-5 h-5" /></button>
-                        </div>
-                      )}
+                        );
+                      })}
                     </div>
                   )}
+
                 </div>
               </motion.div>
+            )}
+
+            {/* ---------------------------------------------------- */}
+            {/* MODAL DE AMPLIAÇÃO / LIGHTBOX DA FOTO (PREVIEWING) */}
+            {/* ---------------------------------------------------- */}
+            {previewingReport && (
+              <Dialog open={!!previewingReport} onOpenChange={() => setPreviewingReport(null)}>
+                <DialogContent className="max-w-3xl bg-slate-950 border-slate-800 text-white p-0 overflow-hidden rounded-3xl">
+                  <div className="flex flex-col md:flex-row max-h-[85vh] overflow-y-auto">
+                    {/* Imagem Ampliada */}
+                    <div className="flex-1 bg-black flex items-center justify-center p-2 min-h-[300px]">
+                      <img 
+                        src={previewingReport.photoUrl} 
+                        alt="Foto Ampliada" 
+                        className="max-h-[70vh] w-auto object-contain rounded-xl"
+                      />
+                    </div>
+
+                    {/* Painel Lateral com Detalhes */}
+                    <div className="w-full md:w-80 p-5 bg-slate-900 border-t md:border-t-0 md:border-l border-slate-800 space-y-4 flex flex-col justify-between">
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between pb-2 border-b border-slate-800">
+                          <span className="text-xs font-black uppercase text-fuchsia-400 tracking-wider">Detalhes da Foto</span>
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-800 text-slate-300">
+                            ID: {previewingReport.id.slice(-6)}
+                          </span>
+                        </div>
+
+                        <div className="space-y-2 text-xs">
+                          <div>
+                            <span className="text-slate-400 font-bold block text-[10px] uppercase">Obra / Contrato:</span>
+                            <span className="font-black text-white">
+                              {contracts.find(c => c.id === previewingReport.contractId)?.name || 'Obra Principal'}
+                            </span>
+                          </div>
+
+                          <div>
+                            <span className="text-slate-400 font-bold block text-[10px] uppercase">Estaca / Localização:</span>
+                            <span className="font-black text-amber-400 text-sm">
+                              {previewingReport.location || 'Estaca N/I'}
+                            </span>
+                          </div>
+
+                          <div>
+                            <span className="text-slate-400 font-bold block text-[10px] uppercase">Data e Hora do Registro:</span>
+                            <span className="font-bold text-emerald-400">
+                              {previewingReport.timestamp 
+                                ? new Date(previewingReport.timestamp).toLocaleString('pt-BR') 
+                                : previewingReport.date}
+                            </span>
+                          </div>
+
+                          <div>
+                            <span className="text-slate-400 font-bold block text-[10px] uppercase">Registrado por:</span>
+                            <span className="font-medium text-slate-200">
+                              {previewingReport.createdByName || 'Apontador de Campo'}
+                            </span>
+                          </div>
+
+                          <div>
+                            <span className="text-slate-400 font-bold block text-[10px] uppercase">Observações / Descrição:</span>
+                            <p className="p-2.5 rounded-xl bg-slate-950 border border-slate-800 text-slate-200 italic mt-1 leading-relaxed">
+                              {previewingReport.description || 'Nenhuma observação informada.'}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Botoes de Ação no Lightbox */}
+                      <div className="space-y-2 pt-4 border-t border-slate-800">
+                        <Button
+                          onClick={() => handleDownloadPhoto(previewingReport.photoUrl as string)}
+                          className="w-full h-10 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-extrabold text-xs flex items-center justify-center gap-2"
+                        >
+                          <Download className="w-4 h-4" />
+                          Baixar Foto com Carimbo
+                        </Button>
+
+                        <div className="grid grid-cols-2 gap-2">
+                          <Button
+                            onClick={() => {
+                              handleOpenEditModal(previewingReport);
+                            }}
+                            className="h-9 rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-300 font-bold text-xs flex items-center justify-center gap-1.5 border border-slate-700"
+                          >
+                            <Edit3 className="w-3.5 h-3.5" />
+                            Editar
+                          </Button>
+
+                          <Button
+                            onClick={() => handleDeleteReport(previewingReport.id)}
+                            className="h-9 rounded-xl bg-rose-950 hover:bg-rose-900 text-rose-300 font-bold text-xs flex items-center justify-center gap-1.5 border border-rose-800"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                            Excluir
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </DialogContent>
+              </Dialog>
+            )}
+
+            {/* ---------------------------------------------------- */}
+            {/* MODAL DE EDIÇÃO DE FOTO / ESTACA / DESCRIÇÃO */}
+            {/* ---------------------------------------------------- */}
+            {editingPhotoReport && (
+              <Dialog open={!!editingPhotoReport} onOpenChange={() => setEditingPhotoReport(null)}>
+                <DialogContent className="max-w-md bg-slate-900 border-slate-800 text-white rounded-3xl p-6 space-y-4">
+                  <DialogHeader>
+                    <DialogTitle className="text-base font-black text-amber-400 flex items-center gap-2">
+                      <Edit3 className="w-5 h-5" />
+                      Editar Informações da Foto
+                    </DialogTitle>
+                    <DialogDescription className="text-xs text-slate-400">
+                      Atualize a estaca ou descrição. O carimbo técnico da foto será automaticamente atualizado.
+                    </DialogDescription>
+                  </DialogHeader>
+
+                  <div className="space-y-3 pt-2">
+                    <div>
+                      <Label className="text-xs font-bold text-slate-300">Estaca / Localização:</Label>
+                      <Input
+                        value={editStation}
+                        onChange={e => setEditStation(e.target.value)}
+                        placeholder="Ex: Estaca 120+15.0"
+                        className="h-11 rounded-2xl bg-slate-950 border-slate-700 text-amber-300 font-black text-sm mt-1"
+                      />
+                    </div>
+
+                    <div>
+                      <Label className="text-xs font-bold text-slate-300">Descrição / Observação:</Label>
+                      <Input
+                        value={editDescription}
+                        onChange={e => setEditDescription(e.target.value)}
+                        placeholder="Ex: Execução de meio-fio e Sarjeta"
+                        className="h-11 rounded-2xl bg-slate-950 border-slate-700 text-white font-medium text-xs mt-1"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-800">
+                    <Button
+                      onClick={() => setEditingPhotoReport(null)}
+                      className="h-10 px-4 rounded-xl bg-slate-800 text-slate-300 hover:bg-slate-700 text-xs font-bold"
+                    >
+                      Cancelar
+                    </Button>
+
+                    <Button
+                      onClick={handleSavePhotoEdit}
+                      className="h-10 px-5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs flex items-center gap-1.5 shadow-lg shadow-emerald-500/20"
+                    >
+                      <Save className="w-4 h-4 stroke-[2.5]" />
+                      Salvar Alterações
+                    </Button>
+                  </div>
+                </DialogContent>
+              </Dialog>
             )}
 
           </div>
@@ -3802,8 +4660,18 @@ export function SyneraMobileView({
                 </div>
               </div>
 
-              {/* OPÇÕES DE QUALIDADE, GRADE, TIPO DE CÂMERA E FLASH */}
+              {/* OPÇÕES DE QUALIDADE, GRADE, TIPO DE CÂMERA, ROTAÇÃO E FLASH */}
               <div className="flex items-center gap-1.5">
+                <button
+                  onClick={() => setCameraRotation(prev => (prev + 90) % 360)}
+                  className={`p-2 rounded-xl border text-xs font-bold transition-all ${
+                    cameraRotation !== 0 ? 'bg-amber-500/20 text-amber-400 border-amber-500/40' : 'bg-slate-900/80 text-slate-400 border-slate-700'
+                  }`}
+                  title={`Girar Câmera (Atual: ${cameraRotation}°)`}
+                >
+                  <RotateCw className="w-4 h-4" />
+                </button>
+
                 <button
                   onClick={() => setFacingMode(prev => prev === 'environment' ? 'user' : 'environment')}
                   className={`p-2 rounded-xl border text-xs font-bold transition-all ${
@@ -3823,6 +4691,14 @@ export function SyneraMobileView({
                   title="Diagnóstico de Funcionamento da Câmera"
                 >
                   <ShieldCheck className="w-4 h-4" />
+                </button>
+
+                <button
+                  onClick={() => setShowStampSettingsModal(true)}
+                  className="p-2 rounded-xl bg-slate-900/80 border border-slate-700 text-emerald-400 hover:bg-slate-800 text-xs font-bold transition-all"
+                  title="Configurar Estilo e Posição do Carimbo Técnico"
+                >
+                  <Sliders className="w-4 h-4" />
                 </button>
 
                 <button
@@ -3886,6 +4762,10 @@ export function SyneraMobileView({
                   autoPlay
                   playsInline
                   muted
+                  style={{
+                    transform: `rotate(${cameraRotation}deg) ${facingMode === 'user' ? 'scaleX(-1)' : ''}`,
+                    transition: 'transform 0.3s ease-in-out'
+                  }}
                   className={capturedPhotoUrl ? 'hidden' : 'w-full h-full object-cover'}
                 />
               )}
@@ -3893,13 +4773,6 @@ export function SyneraMobileView({
               {capturedPhotoUrl ? (
                 <div className="relative w-full h-full flex items-center justify-center bg-black">
                   <img src={capturedPhotoUrl} alt="Foto de Campo" className="w-full h-full object-contain" />
-                  {/* Overlay Stamp Info Preview */}
-                  <div className="absolute bottom-4 left-4 right-4 pointer-events-none drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)] bg-black/60 p-3 rounded-2xl backdrop-blur-md border border-white/20 z-10 text-left">
-                    <p className="text-white text-xs font-black leading-tight">{activeContract?.name || activeContract?.workName || 'Obra Principal'}</p>
-                    <p className="text-amber-400 text-xs font-black leading-tight mt-0.5">Estaca: {photoStation || (nearestStationInfo?.station || 'Estaca N/I')}</p>
-                    <p className="text-emerald-400 text-[10px] font-bold leading-tight mt-0.5">{new Date().toLocaleString('pt-BR')}</p>
-                    <p className="text-white text-[11px] leading-tight italic mt-1 font-medium">{photoDescription || 'Sem observações'}</p>
-                  </div>
                 </div>
               ) : cameraStream && !cameraError ? (
                 <>
@@ -3918,12 +4791,28 @@ export function SyneraMobileView({
                     </div>
                   )}
 
-                  {/* Overlay Info (Timestamp Camera Style) */}
-                  <div className="absolute bottom-4 left-4 right-4 pointer-events-none drop-shadow-[0_2px_2px_rgba(0,0,0,1)] bg-black/30 p-2 rounded-lg backdrop-blur-sm border border-white/10 z-10">
-                    <p className="text-white text-xs font-bold leading-tight">{activeContract?.name || activeContract?.workName || 'Obra Principal'}</p>
-                    <p className="text-amber-400 text-xs font-black leading-tight mt-0.5">{photoStation || (nearestStationInfo?.station || 'Aguardando GPS...')}</p>
-                    <p className="text-emerald-400 text-[10px] font-bold leading-tight mt-0.5">{new Date().toLocaleString('pt-BR')}</p>
-                    <p className="text-white text-[10px] leading-tight italic mt-0.5 line-clamp-2 break-words">{photoDescription || 'Sem descrição'}</p>
+                  {/* Overlay Info Vivo no Viewfinder (Estilo aplicativo de câmera profissional HUD) */}
+                  <div className="absolute bottom-4 left-4 right-4 pointer-events-none drop-shadow-[0_4px_12px_rgba(0,0,0,0.8)] bg-slate-950/85 p-3 rounded-2xl backdrop-blur-md border border-white/15 border-l-4 border-l-emerald-500 z-10 text-left space-y-1">
+                    <div className="flex items-center justify-between pb-1 border-b border-white/10">
+                      <span className="text-[10px] font-black text-emerald-400 tracking-wider flex items-center gap-1">
+                        📷 SYNERA CAM • REGISTRO DE CAMPO GPS
+                      </span>
+                    </div>
+                    <p className="text-white text-xs font-black leading-tight">
+                      OBRA: {activeContract?.name || activeContract?.workName || 'Obra Principal'}
+                    </p>
+                    <p className="text-amber-400 text-xs font-black leading-tight">
+                      ESTACA: {photoStation || (nearestStationInfo?.station || 'Estaca N/I')} 
+                      <span className="text-emerald-400 font-bold ml-2">| DATA: {new Date().toLocaleString('pt-BR')}</span>
+                    </p>
+                    {userLocation && (
+                      <p className="text-sky-400 text-[10px] font-semibold leading-tight">
+                        GPS: {userLocation.lat.toFixed(6)}, {userLocation.lng.toFixed(6)}
+                      </p>
+                    )}
+                    <p className="text-slate-200 text-[10px] leading-tight italic font-medium line-clamp-2 break-words">
+                      OBS: {photoDescription || 'Sem observações'}
+                    </p>
                   </div>
                 </>
               ) : (
@@ -4057,13 +4946,23 @@ export function SyneraMobileView({
                   </div>
                 </div>
               ) : (
-                <Button
-                  onClick={handleTakePhoto}
-                  className="w-full h-14 rounded-3xl bg-blue-600 hover:bg-blue-500 text-white font-black text-sm uppercase tracking-wider shadow-lg shadow-blue-500/30 gap-2 mt-1"
-                >
-                  <Camera className="w-6 h-6" />
-                  CAPTURAR FOTO
-                </Button>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-1">
+                  <Button
+                    onClick={() => fileInputRef.current?.click()}
+                    className="w-full h-14 rounded-3xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-slate-950 font-black text-xs sm:text-sm uppercase tracking-wider shadow-lg shadow-emerald-500/25 flex items-center justify-center gap-2"
+                  >
+                    <Sparkles className="w-5 h-5 fill-slate-950" />
+                    Usar Câmera Nativa (HD/4K)
+                  </Button>
+
+                  <Button
+                    onClick={handleTakePhoto}
+                    className="w-full h-14 rounded-3xl bg-blue-600 hover:bg-blue-500 text-white font-black text-xs sm:text-sm uppercase tracking-wider shadow-lg shadow-blue-500/25 flex items-center justify-center gap-2"
+                  >
+                    <Camera className="w-5 h-5" />
+                    Capturar ao Vivo (PWA)
+                  </Button>
+                </div>
               )}
             </div>
           </motion.div>
@@ -4437,6 +5336,322 @@ export function SyneraMobileView({
           </div>
         )}
       </AnimatePresence>
+
+      {/* ==================================================== */}
+      {/* MODAL DE CONFIGURAÇÃO DO CARIMBO TÉCNICO DE FOTO */}
+      {/* ==================================================== */}
+      <Dialog open={showStampSettingsModal} onOpenChange={setShowStampSettingsModal}>
+        <DialogContent className="bg-slate-900 border-slate-800 text-white max-w-lg rounded-3xl p-5 max-h-[90vh] overflow-y-auto custom-scrollbar">
+          <DialogHeader className="border-b border-slate-800 pb-3">
+            <DialogTitle className="text-base font-black text-emerald-400 flex items-center gap-2">
+              <Sliders className="w-5 h-5 text-emerald-400" />
+              Configurar Carimbo Técnico de Foto
+            </DialogTitle>
+            <DialogDescription className="text-xs text-slate-400">
+              Personalize o formato, posição, cores e quais dados da obra serão gravados permanentemente nas imagens.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-5 pt-2">
+            {/* 1. MODELO VISUAL DO CARIMBO */}
+            <div className="space-y-2">
+              <Label className="text-xs font-bold text-slate-200 uppercase tracking-wider block">
+                1. Modelo Visual do Carimbo
+              </Label>
+              <div className="grid grid-cols-2 gap-2">
+                {[
+                  { id: 'hud_banner', name: 'HUD Banner Pro', desc: 'Faixa inferior escura com destaque neon' },
+                  { id: 'corner_badge', name: 'Badge Flutuante', desc: 'Cartão de canto elegante e compacto' },
+                  { id: 'subtle_bottom', name: 'Legenda Nítida', desc: 'Texto limpo com sombra suave' },
+                  { id: 'full_watermark', name: 'Marca d\'Água Completa', desc: 'Cabeçalho oficial com metadados' }
+                ].map(m => (
+                  <button
+                    key={m.id}
+                    type="button"
+                    onClick={() => updateStampConfig({ style: m.id as any })}
+                    className={`p-3 rounded-2xl border text-left transition-all ${
+                      stampConfig.style === m.id
+                        ? 'bg-emerald-500/15 border-emerald-500 text-white font-bold ring-2 ring-emerald-500/30'
+                        : 'bg-slate-950/60 border-slate-800 text-slate-400 hover:border-slate-700'
+                    }`}
+                  >
+                    <div className="text-xs font-black text-emerald-400">{m.name}</div>
+                    <div className="text-[10px] text-slate-400 mt-0.5">{m.desc}</div>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* 2. POSICIONAMENTO NA FOTO */}
+            <div className="space-y-2">
+              <Label className="text-xs font-bold text-slate-200 uppercase tracking-wider block">
+                2. Posição do Carimbo
+              </Label>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                {[
+                  { id: 'bottom', label: '⬇️ Inferior Central' },
+                  { id: 'bottom_left', label: '↙️ Inferior Esquerda' },
+                  { id: 'bottom_right', label: '↘️ Inferior Direita' },
+                  { id: 'top_left', label: '↖️ Superior Esquerda' }
+                ].map(p => (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() => updateStampConfig({ position: p.id as any })}
+                    className={`p-2.5 rounded-xl border text-center text-[11px] font-bold transition-all ${
+                      stampConfig.position === p.id
+                        ? 'bg-blue-500/20 border-blue-500 text-blue-300'
+                        : 'bg-slate-950/60 border-slate-800 text-slate-400 hover:border-slate-700'
+                    }`}
+                  >
+                    {p.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* 3. COR DE ACENTO E TAMANHO DA FONTE */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label className="text-xs font-bold text-slate-200 uppercase tracking-wider block">
+                  Cor do Acento Técnico
+                </Label>
+                <div className="flex items-center gap-2">
+                  {[
+                    { color: '#10B981', label: 'Verde' },
+                    { color: '#F59E0B', label: 'Laranja' },
+                    { color: '#38BDF8', label: 'Azul' },
+                    { color: '#D946EF', label: 'Roxo' },
+                    { color: '#E11D48', label: 'Vermelho' },
+                    { color: '#FFFFFF', label: 'Branco' }
+                  ].map(c => (
+                    <button
+                      key={c.color}
+                      type="button"
+                      onClick={() => updateStampConfig({ themeColor: c.color })}
+                      style={{ backgroundColor: c.color }}
+                      className={`w-7 h-7 rounded-full border-2 transition-transform ${
+                        stampConfig.themeColor === c.color ? 'scale-110 border-white ring-2 ring-emerald-400' : 'border-slate-800 opacity-80'
+                      }`}
+                      title={c.label}
+                    />
+                  ))}
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-xs font-bold text-slate-200 uppercase tracking-wider block">
+                  Tamanho do Texto
+                </Label>
+                <div className="flex gap-1.5">
+                  {[
+                    { id: 'sm', label: 'Pequeno' },
+                    { id: 'md', label: 'Médio' },
+                    { id: 'lg', label: 'Grande' }
+                  ].map(s => (
+                    <button
+                      key={s.id}
+                      type="button"
+                      onClick={() => updateStampConfig({ fontSize: s.id as any })}
+                      className={`flex-1 py-1.5 rounded-xl text-xs font-bold border ${
+                        stampConfig.fontSize === s.id
+                          ? 'bg-emerald-500/20 border-emerald-500 text-emerald-300'
+                          : 'bg-slate-950 border-slate-800 text-slate-400'
+                      }`}
+                    >
+                      {s.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* 4. OPACIDADE DO FUNDO DO CARIMBO */}
+            <div className="space-y-2">
+              <div className="flex justify-between items-center text-xs font-bold text-slate-200">
+                <span>Opacidade do Fundo ({Math.round((stampConfig.bgOpacity ?? 0.85) * 100)}%)</span>
+              </div>
+              <div className="flex gap-2">
+                {[
+                  { val: 0, label: 'Transparente (0%)' },
+                  { val: 0.5, label: 'Sutil (50%)' },
+                  { val: 0.85, label: 'Padrão (85%)' },
+                  { val: 1.0, label: 'Opaco (100%)' }
+                ].map(o => (
+                  <button
+                    key={o.val}
+                    type="button"
+                    onClick={() => updateStampConfig({ bgOpacity: o.val })}
+                    className={`flex-1 py-1.5 rounded-xl text-[10px] font-bold border ${
+                      stampConfig.bgOpacity === o.val
+                        ? 'bg-amber-500/20 border-amber-500 text-amber-300'
+                        : 'bg-slate-950 border-slate-800 text-slate-400'
+                    }`}
+                  >
+                    {o.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* 5. SELEÇÃO DE CAMPOS VISÍVEIS */}
+            <div className="space-y-2">
+              <Label className="text-xs font-bold text-slate-200 uppercase tracking-wider block">
+                Campos a Gravar na Foto
+              </Label>
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <button
+                  type="button"
+                  onClick={() => updateStampConfig({ showWorkName: !stampConfig.showWorkName })}
+                  className={`p-2.5 rounded-xl border flex items-center justify-between font-bold transition-colors ${
+                    stampConfig.showWorkName ? 'bg-slate-800 border-emerald-500/50 text-white' : 'bg-slate-950 border-slate-800 text-slate-500'
+                  }`}
+                >
+                  <span>Obra / Contrato</span>
+                  {stampConfig.showWorkName ? <CheckSquare className="w-4 h-4 text-emerald-400" /> : <Square className="w-4 h-4" />}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => updateStampConfig({ showStation: !stampConfig.showStation })}
+                  className={`p-2.5 rounded-xl border flex items-center justify-between font-bold transition-colors ${
+                    stampConfig.showStation ? 'bg-slate-800 border-emerald-500/50 text-white' : 'bg-slate-950 border-slate-800 text-slate-500'
+                  }`}
+                >
+                  <span>Estaca de Projeto</span>
+                  {stampConfig.showStation ? <CheckSquare className="w-4 h-4 text-emerald-400" /> : <Square className="w-4 h-4" />}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => updateStampConfig({ showDateTime: !stampConfig.showDateTime })}
+                  className={`p-2.5 rounded-xl border flex items-center justify-between font-bold transition-colors ${
+                    stampConfig.showDateTime ? 'bg-slate-800 border-emerald-500/50 text-white' : 'bg-slate-950 border-slate-800 text-slate-500'
+                  }`}
+                >
+                  <span>Data e Hora</span>
+                  {stampConfig.showDateTime ? <CheckSquare className="w-4 h-4 text-emerald-400" /> : <Square className="w-4 h-4" />}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => updateStampConfig({ showCoordinates: !stampConfig.showCoordinates })}
+                  className={`p-2.5 rounded-xl border flex items-center justify-between font-bold transition-colors ${
+                    stampConfig.showCoordinates ? 'bg-slate-800 border-emerald-500/50 text-white' : 'bg-slate-950 border-slate-800 text-slate-500'
+                  }`}
+                >
+                  <span>Coordenadas GPS</span>
+                  {stampConfig.showCoordinates ? <CheckSquare className="w-4 h-4 text-emerald-400" /> : <Square className="w-4 h-4" />}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => updateStampConfig({ showDescription: !stampConfig.showDescription })}
+                  className={`p-2.5 rounded-xl border flex items-center justify-between font-bold transition-colors ${
+                    stampConfig.showDescription ? 'bg-slate-800 border-emerald-500/50 text-white' : 'bg-slate-950 border-slate-800 text-slate-500'
+                  }`}
+                >
+                  <span>Observações</span>
+                  {stampConfig.showDescription ? <CheckSquare className="w-4 h-4 text-emerald-400" /> : <Square className="w-4 h-4" />}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => updateStampConfig({ showLogoBadge: !stampConfig.showLogoBadge })}
+                  className={`p-2.5 rounded-xl border flex items-center justify-between font-bold transition-colors ${
+                    stampConfig.showLogoBadge ? 'bg-slate-800 border-emerald-500/50 text-white' : 'bg-slate-950 border-slate-800 text-slate-500'
+                  }`}
+                >
+                  <span>Badge Cabeçalho</span>
+                  {stampConfig.showLogoBadge ? <CheckSquare className="w-4 h-4 text-emerald-400" /> : <Square className="w-4 h-4" />}
+                </button>
+              </div>
+            </div>
+
+            {/* 6. TÍTULO PERSONALIZADO DO CABEÇALHO */}
+            <div className="space-y-1.5">
+              <Label className="text-xs font-bold text-slate-300">
+                Título Personalizado do Cabeçalho
+              </Label>
+              <Input
+                value={stampConfig.customHeaderTitle}
+                onChange={e => updateStampConfig({ customHeaderTitle: e.target.value })}
+                placeholder="Ex: SYNERA CAM • REGISTRO DE CAMPO"
+                className="bg-slate-950 border-slate-800 text-xs text-white rounded-xl h-10 font-bold"
+              />
+            </div>
+
+            {/* 7. SIMULADOR DE PRÉ-VISUALIZAÇÃO AO VIVO */}
+            <div className="space-y-2 pt-2 border-t border-slate-800">
+              <Label className="text-xs font-bold text-emerald-400 uppercase tracking-wider block">
+                Pré-Visualização do Carimbo em Tempo Real
+              </Label>
+              <div className="relative w-full h-44 rounded-2xl bg-slate-950 overflow-hidden border border-slate-800 flex items-center justify-center">
+                <img
+                  src="https://images.unsplash.com/photo-1541888946425-d0fbb186a5b7?auto=format&fit=crop&w=800&q=80"
+                  alt="Simulação de Campo"
+                  className="w-full h-full object-cover opacity-80"
+                />
+
+                {/* SIMULAÇÃO DO CARIMBO CONFORME STAMPCONFIG */}
+                <div
+                  className={`absolute p-2.5 rounded-2xl border backdrop-blur text-left transition-all max-w-[90%] ${
+                    stampConfig.position === 'top_left' ? 'top-2 left-2' :
+                    stampConfig.position === 'bottom_left' ? 'bottom-2 left-2' :
+                    stampConfig.position === 'bottom_right' ? 'bottom-2 right-2' :
+                    'bottom-2 left-2 right-2'
+                  }`}
+                  style={{
+                    backgroundColor: `rgba(2, 6, 23, ${stampConfig.bgOpacity ?? 0.85})`,
+                    borderColor: `${stampConfig.themeColor || '#10B981'}50`,
+                    boxShadow: '0 10px 25px -5px rgba(0,0,0,0.5)'
+                  }}
+                >
+                  <div
+                    className="absolute left-0 top-0 bottom-0 w-1 rounded-l-2xl"
+                    style={{ backgroundColor: stampConfig.themeColor || '#10B981' }}
+                  />
+                  {stampConfig.showLogoBadge && (
+                    <div className="text-[10px] font-black pb-1 mb-1 border-b border-white/10" style={{ color: stampConfig.themeColor || '#10B981' }}>
+                      📷 {stampConfig.customHeaderTitle || 'SYNERA CAM • REGISTRO DE CAMPO'}
+                    </div>
+                  )}
+                  <div className="space-y-0.5 text-[9px] font-bold text-white pl-1">
+                    {stampConfig.showWorkName && <div>OBRA: Obra de Teste Simulada</div>}
+                    {(stampConfig.showStation || stampConfig.showDateTime) && (
+                      <div className="text-amber-400">
+                        {stampConfig.showStation && 'ESTACA: 120+15,00'}
+                        {stampConfig.showStation && stampConfig.showDateTime && '   |   '}
+                        {stampConfig.showDateTime && `DATA: ${new Date().toLocaleDateString('pt-BR')}`}
+                      </div>
+                    )}
+                    {stampConfig.showCoordinates && <div className="text-sky-400">GPS: -23.5505, -46.6333</div>}
+                    {stampConfig.showDescription && <div className="text-slate-300 italic">OBS: Inspeção de concretagem</div>}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="pt-2 flex gap-2">
+              <Button
+                type="button"
+                onClick={() => updateStampConfig(DEFAULT_STAMP_CONFIG)}
+                variant="outline"
+                className="flex-1 h-11 rounded-2xl border-slate-700 text-slate-300 text-xs font-bold"
+              >
+                Restaurar Padrão
+              </Button>
+              <Button
+                type="button"
+                onClick={() => setShowStampSettingsModal(false)}
+                className="flex-1 h-11 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs uppercase"
+              >
+                Concluir e Salvar
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

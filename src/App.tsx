@@ -501,6 +501,10 @@ export default function App() {
     setFieldReports(prev => prev.map(r => r.id === report.id ? report : r));
   };
 
+  const handleDeleteFieldReport = (reportId: string) => {
+    setFieldReports(prev => prev.filter(r => r.id !== reportId));
+  };
+
   const handleApproveFieldReport = (reportId: string) => {
     const report = fieldReports.find(r => r.id === reportId);
     if (!report) return;
@@ -4557,6 +4561,7 @@ export default function App() {
           fieldReports={fieldReports}
           onSaveFieldReport={handleSaveFieldReport}
           onUpdateFieldReport={handleUpdateFieldReport}
+          onDeleteFieldReport={handleDeleteFieldReport}
           selectedContractId={selectedContractId}
           onUpdateContractId={setSelectedContractId}
           onLogout={handleLogout}
@@ -5539,6 +5544,7 @@ export default function App() {
                   fieldReports={fieldReports}
                   onSaveFieldReport={handleSaveFieldReport}
                   onUpdateFieldReport={handleUpdateFieldReport}
+                  onDeleteFieldReport={handleDeleteFieldReport}
                   selectedContractId={selectedContractId}
                   onUpdateContractId={setSelectedContractId}
                 />
