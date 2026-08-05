@@ -641,61 +641,91 @@ export function SyneraMobileView({
   }, [isCameraOpen, cameraQuality, facingMode]);
 
   // Função para comprimir e redimensionar fotos brutas de câmeras de celular (evita estouro de memória e tela branca)
-  const compressAndResizeImage = (file: File | Blob, maxDimension = 1920, quality = 0.85): Promise<string> => {
+  const compressAndResizeImage = (fileOrUrl: File | Blob | string, maxDimension = 1280, quality = 0.80): Promise<string> => {
     return new Promise((resolve) => {
-      const reader = new FileReader();
-      reader.onload = (evt) => {
-        const img = new Image();
-        img.onload = () => {
-          let width = img.width;
-          let height = img.height;
-          if (width > maxDimension || height > maxDimension) {
-            if (width > height) {
-              height = Math.round(height * (maxDimension / width));
-              width = maxDimension;
-            } else {
-              width = Math.round(width * (maxDimension / height));
-              height = maxDimension;
-            }
-          }
-          const canvas = document.createElement('canvas');
-          canvas.width = width || 1280;
-          canvas.height = height || 720;
-          const ctx = canvas.getContext('2d');
-          if (ctx) {
-            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-            resolve(canvas.toDataURL('image/jpeg', quality));
+      let objectUrlToRevoke: string | null = null;
+      let src = '';
+
+      if (typeof fileOrUrl === 'string') {
+        src = fileOrUrl;
+      } else {
+        objectUrlToRevoke = URL.createObjectURL(fileOrUrl);
+        src = objectUrlToRevoke;
+      }
+
+      const img = new Image();
+      img.onload = () => {
+        let width = img.width;
+        let height = img.height;
+        if (width > maxDimension || height > maxDimension) {
+          if (width > height) {
+            height = Math.round(height * (maxDimension / width));
+            width = maxDimension;
           } else {
-            resolve((evt.target?.result as string) || '');
+            width = Math.round(width * (maxDimension / height));
+            height = maxDimension;
           }
-        };
-        img.onerror = () => resolve((evt.target?.result as string) || '');
-        img.src = (evt.target?.result as string) || '';
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width || 1280;
+        canvas.height = height || 720;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          const compressed = canvas.toDataURL('image/jpeg', quality);
+          if (objectUrlToRevoke) URL.revokeObjectURL(objectUrlToRevoke);
+          resolve(compressed);
+        } else {
+          if (objectUrlToRevoke) URL.revokeObjectURL(objectUrlToRevoke);
+          resolve(typeof fileOrUrl === 'string' ? fileOrUrl : '');
+        }
       };
-      reader.onerror = () => resolve('');
-      reader.readAsDataURL(file);
+      img.onerror = () => {
+        if (objectUrlToRevoke) URL.revokeObjectURL(objectUrlToRevoke);
+        resolve(typeof fileOrUrl === 'string' ? fileOrUrl : '');
+      };
+      img.src = src;
     });
   };
 
-  const handleTakePhoto = () => {
+  const handleTakePhoto = async () => {
     if (capturedPhotoUrl) return;
 
-    if (videoRef.current && videoRef.current.videoWidth > 0 && cameraStream) {
-      const video = videoRef.current;
-      const canvas = document.createElement('canvas');
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-      const ctx = canvas.getContext('2d');
-      if (ctx) {
-        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-        const dataUrl = canvas.toDataURL('image/jpeg', 0.88);
-        setCapturedPhotoUrl(dataUrl);
+    if (videoRef.current && videoRef.current.readyState >= 2) {
+      try {
+        const video = videoRef.current;
+        const origW = video.videoWidth || 1280;
+        const origH = video.videoHeight || 720;
+        const maxDim = 1280;
+        let w = origW;
+        let h = origH;
+        if (w > maxDim || h > maxDim) {
+          if (w > h) {
+            h = Math.round(h * (maxDim / w));
+            w = maxDim;
+          } else {
+            w = Math.round(w * (maxDim / h));
+            h = maxDim;
+          }
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(video, 0, 0, w, h);
+          const dataUrl = canvas.toDataURL('image/jpeg', 0.80);
+          setCapturedPhotoUrl(dataUrl);
+        } else {
+          fileInputRef.current?.click();
+        }
+      } catch (err) {
+        console.error('Erro ao capturar foto da transmissão:', err);
+        fileInputRef.current?.click();
       }
     } else {
-      // Disparo automático via câmera nativa caso a transmissão ao vivo não esteja disponível
-      if (fileInputRef.current) {
-        fileInputRef.current.click();
-      }
+      // Disparo via câmera nativa do celular
+      fileInputRef.current?.click();
     }
   };
 
@@ -703,7 +733,7 @@ export function SyneraMobileView({
     const file = e.target.files?.[0];
     if (file) {
       try {
-        const resized = await compressAndResizeImage(file, 1920, 0.85);
+        const resized = await compressAndResizeImage(file, 1280, 0.80);
         if (resized) {
           setCapturedPhotoUrl(resized);
         }
@@ -711,6 +741,34 @@ export function SyneraMobileView({
         console.error('Erro ao processar foto da câmera nativa:', err);
       } finally {
         if (e.target) e.target.value = '';
+      }
+    }
+  };
+
+  const handleDownloadPhoto = (dataUrl: string) => {
+    try {
+      const arr = dataUrl.split(',');
+      const mime = arr[0].match(/:(.*?);/)?.[1] || 'image/jpeg';
+      const bstr = atob(arr[1]);
+      let n = bstr.length;
+      const u8arr = new Uint8Array(n);
+      while (n--) {
+        u8arr[n] = bstr.charCodeAt(n);
+      }
+      const blob = new Blob([u8arr], { type: mime });
+      const blobUrl = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.download = `synera_cam_${Date.now()}.jpg`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
+    } catch (err) {
+      console.error('Erro ao realizar download:', err);
+      const w = window.open('');
+      if (w) {
+        w.document.write(`<img src="${dataUrl}" style="max-width:100%"/>`);
       }
     }
   };
@@ -732,8 +790,7 @@ export function SyneraMobileView({
         img.onerror = reject;
       });
       
-      
-      const MAX_DIMENSION = 2048;
+      const MAX_DIMENSION = 1280;
       let targetW = img.width;
       let targetH = img.height;
       if (targetW > MAX_DIMENSION || targetH > MAX_DIMENSION) {
@@ -752,11 +809,11 @@ export function SyneraMobileView({
       if (ctx) {
         ctx.drawImage(img, 0, 0, targetW, targetH);
         
-        const fontSize = Math.max(16, Math.floor(canvas.height * 0.03));
+        const fontSize = Math.max(16, Math.floor(canvas.height * 0.035));
         const padding = fontSize;
         const boxHeight = fontSize * 7.5;
         
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.65)';
         ctx.fillRect(0, canvas.height - boxHeight, canvas.width, boxHeight);
         
         ctx.fillStyle = 'white';
@@ -773,7 +830,7 @@ export function SyneraMobileView({
         y += fontSize * 1.5;
         ctx.fillText(`Obs: ${descText}`, padding, y);
         
-        finalPhotoUrl = canvas.toDataURL('image/jpeg', 0.88);
+        finalPhotoUrl = canvas.toDataURL('image/jpeg', 0.80);
       }
     } catch (err) {
       console.error('Erro ao adicionar texto na foto:', err);
@@ -3803,13 +3860,7 @@ export function SyneraMobileView({
               ) : cameraStream && !cameraError ? (
                 <>
                   <video
-                    ref={(el) => {
-                      videoRef.current = el;
-                      if (el && cameraStream && el.srcObject !== cameraStream) {
-                        el.srcObject = cameraStream;
-                        el.play().catch(() => {});
-                      }
-                    }}
+                    ref={videoRef}
                     autoPlay
                     playsInline
                     muted
@@ -3951,37 +4002,21 @@ export function SyneraMobileView({
                       <Check className="w-4 h-4 stroke-[3]" />
                       Salvar
                     </Button>
-                    <a 
-                      href={capturedPhotoUrl} 
-                      download={`synera_cam_${Date.now()}.jpg`}
+                    <button 
+                      onClick={() => handleDownloadPhoto(capturedPhotoUrl)}
+                      title="Salvar foto no dispositivo / galeria"
                       className="w-12 h-12 rounded-2xl bg-slate-800 hover:bg-slate-700 flex items-center justify-center border border-slate-700 text-white shrink-0"
                     >
                       <Download className="w-5 h-5 text-blue-400" />
-                    </a>
+                    </button>
 
                     <button 
-                      onClick={async () => {
-                        if (navigator.share) {
-                          try {
-                            const res = await fetch(capturedPhotoUrl);
-                            const blob = await res.blob();
-                            const file = new File([blob], 'synera_cam_foto.jpg', { type: blob.type });
-                            await navigator.share({
-                              title: 'Foto - Synera Cam',
-                              text: photoDescription || 'Foto capturada no Synera Cam',
-                              files: [file]
-                            });
-                          } catch (e) {
-                            console.error('Erro ao compartilhar', e);
-                          }
-                        } else {
-                          alert('Seu dispositivo não suporta o compartilhamento nativo.');
-                        }
-                      }}
+                      onClick={() => handleSharePhoto(capturedPhotoUrl, photoDescription)}
+                      title="Compartilhar foto"
                       className="w-12 h-12 rounded-2xl bg-slate-800 hover:bg-slate-700 flex items-center justify-center border border-slate-700 text-white shrink-0"
                     >
                       <Share2 className="w-5 h-5 text-emerald-400" />
-                                                            </button>
+                    </button>
                   </div>
                 </div>
               ) : (
