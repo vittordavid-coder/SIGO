@@ -4654,16 +4654,23 @@ export default function App() {
         </nav>
 
         <div className="ml-auto flex items-center gap-3 shrink-0">
-          {/* Active contract indicator badge */}
+          {/* Active contract selection dropdown in top header menu */}
           {finalContracts.length > 0 && (
-            <div className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-blue-50/70 border border-blue-100 text-blue-700 text-xs font-bold">
-              <Briefcase className="w-3.5 h-3.5 text-blue-600" />
-              <span className="max-w-[140px] truncate">
-                {selectedContractId === null ? "Geral (Todas as Obras)" : (() => {
-                  const c = finalContracts.find(x => x.id === selectedContractId);
-                  return c ? `${c.workName || c.client || 'Sem Nome'}` : "Geral";
-                })()}
-              </span>
+            <div className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-50/90 border border-blue-200 text-blue-800 text-xs font-bold shadow-sm">
+              <Briefcase className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+              <select
+                value={selectedContractId === null ? '' : selectedContractId}
+                onChange={(e) => setSelectedContractId(e.target.value === '' ? null : e.target.value)}
+                className="bg-transparent text-blue-900 font-bold text-xs focus:outline-none cursor-pointer max-w-[180px] truncate"
+                title="Selecionar Obra / Contrato Ativo"
+              >
+                <option value="" className="bg-white text-gray-800 font-medium">Geral (Todas as Obras)</option>
+                {finalContracts.map(c => (
+                  <option key={c.id} value={c.id} className="bg-white text-gray-800 font-medium">
+                    {c.workName || c.client || `Contrato #${c.id}`}
+                  </option>
+                ))}
+              </select>
             </div>
           )}
 
@@ -4745,10 +4752,6 @@ export default function App() {
               <DropdownMenuItem onClick={() => setMainTab('help')} className="flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer hover:bg-gray-50 text-gray-700 font-medium">
                 <HelpCircle className="w-4 h-4 text-blue-500" />
                 <span className="text-sm font-medium">Ajuda</span>
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => window.open("/cam.html", "_blank")} className="flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer text-emerald-600 hover:bg-emerald-50">
-                <Camera className="w-4 h-4" />
-                <span className="text-sm font-bold">Synera Cam (PWA)</span>
               </DropdownMenuItem>
               <DropdownMenuSeparator className="bg-gray-100 my-1" />
               <DropdownMenuItem onClick={handleLogout} className="flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer hover:bg-red-50 text-red-600">
