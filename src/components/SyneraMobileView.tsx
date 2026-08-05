@@ -714,15 +714,27 @@ export function SyneraMobileView({
     return window.innerWidth > window.innerHeight;
   });
 
+  // Rotação automática da câmera baseada na orientação física do dispositivo
   useEffect(() => {
-    const handleOrientation = () => {
-      setIsLandscape(window.innerWidth > window.innerHeight);
+    const handleOrientationChange = () => {
+      const angle = window.screen?.orientation?.angle || (window as any).orientation || 0;
+      setIsLandscape(window.innerWidth > window.innerHeight || angle === 90 || angle === -90 || angle === 270);
+      
+      // Auto-rotacionar a câmera se estiver em paisagem e a resolução de vídeo for retrato
+      // Será validado no momento de capturar a foto se a resolução real precisa da rotação.
+      if (angle === 90 || angle === -90 || angle === 270) {
+        // Se a tela estiver em modo paisagem, podemos assumir que o usuário deitou o telefone.
+        // O preview de vídeo será ajustado via CSS se necessário.
+      }
     };
-    window.addEventListener('resize', handleOrientation);
-    window.addEventListener('orientationchange', handleOrientation);
+    
+    window.addEventListener('resize', handleOrientationChange);
+    window.addEventListener('orientationchange', handleOrientationChange);
+    handleOrientationChange();
+    
     return () => {
-      window.removeEventListener('resize', handleOrientation);
-      window.removeEventListener('orientationchange', handleOrientation);
+      window.removeEventListener('resize', handleOrientationChange);
+      window.removeEventListener('orientationchange', handleOrientationChange);
     };
   }, []);
 
@@ -1198,13 +1210,20 @@ export function SyneraMobileView({
           const rawDataUrl = cleanCanvas.toDataURL('image/jpeg', 0.90);
 
           if (rawDataUrl && rawDataUrl.length > 100) {
+            // Se o usuário está segurando o celular deitado (isLandscape) mas o vídeo gravou em retrato (w < h), 
+            // e não forçou rotação manual, assumimos auto-rotação de 90 graus.
+            let finalRotation = cameraRotation;
+            if (isLandscape && cleanCanvas.width < cleanCanvas.height && cameraRotation === 0) {
+               finalRotation = 90;
+            }
+
             const stampedUrl = await stampPhotoWithMetadata(rawDataUrl, {
               contractName: activeContract.name || activeContract.workName || 'Obra Principal',
               station: stationText,
               description: descText,
               locationText: locText,
               dateText: new Date().toLocaleString('pt-BR'),
-              rotationDegrees: cameraRotation,
+              rotationDegrees: finalRotation,
               isMirrored: false,
               stampConfig: stampConfig
             });

@@ -120,6 +120,21 @@ export default function App() {
     }
   };
 
+  const isPWA = typeof window !== 'undefined' && (window.matchMedia('(display-mode: standalone)').matches || Boolean((navigator as any).standalone));
+  const isSyneraCamUrl = typeof window !== 'undefined' && window.location.pathname.includes("cam.html");
+
+  // Fallback offline user for Synera Cam to bypass login when offline/standalone
+  const effectiveUser = currentUser || ((isPWA && isSyneraCamUrl) ? {
+    id: 'offline-cam-user',
+    name: 'Fotógrafo Offline',
+    username: 'offline_cam',
+    role: 'apontador',
+    companyId: 'offline-company',
+    userGroup: 'mobile',
+    allowedContractIds: [],
+    mobileSectors: ['camera', 'galeria']
+  } as User : null);
+
   // Connection monitoring (Offline notification without destructive auto-logout)
   React.useEffect(() => {
     const handleOffline = () => {
@@ -156,6 +171,9 @@ export default function App() {
 
   const [mainTab, setMainTab] = useState<'home' | 'quotations' | 'measurements' | 'rh' | 'control' | 'purchases' | 'project_admin' | 'settings' | 'admin' | 'profile' | 'gerencia' | 'financeiro' | 'almoxarife' | 'help' | 'mobile'>(() => {
     try {
+      if (typeof window !== 'undefined' && (window.matchMedia('(display-mode: standalone)').matches || Boolean((navigator as any).standalone))) {
+        return 'mobile';
+      }
       return (window.sessionStorage.getItem('sigo_main_tab') as any) || 'home';
     } catch {
       return 'home';
@@ -217,7 +235,7 @@ export default function App() {
   }, [mainTab]);
 
   useEffect(() => {
-    if (currentUser && (currentUser.userGroup === 'mobile' || currentUser.role === 'apontador' || isMobileDevice)) {
+    if (currentUser && (effectiveUser.userGroup === 'mobile' || effectiveUser.role === 'apontador' || isMobileDevice)) {
       if (mainTab !== 'mobile') {
         setMainTab('mobile');
       }
@@ -769,7 +787,7 @@ export default function App() {
     if (!currentUser) return [];
 
     // Exclusive access for Synera Mobile users or when accessing via mobile device
-    if (currentUser.userGroup === 'mobile' || currentUser.role === 'apontador' || isMobileDevice) {
+    if (effectiveUser.userGroup === 'mobile' || effectiveUser.role === 'apontador' || isMobileDevice) {
       return [
         { 
           id: 'mobile', 
@@ -786,73 +804,73 @@ export default function App() {
         id: 'mobile', 
         label: 'Synera Mobile', 
         icon: <Smartphone className="w-4 h-4 text-emerald-500" />, 
-        visible: currentUser.role === 'master' 
+        visible: effectiveUser.role === 'master' 
       },
       { 
         id: 'quotations', 
         label: 'Cotações', 
         icon: <Briefcase className="w-4 h-4" />, 
-        visible: currentUser.role === 'master' || currentUser.role === 'admin' || currentUser.allowedModules?.includes('quotations') 
+        visible: effectiveUser.role === 'master' || effectiveUser.role === 'admin' || currentUser.allowedModules?.includes('quotations') 
       },
       { 
         id: 'measurements', 
         label: 'Sala Técnica', 
         icon: <ClipboardList className="w-4 h-4" />, 
-        visible: currentUser.role === 'master' || currentUser.role === 'admin' || currentUser.allowedModules?.includes('measurements') 
+        visible: effectiveUser.role === 'master' || effectiveUser.role === 'admin' || currentUser.allowedModules?.includes('measurements') 
       },
       { 
         id: 'rh', 
         label: 'RH', 
         icon: <Users className="w-4 h-4" />, 
-        visible: currentUser.role === 'master' || currentUser.role === 'admin' || currentUser.allowedModules?.includes('rh') 
+        visible: effectiveUser.role === 'master' || effectiveUser.role === 'admin' || currentUser.allowedModules?.includes('rh') 
       },
       { 
         id: 'control', 
         label: 'Controlador', 
         icon: <Activity className="w-4 h-4" />, 
-        visible: currentUser.role === 'master' || currentUser.role === 'admin' || currentUser.allowedModules?.includes('control') 
+        visible: effectiveUser.role === 'master' || effectiveUser.role === 'admin' || currentUser.allowedModules?.includes('control') 
       },
       { 
         id: 'purchases', 
         label: 'Compras', 
         icon: <ShoppingCart className="w-4 h-4" />, 
-        visible: currentUser.role === 'master' || currentUser.role === 'admin' || currentUser.allowedModules?.includes('purchases') 
+        visible: effectiveUser.role === 'master' || effectiveUser.role === 'admin' || currentUser.allowedModules?.includes('purchases') 
       },
       { 
         id: 'financeiro', 
         label: 'Financeiro', 
         icon: <Calculator className="w-4 h-4" />, 
-        visible: currentUser.role === 'master' || currentUser.role === 'admin' || currentUser.allowedModules?.includes('financeiro') 
+        visible: effectiveUser.role === 'master' || effectiveUser.role === 'admin' || currentUser.allowedModules?.includes('financeiro') 
       },
       { 
         id: 'project_admin', 
         label: 'Administrador da Obra', 
         icon: <HardHat className="w-4 h-4" />, 
-        visible: currentUser.role === 'master' || currentUser.role === 'admin' || currentUser.role === 'project_admin' 
+        visible: effectiveUser.role === 'master' || effectiveUser.role === 'admin' || effectiveUser.role === 'project_admin' 
       },
       { 
         id: 'almoxarife', 
         label: 'Almoxarife', 
         icon: <Layers className="w-4 h-4" />, 
-        visible: currentUser.role === 'master' || currentUser.role === 'admin' || currentUser.role === 'almoxarife' || currentUser.allowedModules?.includes('almoxarife') 
+        visible: effectiveUser.role === 'master' || effectiveUser.role === 'admin' || effectiveUser.role === 'almoxarife' || currentUser.allowedModules?.includes('almoxarife') 
       },
       { 
         id: 'gerencia', 
         label: 'Gerência', 
         icon: <Landmark className="w-4 h-4" />, 
-        visible: currentUser.role === 'master' || currentUser.role === 'admin' || currentUser.allowedModules?.includes('gerencia') 
+        visible: effectiveUser.role === 'master' || effectiveUser.role === 'admin' || currentUser.allowedModules?.includes('gerencia') 
       },
       { 
         id: 'settings', 
         label: 'Administrador do Sistema', 
         icon: <Settings className="w-4 h-4" />, 
-        visible: currentUser.role === 'master' || currentUser.role === 'admin' || currentUser.allowedModules?.includes('settings') 
+        visible: effectiveUser.role === 'master' || effectiveUser.role === 'admin' || currentUser.allowedModules?.includes('settings') 
       },
       { 
         id: 'admin', 
         label: 'Administrador Master', 
         icon: <ShieldCheck className="w-4 h-4" />, 
-        visible: currentUser.role === 'master' 
+        visible: effectiveUser.role === 'master' 
       },
     ];
 
@@ -4239,7 +4257,7 @@ export default function App() {
     equipmentMaintenance, equipmentMonthlyData, manpowerMonthlyData
   ]);
 
-  if (!isSupabaseSynced && getSupabaseConfig().enabled) {
+  if (!isSupabaseSynced && getSupabaseConfig().enabled && !(isPWA && isSyneraCamUrl)) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 bg-[radial-gradient(circle_at_top_right,_var(--tw-gradient-stops))] from-blue-50/50 via-white to-gray-50/50">
          <div className="flex flex-col items-center gap-6 p-10 bg-white/80 backdrop-blur-md rounded-[32px] border border-blue-100 shadow-2xl shadow-blue-200/40">
@@ -4269,7 +4287,7 @@ export default function App() {
     );
   }
 
-  if (!currentUser) {
+  if (!effectiveUser) {
     return (
       <div className="min-h-screen bg-gray-100 flex items-center justify-center p-4">
         <motion.div 
@@ -4542,7 +4560,7 @@ export default function App() {
     );
   }
 
-  if (currentUser && (window.location.pathname.includes("cam.html") || isMobileDevice || currentUser.userGroup === 'mobile' || currentUser.role === 'apontador')) {
+  if (effectiveUser && (window.location.pathname.includes("cam.html") || isMobileDevice || effectiveUser.userGroup === 'mobile' || effectiveUser.role === 'apontador')) {
     return (
       <div className="min-h-screen bg-slate-950 text-slate-100 font-sans">
         <SyneraMobileView
@@ -4553,7 +4571,7 @@ export default function App() {
           equipments={finalControllerEquipments}
           employees={employees}
           users={users}
-          currentUser={currentUser}
+          currentUser={effectiveUser}
           projectAlignments={projectAlignments}
           onUpdateServiceProduction={updateServiceProduction}
           onAddWorkMovement={addWorkMovement}
@@ -5011,7 +5029,7 @@ export default function App() {
                   purchaseOrders={finalPurchaseOrders}
                   purchaseRequests={finalPurchaseRequests}
                   equipmentTransfers={equipmentTransfers}
-                  currentUser={currentUser}
+                  currentUser={effectiveUser}
                   selectedContractId={selectedContractId}
                   onUpdateContractId={setSelectedContractId}
                   config={dashboardConfig}
@@ -5220,7 +5238,7 @@ export default function App() {
 
               {mainTab === 'rh' && (
                 <RHView 
-                  currentUser={currentUser}
+                  currentUser={effectiveUser}
                   employees={employees}
                   alojamentos={alojamentos || []}
                   onUpdateAlojamentos={updateAlojamentos}
@@ -5362,7 +5380,7 @@ export default function App() {
 
               {mainTab === 'control' && currentUser && (
                 <ControlView
-                  currentUser={currentUser}
+                  currentUser={effectiveUser}
                   equipments={finalControllerEquipments}
                   controllerTeams={finalControllerTeams}
                   teamAssignments={teamAssignments}
@@ -5414,7 +5432,7 @@ export default function App() {
                   selectedContractId={selectedContractId}
                   onUpdateContractId={(id) => setSelectedContractId(id)}
                   aportes={aportes}
-                  currentUser={currentUser}
+                  currentUser={effectiveUser}
                   technicalSchedules={finalTechnicalSchedules}
                   services={filteredServices}
                   resources={filteredResources}
@@ -5435,7 +5453,7 @@ export default function App() {
                   onUpdateContractId={(id) => setSelectedContractId(id)}
                   aportes={aportes}
                   setAportes={updateAportes}
-                  currentUser={currentUser}
+                  currentUser={effectiveUser}
                   purchaseOrders={finalPurchaseOrders}
                   setPurchaseOrders={updatePurchaseOrders}
                   onAddWorkMovement={addWorkMovement}
@@ -5461,7 +5479,7 @@ export default function App() {
                   defaultOrganization={defaultOrganization}
                   equipmentMaintenance={equipmentMaintenance}
                   onUpdateMaintenance={updateEquipmentMaintenance}
-                  currentUser={currentUser}
+                  currentUser={effectiveUser}
                   equipments={finalControllerEquipments}
                   onUpdateEquipments={updateTechnicalEquipments}
                   selectedContractId={selectedContractId}
@@ -5482,7 +5500,7 @@ export default function App() {
                   purchaseOrders={purchaseOrders}
                   setPurchaseOrders={updatePurchaseOrders}
                   services={filteredServices}
-                  currentUser={currentUser}
+                  currentUser={effectiveUser}
                   alojamentos={alojamentos || []}
                   warehouses={warehouses}
                   setWarehouses={setWarehouses}
@@ -5513,7 +5531,7 @@ export default function App() {
                   setWorkMovements={updateWorkMovements}
                   onAddWorkMovement={addWorkMovement}
                   contracts={contracts}
-                  currentUser={currentUser}
+                  currentUser={effectiveUser}
                 />
               )}
 
@@ -5527,7 +5545,7 @@ export default function App() {
                 />
               )}
 
-              {mainTab === 'mobile' && currentUser && (
+              {mainTab === 'mobile' && effectiveUser && (
                 <SyneraMobileView
           isCamOnly={window.location.pathname.includes("cam.html")}
                   contracts={finalContracts}
@@ -5536,7 +5554,7 @@ export default function App() {
                   equipments={finalControllerEquipments}
                   employees={employees}
                   users={users}
-                  currentUser={currentUser}
+                  currentUser={effectiveUser}
                   projectAlignments={projectAlignments}
                   onUpdateServiceProduction={updateServiceProduction}
                   onAddWorkMovement={addWorkMovement}
@@ -5551,13 +5569,13 @@ export default function App() {
               )}
 
               {mainTab === 'help' && currentUser && (
-                <HelpView currentUser={currentUser} />
+                <HelpView currentUser={effectiveUser} />
               )}
             </AnimatePresence>
           </div>
         </main>
       </div>
-      {currentUser && <Chat currentUser={currentUser} users={users} contracts={finalContracts} />}
+      {currentUser && <Chat currentUser={effectiveUser} users={users} contracts={finalContracts} />}
     </div>
   );
 }
