@@ -641,7 +641,7 @@ export function SyneraMobileView({
   }, [isCameraOpen, cameraQuality, facingMode]);
 
   // Função para comprimir e redimensionar fotos brutas de câmeras de celular (evita estouro de memória e tela branca)
-  const compressAndResizeImage = (fileOrUrl: File | Blob | string, maxDimension = 1280, quality = 0.80): Promise<string> => {
+  const compressAndResizeImage = (fileOrUrl: File | Blob | string, maxDimension = 1024, quality = 0.75): Promise<string> => {
     return new Promise((resolve) => {
       let objectUrlToRevoke: string | null = null;
       let src = '';
@@ -649,41 +649,59 @@ export function SyneraMobileView({
       if (typeof fileOrUrl === 'string') {
         src = fileOrUrl;
       } else {
-        objectUrlToRevoke = URL.createObjectURL(fileOrUrl);
-        src = objectUrlToRevoke;
+        try {
+          objectUrlToRevoke = URL.createObjectURL(fileOrUrl);
+          src = objectUrlToRevoke;
+        } catch {
+          resolve('');
+          return;
+        }
       }
+
+      const cleanup = () => {
+        if (objectUrlToRevoke) {
+          try { URL.revokeObjectURL(objectUrlToRevoke); } catch {}
+        }
+      };
 
       const img = new Image();
       img.onload = () => {
-        let width = img.width;
-        let height = img.height;
-        if (width > maxDimension || height > maxDimension) {
-          if (width > height) {
-            height = Math.round(height * (maxDimension / width));
-            width = maxDimension;
-          } else {
-            width = Math.round(width * (maxDimension / height));
-            height = maxDimension;
+        try {
+          let width = img.width || 800;
+          let height = img.height || 600;
+          if (width > maxDimension || height > maxDimension) {
+            if (width > height) {
+              height = Math.round(height * (maxDimension / width));
+              width = maxDimension;
+            } else {
+              width = Math.round(width * (maxDimension / height));
+              height = maxDimension;
+            }
           }
-        }
-        const canvas = document.createElement('canvas');
-        canvas.width = width || 1280;
-        canvas.height = height || 720;
-        const ctx = canvas.getContext('2d');
-        if (ctx) {
-          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-          const compressed = canvas.toDataURL('image/jpeg', quality);
-          if (objectUrlToRevoke) URL.revokeObjectURL(objectUrlToRevoke);
-          resolve(compressed);
-        } else {
-          if (objectUrlToRevoke) URL.revokeObjectURL(objectUrlToRevoke);
+          const canvas = document.createElement('canvas');
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+            ctx.drawImage(img, 0, 0, width, height);
+            const compressed = canvas.toDataURL('image/jpeg', quality);
+            cleanup();
+            resolve(compressed);
+          } else {
+            cleanup();
+            resolve(typeof fileOrUrl === 'string' ? fileOrUrl : '');
+          }
+        } catch (e) {
+          console.error('Erro na compressão de imagem:', e);
+          cleanup();
           resolve(typeof fileOrUrl === 'string' ? fileOrUrl : '');
         }
       };
       img.onerror = () => {
-        if (objectUrlToRevoke) URL.revokeObjectURL(objectUrlToRevoke);
+        cleanup();
         resolve(typeof fileOrUrl === 'string' ? fileOrUrl : '');
       };
+      
       img.src = src;
     });
   };
@@ -696,7 +714,7 @@ export function SyneraMobileView({
         const video = videoRef.current;
         const origW = video.videoWidth || 1280;
         const origH = video.videoHeight || 720;
-        const maxDim = 1280;
+        const maxDim = 1024;
         let w = origW;
         let h = origH;
         if (w > maxDim || h > maxDim) {
@@ -711,11 +729,15 @@ export function SyneraMobileView({
         const canvas = document.createElement('canvas');
         canvas.width = w;
         canvas.height = h;
-        const ctx = canvas.getContext('2d');
+        const ctx = canvas.getContext('2d', { willReadFrequently: true });
         if (ctx) {
           ctx.drawImage(video, 0, 0, w, h);
-          const dataUrl = canvas.toDataURL('image/jpeg', 0.80);
-          setCapturedPhotoUrl(dataUrl);
+          const dataUrl = canvas.toDataURL('image/jpeg', 0.75);
+          if (dataUrl && dataUrl.length > 100) {
+            setCapturedPhotoUrl(dataUrl);
+          } else {
+            fileInputRef.current?.click();
+          }
         } else {
           fileInputRef.current?.click();
         }
@@ -733,7 +755,7 @@ export function SyneraMobileView({
     const file = e.target.files?.[0];
     if (file) {
       try {
-        const resized = await compressAndResizeImage(file, 1280, 0.80);
+        const resized = await compressAndResizeImage(file, 1024, 0.75);
         if (resized) {
           setCapturedPhotoUrl(resized);
         }
@@ -784,53 +806,57 @@ export function SyneraMobileView({
     try {
       const canvas = document.createElement('canvas');
       const img = new Image();
-      img.src = capturedPhotoUrl;
-      await new Promise((resolve, reject) => { 
-        img.onload = resolve; 
-        img.onerror = reject;
-      });
       
-      const MAX_DIMENSION = 1280;
-      let targetW = img.width;
-      let targetH = img.height;
-      if (targetW > MAX_DIMENSION || targetH > MAX_DIMENSION) {
-        if (targetW > targetH) {
-          targetH = Math.round(targetH * (MAX_DIMENSION / targetW));
-          targetW = MAX_DIMENSION;
-        } else {
-          targetW = Math.round(targetW * (MAX_DIMENSION / targetH));
-          targetH = MAX_DIMENSION;
-        }
-      }
-      canvas.width = targetW;
-      canvas.height = targetH;
-      const ctx = canvas.getContext('2d');
+      const isLoaded = await new Promise<boolean>((resolve) => {
+        const timer = setTimeout(() => resolve(false), 3000);
+        img.onload = () => { clearTimeout(timer); resolve(true); };
+        img.onerror = () => { clearTimeout(timer); resolve(false); };
+        img.src = capturedPhotoUrl;
+      });
 
-      if (ctx) {
-        ctx.drawImage(img, 0, 0, targetW, targetH);
-        
-        const fontSize = Math.max(16, Math.floor(canvas.height * 0.035));
-        const padding = fontSize;
-        const boxHeight = fontSize * 7.5;
-        
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.65)';
-        ctx.fillRect(0, canvas.height - boxHeight, canvas.width, boxHeight);
-        
-        ctx.fillStyle = 'white';
-        ctx.font = `bold ${fontSize}px sans-serif`;
-        
-        let y = canvas.height - boxHeight + padding * 1.5;
-        const dateText = new Date().toLocaleString('pt-BR');
-        
-        ctx.fillText(`Obra: ${activeContract.name || activeContract.workName || 'Obra Principal'}`, padding, y);
-        y += fontSize * 1.5;
-        ctx.fillText(`Data: ${dateText}`, padding, y);
-        y += fontSize * 1.5;
-        ctx.fillText(`Estaca: ${stationText}`, padding, y);
-        y += fontSize * 1.5;
-        ctx.fillText(`Obs: ${descText}`, padding, y);
-        
-        finalPhotoUrl = canvas.toDataURL('image/jpeg', 0.80);
+      if (isLoaded && img.width > 0 && img.height > 0) {
+        const MAX_DIMENSION = 1024;
+        let targetW = img.width;
+        let targetH = img.height;
+        if (targetW > MAX_DIMENSION || targetH > MAX_DIMENSION) {
+          if (targetW > targetH) {
+            targetH = Math.round(targetH * (MAX_DIMENSION / targetW));
+            targetW = MAX_DIMENSION;
+          } else {
+            targetW = Math.round(targetW * (MAX_DIMENSION / targetH));
+            targetH = MAX_DIMENSION;
+          }
+        }
+        canvas.width = targetW;
+        canvas.height = targetH;
+        const ctx = canvas.getContext('2d');
+
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, targetW, targetH);
+          
+          const fontSize = Math.max(14, Math.floor(canvas.height * 0.035));
+          const padding = fontSize;
+          const boxHeight = fontSize * 7.5;
+          
+          ctx.fillStyle = 'rgba(0, 0, 0, 0.65)';
+          ctx.fillRect(0, canvas.height - boxHeight, canvas.width, boxHeight);
+          
+          ctx.fillStyle = 'white';
+          ctx.font = `bold ${fontSize}px sans-serif`;
+          
+          let y = canvas.height - boxHeight + padding * 1.5;
+          const dateText = new Date().toLocaleString('pt-BR');
+          
+          ctx.fillText(`Obra: ${activeContract.name || activeContract.workName || 'Obra Principal'}`, padding, y);
+          y += fontSize * 1.4;
+          ctx.fillText(`Data: ${dateText}`, padding, y);
+          y += fontSize * 1.4;
+          ctx.fillText(`Estaca: ${stationText}`, padding, y);
+          y += fontSize * 1.4;
+          ctx.fillText(`Obs: ${descText}`, padding, y);
+          
+          finalPhotoUrl = canvas.toDataURL('image/jpeg', 0.75);
+        }
       }
     } catch (err) {
       console.error('Erro ao adicionar texto na foto:', err);
@@ -844,26 +870,34 @@ export function SyneraMobileView({
       location: stationText,
       description: descText,
       photoUrl: finalPhotoUrl,
-      createdByName: currentUser.name || currentUser.username,
+      createdByName: currentUser?.name || currentUser?.username || 'Apontador',
       synced: false,
       timestamp: new Date().toISOString()
     };
 
-    if (onSaveFieldReport) {
-      onSaveFieldReport(newReport);
+    try {
+      if (onSaveFieldReport) {
+        onSaveFieldReport(newReport);
+      }
+    } catch (e) {
+      console.warn('Erro ao disparar onSaveFieldReport:', e);
     }
 
-    const queueItem: OfflinePendingItem = {
-      id: newReport.id,
-      type: 'production',
-      timestamp: newReport.timestamp,
-      contractId: activeContract.id,
-      contractName: activeContract.name || activeContract.workName || 'Obra Principal',
-      data: newReport,
-      synced: false
-    };
+    try {
+      const queueItem: OfflinePendingItem = {
+        id: newReport.id,
+        type: 'production',
+        timestamp: newReport.timestamp,
+        contractId: activeContract.id,
+        contractName: activeContract.name || activeContract.workName || 'Obra Principal',
+        data: newReport,
+        synced: false
+      };
 
-    setOfflineQueue(prev => [queueItem, ...prev]);
+      setOfflineQueue(prev => [queueItem, ...prev]);
+    } catch (e) {
+      console.warn('Erro ao salvar item na offlineQueue:', e);
+    }
 
     setCapturedPhotoUrl(null);
     setPhotoDescription('');
@@ -3846,6 +3880,16 @@ export function SyneraMobileView({
 
             {/* PREVIEW DO VÍDEO / FOTO CAPTURADA / CARD DE FALLBACK */}
             <div className="relative flex-1 bg-black flex items-center justify-center overflow-hidden">
+              {cameraStream && !cameraError && (
+                <video
+                  ref={videoRef}
+                  autoPlay
+                  playsInline
+                  muted
+                  className={capturedPhotoUrl ? 'hidden' : 'w-full h-full object-cover'}
+                />
+              )}
+
               {capturedPhotoUrl ? (
                 <div className="relative w-full h-full flex items-center justify-center bg-black">
                   <img src={capturedPhotoUrl} alt="Foto de Campo" className="w-full h-full object-contain" />
@@ -3859,13 +3903,6 @@ export function SyneraMobileView({
                 </div>
               ) : cameraStream && !cameraError ? (
                 <>
-                  <video
-                    ref={videoRef}
-                    autoPlay
-                    playsInline
-                    muted
-                    className="w-full h-full object-cover"
-                  />
                   {/* Grade de Alinhamento */}
                   {showGrid && (
                     <div className="absolute inset-0 pointer-events-none grid grid-cols-3 grid-rows-3 border border-white/10">
