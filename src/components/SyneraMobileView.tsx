@@ -1126,23 +1126,34 @@ export function SyneraMobileView({
     }
   }, [cameraStream, isCameraOpen]);
 
+  // Monitoramento contínuo de GPS para atualização da Estaca de Projeto mesmo antes de abrir a câmera
   useEffect(() => {
     let watchId: number | null = null;
-    if (isCameraOpen) {
-      if (navigator.geolocation) {
-        setIsLocating(true);
-        watchId = navigator.geolocation.watchPosition(
-          pos => {
-            setIsLocating(false);
-            updateNearestStation(pos.coords.latitude, pos.coords.longitude);
-          },
-          err => {
-            setIsLocating(false);
-            console.warn('GPS não disponível ou negado:', err);
-          },
-          { enableHighAccuracy: true, maximumAge: 0, timeout: 5000 }
-        );
+    if (typeof window !== 'undefined' && navigator.geolocation) {
+      setIsLocating(true);
+      fetchUserGps();
+      watchId = navigator.geolocation.watchPosition(
+        pos => {
+          setIsLocating(false);
+          setUserLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+          updateNearestStation(pos.coords.latitude, pos.coords.longitude);
+        },
+        err => {
+          setIsLocating(false);
+          console.warn('GPS não disponível ou negado:', err);
+        },
+        { enableHighAccuracy: true, maximumAge: 3000, timeout: 8000 }
+      );
+    }
+    return () => {
+      if (watchId !== null && typeof window !== 'undefined' && navigator.geolocation) {
+        navigator.geolocation.clearWatch(watchId);
       }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (isCameraOpen) {
       startCameraStream();
     } else {
       stopCameraStream();
@@ -1151,9 +1162,6 @@ export function SyneraMobileView({
     }
     return () => {
       stopCameraStream();
-      if (watchId !== null && navigator.geolocation) {
-        navigator.geolocation.clearWatch(watchId);
-      }
     };
   }, [isCameraOpen, cameraQuality, facingMode]);
 
@@ -2763,6 +2771,57 @@ export function SyneraMobileView({
         {/* ==================================================== */}
         {activeSector === null && (
           <motion.div initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} className="space-y-4">
+
+            {/* CARD DESTACADO DA ESTACA DE PROJETO ATUAL (SYNERA CAM - TELA INICIAL) */}
+            {isCamOnly && (
+              <div className="relative overflow-hidden bg-gradient-to-br from-slate-950 via-emerald-950/90 to-slate-950 border-2 border-emerald-500/80 rounded-3xl p-5 shadow-2xl space-y-3 ring-1 ring-emerald-500/30">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 rounded-2xl bg-emerald-500/20 border border-emerald-400/40 flex items-center justify-center shrink-0 shadow-inner">
+                      <MapPin className="w-7 h-7 text-emerald-400 animate-pulse" />
+                    </div>
+                    <div className="flex flex-col text-left">
+                      <span className="text-xs font-black uppercase tracking-wider text-emerald-400 flex items-center gap-1">
+                        <span>Estaca de Projeto Atual</span>
+                      </span>
+                      <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight mt-0.5">
+                        {nearestStationInfo
+                          ? nearestStationInfo.station
+                          : isLocating
+                          ? 'Calculando estaca...'
+                          : photoStation || 'Aguardando GPS...'}
+                      </h2>
+                      {nearestStationInfo && (
+                        <p className="text-xs font-bold text-emerald-300/90 mt-0.5">
+                          Distância do eixo: {nearestStationInfo.distanceMeters}m
+                        </p>
+                      )}
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={fetchUserGps}
+                    className="p-3 rounded-2xl bg-emerald-500/20 hover:bg-emerald-500/40 border border-emerald-500/40 text-emerald-300 transition-all active:scale-95 shrink-0 flex items-center gap-2 shadow-lg"
+                    title="Atualizar estaca via GPS"
+                  >
+                    <RefreshCw className={`w-5 h-5 ${isLocating ? 'animate-spin' : ''}`} />
+                    <span className="text-xs font-bold hidden sm:inline">Atualizar GPS</span>
+                  </button>
+                </div>
+
+                {/* BOTÃO PRINCIPAL DE DISPARO DA CÂMERA ACIMA DOS DEMAIS BOTÕES */}
+                <div className="pt-2">
+                  <Button
+                    onClick={() => setIsCameraOpen(true)}
+                    className="w-full h-14 bg-gradient-to-r from-emerald-500 via-teal-400 to-emerald-500 hover:from-emerald-400 hover:to-teal-300 text-slate-950 font-black text-sm uppercase tracking-wide rounded-2xl shadow-xl flex items-center justify-center gap-3 transition-all active:scale-[0.98]"
+                  >
+                    <Camera className="w-6 h-6 stroke-[2.5]" />
+                    <span>Abrir Câmera com Carimbo Técnico</span>
+                  </Button>
+                </div>
+              </div>
+            )}
 
             {/* HERO CARD DE INSTALAÇÃO DO PWA COM ÍCONE DO SISTEMA */}
             {!isPwaInstalled && (
