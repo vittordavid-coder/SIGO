@@ -561,7 +561,26 @@ export default function App() {
       const supabase = createSupabaseClient(config.url, config.key);
       if (supabase) {
         try {
-          const mapped = newVal.map(m => mapToSnake({ ...m, companyId: compId }));
+          const mapped = newVal.map(m => {
+            const row = mapToSnake({ ...m, companyId: compId });
+            const {
+              id, company_id, contract_id, contract_name, timestamp, sector, action,
+              description, responsible_user, reference_code, details
+            } = row;
+            return {
+              id: id || `wm-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+              company_id: company_id || compId || null,
+              contract_id: (contract_id && contract_id !== '') ? contract_id : null,
+              contract_name: contract_name || null,
+              timestamp: (timestamp && typeof timestamp === 'string' && timestamp.trim() !== '') ? timestamp : new Date().toISOString(),
+              sector: sector || 'CONTROLADOR',
+              action: action || 'REGISTRO',
+              description: description || '',
+              responsible_user: responsible_user || 'Sistema',
+              reference_code: reference_code || null,
+              details: details && typeof details === 'object' ? details : {}
+            };
+          });
           await supabase.from('work_movements').upsert(mapped);
           console.log('[Supabase] Work movements persisted immediately');
         } catch (err) {
@@ -585,8 +604,25 @@ export default function App() {
       const supabase = createSupabaseClient(config.url, config.key);
       if (supabase) {
         try {
-          const mapped = mapToSnake({ ...newMovement, companyId: compId });
-          await supabase.from('work_movements').upsert(mapped);
+          const row = mapToSnake({ ...newMovement, companyId: compId });
+          const {
+            id, company_id, contract_id, contract_name, timestamp, sector, action,
+            description, responsible_user, reference_code, details
+          } = row;
+          const sanitized = {
+            id: id || `wm-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+            company_id: company_id || compId || null,
+            contract_id: (contract_id && contract_id !== '') ? contract_id : null,
+            contract_name: contract_name || null,
+            timestamp: (timestamp && typeof timestamp === 'string' && timestamp.trim() !== '') ? timestamp : new Date().toISOString(),
+            sector: sector || 'CONTROLADOR',
+            action: action || 'REGISTRO',
+            description: description || '',
+            responsible_user: responsible_user || 'Sistema',
+            reference_code: reference_code || null,
+            details: details && typeof details === 'object' ? details : {}
+          };
+          await supabase.from('work_movements').upsert(sanitized);
           console.log('[Supabase] Work movement persisted immediately');
         } catch (err) {
           console.warn('[Sync] Work movement persist failed', err);
@@ -2100,6 +2136,55 @@ export default function App() {
                      if (!rest.payment_type) rest.payment_type = 'month';
                      return rest;
                    });
+                } else if (activeTable === 'service_productions' || targetTable === 'service_productions') {
+                   chunkToUpsert = chunk.map((prodRow: any) => {
+                     const {
+                       id, company_id, contract_id, service_id, month, num_equip, work_days,
+                       hours_day, unit_hour, efficiency, rain_percent, start_date, end_date,
+                       prev_month_accumulated, daily_data, created_at, updated_at
+                     } = prodRow;
+                     return {
+                       id: id || `sp-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+                       company_id: company_id || compId || null,
+                       contract_id: (contract_id && contract_id !== '') ? contract_id : null,
+                       service_id: (service_id && service_id !== '') ? service_id : null,
+                       month: month || '',
+                       num_equip: Number(num_equip) || 0,
+                       work_days: Number(work_days) || 0,
+                       hours_day: Number(hours_day) || 0,
+                       unit_hour: Number(unit_hour) || 0,
+                       efficiency: Number(efficiency) || 0,
+                       rain_percent: Number(rain_percent) || 0,
+                       start_date: (start_date && typeof start_date === 'string' && start_date.trim() !== '') ? start_date : null,
+                       end_date: (end_date && typeof end_date === 'string' && end_date.trim() !== '') ? end_date : null,
+                       prev_month_accumulated: Number(prev_month_accumulated) || 0,
+                       daily_data: daily_data && typeof daily_data === 'object' ? daily_data : {},
+                       ...(created_at ? { created_at } : {}),
+                       ...(updated_at ? { updated_at } : {})
+                     };
+                   });
+                } else if (activeTable === 'work_movements' || targetTable === 'work_movements') {
+                   chunkToUpsert = chunk.map((wmRow: any) => {
+                     const {
+                       id, company_id, contract_id, contract_name, timestamp, sector, action,
+                       description, responsible_user, reference_code, details, created_at, updated_at
+                     } = wmRow;
+                     return {
+                       id: id || `wm-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+                       company_id: company_id || compId || null,
+                       contract_id: (contract_id && contract_id !== '') ? contract_id : null,
+                       contract_name: contract_name || null,
+                       timestamp: (timestamp && typeof timestamp === 'string' && timestamp.trim() !== '') ? timestamp : new Date().toISOString(),
+                       sector: sector || 'CONTROLADOR',
+                       action: action || 'REGISTRO',
+                       description: description || '',
+                       responsible_user: responsible_user || 'Sistema',
+                       reference_code: reference_code || null,
+                       details: details && typeof details === 'object' ? details : {},
+                       ...(created_at ? { created_at } : {}),
+                       ...(updated_at ? { updated_at } : {})
+                     };
+                   });
                 } else {
                    chunkToUpsert = chunk.map((row: any) => {
                      if (row && typeof row === 'object') {
@@ -3459,11 +3544,24 @@ export default function App() {
       const supabase = createSupabaseClient(config.url, config.key);
       if (supabase) {
         try {
-          // Use upsert with onConflict for extra safety against duplicates
-          await supabase.from('service_productions').upsert(
-            mapToSnake(cleanedProd), 
-            { onConflict: 'contract_id,service_id,month' }
-          );
+          const sanitized = {
+            id: cleanedProd.id || `sp-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+            company_id: compId || null,
+            contract_id: (cleanedProd.contractId && cleanedProd.contractId !== '') ? cleanedProd.contractId : null,
+            service_id: (cleanedProd.serviceId && cleanedProd.serviceId !== '') ? cleanedProd.serviceId : null,
+            month: cleanedProd.month || '',
+            num_equip: Number(cleanedProd.numEquip) || 0,
+            work_days: Number(cleanedProd.workDays) || 0,
+            hours_day: Number(cleanedProd.hoursDay) || 0,
+            unit_hour: Number(cleanedProd.unitHour) || 0,
+            efficiency: Number(cleanedProd.efficiency) || 0,
+            rain_percent: Number(cleanedProd.rainPercent) || 0,
+            start_date: (cleanedProd.startDate && cleanedProd.startDate.trim() !== '') ? cleanedProd.startDate : null,
+            end_date: (cleanedProd.endDate && cleanedProd.endDate.trim() !== '') ? cleanedProd.endDate : null,
+            prev_month_accumulated: Number(cleanedProd.prevMonthAccumulated) || 0,
+            daily_data: cleanedProd.dailyData && typeof cleanedProd.dailyData === 'object' ? cleanedProd.dailyData : {}
+          };
+          await supabase.from('service_productions').upsert(sanitized);
           console.log('[Supabase] Production persisted immediately');
         } catch (err) {
           console.warn('[Sync] Production persist failed', err);

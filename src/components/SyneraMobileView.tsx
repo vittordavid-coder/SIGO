@@ -771,6 +771,28 @@ export function SyneraMobileView({
     };
   }, []);
 
+  // Monitoramento de Inclinômetro / Bússola em tempo real para o Nível HUD da Câmera
+  useEffect(() => {
+    if (!isCameraOpen) return;
+    const handleDeviceMotion = (e: DeviceOrientationEvent) => {
+      if (e.beta !== null && e.beta !== undefined) {
+        setDeviceTiltPitch(Math.round(e.beta));
+      }
+      if (e.gamma !== null && e.gamma !== undefined) {
+        setDeviceTiltRoll(Math.round(e.gamma));
+      }
+    };
+
+    if (typeof window !== 'undefined' && window.DeviceOrientationEvent) {
+      window.addEventListener('deviceorientation', handleDeviceMotion, true);
+    }
+    return () => {
+      if (typeof window !== 'undefined' && window.DeviceOrientationEvent) {
+        window.removeEventListener('deviceorientation', handleDeviceMotion, true);
+      }
+    };
+  }, [isCameraOpen]);
+
   const [showDiagnosticModal, setShowDiagnosticModal] = useState<boolean>(false);
   const [isDiagnosing, setIsDiagnosing] = useState<boolean>(false);
   const [diagnosticResults, setDiagnosticResults] = useState<{
@@ -2618,7 +2640,7 @@ export function SyneraMobileView({
   };
 
   return (
-    <div className="max-w-md mx-auto min-h-screen pb-24 bg-slate-900 text-slate-100 font-sans shadow-2xl overflow-hidden relative border-x border-slate-800">
+    <div className="w-full max-w-md landscape:max-w-5xl sm:max-w-2xl md:max-w-4xl lg:max-w-5xl mx-auto min-h-screen pb-24 bg-slate-900 text-slate-100 font-sans shadow-2xl overflow-hidden relative border-x border-slate-800 transition-all">
       
       {/* ---------------------------------------------------- */}
       {/* HEADER PRINCIPAL FIXO SYNERA MOBILE */}
@@ -2780,7 +2802,7 @@ export function SyneraMobileView({
               </div>
 
               {/* GRID DOS 5 SETORES DE CAMPO */}
-              <div className="grid grid-cols-1 gap-3">
+              <div className="grid grid-cols-1 landscape:grid-cols-2 sm:grid-cols-2 gap-3">
                 {visibleSectors.map(sector => (
                   <button
                     key={sector.id}
@@ -4777,7 +4799,7 @@ export function SyneraMobileView({
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.95 }}
-            className="fixed inset-0 z-50 bg-slate-950 text-white flex flex-col justify-between w-full h-full"
+            className="fixed inset-0 z-50 bg-black text-white w-full h-full overflow-hidden select-none"
           >
             {/* Input fallback para galeria/arquivos */}
             <input
@@ -4789,65 +4811,8 @@ export function SyneraMobileView({
               onChange={handleFileUploadFallback}
             />
 
-            {/* TOP BAR: CONTROLES DE CÂMERA & OVERLAY DA ESTACA MAIS PRÓXIMA */}
-            <div className="p-4 bg-gradient-to-b from-slate-950 via-slate-950/80 to-transparent flex items-center justify-between z-20 shrink-0">
-              <button
-                onClick={() => setIsCameraOpen(false)}
-                className="w-10 h-10 rounded-full bg-slate-900/80 backdrop-blur border border-slate-700 flex items-center justify-center text-white hover:bg-slate-800 transition-colors"
-              >
-                <X className="w-5 h-5" />
-              </button>
-
-              {/* OVERLAY DE ESTACA MAIS PRÓXIMA DA SALA TÉCNICA */}
-              <div className="flex-1 mx-2 flex items-center justify-center">
-                <div className="px-3 py-1.5 rounded-full bg-emerald-950/90 border border-emerald-500/50 backdrop-blur text-xs flex items-center gap-1.5 text-emerald-300 font-extrabold shadow-lg">
-                  <MapPin className="w-3.5 h-3.5 text-emerald-400 shrink-0 animate-pulse" />
-                  <span className="truncate max-w-[170px]">
-                    {nearestStationInfo
-                      ? `Estaca ${nearestStationInfo.station} (${nearestStationInfo.distanceMeters}m)`
-                      : isLocating
-                      ? 'Buscando estaca...'
-                      : 'Estaca de Projeto'}
-                  </span>
-                  <button onClick={fetchUserGps} className="p-1 hover:text-white" title="Atualizar GPS">
-                    <RefreshCw className={`w-3 h-3 ${isLocating ? 'animate-spin' : ''}`} />
-                  </button>
-                </div>
-              </div>
-
-              {/* MENU SUPERIOR DA CÂMERA (Carimbo, Configurações e Alternar Câmera) */}
-              <div className="flex items-center gap-1.5">
-                <button
-                  onClick={() => setShowStampInfoModal(true)}
-                  className="p-2 rounded-xl bg-emerald-500/20 border border-emerald-500/50 text-emerald-400 hover:bg-emerald-500/30 text-xs font-bold transition-all flex items-center gap-1 shadow-lg shadow-emerald-500/10"
-                  title="Informações do Carimbo (Abrir Gaveta Lateral)"
-                >
-                  <Stamp className="w-4 h-4" />
-                  <span className="hidden sm:inline text-[11px]">Carimbo</span>
-                </button>
-
-                <button
-                  onClick={() => setShowStampSettingsModal(true)}
-                  className="p-2 rounded-xl bg-slate-900/80 border border-slate-700 text-slate-300 hover:text-emerald-400 hover:bg-slate-800 text-xs font-bold transition-all"
-                  title="Configurações (Estilo e Posição)"
-                >
-                  <Sliders className="w-4 h-4" />
-                </button>
-
-                <button
-                  onClick={() => setFacingMode(prev => prev === 'environment' ? 'user' : 'environment')}
-                  className={`p-2 rounded-xl border text-xs font-bold transition-all ${
-                    facingMode === 'user' ? 'bg-blue-500/20 text-blue-400 border-blue-500/40' : 'bg-slate-900/80 text-slate-400 border-slate-700'
-                  }`}
-                  title={facingMode === 'user' ? 'Câmera Frontal Ativa (Mudar para Traseira)' : 'Câmera Traseira Ativa (Mudar para Frontal)'}
-                >
-                  <ArrowRightLeft className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
-
-            {/* PREVIEW DO VÍDEO / FOTO CAPTURADA / CARD DE FALLBACK */}
-            <div className="relative flex-1 bg-black flex items-center justify-center overflow-hidden">
+            {/* PREVIEW DO VÍDEO / FOTO CAPTURADA / CARD DE FALLBACK (POSICIONADO EM TOTAL PREENCHIMENTO DE TELA) */}
+            <div className="absolute inset-0 z-0 bg-black flex items-center justify-center overflow-hidden w-full h-full">
               {cameraStream && !cameraError && (
                 <video
                   ref={videoRef}
@@ -4863,14 +4828,14 @@ export function SyneraMobileView({
               )}
 
               {capturedPhotoUrl ? (
-                <div className="relative w-full h-full flex items-center justify-center bg-black">
+                <div className="relative w-full h-full flex items-center justify-center bg-black z-0">
                   <img src={capturedPhotoUrl} alt="Foto de Campo" className="w-full h-full object-contain" />
                 </div>
               ) : cameraStream && !cameraError ? (
                 <>
                   {/* Grade de Alinhamento */}
                   {showGrid && (
-                    <div className="absolute inset-0 pointer-events-none grid grid-cols-3 grid-rows-3 border border-white/10">
+                    <div className="absolute inset-0 pointer-events-none grid grid-cols-3 grid-rows-3 border border-white/10 z-10">
                       <div className="border border-white/10" />
                       <div className="border border-white/10" />
                       <div className="border border-white/10" />
@@ -4882,7 +4847,6 @@ export function SyneraMobileView({
                       <div className="border border-white/10" />
                     </div>
                   )}
-
                 </>
               ) : (
                 <div className="flex flex-col items-center justify-center p-6 text-center space-y-4 max-w-sm mx-auto z-10">
@@ -4930,100 +4894,244 @@ export function SyneraMobileView({
               )}
             </div>
 
-            {/* BARRA INFERIOR DE CAPTURA E INFORMAÇÃO */}
-            <div className="p-4 bg-gradient-to-t from-slate-950 via-slate-950 to-slate-950/90 border-t border-slate-800 space-y-3 shrink-0 z-20">
-              
-              
-              
-              <div 
-                onClick={() => setShowStampInfoModal(true)}
-                className="flex justify-between items-center bg-slate-900 border border-slate-700/80 hover:border-emerald-500/50 p-3 rounded-2xl mb-2 cursor-pointer transition-colors group"
+            {/* TOP BAR: CONTROLES DE CÂMERA & OVERLAY DA ESTACA DE PROJETO (DESTACADO / MAIOR) */}
+            <div className="absolute top-0 inset-x-0 landscape:right-28 sm:landscape:right-32 p-3 sm:p-4 bg-gradient-to-b from-slate-950/95 via-slate-950/70 to-transparent flex items-center justify-between z-20 pointer-events-auto">
+              <button
+                onClick={() => setIsCameraOpen(false)}
+                className="w-11 h-11 rounded-full bg-slate-900/90 backdrop-blur border border-slate-700 flex items-center justify-center text-white hover:bg-slate-800 transition-colors shadow-lg shrink-0"
               >
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 flex items-center justify-center shrink-0 group-hover:bg-emerald-500/30 transition-colors">
-                    <Stamp className="w-5 h-5" />
+                <X className="w-5 h-5" />
+              </button>
+
+              {/* OVERLAY DA ESTACA DE PROJETO (MAIOR E DESTACADO PARA O USUÁRIO DE CAMPO) */}
+              <div className="flex-1 mx-2 sm:mx-4 flex items-center justify-center">
+                <div className="px-4 py-2 sm:px-6 sm:py-2.5 rounded-2xl bg-gradient-to-r from-slate-950/95 via-emerald-950/90 to-slate-950/95 border-2 border-emerald-500/80 backdrop-blur-md flex items-center gap-3 text-emerald-300 shadow-2xl shadow-emerald-950/80 ring-1 ring-emerald-500/30">
+                  <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-emerald-500/20 border border-emerald-400/40 flex items-center justify-center shrink-0 shadow-inner">
+                    <MapPin className="w-5 h-5 text-emerald-400 animate-pulse" />
                   </div>
-                  <div className="flex flex-col">
-                    <span className="text-[10px] text-emerald-400 font-extrabold uppercase tracking-wider flex items-center gap-1">
-                      Informações do Carimbo
+                  <div className="flex flex-col text-left">
+                    <span className="text-[10px] sm:text-[11px] font-black uppercase text-emerald-400 tracking-wider leading-tight flex items-center gap-1">
+                      <span>Estaca de Projeto</span>
                     </span>
-                    <span className="text-xs text-white font-medium truncate max-w-[210px]">
-                      {photoDescription || photoStation ? (
-                        <>{photoStation ? `[${photoStation}] ` : ''}{photoDescription || 'Sem observações'}</>
-                      ) : (
-                        'Toque para abrir a gaveta do carimbo...'
-                      )}
+                    <span className="text-sm sm:text-lg font-black text-white tracking-wide truncate max-w-[170px] sm:max-w-[280px] landscape:max-w-[340px] drop-shadow-sm">
+                      {nearestStationInfo
+                        ? `${nearestStationInfo.station} (${nearestStationInfo.distanceMeters}m)`
+                        : isLocating
+                        ? 'Buscando estaca...'
+                        : photoStation || 'Aguardando GPS...'}
                     </span>
                   </div>
-                </div>
-                <div className="p-2 text-slate-400 group-hover:text-emerald-400 transition-colors shrink-0">
-                  <ChevronRight className="w-5 h-5" />
+                  <button
+                    onClick={fetchUserGps}
+                    className="p-2 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/40 border border-emerald-500/30 text-emerald-300 transition-all active:scale-95 shrink-0 ml-1"
+                    title="Atualizar GPS da Estaca de Projeto"
+                  >
+                    <RefreshCw className={`w-4 h-4 ${isLocating ? 'animate-spin' : ''}`} />
+                  </button>
                 </div>
               </div>
-              {capturedPhotoUrl ? (
-                <div className="grid grid-cols-2 gap-3 pt-1">
 
-                  <Button
-                    onClick={() => {
-                      setCapturedPhotoUrl(null);
-                      setPhotoDescription('');
-                    }}
-                    className="w-full h-12 rounded-2xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white font-bold text-xs uppercase tracking-wider"
-                  >
-                    Descartar
-                  </Button>
-                  
-                  <div className="flex gap-2">
-                    <Button
-                      onClick={handleSavePhotoRecord}
-                      className="flex-1 h-12 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-slate-950 font-black text-xs uppercase tracking-wider gap-2 shadow-lg shadow-emerald-500/25"
-                    >
-                      <Check className="w-4 h-4 stroke-[3]" />
-                      Salvar
-                    </Button>
-                    <button 
-                      onClick={() => handleDownloadPhoto(capturedPhotoUrl)}
-                      title="Salvar foto no dispositivo / galeria"
-                      className="w-12 h-12 rounded-2xl bg-slate-800 hover:bg-slate-700 flex items-center justify-center border border-slate-700 text-white shrink-0"
-                    >
-                      <Download className="w-5 h-5 text-blue-400" />
-                    </button>
+              {/* MENU SUPERIOR DA CÂMERA (Carimbo, Configurações e Alternar Câmera) */}
+              <div className="flex items-center gap-1.5">
+                <button
+                  onClick={() => setShowStampInfoModal(true)}
+                  className="p-2 rounded-xl bg-emerald-500/20 border border-emerald-500/50 text-emerald-400 hover:bg-emerald-500/30 text-xs font-bold transition-all flex items-center gap-1 backdrop-blur shadow-lg shadow-emerald-500/10"
+                  title="Informações do Carimbo (Abrir Gaveta Lateral)"
+                >
+                  <Stamp className="w-4 h-4" />
+                  <span className="hidden sm:inline text-[11px]">Carimbo</span>
+                </button>
 
-                    <button 
-                      onClick={() => handleSharePhoto(capturedPhotoUrl, photoDescription)}
-                      title="Compartilhar foto"
-                      className="w-12 h-12 rounded-2xl bg-slate-800 hover:bg-slate-700 flex items-center justify-center border border-slate-700 text-white shrink-0"
-                    >
-                      <Share2 className="w-5 h-5 text-emerald-400" />
-                    </button>
+                <button
+                  onClick={() => setShowStampSettingsModal(true)}
+                  className="p-2 rounded-xl bg-slate-900/80 border border-slate-700 text-slate-300 hover:text-emerald-400 hover:bg-slate-800 text-xs font-bold backdrop-blur transition-all"
+                  title="Configurações (Estilo e Posição)"
+                >
+                  <Sliders className="w-4 h-4" />
+                </button>
+
+                <button
+                  onClick={() => setFacingMode(prev => prev === 'environment' ? 'user' : 'environment')}
+                  className={`p-2 rounded-xl border text-xs font-bold backdrop-blur transition-all ${
+                    facingMode === 'user' ? 'bg-blue-500/20 text-blue-400 border-blue-500/40' : 'bg-slate-900/80 text-slate-400 border-slate-700'
+                  }`}
+                  title={facingMode === 'user' ? 'Câmera Frontal Ativa (Mudar para Traseira)' : 'Câmera Traseira Ativa (Mudar para Frontal)'}
+                >
+                  <ArrowRightLeft className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+
+            {/* LANDSCAPE LATERAL BARRA DIREITA DE CONTROLES (ESTILO CÂMERA PROFISSIONAL EM PAISAGEM) */}
+            <div className="hidden landscape:flex fixed right-0 top-0 bottom-0 w-28 sm:w-32 bg-slate-950/90 backdrop-blur-xl border-l border-slate-800/80 flex-col items-center justify-between py-6 px-2 z-30 pointer-events-auto">
+              {/* Topo: Inverter Câmera & Câmera Celular */}
+              <div className="flex flex-col items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="flex flex-col items-center gap-1 p-2 rounded-2xl bg-slate-900/90 border border-slate-700/80 hover:bg-slate-800 text-slate-300 hover:text-emerald-400 transition-all active:scale-95 text-center shadow-lg w-20"
+                  title="Abrir Câmera Nativa do Celular (HD/4K)"
+                >
+                  <Smartphone className="w-5 h-5 text-emerald-400" />
+                  <span className="text-[8px] font-extrabold uppercase tracking-tight leading-none">Câmera Celular</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setFacingMode(prev => prev === 'environment' ? 'user' : 'environment')}
+                  className="flex flex-col items-center gap-1 p-2 rounded-2xl bg-slate-900/90 border border-slate-700/80 hover:bg-slate-800 text-slate-300 hover:text-blue-400 transition-all active:scale-95 text-center shadow-lg w-20"
+                  title={facingMode === 'user' ? 'Mudar para Câmera Traseira' : 'Mudar para Câmera Frontal'}
+                >
+                  <ArrowRightLeft className="w-5 h-5 text-blue-400" />
+                  <span className="text-[8px] font-extrabold uppercase tracking-tight leading-none">Inverter</span>
+                </button>
+              </div>
+
+              {/* Centro: Botão de Disparo Principal (Tirar Foto) */}
+              <button
+                type="button"
+                onClick={handleTakePhoto}
+                className="relative group p-1 flex flex-col items-center gap-1 my-auto"
+                title="Tirar Foto com Carimbo Técnico (Synera Cam)"
+              >
+                <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-gradient-to-tr from-emerald-500 via-teal-400 to-emerald-300 p-1 shadow-2xl shadow-emerald-500/50 hover:scale-105 active:scale-95 transition-all flex items-center justify-center">
+                  <div className="w-full h-full bg-slate-950 rounded-full border-2 border-emerald-400/80 flex items-center justify-center group-hover:bg-slate-900 transition-colors">
+                    <Camera className="w-8 h-8 sm:w-10 sm:h-10 text-emerald-400 animate-pulse" />
                   </div>
                 </div>
-              ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-1">
-                  <Button
-                    onClick={() => fileInputRef.current?.click()}
-                    className="w-full h-14 rounded-3xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-slate-950 font-black text-xs sm:text-sm uppercase tracking-wider shadow-lg shadow-emerald-500/25 flex items-center justify-center gap-2"
-                  >
-                    <Sparkles className="w-5 h-5 fill-slate-950" />
-                    Usar Câmera Nativa (HD/4K)
-                  </Button>
+                <span className="text-[9px] font-black text-emerald-400 uppercase tracking-widest">Tirar Foto</span>
+              </button>
 
-                  <Button
-                    onClick={handleTakePhoto}
-                    className="w-full h-14 rounded-3xl bg-blue-600 hover:bg-blue-500 text-white font-black text-xs sm:text-sm uppercase tracking-wider shadow-lg shadow-blue-500/25 flex items-center justify-center gap-2"
-                  >
-                    <Camera className="w-5 h-5" />
-                    Capturar ao Vivo (PWA)
-                  </Button>
+              {/* Base: Abrir Gaveta do Carimbo */}
+              <button
+                type="button"
+                onClick={() => setShowStampInfoModal(true)}
+                className="flex flex-col items-center gap-1 p-2 rounded-2xl bg-slate-900/90 border border-slate-700/80 hover:bg-slate-800 text-slate-300 hover:text-emerald-400 transition-all active:scale-95 text-center shadow-lg w-20"
+                title="Informações do Carimbo"
+              >
+                <Stamp className="w-5 h-5 text-emerald-400" />
+                <span className="text-[8px] font-extrabold uppercase tracking-tight leading-none">Carimbo</span>
+              </button>
+            </div>
+
+            {/* BARRA INFERIOR DE CAPTURA E INFORMAÇÃO (PORTRAIT MODE - OMITIDA NO MODO PAISAGEM) */}
+            <div className="landscape:hidden absolute bottom-0 inset-x-0 p-3 sm:p-4 bg-gradient-to-t from-slate-950/95 via-slate-950/70 to-transparent z-20 space-y-2 flex flex-col items-center pointer-events-auto">
+              <div className="max-w-md w-full">
+                <div 
+                  onClick={() => setShowStampInfoModal(true)}
+                  className="flex justify-between items-center bg-slate-900/80 backdrop-blur-md border border-slate-700/80 hover:border-emerald-500/50 p-2.5 sm:p-3 landscape:p-1.5 landscape:px-3 rounded-2xl mb-1.5 landscape:mb-1 cursor-pointer transition-colors group"
+                >
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 sm:w-10 sm:h-10 landscape:w-7 landscape:h-7 rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 flex items-center justify-center shrink-0 group-hover:bg-emerald-500/30 transition-colors">
+                      <Stamp className="w-4 h-4 sm:w-5 sm:h-5 landscape:w-3.5 landscape:h-3.5" />
+                    </div>
+                    <div className="flex flex-col">
+                      <span className="text-[10px] landscape:text-[9px] text-emerald-400 font-extrabold uppercase tracking-wider flex items-center gap-1">
+                        Informações do Carimbo
+                      </span>
+                      <span className="text-xs landscape:text-[11px] text-white font-medium truncate max-w-[200px] sm:max-w-[280px]">
+                        {photoDescription || photoStation ? (
+                          <>{photoStation ? `[${photoStation}] ` : ''}{photoDescription || 'Sem observações'}</>
+                        ) : (
+                          'Toque para abrir a gaveta do carimbo...'
+                        )}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="p-1.5 text-slate-400 group-hover:text-emerald-400 transition-colors shrink-0">
+                    <ChevronRight className="w-4 h-4 sm:w-5 sm:h-5" />
+                  </div>
                 </div>
-              )}
+
+                {capturedPhotoUrl ? (
+                  <div className="grid grid-cols-2 gap-3 pt-1">
+                    <Button
+                      onClick={() => {
+                        setCapturedPhotoUrl(null);
+                        setPhotoDescription('');
+                      }}
+                      className="w-full h-11 sm:h-12 rounded-2xl bg-slate-800/90 hover:bg-slate-700 border border-slate-700 text-white font-bold text-xs uppercase tracking-wider backdrop-blur"
+                    >
+                      Descartar
+                    </Button>
+                    
+                    <div className="flex gap-2">
+                      <Button
+                        onClick={handleSavePhotoRecord}
+                        className="flex-1 h-11 sm:h-12 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-slate-950 font-black text-xs uppercase tracking-wider gap-2 shadow-lg shadow-emerald-500/25"
+                      >
+                        <Check className="w-4 h-4 stroke-[3]" />
+                        Salvar
+                      </Button>
+                      <button 
+                        onClick={() => handleDownloadPhoto(capturedPhotoUrl)}
+                        title="Salvar foto no dispositivo / galeria"
+                        className="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-slate-800/90 hover:bg-slate-700 flex items-center justify-center border border-slate-700 text-white shrink-0 backdrop-blur"
+                      >
+                        <Download className="w-5 h-5 text-blue-400" />
+                      </button>
+
+                      <button 
+                        onClick={() => handleSharePhoto(capturedPhotoUrl, photoDescription)}
+                        title="Compartilhar foto"
+                        className="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-slate-800/90 hover:bg-slate-700 flex items-center justify-center border border-slate-700 text-white shrink-0 backdrop-blur"
+                      >
+                        <Share2 className="w-5 h-5 text-emerald-400" />
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-around gap-3 pt-0.5 pb-0.5">
+                    {/* Botão para Alternar p/ Câmera Nativa do Celular */}
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="flex flex-col items-center gap-1 p-2 sm:px-4 rounded-2xl bg-slate-900/80 backdrop-blur border border-slate-700/80 hover:bg-slate-800 text-slate-300 hover:text-emerald-400 transition-all active:scale-95 text-center min-w-[85px] sm:min-w-[95px] shadow-lg"
+                      title="Abrir Câmera Nativa do Celular (HD/4K)"
+                    >
+                      <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-slate-800 border border-slate-700 flex items-center justify-center shrink-0">
+                        <Smartphone className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-400" />
+                      </div>
+                      <span className="text-[9px] sm:text-[10px] font-extrabold uppercase tracking-tight leading-tight">Câmera Celular</span>
+                    </button>
+
+                    {/* Botão Único de Disparo da Câmera Synera Cam */}
+                    <button
+                      type="button"
+                      onClick={handleTakePhoto}
+                      className="relative group p-1 flex flex-col items-center gap-0.5"
+                      title="Tirar Foto com Carimbo Técnico (Synera Cam)"
+                    >
+                      <div className="w-14 h-14 sm:w-18 sm:h-18 rounded-full bg-gradient-to-tr from-emerald-500 via-teal-400 to-emerald-300 p-1 shadow-2xl shadow-emerald-500/40 hover:scale-105 active:scale-95 transition-all flex items-center justify-center">
+                        <div className="w-full h-full bg-slate-950 rounded-full border-2 border-emerald-400/80 flex items-center justify-center group-hover:bg-slate-900 transition-colors">
+                          <Camera className="w-7 h-7 sm:w-9 sm:h-9 text-emerald-400 animate-pulse" />
+                        </div>
+                      </div>
+                      <span className="text-[9px] sm:text-[10px] font-black text-emerald-400 uppercase tracking-widest">Tirar Foto</span>
+                    </button>
+
+                    {/* Botão para Alternar Câmera Frontal / Traseira */}
+                    <button
+                      type="button"
+                      onClick={() => setFacingMode(prev => prev === 'environment' ? 'user' : 'environment')}
+                      className="flex flex-col items-center gap-1 p-2 sm:px-4 rounded-2xl bg-slate-900/80 backdrop-blur border border-slate-700/80 hover:bg-slate-800 text-slate-300 hover:text-blue-400 transition-all active:scale-95 text-center min-w-[85px] sm:min-w-[95px] shadow-lg"
+                      title={facingMode === 'user' ? 'Mudar para Câmera Traseira' : 'Mudar para Câmera Frontal'}
+                    >
+                      <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-slate-800 border border-slate-700 flex items-center justify-center shrink-0">
+                        <ArrowRightLeft className="w-4 h-4 sm:w-5 sm:h-5 text-blue-400" />
+                      </div>
+                      <span className="text-[9px] sm:text-[10px] font-extrabold uppercase tracking-tight leading-tight">Inverter Câmera</span>
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
           </motion.div>
         )}
       </AnimatePresence>
 
       {/* RODAPÉ FIXO DE NAVEGAÇÃO DO SYNERA MOBILE */}
-      <div className="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-slate-950/95 backdrop-blur-xl border-t border-slate-800/90 py-2 px-4 z-40 flex items-center justify-around shadow-2xl">
+      <div className="fixed bottom-0 left-0 right-0 max-w-md landscape:max-w-5xl sm:max-w-2xl md:max-w-4xl lg:max-w-5xl mx-auto bg-slate-950/95 backdrop-blur-xl border-t border-slate-800/90 py-2 px-4 z-40 flex items-center justify-around shadow-2xl transition-all">
         <button
           onClick={() => setActiveSector(null)}
           className={`flex flex-col items-center gap-1 transition-colors ${

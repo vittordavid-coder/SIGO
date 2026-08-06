@@ -36,11 +36,26 @@ export default defineConfig(({mode}) => {
         output: {
           manualChunks(id) {
             if (id.includes('node_modules')) {
-              if (id.includes('exceljs') || id.includes('file-saver') || id.includes('xlsx') || id.includes('jspdf') || id.includes('jszip')) {
+              if (
+                id.includes('exceljs') ||
+                id.includes('file-saver') ||
+                id.includes('xlsx') ||
+                id.includes('jspdf') ||
+                id.includes('jszip') ||
+                id.includes('docxtemplater') ||
+                id.includes('pizzip') ||
+                id.includes('html2canvas')
+              ) {
                 return 'vendor-files';
               }
               if (id.includes('recharts') || id.includes('d3')) {
                 return 'vendor-charts';
+              }
+              if (id.includes('leaflet') || id.includes('react-leaflet')) {
+                return 'vendor-maps';
+              }
+              if (id.includes('@supabase')) {
+                return 'vendor-supabase';
               }
             }
           }
