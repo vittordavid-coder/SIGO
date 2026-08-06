@@ -6,10 +6,11 @@ import {
   ChevronRight, Calendar, ArrowUpRight, Zap, Building2, Package, ArrowLeft, Layers,
   Search, Edit3, X, Eye, LogOut, LayoutDashboard, Sliders, Grid, ZapOff, RefreshCcw,
   Upload, Navigation, Crosshair, Sparkles, BarChart2, XCircle, ArrowRightLeft, UserCheck, Save, MessageCircle, Settings,
-  RotateCw, Maximize2, Filter, Type, CheckSquare, Square
+  RotateCw, Maximize2, Filter, Type, CheckSquare, Square, Stamp
 } from 'lucide-react';
 import { Button } from './ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "./ui/dialog";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "./ui/sheet";
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
@@ -78,7 +79,6 @@ export interface StampConfig {
   showLogoBadge: boolean;
   rotateCaption: boolean;
   customHeaderTitle: string;
-  showLargeStationTopRight?: boolean;
 }
 
 export const DEFAULT_STAMP_CONFIG: StampConfig = {
@@ -95,7 +95,6 @@ export const DEFAULT_STAMP_CONFIG: StampConfig = {
   showLogoBadge: true,
   rotateCaption: false,
   customHeaderTitle: 'SYNERA CAM • REGISTRO DE CAMPO',
-  showLargeStationTopRight: true,
 };
 
 /**
@@ -323,37 +322,6 @@ export const stampPhotoWithMetadata = async (
         if (lines.length === 0 && !config.showLogoBadge) {
           resolve(canvas.toDataURL('image/jpeg', 0.88));
           return;
-        }
-
-        if (config.showLargeStationTopRight && options.station) {
-          ctx.save();
-          const textCanvasW = config.rotateCaption ? canvasH : canvasW;
-          
-          if (config.rotateCaption) {
-            ctx.translate(canvasW, 0);
-            ctx.rotate(Math.PI / 2);
-          }
-
-          const largeFontSize = Math.max(36, Math.floor(minDim * 0.12));
-          ctx.font = `900 ${largeFontSize}px sans-serif`;
-          
-          const text = options.station;
-          const textW = ctx.measureText(text).width;
-          
-          ctx.shadowColor = 'rgba(0,0,0,0.85)';
-          ctx.shadowBlur = Math.max(10, Math.floor(minDim * 0.01));
-          ctx.shadowOffsetX = 3;
-          ctx.shadowOffsetY = 3;
-          
-          ctx.fillStyle = config.themeColor || '#10B981';
-          ctx.fillText(text, textCanvasW - textW - margin, margin + largeFontSize * 0.85);
-          
-          // Draw a stroke to make it pop even more
-          ctx.strokeStyle = '#000000';
-          ctx.lineWidth = Math.max(2, Math.floor(largeFontSize * 0.03));
-          ctx.strokeText(text, textCanvasW - textW - margin, margin + largeFontSize * 0.85);
-          
-          ctx.restore();
         }
 
         ctx.save();
@@ -760,6 +728,7 @@ export function SyneraMobileView({
   });
 
   const [showStampSettingsModal, setShowStampSettingsModal] = useState<boolean>(false);
+  const [showStampInfoModal, setShowStampInfoModal] = useState<boolean>(false);
 
   const updateStampConfig = (newConfig: Partial<StampConfig>) => {
     setStampConfig(prev => {
@@ -4846,11 +4815,20 @@ export function SyneraMobileView({
                 </div>
               </div>
 
-              {/* MENU SUPERIOR DA CÂMERA (Configurações e Alternar Câmera) */}
+              {/* MENU SUPERIOR DA CÂMERA (Carimbo, Configurações e Alternar Câmera) */}
               <div className="flex items-center gap-1.5">
                 <button
+                  onClick={() => setShowStampInfoModal(true)}
+                  className="p-2 rounded-xl bg-emerald-500/20 border border-emerald-500/50 text-emerald-400 hover:bg-emerald-500/30 text-xs font-bold transition-all flex items-center gap-1 shadow-lg shadow-emerald-500/10"
+                  title="Informações do Carimbo (Abrir Gaveta Lateral)"
+                >
+                  <Stamp className="w-4 h-4" />
+                  <span className="hidden sm:inline text-[11px]">Carimbo</span>
+                </button>
+
+                <button
                   onClick={() => setShowStampSettingsModal(true)}
-                  className="p-2 rounded-xl bg-slate-900/80 border border-slate-700 text-emerald-400 hover:bg-slate-800 text-xs font-bold transition-all"
+                  className="p-2 rounded-xl bg-slate-900/80 border border-slate-700 text-slate-300 hover:text-emerald-400 hover:bg-slate-800 text-xs font-bold transition-all"
                   title="Configurações (Estilo e Posição)"
                 >
                   <Sliders className="w-4 h-4" />
@@ -4905,29 +4883,6 @@ export function SyneraMobileView({
                     </div>
                   )}
 
-                  {/* Overlay Info Vivo no Viewfinder (Estilo aplicativo de câmera profissional HUD) */}
-                  <div className="absolute bottom-4 left-4 right-4 pointer-events-none drop-shadow-[0_4px_12px_rgba(0,0,0,0.8)] bg-slate-950/85 p-3 rounded-2xl backdrop-blur-md border border-white/15 border-l-4 border-l-emerald-500 z-10 text-left space-y-1">
-                    <div className="flex items-center justify-between pb-1 border-b border-white/10">
-                      <span className="text-[10px] font-black text-emerald-400 tracking-wider flex items-center gap-1">
-                        📷 SYNERA CAM • REGISTRO DE CAMPO GPS
-                      </span>
-                    </div>
-                    <p className="text-white text-xs font-black leading-tight">
-                      OBRA: {activeContract?.name || activeContract?.workName || 'Obra Principal'}
-                    </p>
-                    <p className="text-amber-400 text-xs font-black leading-tight">
-                      ESTACA: {photoStation || (nearestStationInfo?.station || 'Estaca N/I')} 
-                      <span className="text-emerald-400 font-bold ml-2">| DATA: {new Date().toLocaleString('pt-BR')}</span>
-                    </p>
-                    {userLocation && (
-                      <p className="text-sky-400 text-[10px] font-semibold leading-tight">
-                        GPS: {userLocation.lat.toFixed(6)}, {userLocation.lng.toFixed(6)}
-                      </p>
-                    )}
-                    <p className="text-slate-200 text-[10px] leading-tight italic font-medium line-clamp-2 break-words">
-                      OBS: {photoDescription || 'Sem observações'}
-                    </p>
-                  </div>
                 </>
               ) : (
                 <div className="flex flex-col items-center justify-center p-6 text-center space-y-4 max-w-sm mx-auto z-10">
@@ -4980,47 +4935,31 @@ export function SyneraMobileView({
               
               
               
-                <div className="space-y-3">
-                  {/* DESCRIÇÃO DA FOTO */}
-                  <div className="space-y-1.5">
-                    <div className="flex items-center justify-between">
-                      <label className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
-                        <Edit3 className="w-3.5 h-3.5 text-emerald-400" />
-                        Descrição / Observação da Foto *
-                      </label>
-                      <span className="text-[10px] text-slate-400">Obrigatório</span>
-                    </div>
-                    <Input
-                      value={photoDescription}
-                      onChange={e => setPhotoDescription(e.target.value)}
-                      placeholder="Escreva a descrição (ex: Concretagem, armadura, patologia...)"
-                      className="bg-slate-900 border-slate-700 text-xs text-white placeholder-slate-500 rounded-xl h-10"
-                    />
+              <div 
+                onClick={() => setShowStampInfoModal(true)}
+                className="flex justify-between items-center bg-slate-900 border border-slate-700/80 hover:border-emerald-500/50 p-3 rounded-2xl mb-2 cursor-pointer transition-colors group"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 flex items-center justify-center shrink-0 group-hover:bg-emerald-500/30 transition-colors">
+                    <Stamp className="w-5 h-5" />
                   </div>
-
-                  {/* ESTACA IDENTIFICADA */}
-                  <div className="flex items-center gap-2">
-                    <div className="flex-1 space-y-1">
-                      <label className="text-[10px] font-extrabold text-slate-400 uppercase">Estaca Calculada / Informada:</label>
-                      <Input
-                        value={photoStation}
-                        onChange={e => setPhotoStation(e.target.value)}
-                        placeholder="Ex: Estaca 10+15,00"
-                        className="bg-slate-900 border-slate-700 text-xs text-emerald-400 font-bold rounded-xl h-9"
-                      />
-                    </div>
-                    {nearestStationInfo && (
-                      <button
-                        onClick={() => setPhotoStation(nearestStationInfo.station)}
-                        className="mt-4 px-2.5 py-2 rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 text-[10px] font-bold"
-                      >
-                        Usar GPS ({nearestStationInfo.station})
-                      </button>
-                    )}
+                  <div className="flex flex-col">
+                    <span className="text-[10px] text-emerald-400 font-extrabold uppercase tracking-wider flex items-center gap-1">
+                      Informações do Carimbo
+                    </span>
+                    <span className="text-xs text-white font-medium truncate max-w-[210px]">
+                      {photoDescription || photoStation ? (
+                        <>{photoStation ? `[${photoStation}] ` : ''}{photoDescription || 'Sem observações'}</>
+                      ) : (
+                        'Toque para abrir a gaveta do carimbo...'
+                      )}
+                    </span>
                   </div>
-
-                
                 </div>
+                <div className="p-2 text-slate-400 group-hover:text-emerald-400 transition-colors shrink-0">
+                  <ChevronRight className="w-5 h-5" />
+                </div>
+              </div>
               {capturedPhotoUrl ? (
                 <div className="grid grid-cols-2 gap-3 pt-1">
 
@@ -5452,6 +5391,108 @@ export function SyneraMobileView({
       </AnimatePresence>
 
       {/* ==================================================== */}
+      {/* GAVETA LATERAL DE INFORMAÇÕES DO CARIMBO TÉCNICO     */}
+      {/* ==================================================== */}
+      <Sheet open={showStampInfoModal} onOpenChange={setShowStampInfoModal}>
+        <SheetContent side="right" className="bg-slate-900 border-l border-slate-800 text-white w-full sm:max-w-md p-6 overflow-y-auto custom-scrollbar flex flex-col justify-between">
+          <div className="space-y-6">
+            <SheetHeader className="p-0 border-b border-slate-800 pb-4">
+              <SheetTitle className="text-base font-black text-emerald-400 flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400">
+                  <Stamp className="w-5 h-5" />
+                </div>
+                Informações do Carimbo
+              </SheetTitle>
+              <SheetDescription className="text-xs text-slate-400">
+                Preencha ou ajuste os dados de campo (estaca, observações) para o carimbo da foto.
+              </SheetDescription>
+            </SheetHeader>
+
+            <div className="space-y-5">
+              {/* Estaca */}
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
+                  <MapPin className="w-3.5 h-3.5 text-emerald-400" />
+                  Estaca Calculada / Informada
+                </label>
+                <div className="flex items-center gap-2">
+                  <Input
+                    value={photoStation}
+                    onChange={e => setPhotoStation(e.target.value)}
+                    placeholder="Ex: Estaca 10+15,00"
+                    className="bg-slate-950 border-slate-800 text-sm text-emerald-400 font-bold rounded-xl h-12 flex-1"
+                  />
+                  {nearestStationInfo && (
+                    <button
+                      type="button"
+                      onClick={() => setPhotoStation(nearestStationInfo.station)}
+                      className="h-12 px-3 rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 text-xs font-bold hover:bg-emerald-500/30 transition-colors shrink-0"
+                    >
+                      Usar GPS ({nearestStationInfo.station})
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Descrição */}
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
+                  <Edit3 className="w-3.5 h-3.5 text-emerald-400" />
+                  Descrição / Observação da Foto
+                </label>
+                <textarea
+                  value={photoDescription}
+                  onChange={e => setPhotoDescription(e.target.value)}
+                  placeholder="Escreva a descrição (ex: Concretagem de pilar, armadura, inspeção de aterro...)"
+                  rows={3}
+                  className="w-full bg-slate-950 border border-slate-800 text-sm text-white placeholder-slate-500 rounded-xl p-3 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+                />
+              </div>
+
+              {/* Obra Ativa */}
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
+                  <Building2 className="w-3.5 h-3.5 text-emerald-400" />
+                  Obra / Contrato
+                </label>
+                <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-200 font-medium">
+                  {activeContract?.name || activeContract?.workName || 'Obra Principal'}
+                </div>
+              </div>
+
+              {/* Atalho para configurações de estilo */}
+              <div className="pt-2 border-t border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowStampInfoModal(false);
+                    setShowStampSettingsModal(true);
+                  }}
+                  className="w-full p-3 rounded-xl bg-slate-950 border border-slate-800 text-slate-300 hover:text-white hover:border-slate-700 text-xs font-bold flex items-center justify-between transition-colors"
+                >
+                  <span className="flex items-center gap-2">
+                    <Sliders className="w-4 h-4 text-emerald-400" />
+                    Personalizar Estilo e Cores do Carimbo
+                  </span>
+                  <ChevronRight className="w-4 h-4 text-slate-500" />
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div className="pt-6 border-t border-slate-800">
+            <Button
+              onClick={() => setShowStampInfoModal(false)}
+              className="w-full h-12 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-slate-950 font-black text-xs uppercase tracking-wider shadow-lg shadow-emerald-500/20"
+            >
+              <Check className="w-4 h-4 stroke-[3] mr-2" />
+              Confirmar Informações
+            </Button>
+          </div>
+        </SheetContent>
+      </Sheet>
+
+      {/* ==================================================== */}
       {/* MODAL DE CONFIGURAÇÃO DO CARIMBO TÉCNICO DE FOTO */}
       {/* ==================================================== */}
       <Dialog open={showStampSettingsModal} onOpenChange={setShowStampSettingsModal}>
@@ -5614,17 +5655,6 @@ export function SyneraMobileView({
                 Campos a Gravar na Foto
               </Label>
               <div className="grid grid-cols-2 gap-2 text-xs">
-                <button
-                  type="button"
-                  onClick={() => updateStampConfig({ showLargeStationTopRight: !stampConfig.showLargeStationTopRight })}
-                  className={`p-2.5 rounded-xl border flex items-center justify-between font-bold transition-colors ${
-                    stampConfig.showLargeStationTopRight ? 'bg-slate-800 border-emerald-500/50 text-white' : 'bg-slate-950 border-slate-800 text-slate-500'
-                  }`}
-                >
-                  <span>Estaca Grande (Top Direito)</span>
-                  {stampConfig.showLargeStationTopRight ? <CheckSquare className="w-4 h-4 text-emerald-400" /> : <Square className="w-4 h-4" />}
-                </button>
-
                 <button
                   type="button"
                   onClick={() => updateStampConfig({ showWorkName: !stampConfig.showWorkName })}
