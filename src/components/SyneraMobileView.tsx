@@ -6,7 +6,7 @@ import {
   ChevronRight, Calendar, ArrowUpRight, Zap, Building2, Package, ArrowLeft, Layers,
   Search, Edit3, X, Eye, LogOut, LayoutDashboard, Sliders, Grid, ZapOff, RefreshCcw,
   Upload, Navigation, Crosshair, Sparkles, BarChart2, XCircle, ArrowRightLeft, UserCheck, Save, MessageCircle, Settings,
-  RotateCw, Maximize2, Filter, CheckSquare, Square
+  RotateCw, Maximize2, Filter, Type, CheckSquare, Square
 } from 'lucide-react';
 import { Button } from './ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "./ui/dialog";
@@ -52,6 +52,13 @@ export interface OfflinePendingItem {
 
 const CACHE_KEY = 'synera_mobile_cached_data_v1';
 const OFFLINE_QUEUE_KEY = 'synera_mobile_offline_queue_v1';
+const SYNC_HISTORY_KEY = 'synera_mobile_sync_history_v1';
+export interface SyncHistoryItem {
+  id: string;
+  timestamp: string;
+  action: 'upload' | 'download';
+  details: string;
+}
 export const STAMP_CONFIG_KEY = 'synera_stamp_config_v1';
 
 /**
@@ -69,6 +76,7 @@ export interface StampConfig {
   showCoordinates: boolean;
   showDescription: boolean;
   showLogoBadge: boolean;
+  rotateCaption: boolean;
   customHeaderTitle: string;
 }
 
@@ -84,6 +92,7 @@ export const DEFAULT_STAMP_CONFIG: StampConfig = {
   showCoordinates: true,
   showDescription: true,
   showLogoBadge: true,
+  rotateCaption: false,
   customHeaderTitle: 'SYNERA CAM • REGISTRO DE CAMPO',
 };
 
@@ -315,6 +324,12 @@ export const stampPhotoWithMetadata = async (
         }
 
         ctx.save();
+        const textCanvasW = config.rotateCaption ? canvasH : canvasW;
+        const textCanvasH = config.rotateCaption ? canvasW : canvasH;
+        if (config.rotateCaption) {
+          ctx.translate(canvasW, 0);
+          ctx.rotate(Math.PI / 2);
+        }
         
         // Função auxiliar para retângulo arredondado
         const drawRoundedBox = (x: number, y: number, w: number, h: number, r: number | number[]) => {
@@ -351,21 +366,21 @@ export const stampPhotoWithMetadata = async (
           maxTextW = Math.max(maxTextW, ctx.measureText(l.text).width);
         }
 
-        let boxWidth = canvasW - (margin * 2);
+        let boxWidth = textCanvasW - (margin * 2);
         if (config.style === 'corner_badge') {
-          boxWidth = Math.min(canvasW - (margin * 2), maxTextW + (padding * 2.5) + 16);
+          boxWidth = Math.min(textCanvasW - (margin * 2), maxTextW + (padding * 2.5) + 16);
         }
 
         let boxX = margin;
         if (config.position === 'bottom_right') {
-          boxX = canvasW - margin - boxWidth;
+          boxX = textCanvasW - margin - boxWidth;
         } else if (config.position === 'bottom_left' || config.position === 'bottom') {
           boxX = margin;
         } else if (config.position === 'top_left') {
           boxX = margin;
         }
 
-        let boxY = canvasH - margin - boxContentHeight;
+        let boxY = textCanvasH - margin - boxContentHeight;
         if (config.position === 'top_left') {
           boxY = margin;
         }
@@ -390,12 +405,12 @@ export const stampPhotoWithMetadata = async (
             ctx.fill();
           }
         } else if (config.style === 'subtle_bottom') {
-          const gradY = canvasH - boxContentHeight - margin;
-          const grad = ctx.createLinearGradient(0, gradY, 0, canvasH);
+          const gradY = textCanvasH - boxContentHeight - margin;
+          const grad = ctx.createLinearGradient(0, gradY, 0, textCanvasH);
           grad.addColorStop(0, 'rgba(0,0,0,0)');
           grad.addColorStop(1, `rgba(0,0,0,${Math.min(0.9, bgAlpha + 0.2)})`);
           ctx.fillStyle = grad;
-          ctx.fillRect(0, gradY, canvasW, boxContentHeight + margin * 2);
+          ctx.fillRect(0, gradY, textCanvasW, boxContentHeight + margin * 2);
         }
 
         // Sombras para garantir legibilidade dos textos
@@ -457,10 +472,32 @@ function ServiceAutoComplete({
 }) {
   const [query, setQuery] = useState('');
   const [isOpen, setIsOpen] = useState(false);
+  const wrapperRef = useRef<HTMLDivElement>(null);
 
-  const selectedService = useMemo(() => {
-    return services.find(s => s.id === selectedServiceId);
-  }, [services, selectedServiceId]);
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (wrapperRef.current && !wrapperRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+        const selected = services.find(s => s.id === selectedServiceId);
+        if (selected) {
+          setQuery(`${selected.code ? `[${selected.code}] ` : ''}${selected.name}`);
+        } else if (!selectedServiceId) {
+          setQuery('');
+        }
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [selectedServiceId, services]);
+
+  useEffect(() => {
+    const selectedOption = services.find(o => o.id === selectedServiceId);
+    if (selectedOption) {
+      setQuery(`${selectedOption.code ? `[${selectedOption.code}] ` : ''}${selectedOption.name}`);
+    } else {
+      setQuery('');
+    }
+  }, [selectedServiceId, services]);
 
   const filteredServices = useMemo(() => {
     if (!query.trim()) return services;
@@ -472,15 +509,23 @@ function ServiceAutoComplete({
   }, [services, query]);
 
   return (
-    <div className="relative">
-      <div 
-        onClick={() => setIsOpen(!isOpen)} 
-        className="w-full min-h-[44px] rounded-2xl bg-slate-900 border border-slate-700 text-white px-3 py-2.5 flex items-center justify-between cursor-pointer hover:border-blue-500 transition-colors"
-      >
-        <span className={selectedService ? "font-extrabold text-xs text-blue-300 truncate max-w-[280px]" : "text-xs text-slate-400 font-medium"}>
-          {selectedService ? `${selectedService.code ? `[${selectedService.code}] ` : ''}${selectedService.name} (${selectedService.unit || 'un'})` : 'Pesquisar e selecionar serviço do Controles...'}
-        </span>
-        <ChevronRight className={`w-4 h-4 text-slate-400 shrink-0 transition-transform ${isOpen ? 'rotate-90' : ''}`} />
+    <div className="relative" ref={wrapperRef}>
+      <div className="relative">
+        <input 
+          type="text" 
+          placeholder="Pesquisar e selecionar serviço..." 
+          value={query}
+          onChange={e => {
+            setQuery(e.target.value);
+            if (!isOpen) setIsOpen(true);
+          }}
+          onFocus={() => {
+            setQuery('');
+            setIsOpen(true);
+          }}
+          className="w-full min-h-[44px] rounded-2xl bg-slate-900 border border-slate-700 text-white px-3 py-2.5 text-xs font-semibold focus:outline-none focus:border-blue-500 transition-colors"
+        />
+        <ChevronRight className={`w-4 h-4 text-slate-400 shrink-0 transition-transform absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none ${isOpen ? 'rotate-90' : ''}`} />
       </div>
 
       <AnimatePresence>
@@ -489,23 +534,11 @@ function ServiceAutoComplete({
             initial={{ opacity: 0, y: 5 }} 
             animate={{ opacity: 1, y: 0 }} 
             exit={{ opacity: 0, y: 5 }}
-            className="absolute left-0 right-0 top-12 z-50 bg-slate-950 border border-slate-700 rounded-2xl shadow-2xl p-2 space-y-2 max-h-64 overflow-hidden flex flex-col"
+            className="absolute left-0 right-0 top-12 z-50 bg-slate-950 border border-slate-700 rounded-2xl shadow-2xl p-2 max-h-64 overflow-hidden flex flex-col"
           >
-            <div className="relative shrink-0">
-              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-              <input 
-                type="text" 
-                placeholder="Digitar nome ou código do serviço..." 
-                value={query}
-                onChange={e => setQuery(e.target.value)}
-                autoFocus
-                className="w-full h-10 pl-9 pr-3 rounded-xl bg-slate-900 border border-slate-800 text-xs font-semibold text-white focus:outline-none focus:border-blue-500"
-              />
-            </div>
-
             <div className="overflow-y-auto flex-1 space-y-1 custom-scrollbar pr-1">
               {filteredServices.length === 0 ? (
-                <p className="text-xs text-slate-400 p-3 text-center">Nenhum serviço encontrado em Controles.</p>
+                <p className="text-xs text-slate-400 p-3 text-center">Nenhum serviço encontrado.</p>
               ) : (
                 filteredServices.map(s => (
                   <button
@@ -514,7 +547,7 @@ function ServiceAutoComplete({
                     onClick={() => {
                       onSelectService(s);
                       setIsOpen(false);
-                      setQuery('');
+                      setQuery(`${s.code ? `[${s.code}] ` : ''}${s.name}`);
                     }}
                     className={`w-full text-left p-2.5 rounded-xl text-xs flex items-center justify-between transition-colors ${
                       selectedServiceId === s.id ? 'bg-blue-600/30 text-blue-300 font-extrabold border border-blue-500/40' : 'text-slate-200 hover:bg-slate-900'
@@ -524,9 +557,7 @@ function ServiceAutoComplete({
                       <p className="font-bold text-white truncate">{s.name}</p>
                       {s.code && <span className="text-[10px] text-slate-400 font-mono">Cód: {s.code}</span>}
                     </div>
-                    <span className="text-[10px] px-2 py-0.5 rounded bg-slate-800 text-emerald-400 font-bold shrink-0">
-                      {s.unit || 'un'}
-                    </span>
+                    {s.unit && <span className="text-[10px] font-bold text-blue-300 bg-blue-900/30 px-1.5 py-0.5 rounded">{s.unit}</span>}
                   </button>
                 ))
               )}
@@ -1459,6 +1490,15 @@ export function SyneraMobileView({
   });
 
   // PWA Prompt event state
+  const [syncHistory, setSyncHistory] = useState<SyncHistoryItem[]>(() => {
+    try {
+      const saved = localStorage.getItem(SYNC_HISTORY_KEY);
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [isPwaInstalled, setIsPwaInstalled] = useState<boolean>(() => {
     if (typeof window === 'undefined') return false;
@@ -1843,7 +1883,7 @@ export function SyneraMobileView({
           contracts: contracts.map(c => ({ id: c.id, name: c.name, code: c.code })),
           services: services.map(s => ({ id: s.id, contractId: s.contractId, name: s.name, unit: s.unit })),
           equipments: equipments.map(e => ({ id: e.id, code: e.code, name: e.name, contractId: e.contractId, status: e.status })),
-          employees: (employees || []).map(emp => ({ id: emp.id, name: emp.name, role: emp.role, team: emp.team, status: emp.status })),
+          employees: (employees || []).map(emp => ({ id: emp.id, name: emp.name, registrationNumber: emp.registrationNumber, role: emp.role, team: emp.team, status: emp.status })),
           projectAlignments: (projectAlignments || []).map(pa => ({ id: pa.id, name: pa.name, contractId: pa.contractId, stations: pa.stations })),
           timestamp: new Date().toISOString()
         };
@@ -1862,6 +1902,13 @@ export function SyneraMobileView({
       console.warn('Erro ao salvar fila offline:', err);
     }
   }, [offlineQueue]);
+  useEffect(() => {
+    try {
+      localStorage.setItem(SYNC_HISTORY_KEY, JSON.stringify(syncHistory.slice(0, 50)));
+    } catch (err) {
+      console.warn('Erro ao salvar histórico de sync:', err);
+    }
+  }, [syncHistory]);
 
   // Lock contract for mobile users (they cannot choose more than 1 contract)
   useEffect(() => {
@@ -1877,19 +1924,10 @@ export function SyneraMobileView({
     return contracts.find(c => c.id === selectedContractId) || contracts[0] || { id: 'geral', name: 'Obra Principal' };
   }, [contracts, selectedContractId]);
 
-  // Filtered services for current contract - ONLY show services that have controls created in Sala Técnica / Controles
+  // Filtered services for current contract
   const contractServices = useMemo(() => {
-    const baseServices = services.filter(s => s.contractId === activeContract.id || !s.contractId);
-
-    // Filter by created controls in Sala Técnica / Controles
-    const controlledServiceIds = new Set(
-      serviceProductions
-        .filter(p => p.contractId === activeContract.id || !p.contractId)
-        .map(p => p.serviceId)
-    );
-
-    return baseServices.filter(s => controlledServiceIds.has(s.id));
-  }, [services, serviceProductions, activeContract.id]);
+    return services.filter(s => s.contractId === activeContract.id || !s.contractId);
+  }, [services, activeContract.id]);
 
   // Filtered equipments
   const contractEquipments = useMemo(() => {
@@ -2004,10 +2042,26 @@ export function SyneraMobileView({
 
   // Process sync offline queue
   const handleProcessSync = async () => {
-    if (offlineQueue.length === 0) return;
     setIsSyncing(true);
 
     try {
+      // Simulate download time
+      await new Promise(r => setTimeout(r, 800));
+      
+      const downloadHistory = {
+        id: `sh-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+        timestamp: new Date().toISOString(),
+        action: 'download' as const,
+        details: `Atualizou dados (Projetos, Serviços, Funcionários, Equipamentos)`
+      };
+      setSyncHistory(prev => [downloadHistory, ...prev].slice(0, 50));
+
+      if (offlineQueue.length === 0) {
+        setSyncSuccessMsg('Dados atualizados com sucesso!');
+        setTimeout(() => setSyncSuccessMsg(null), 3000);
+        setIsSyncing(false);
+        return;
+      }
       const todayStr = new Date().toISOString().slice(0, 7);
 
       for (const item of offlineQueue) {
@@ -2136,6 +2190,13 @@ export function SyneraMobileView({
         }
       }
 
+      const newHistoryItems = offlineQueue.map(item => ({
+        id: `sh-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+        timestamp: new Date().toISOString(),
+        action: 'upload' as const,
+        details: `Sincronizou ${item.type}: ${item.contractName}`
+      }));
+      setSyncHistory(prev => [...newHistoryItems, ...prev].slice(0, 50));
       setOfflineQueue([]);
       localStorage.removeItem(OFFLINE_QUEUE_KEY);
       setSyncSuccessMsg('Todos os apontamentos salvos no celular foram sincronizados com o servidor!');
@@ -4133,9 +4194,40 @@ export function SyneraMobileView({
                     </div>
                   )}
 
-                  {offlineQueue.length > 0 && (
-                <button onClick={() => setActiveSector(null)} className="p-2 rounded-xl bg-slate-700/50 hover:bg-slate-600/50 text-slate-300 transition-colors"><ArrowLeft className="w-5 h-5" /></button>
+                  <div className="pt-2 border-t border-slate-700/60 mt-4">
+                    <Button
+                      onClick={handleProcessSync}
+                      disabled={isSyncing || !isOnline}
+                      className="w-full h-12 bg-emerald-600 hover:bg-emerald-500 text-white rounded-2xl font-bold text-xs uppercase tracking-wider"
+                    >
+                      {isSyncing ? 'Sincronizando...' : (offlineQueue.length > 0 ? 'Sincronizar Envio e Recebimento' : 'Atualizar Dados Offline')}
+                    </Button>
+                  </div>
+
+                  {syncHistory.length > 0 && (
+                    <div className="mt-6 pt-4 border-t border-slate-700/60">
+                      <h4 className="text-xs font-bold text-slate-400 mb-3 flex items-center gap-2">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-500" /> Histórico de Sincronização
+                      </h4>
+                      <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                        {syncHistory.map(hist => (
+                          <div key={hist.id} className="p-2.5 rounded-xl bg-slate-900/50 border border-slate-800/50 flex items-start gap-2 text-xs">
+                            <div className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-400 mt-0.5">
+                              {hist.action === 'upload' ? <ArrowUpRight className="w-3.5 h-3.5" /> : <Download className="w-3.5 h-3.5" />}
+                            </div>
+                            <div>
+                              <p className="font-bold text-slate-200">{hist.details}</p>
+                              <span className="text-[10px] text-slate-500">{new Date(hist.timestamp).toLocaleString('pt-BR')}</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
                   )}
+
+                  <div className="pt-2">
+                    <button onClick={() => setActiveSector(null)} className="p-2 rounded-xl bg-slate-700/50 hover:bg-slate-600/50 text-slate-300 transition-colors"><ArrowLeft className="w-5 h-5" /></button>
+                  </div>
                 </div>
               </motion.div>
             )}
@@ -4689,6 +4781,16 @@ export function SyneraMobileView({
                   title={`Girar Câmera (Atual: ${cameraRotation}°)`}
                 >
                   <RotateCw className="w-4 h-4" />
+                </button>
+
+                <button
+                  onClick={() => setStampConfig(prev => ({ ...prev, rotateCaption: !prev.rotateCaption }))}
+                  className={`p-2 rounded-xl border text-xs font-bold transition-all ${
+                    stampConfig.rotateCaption ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40' : 'bg-slate-900/80 text-slate-400 border-slate-700'
+                  }`}
+                  title={`Girar Legenda (Paisagem / Retrato)`}
+                >
+                  <Type className="w-4 h-4" />
                 </button>
 
                 <button

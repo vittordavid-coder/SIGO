@@ -213,6 +213,8 @@ interface RHViewProps {
   onAddWorkMovement?: (movement: Omit<WorkMovement, 'id' | 'timestamp'>) => void;
 }
 
+import { InlineAutocomplete } from './InlineAutocomplete';
+
 export default function RHView({
   currentUser,
   employees,
@@ -5586,17 +5588,20 @@ export default function RHView({
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-3 bg-indigo-50/50 p-4 rounded-2xl border border-indigo-100/60">
                     <div className="space-y-1">
                       <Label className="text-gray-700 font-bold text-xs">Selecione o Colaborador *</Label>
-                      <Combobox
+                      <InlineAutocomplete
                         options={employees.map((e) => ({
                           value: e.id,
                           label: `${e.name} ${e.role ? `(${e.role})` : ''} ${e.team ? `[Equipe: ${e.team}]` : ''}`
                         }))}
                         value={selectedRespEmpId}
                         onChange={(val) => setSelectedRespEmpId(val)}
+                        onSelect={(val, label) => setSelectedRespEmpId(val)}
                         placeholder="-- Escolha um Funcionário --"
-                        emptyText="Nenhum funcionário encontrado"
-                        className="h-10 rounded-xl border-gray-200 bg-white text-xs font-semibold text-gray-900"
                       />
+                      {/* Hint to show selected item */}
+                      {selectedRespEmpId && employees.find(e => e.id === selectedRespEmpId) && (
+                         <div className="text-[10px] text-emerald-600 font-bold mt-1">Selecionado: {employees.find(e => e.id === selectedRespEmpId)?.name}</div>
+                      )}
                     </div>
 
                     <div className="space-y-1">
@@ -5614,16 +5619,15 @@ export default function RHView({
                     {selectedRespScope === 'TEAM' ? (
                       <div className="space-y-1">
                         <Label className="text-gray-700 font-bold text-xs">Nome da Equipe *</Label>
-                        <Combobox
+                        <InlineAutocomplete
                           options={(controllerTeams || []).map((t) => ({
                             value: t.name,
                             label: t.name
                           }))}
                           value={selectedRespTeam}
                           onChange={(val) => setSelectedRespTeam(val)}
+                          onSelect={(val) => setSelectedRespTeam(val)}
                           placeholder="Ex: Equipe Terraplenagem"
-                          emptyText="Nenhuma equipe encontrada"
-                          className="h-10 rounded-xl border-gray-200 bg-white text-xs font-semibold text-gray-900"
                         />
                       </div>
                     ) : (

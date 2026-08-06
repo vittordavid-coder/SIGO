@@ -99,6 +99,21 @@ export default function App() {
     }
   });
 
+  const isPWA = typeof window !== 'undefined' && (window.matchMedia('(display-mode: standalone)').matches || Boolean((navigator as any).standalone));
+  const isSyneraCamUrl = typeof window !== 'undefined' && window.location.pathname.includes("cam.html");
+
+  // Fallback offline user for Synera Cam to bypass login when offline/standalone
+  const effectiveUser = currentUser || (isSyneraCamUrl ? {
+    id: 'offline-cam-user',
+    name: 'Fotógrafo Offline',
+    username: 'offline_cam',
+    role: 'apontador',
+    companyId: 'offline-company',
+    userGroup: 'mobile',
+    allowedContractIds: [],
+    mobileSectors: ['camera', 'galeria']
+  } as User : null);
+
   const setAndSaveCurrentUser = (user: User | null, savePersistent: boolean = rememberMe) => {
     setCurrentUser(user);
     if (user) {
@@ -119,21 +134,6 @@ export default function App() {
       window.localStorage.removeItem('sigo_remember_me');
     }
   };
-
-  const isPWA = typeof window !== 'undefined' && (window.matchMedia('(display-mode: standalone)').matches || Boolean((navigator as any).standalone));
-  const isSyneraCamUrl = typeof window !== 'undefined' && window.location.pathname.includes("cam.html");
-
-  // Fallback offline user for Synera Cam to bypass login when offline/standalone
-  const effectiveUser = currentUser || ((isPWA && isSyneraCamUrl) ? {
-    id: 'offline-cam-user',
-    name: 'Fotógrafo Offline',
-    username: 'offline_cam',
-    role: 'apontador',
-    companyId: 'offline-company',
-    userGroup: 'mobile',
-    allowedContractIds: [],
-    mobileSectors: ['camera', 'galeria']
-  } as User : null);
 
   // Connection monitoring (Offline notification without destructive auto-logout)
   React.useEffect(() => {
@@ -4257,7 +4257,7 @@ export default function App() {
     equipmentMaintenance, equipmentMonthlyData, manpowerMonthlyData
   ]);
 
-  if (!isSupabaseSynced && getSupabaseConfig().enabled && !(isPWA && isSyneraCamUrl)) {
+  if (!isSupabaseSynced && getSupabaseConfig().enabled && !isSyneraCamUrl) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 bg-[radial-gradient(circle_at_top_right,_var(--tw-gradient-stops))] from-blue-50/50 via-white to-gray-50/50">
          <div className="flex flex-col items-center gap-6 p-10 bg-white/80 backdrop-blur-md rounded-[32px] border border-blue-100 shadow-2xl shadow-blue-200/40">
