@@ -4828,8 +4828,14 @@ export function SyneraMobileView({
               )}
 
               {capturedPhotoUrl ? (
-                <div className="relative w-full h-full flex items-center justify-center bg-black z-0">
-                  <img src={capturedPhotoUrl} alt="Foto de Campo" className="w-full h-full object-contain" />
+                <div className="relative w-full h-full flex flex-col items-center justify-center bg-black z-0 pt-20 pb-44 px-3 landscape:pt-16 landscape:pb-28 landscape:pl-4 landscape:pr-4 sm:landscape:pr-36 transition-all">
+                  <div className="relative max-w-full max-h-full flex items-center justify-center overflow-hidden rounded-2xl border border-slate-800/80 shadow-2xl bg-slate-950 p-1">
+                    <img
+                      src={capturedPhotoUrl}
+                      alt="Foto de Campo"
+                      className="max-w-full max-h-full object-contain rounded-xl select-none"
+                    />
+                  </div>
                 </div>
               ) : cameraStream && !cameraError ? (
                 <>
@@ -4963,7 +4969,7 @@ export function SyneraMobileView({
             </div>
 
             {/* LANDSCAPE LATERAL BARRA DIREITA DE CONTROLES (ESTILO CÂMERA PROFISSIONAL EM PAISAGEM) */}
-            <div className="hidden landscape:flex fixed right-0 top-0 bottom-0 w-28 sm:w-32 bg-slate-950/90 backdrop-blur-xl border-l border-slate-800/80 flex-col items-center justify-between py-6 px-2 z-30 pointer-events-auto">
+            <div className={`${capturedPhotoUrl ? 'hidden' : 'hidden landscape:flex'} fixed right-0 top-0 bottom-0 w-28 sm:w-32 bg-slate-950/90 backdrop-blur-xl border-l border-slate-800/80 flex-col items-center justify-between py-6 px-2 z-30 pointer-events-auto`}>
               {/* Topo: Inverter Câmera & Câmera Celular */}
               <div className="flex flex-col items-center gap-3">
                 <button
@@ -5014,8 +5020,8 @@ export function SyneraMobileView({
               </button>
             </div>
 
-            {/* BARRA INFERIOR DE CAPTURA E INFORMAÇÃO (PORTRAIT MODE - OMITIDA NO MODO PAISAGEM) */}
-            <div className="landscape:hidden absolute bottom-0 inset-x-0 p-3 sm:p-4 bg-gradient-to-t from-slate-950/95 via-slate-950/70 to-transparent z-20 space-y-2 flex flex-col items-center pointer-events-auto">
+            {/* BARRA INFERIOR DE CAPTURA E INFORMAÇÃO */}
+            <div className={`${capturedPhotoUrl ? 'flex' : 'landscape:hidden flex'} absolute bottom-0 inset-x-0 p-3 sm:p-4 bg-gradient-to-t from-slate-950/95 via-slate-950/70 to-transparent z-20 space-y-2 flex-col items-center pointer-events-auto`}>
               <div className="max-w-md w-full">
                 <div 
                   onClick={() => setShowStampInfoModal(true)}
