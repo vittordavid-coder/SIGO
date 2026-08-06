@@ -78,6 +78,7 @@ export interface StampConfig {
   showLogoBadge: boolean;
   rotateCaption: boolean;
   customHeaderTitle: string;
+  showLargeStationTopRight?: boolean;
 }
 
 export const DEFAULT_STAMP_CONFIG: StampConfig = {
@@ -94,6 +95,7 @@ export const DEFAULT_STAMP_CONFIG: StampConfig = {
   showLogoBadge: true,
   rotateCaption: false,
   customHeaderTitle: 'SYNERA CAM • REGISTRO DE CAMPO',
+  showLargeStationTopRight: true,
 };
 
 /**
@@ -321,6 +323,37 @@ export const stampPhotoWithMetadata = async (
         if (lines.length === 0 && !config.showLogoBadge) {
           resolve(canvas.toDataURL('image/jpeg', 0.88));
           return;
+        }
+
+        if (config.showLargeStationTopRight && options.station) {
+          ctx.save();
+          const textCanvasW = config.rotateCaption ? canvasH : canvasW;
+          
+          if (config.rotateCaption) {
+            ctx.translate(canvasW, 0);
+            ctx.rotate(Math.PI / 2);
+          }
+
+          const largeFontSize = Math.max(36, Math.floor(minDim * 0.12));
+          ctx.font = `900 ${largeFontSize}px sans-serif`;
+          
+          const text = options.station;
+          const textW = ctx.measureText(text).width;
+          
+          ctx.shadowColor = 'rgba(0,0,0,0.85)';
+          ctx.shadowBlur = Math.max(10, Math.floor(minDim * 0.01));
+          ctx.shadowOffsetX = 3;
+          ctx.shadowOffsetY = 3;
+          
+          ctx.fillStyle = config.themeColor || '#10B981';
+          ctx.fillText(text, textCanvasW - textW - margin, margin + largeFontSize * 0.85);
+          
+          // Draw a stroke to make it pop even more
+          ctx.strokeStyle = '#000000';
+          ctx.lineWidth = Math.max(2, Math.floor(largeFontSize * 0.03));
+          ctx.strokeText(text, textCanvasW - textW - margin, margin + largeFontSize * 0.85);
+          
+          ctx.restore();
         }
 
         ctx.save();
@@ -1389,7 +1422,7 @@ export function SyneraMobileView({
 
     setCapturedPhotoUrl(null);
     setPhotoDescription('');
-    setIsCameraOpen(false);
+    // setIsCameraOpen(false); // Mantém a câmera aberta como solicitado
 
     alert(`📸 Foto de campo registrada e salva na galeria!\nEstaca: ${stationText}\nDescrição: ${descText}`);
   };
@@ -1924,10 +1957,19 @@ export function SyneraMobileView({
     return contracts.find(c => c.id === selectedContractId) || contracts[0] || { id: 'geral', name: 'Obra Principal' };
   }, [contracts, selectedContractId]);
 
-  // Filtered services for current contract
+  // Filtered services for current contract - ONLY show services that have controls created in Sala Técnica / Controles
   const contractServices = useMemo(() => {
-    return services.filter(s => s.contractId === activeContract.id || !s.contractId);
-  }, [services, activeContract.id]);
+    const baseServices = services.filter(s => s.contractId === activeContract.id || !s.contractId);
+
+    // Filter by created controls in Sala Técnica / Controles
+    const controlledServiceIds = new Set(
+      serviceProductions
+        .filter(p => p.contractId === activeContract.id || !p.contractId)
+        .map(p => p.serviceId)
+    );
+
+    return baseServices.filter(s => controlledServiceIds.has(s.id));
+  }, [services, serviceProductions, activeContract.id]);
 
   // Filtered equipments
   const contractEquipments = useMemo(() => {
@@ -2048,13 +2090,43 @@ export function SyneraMobileView({
       // Simulate download time
       await new Promise(r => setTimeout(r, 800));
       
-      const downloadHistory = {
-        id: `sh-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
-        timestamp: new Date().toISOString(),
-        action: 'download' as const,
-        details: `Atualizou dados (Projetos, Serviços, Funcionários, Equipamentos)`
-      };
-      setSyncHistory(prev => [downloadHistory, ...prev].slice(0, 50));
+      const numServices = services.filter(s => s.contractId === activeContract?.id || !s.contractId).length;
+      const numEmployees = (employees || []).length;
+      const numEquipments = (equipments || []).length;
+
+      const downloadHistory = [
+        {
+          id: `sh-${Date.now()}-${Math.random().toString(36).substring(2, 7)}-1`,
+          timestamp: new Date().toISOString(),
+          action: 'download' as const,
+          details: `Baixado: Projeto ${activeContract?.name || 'Geral'}`
+        },
+        {
+          id: `sh-${Date.now()}-${Math.random().toString(36).substring(2, 7)}-2`,
+          timestamp: new Date().toISOString(),
+          action: 'download' as const,
+          details: `Lista de Funcionários ${numEmployees} colaboradores`
+        },
+        {
+          id: `sh-${Date.now()}-${Math.random().toString(36).substring(2, 7)}-3`,
+          timestamp: new Date().toISOString(),
+          action: 'download' as const,
+          details: `Lista de Equipamentos ${numEquipments}`
+        },
+        {
+          id: `sh-${Date.now()}-${Math.random().toString(36).substring(2, 7)}-4`,
+          timestamp: new Date().toISOString(),
+          action: 'download' as const,
+          details: `Lista de Serviços atualizados (${numServices})`
+        },
+        {
+          id: `sh-${Date.now()}-${Math.random().toString(36).substring(2, 7)}-5`,
+          timestamp: new Date().toISOString(),
+          action: 'download' as const,
+          details: `Lista de materiais atualizados`
+        }
+      ];
+      setSyncHistory(prev => [...downloadHistory, ...prev].slice(0, 50));
 
       if (offlineQueue.length === 0) {
         setSyncSuccessMsg('Dados atualizados com sucesso!');
@@ -2130,13 +2202,15 @@ export function SyneraMobileView({
           if (onAddWorkMovement) {
             onAddWorkMovement({
               sector: 'RH',
+              type: 'hr_headcount',
               action: 'APONTAMENTO DE MÃO DE OBRA',
               description: `Registro de efetivo de campo: ${item.data.present} presentes, ${item.data.absent} faltas`,
               referenceCode: `RH-${item.id.slice(-4)}`,
               contractName: item.contractName,
               responsibleUser: currentUser.name || 'Apontador de Campo',
               details: {
-                notes: `Líder: ${item.data.leader}. Horas Extras: ${item.data.overtime}h. ${item.data.notes}`
+                notes: `Líder: ${item.data.leader}. Horas Extras: ${item.data.overtime}h. ${item.data.notes}`,
+                records: item.data.records
               }
             });
           }
@@ -2194,7 +2268,7 @@ export function SyneraMobileView({
         id: `sh-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
         timestamp: new Date().toISOString(),
         action: 'upload' as const,
-        details: `Sincronizou ${item.type}: ${item.contractName}`
+        details: `Enviado [${item.type === 'production' ? 'Produção' : item.type === 'equipment' ? 'Equipamento' : item.type === 'headcount' ? 'RH' : item.type === 'materials' ? 'Material' : 'Diário'}]: ${item.type === 'production' ? item.data.qty + ' ' + item.data.unit + ' de ' + (item.data.serviceName || 'Serviço') : item.type === 'equipment' ? item.data.equipmentName + ' (' + item.data.horometer + 'h)' : item.type === 'headcount' ? item.data.present + ' presentes' : item.type === 'materials' ? item.data.qty + ' ' + item.data.unit + ' de ' + item.data.materialName : 'Relatório Diário'}`
       }));
       setSyncHistory(prev => [...newHistoryItems, ...prev].slice(0, 50));
       setOfflineQueue([]);
@@ -2490,7 +2564,8 @@ export function SyneraMobileView({
         absent: parseInt(teamAbsent, 10) || 0,
         overtime: parseFloat(teamOvertime) || 0,
         leader: teamLeader || currentUser.name || 'Apontador',
-        notes: teamNotes
+        notes: teamNotes,
+        records: rhEmployeeRecords
       },
       synced: false
     };
@@ -4771,26 +4846,14 @@ export function SyneraMobileView({
                 </div>
               </div>
 
-              {/* OPÇÕES DE QUALIDADE, GRADE, TIPO DE CÂMERA, ROTAÇÃO E FLASH */}
+              {/* MENU SUPERIOR DA CÂMERA (Configurações e Alternar Câmera) */}
               <div className="flex items-center gap-1.5">
                 <button
-                  onClick={() => setCameraRotation(prev => (prev + 90) % 360)}
-                  className={`p-2 rounded-xl border text-xs font-bold transition-all ${
-                    cameraRotation !== 0 ? 'bg-amber-500/20 text-amber-400 border-amber-500/40' : 'bg-slate-900/80 text-slate-400 border-slate-700'
-                  }`}
-                  title={`Girar Câmera (Atual: ${cameraRotation}°)`}
+                  onClick={() => setShowStampSettingsModal(true)}
+                  className="p-2 rounded-xl bg-slate-900/80 border border-slate-700 text-emerald-400 hover:bg-slate-800 text-xs font-bold transition-all"
+                  title="Configurações (Estilo e Posição)"
                 >
-                  <RotateCw className="w-4 h-4" />
-                </button>
-
-                <button
-                  onClick={() => setStampConfig(prev => ({ ...prev, rotateCaption: !prev.rotateCaption }))}
-                  className={`p-2 rounded-xl border text-xs font-bold transition-all ${
-                    stampConfig.rotateCaption ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40' : 'bg-slate-900/80 text-slate-400 border-slate-700'
-                  }`}
-                  title={`Girar Legenda (Paisagem / Retrato)`}
-                >
-                  <Type className="w-4 h-4" />
+                  <Sliders className="w-4 h-4" />
                 </button>
 
                 <button
@@ -4802,76 +4865,6 @@ export function SyneraMobileView({
                 >
                   <ArrowRightLeft className="w-4 h-4" />
                 </button>
-
-                <button
-                  onClick={() => {
-                    setShowDiagnosticModal(true);
-                    runCameraDiagnostics();
-                  }}
-                  className="p-2 rounded-xl bg-purple-950/80 border border-purple-500/40 text-purple-300 hover:bg-purple-900/80 text-xs font-bold transition-all"
-                  title="Diagnóstico de Funcionamento da Câmera"
-                >
-                  <ShieldCheck className="w-4 h-4" />
-                </button>
-
-                <button
-                  onClick={() => setShowStampSettingsModal(true)}
-                  className="p-2 rounded-xl bg-slate-900/80 border border-slate-700 text-emerald-400 hover:bg-slate-800 text-xs font-bold transition-all"
-                  title="Configurar Estilo e Posição do Carimbo Técnico"
-                >
-                  <Sliders className="w-4 h-4" />
-                </button>
-
-                <button
-                  onClick={() => setShowGrid(!showGrid)}
-                  className={`p-2 rounded-xl border text-xs font-bold transition-all ${
-                    showGrid ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40' : 'bg-slate-900/80 text-slate-400 border-slate-700'
-                  }`}
-                  title="Grade de Enquadramento"
-                >
-                  <Grid className="w-4 h-4" />
-                </button>
-
-                <button
-                  onClick={() => setFlashEnabled(!flashEnabled)}
-                  className={`p-2 rounded-xl border text-xs font-bold transition-all ${
-                    flashEnabled ? 'bg-amber-500/20 text-amber-400 border-amber-500/40' : 'bg-slate-900/80 text-slate-400 border-slate-700'
-                  }`}
-                  title="Lanterna / Flash"
-                >
-                  {flashEnabled ? <Zap className="w-4 h-4" /> : <ZapOff className="w-4 h-4 text-slate-500" />}
-                </button>
-
-                <div className="relative">
-                  <button
-                    onClick={() => setShowQualityMenu(!showQualityMenu)}
-                    className="px-2.5 py-2 rounded-xl bg-slate-900/80 border border-slate-700 text-[10px] font-black uppercase text-blue-400 flex items-center gap-1"
-                  >
-                    <span>{cameraQuality}</span>
-                    <Sliders className="w-3 h-3" />
-                  </button>
-
-                  {showQualityMenu && (
-                    <div className="absolute right-0 top-11 w-40 bg-slate-900 border border-slate-700 rounded-2xl p-2 shadow-2xl space-y-1 z-30 text-xs">
-                      <p className="text-[10px] font-extrabold text-slate-400 px-2 uppercase">Configurar Qualidade:</p>
-                      {(['1080p', '720p', '480p'] as const).map(q => (
-                        <button
-                          key={q}
-                          onClick={() => {
-                            setCameraQuality(q);
-                            setShowQualityMenu(false);
-                          }}
-                          className={`w-full text-left px-2.5 py-1.5 rounded-xl text-xs font-bold flex items-center justify-between ${
-                            cameraQuality === q ? 'bg-blue-600 text-white' : 'text-slate-300 hover:bg-slate-800'
-                          }`}
-                        >
-                          <span>{q === '1080p' ? 'Full HD (1080p)' : q === '720p' ? 'HD (720p)' : 'Baixa (480p)'}</span>
-                          {cameraQuality === q && <CheckCircle2 className="w-3.5 h-3.5" />}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
               </div>
             </div>
 
@@ -5621,6 +5614,17 @@ export function SyneraMobileView({
                 Campos a Gravar na Foto
               </Label>
               <div className="grid grid-cols-2 gap-2 text-xs">
+                <button
+                  type="button"
+                  onClick={() => updateStampConfig({ showLargeStationTopRight: !stampConfig.showLargeStationTopRight })}
+                  className={`p-2.5 rounded-xl border flex items-center justify-between font-bold transition-colors ${
+                    stampConfig.showLargeStationTopRight ? 'bg-slate-800 border-emerald-500/50 text-white' : 'bg-slate-950 border-slate-800 text-slate-500'
+                  }`}
+                >
+                  <span>Estaca Grande (Top Direito)</span>
+                  {stampConfig.showLargeStationTopRight ? <CheckSquare className="w-4 h-4 text-emerald-400" /> : <Square className="w-4 h-4" />}
+                </button>
+
                 <button
                   type="button"
                   onClick={() => updateStampConfig({ showWorkName: !stampConfig.showWorkName })}

@@ -511,6 +511,9 @@ export default function App() {
   const [workMovements, setWorkMovements] = useLocalStorage<WorkMovement[]>('sigo_work_movements', INITIAL_WORK_MOVEMENTS, compId);
   const [fieldReports, setFieldReports] = useLocalStorage<FieldProductionReport[]>('sigo_field_reports', [], compId);
 
+  const pendingFieldReports = fieldReports.filter(r => r.status === 'pending').length;
+
+
   const handleSaveFieldReport = (report: FieldProductionReport) => {
     setFieldReports(prev => [report, ...prev]);
   };
@@ -4888,9 +4891,12 @@ export default function App() {
                         active={activeMeasureTab === item.id} 
                         onClick={() => setActiveMeasureTab(item.id as any)}
                         collapsed={!isSidebarOpen}
+                        
                         showHandle={isSidebarOpen}
+                        badge={item.id === 'campo' ? pendingFieldReports : undefined}
                       />
                     </Reorder.Item>
+
                   ))}
                 </Reorder.Group>
               )}
@@ -5256,6 +5262,8 @@ export default function App() {
                   employeeTransfers={employeeTransfers}
                   onUpdateTransfers={updateEmployeeTransfers}
                   onAddWorkMovement={addWorkMovement}
+                  workMovements={workMovements}
+                  onUpdateWorkMovements={updateWorkMovements}
                 />
               )}
 
@@ -5603,7 +5611,7 @@ function TopNavItem({ icon, label, active, onClick }: { icon: React.ReactNode, l
   );
 }
 
-function SidebarItem({ icon, label, active, onClick, collapsed, showHandle }: { icon: React.ReactNode, label: string, active: boolean, onClick: () => void, collapsed: boolean, showHandle?: boolean }) {
+function SidebarItem({ icon, label, active, onClick, collapsed, showHandle, badge }: { icon: React.ReactNode, label: string, active: boolean, onClick: () => void, collapsed: boolean, showHandle?: boolean, badge?: number }) {
   return (
     <button
       onClick={onClick}
@@ -5617,7 +5625,16 @@ function SidebarItem({ icon, label, active, onClick, collapsed, showHandle }: { 
       <div className={cn("w-5 h-5 shrink-0", active ? "text-blue-600" : "text-gray-400 group-hover:text-gray-600")}>
         {icon}
       </div>
-      {!collapsed && <span className="font-medium text-base truncate">{label}</span>}
+      {!collapsed && (
+        <span className="font-medium text-base truncate flex items-center justify-between flex-1">
+          {label}
+          {!!badge && badge > 0 && (
+            <span className="bg-rose-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[16px] text-center ml-2">
+              {badge}
+            </span>
+          )}
+        </span>
+      )}
       {active && !collapsed && <motion.div layoutId="sidebar-active" className="ml-auto w-1.5 h-1.5 rounded-full bg-blue-600" />}
       {showHandle && !collapsed && (
         <div className="ml-auto opacity-0 group-hover:opacity-100 transition-opacity cursor-grab active:cursor-grabbing">

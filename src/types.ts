@@ -348,6 +348,7 @@ export interface WorkMovement {
   contractName?: string;
   timestamp: string;
   sector: WorkMovementSector;
+  type?: string;
   action: string;
   description: string;
   responsibleUser: string;
