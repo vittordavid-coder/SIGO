@@ -41,6 +41,7 @@ export default defineConfig(({mode}) => {
                 id.includes('file-saver') ||
                 id.includes('xlsx') ||
                 id.includes('jspdf') ||
+                id.includes('jspdf-autotable') ||
                 id.includes('jszip') ||
                 id.includes('docxtemplater') ||
                 id.includes('pizzip') ||
@@ -56,6 +57,18 @@ export default defineConfig(({mode}) => {
               }
               if (id.includes('@supabase')) {
                 return 'vendor-supabase';
+              }
+              if (id.includes('lucide-react') || id.includes('motion') || id.includes('framer-motion')) {
+                return 'vendor-icons-motion';
+              }
+              if (id.includes('@radix-ui') || id.includes('radix-ui') || id.includes('cmdk') || id.includes('@base-ui')) {
+                return 'vendor-radix';
+              }
+              if (id.includes('emoji-picker-react') || id.includes('purify')) {
+                return 'vendor-misc';
+              }
+              if (id.includes('react') || id.includes('react-dom')) {
+                return 'vendor-react';
               }
             }
           }
