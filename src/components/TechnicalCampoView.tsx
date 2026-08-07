@@ -50,13 +50,23 @@ export function TechnicalCampoView({
     return fieldReports.filter(r => r.contractId === contract.id || !r.contractId);
   }, [fieldReports, contract]);
 
+  const isPendingReport = (status?: string) => !status || status === 'pending' || status === 'synced';
+
   const filteredReports = useMemo(() => {
     return contractReports.filter(r => {
-      const matchesStatus = filterStatus === 'all' || r.status === filterStatus;
+      let matchesStatus = true;
+      if (filterStatus === 'pending') {
+        matchesStatus = isPendingReport(r.status);
+      } else if (filterStatus === 'approved') {
+        matchesStatus = r.status === 'approved';
+      } else if (filterStatus === 'rejected') {
+        matchesStatus = r.status === 'rejected';
+      }
+
       const lowerQ = searchQuery.toLowerCase();
       const matchesSearch = !searchQuery.trim() || 
-        r.serviceName.toLowerCase().includes(lowerQ) ||
-        r.reportedBy.toLowerCase().includes(lowerQ) ||
+        (r.serviceName || '').toLowerCase().includes(lowerQ) ||
+        (r.reportedBy || '').toLowerCase().includes(lowerQ) ||
         (r.trecho && r.trecho.toLowerCase().includes(lowerQ)) ||
         (r.notes && r.notes.toLowerCase().includes(lowerQ));
       
@@ -67,7 +77,7 @@ export function TechnicalCampoView({
   // Statistics
   const stats = useMemo(() => {
     const total = contractReports.length;
-    const pending = contractReports.filter(r => r.status === 'pending').length;
+    const pending = contractReports.filter(r => isPendingReport(r.status)).length;
     const approved = contractReports.filter(r => r.status === 'approved').length;
     const rejected = contractReports.filter(r => r.status === 'rejected').length;
     return { total, pending, approved, rejected };
@@ -318,7 +328,7 @@ export function TechnicalCampoView({
                     
                     {/* Status Badge */}
                     <td className="p-3.5">
-                      {report.status === 'pending' && (
+                      {isPendingReport(report.status) && (
                         <span className="px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-200 text-[10px] font-black uppercase flex items-center gap-1 w-fit">
                           <Clock className="w-3 h-3 text-amber-600" />
                           Pendente
@@ -386,9 +396,9 @@ export function TechnicalCampoView({
 
                     {/* Foto Evidência */}
                     <td className="p-3.5 text-center">
-                      {report.photo ? (
+                      {(report.photo || report.photoUrl) ? (
                         <button
-                          onClick={() => setViewingPhotoUrl(report.photo || null)}
+                          onClick={() => setViewingPhotoUrl(report.photo || report.photoUrl || null)}
                           className="px-2 py-1 rounded bg-blue-50 text-blue-600 hover:bg-blue-100 font-bold text-[10px] flex items-center gap-1 mx-auto border border-blue-200"
                         >
                           <Camera className="w-3 h-3" /> Foto
@@ -420,7 +430,7 @@ export function TechnicalCampoView({
                         </Button>
 
                         {/* Botões APROVAR / REJEITAR para itens pendentes */}
-                        {report.status === 'pending' && (
+                        {isPendingReport(report.status) && (
                           <>
                             <Button
                               size="sm"

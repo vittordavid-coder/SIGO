@@ -601,13 +601,18 @@ export default function App() {
   };
 
   const handleSyncMobileData = async () => {
-    // Mark all pending local field reports as synced and upload to Supabase
     const nowIso = new Date().toISOString();
+    const unsyncedReports = fieldReports.filter(r => !r.synced || !r.syncedAt);
+
+    if (unsyncedReports.length === 0) {
+      return;
+    }
+
     const updatedReports = fieldReports.map(r => {
-      if (r.status === 'pending' || !r.syncedAt || !r.synced) {
+      if (!r.synced || !r.syncedAt) {
         return {
           ...r,
-          status: 'synced' as const,
+          status: r.status || 'pending',
           syncedAt: nowIso,
           synced: true
         };
@@ -616,8 +621,8 @@ export default function App() {
     });
     setFieldReports(updatedReports);
 
-    await syncFieldReportsStateToSupabase(updatedReports);
-    await syncFromSupabase(currentUser?.companyId);
+    const reportsToPush = updatedReports.filter(r => unsyncedReports.some(u => u.id === r.id));
+    await syncFieldReportsStateToSupabase(reportsToPush);
   };
 
   const handleDeleteFieldReport = (reportId: string) => {
@@ -634,28 +639,104 @@ export default function App() {
     syncFieldReportsStateToSupabase(updated);
   };
 
-  const handleApproveFieldReport = (reportId: string) => {
+  const handleApproveFieldReport = (reportId: string, approvedBy?: string, editedData?: Partial<FieldProductionReport>) => {
     const report = fieldReports.find(r => r.id === reportId);
     if (!report) return;
 
-    const updatedReport: FieldProductionReport = { ...report, status: 'approved' };
-    const updated = fieldReports.map(r => r.id === reportId ? updatedReport : r);
-    setFieldReports(updated);
+    const baseReport = editedData ? { ...report, ...editedData } : report;
+    const updatedReport: FieldProductionReport = { ...baseReport, status: 'approved' };
+    const updatedFieldReports = fieldReports.map(r => r.id === reportId ? updatedReport : r);
+    setFieldReports(updatedFieldReports);
 
-    const newProd: ServiceProduction = {
-      id: `prod-appr-${Date.now()}`,
-      contractId: report.contractId,
-      serviceId: report.serviceId,
-      serviceName: report.serviceName,
-      unit: report.unit,
-      quantity: report.qty,
-      date: report.productionDate,
-      notes: `[Campo-PWA - Apontado por ${report.reportedBy}] ${report.notes || ''}`.trim(),
-      createdAt: new Date().toISOString()
+    const reportDate = baseReport.productionDate || new Date().toISOString().slice(0, 10);
+    const targetMonth = reportDate.slice(0, 7);
+    const dayNum = parseInt(reportDate.slice(8, 10), 10);
+    const reportQty = Number(baseReport.qty) || 0;
+
+    // 1. Update Service Production control
+    if (baseReport.serviceId) {
+      const existingProd = serviceProductions.find(p => 
+        p.contractId === baseReport.contractId && 
+        p.serviceId === baseReport.serviceId && 
+        p.month === targetMonth
+      );
+
+      const existingDailyData = existingProd?.dailyData || {};
+      const existingDayObj = existingDailyData[dayNum] || { planned: 0, actual: 0 };
+      const updatedDailyData = {
+        ...existingDailyData,
+        [dayNum]: {
+          ...existingDayObj,
+          actual: (existingDayObj.actual || 0) + reportQty
+        }
+      };
+
+      const updatedProd: ServiceProduction = {
+        id: existingProd?.id || `sp-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+        contractId: baseReport.contractId,
+        serviceId: baseReport.serviceId,
+        month: targetMonth,
+        currentMonthQty: ((existingProd?.currentMonthQty || 0) + reportQty),
+        accumulatedQty: ((existingProd?.accumulatedQty || 0) + reportQty),
+        dailyData: updatedDailyData,
+        dailyNotes: [
+          ...(existingProd?.dailyNotes || []),
+          {
+            date: reportDate,
+            qty: reportQty,
+            note: `[Aprovado Sala Técnica - ${approvedBy || 'Engenharia'}] ${baseReport.trecho ? `Trecho: ${baseReport.trecho}. ` : ''}${baseReport.notes || ''}`.trim(),
+            recordedBy: baseReport.reportedBy || 'Apontador'
+          }
+        ]
+      };
+
+      updateServiceProduction(updatedProd);
+    }
+
+    // 2. Add activity to Diário de Obra (RDO)
+    let activityDesc = '';
+    if (baseReport.startStation || baseReport.endStation) {
+      activityDesc = `Execução de "${baseReport.serviceName}" da estaca ${baseReport.startStation || '0'} a ${baseReport.endStation || '0'}.`;
+    } else if (baseReport.trecho) {
+      activityDesc = `Execução de "${baseReport.serviceName}" - Trecho: ${baseReport.trecho}.`;
+    } else {
+      activityDesc = `Execução de "${baseReport.serviceName}" (${reportQty} ${baseReport.unit || 'un'}).`;
+    }
+
+    const newActivity: DailyReportActivity = {
+      id: `act-appr-${Date.now()}-${Math.random().toString(36).substring(2, 5)}`,
+      code: baseReport.serviceId || 'CAMPO',
+      description: activityDesc,
+      type: 'Produção',
+      category: 'CONTRATADA'
     };
 
-    updateServiceProduction(newProd);
-    syncFieldReportsStateToSupabase(updated);
+    const existingRdo = dailyReports.find(r => r.contractId === baseReport.contractId && r.date === reportDate);
+    if (existingRdo) {
+      const updatedRdo: DailyReport = {
+        ...existingRdo,
+        activities: [...(existingRdo.activities || []), newActivity]
+      };
+      updateDailyReport(updatedRdo);
+    } else {
+      const newRdo: Omit<DailyReport, 'id'> = {
+        contractId: baseReport.contractId,
+        companyId: currentUser?.companyId,
+        date: reportDate,
+        weatherMorning: 'Bom',
+        weatherAfternoon: 'Bom',
+        weatherNight: 'Bom',
+        rainfallMm: 0,
+        manpower: [],
+        equipment: [],
+        activities: [newActivity],
+        accidents: 'Nenhum acidente registrado.',
+        fiscalizationComments: ''
+      };
+      addDailyReport(newRdo);
+    }
+
+    syncFieldReportsStateToSupabase(updatedFieldReports);
   };
 
   const handleRejectFieldReport = (reportId: string) => {

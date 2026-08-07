@@ -54,6 +54,25 @@ export interface OfflinePendingItem {
 const CACHE_KEY = 'synera_mobile_cached_data_v1';
 const OFFLINE_QUEUE_KEY = 'synera_mobile_offline_queue_v1';
 const SYNC_HISTORY_KEY = 'synera_mobile_sync_history_v1';
+
+export const getLocalTodayDateStr = (): string => {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+};
+
+export const formatLocalDateStr = (dateStr?: string): string => {
+  if (!dateStr) return '-';
+  const clean = dateStr.split('T')[0];
+  const parts = clean.split('-');
+  if (parts.length === 3) {
+    const [y, m, d] = parts;
+    if (y && m && d) return `${d}/${m}/${y}`;
+  }
+  return dateStr;
+};
 export interface SyncHistoryItem {
   id: string;
   timestamp: string;
@@ -1630,7 +1649,7 @@ export function SyneraMobileView({
   const [prodLengthM, setProdLengthM] = useState<string>('');
   const [prodWidthM, setProdWidthM] = useState<string>('');
   const [prodHeightM, setProdHeightM] = useState<string>('');
-  const [prodDate, setProdDate] = useState<string>(() => new Date().toISOString().slice(0, 10));
+  const [prodDate, setProdDate] = useState<string>(() => getLocalTodayDateStr());
   const [prodStartStation, setProdStartStation] = useState<string>('');
   const [prodEndStation, setProdEndStation] = useState<string>('');
   const [prodTrecho, setProdTrecho] = useState<string>('');
@@ -1659,7 +1678,7 @@ export function SyneraMobileView({
   const [mobileRhSubView, setMobileRhSubView] = useState<'resumo' | 'colaboradores'>('resumo');
   const [rhSearchTerm, setRhSearchTerm] = useState('');
   const [rhTeamFilter, setRhTeamFilter] = useState('ALL');
-  const [rhAttendanceDate, setRhAttendanceDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [rhAttendanceDate, setRhAttendanceDate] = useState(() => getLocalTodayDateStr());
 
   // RH Transfer Support States
   const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
@@ -1675,7 +1694,7 @@ export function SyneraMobileView({
     notes?: string;
   }>>(() => {
     try {
-      const todayStr = new Date().toISOString().slice(0, 10);
+      const todayStr = getLocalTodayDateStr();
       const saved = localStorage.getItem(`synera_mobile_rh_records_${todayStr}`);
       return saved ? JSON.parse(saved) : {};
     } catch {
@@ -3662,7 +3681,7 @@ export function SyneraMobileView({
 
                                 <div className="flex items-center justify-between text-[11px] text-slate-400 font-medium">
                                   <span>Qtd: <strong className="text-emerald-400 font-bold">{rep.qty} {rep.unit}</strong></span>
-                                  <span>Data Prod: {new Date(rep.productionDate).toLocaleDateString('pt-BR')}</span>
+                                  <span>Data Prod: {formatLocalDateStr(rep.productionDate)}</span>
                                 </div>
 
                                 {rep.trecho && <p className="text-[10px] text-slate-400">Trecho: {rep.trecho}</p>}
@@ -5327,7 +5346,7 @@ export function SyneraMobileView({
                               </div>
                               <div>
                                 <span className="text-slate-500 text-[9px] block uppercase font-bold">Data da Produção</span>
-                                <span className="text-slate-200 font-bold">{new Date(rep.productionDate).toLocaleDateString('pt-BR')}</span>
+                                <span className="text-slate-200 font-bold">{formatLocalDateStr(rep.productionDate)}</span>
                               </div>
                             </div>
 
