@@ -1597,9 +1597,21 @@ export function SyneraMobileView({
     }
   }, []);
 
-  // Allowed employees according to RH responsibles definition
+  // Allowed employees according to RH responsibles definition & filtering out dismissed employees
   const allowedRhEmployees = useMemo(() => {
-    const rawEmps = (employees || []).filter(e => e.status !== 'Inativo' && e.status !== 'Inativo (Demitido)');
+    // 1. Strictly filter out dismissed/inactive employees
+    const rawEmps = (employees || []).filter(e => {
+      if (!e) return false;
+      // Check dismissal date
+      if (e.dismissalDate && e.dismissalDate.trim() !== '') return false;
+      // Check status strings
+      const st = (e.status || 'active').toLowerCase().trim();
+      if (st === 'dismissed' || st === 'demitido' || st === 'inativo' || st === 'inativo (demitido)' || st === 'desligado') {
+        return false;
+      }
+      return true;
+    });
+
     // Deduplicate employees by ID to avoid duplicate React key warnings
     const map = new Map<string, typeof rawEmps[0]>();
     rawEmps.forEach(e => {
@@ -1609,23 +1621,66 @@ export function SyneraMobileView({
     });
     const activeEmps = Array.from(map.values());
     const responsibles = rhParams.mobileResponsibles || [];
-    
+
+    // Master / Admin users have full access to all active employees
+    if (currentUser?.role === 'master' || currentUser?.role === 'admin') {
+      return activeEmps;
+    }
+
+    // If no specific responsibles are configured in RH/Parâmetros, allow all active employees
     if (!responsibles || responsibles.length === 0) {
       return activeEmps;
     }
 
-    const matchedResp = responsibles.find((r: any) => 
-      r.employeeId === currentUser?.id || 
-      (currentUser?.name && r.employeeName?.toLowerCase() === currentUser.name?.toLowerCase())
-    );
+    // Find all responsible definitions that match current user
+    const userMatchedEmployeeIds = new Set<string>();
+    activeEmps.forEach(emp => {
+      if (
+        (currentUser?.id && emp.id === currentUser.id) ||
+        (currentUser?.name && emp.name.toLowerCase().trim() === currentUser.name.toLowerCase().trim()) ||
+        (currentUser?.email && emp.email?.toLowerCase().trim() === currentUser.email.toLowerCase().trim()) ||
+        (currentUser?.username && emp.cpf?.replace(/\D/g, '') === currentUser.username.replace(/\D/g, ''))
+      ) {
+        userMatchedEmployeeIds.add(emp.id);
+      }
+    });
 
-    if (matchedResp) {
-      if (matchedResp.scope === 'ALL') {
-        return activeEmps;
+    const userResponsibles = responsibles.filter((r: any) => {
+      if (r.employeeId === currentUser?.id) return true;
+      if (userMatchedEmployeeIds.has(r.employeeId)) return true;
+      if (currentUser?.name && r.employeeName?.toLowerCase().trim() === currentUser.name.toLowerCase().trim()) return true;
+      if (currentUser?.username && r.employeeName?.toLowerCase().trim() === currentUser.username.toLowerCase().trim()) return true;
+      if (currentUser?.email && r.employeeName?.toLowerCase().trim() === currentUser.email.toLowerCase().trim()) return true;
+      return false;
+    });
+
+    // If user has a responsible assignment with scope === 'ALL', return all activeEmps
+    if (userResponsibles.some((r: any) => r.scope === 'ALL')) {
+      return activeEmps;
+    }
+
+    // Collect all assigned team names for this user
+    const assignedTeams = new Set<string>();
+    userResponsibles.forEach((r: any) => {
+      if (r.scope === 'TEAM' && r.teamName) {
+        assignedTeams.add(r.teamName.toLowerCase().trim());
       }
-      if (matchedResp.scope === 'TEAM' && matchedResp.teamName) {
-        return activeEmps.filter(e => e.team && e.team.toLowerCase().trim() === matchedResp.teamName.toLowerCase().trim());
-      }
+    });
+
+    if (assignedTeams.size > 0) {
+      return activeEmps.filter(e => {
+        if (!e.team) return false;
+        const eTeamNorm = e.team.toLowerCase().trim();
+        return assignedTeams.has(eTeamNorm);
+      });
+    }
+
+    // If responsibles are configured in RH/Parâmetros but current non-admin user was not assigned any team:
+    // Check if current user is directly linked to an employee who has a team
+    const matchedUserEmp = activeEmps.find(e => userMatchedEmployeeIds.has(e.id));
+    if (matchedUserEmp && matchedUserEmp.team) {
+      const userTeamNorm = matchedUserEmp.team.toLowerCase().trim();
+      return activeEmps.filter(e => e.team && e.team.toLowerCase().trim() === userTeamNorm);
     }
 
     return activeEmps;
@@ -1958,17 +2013,109 @@ export function SyneraMobileView({
 
   // Filtered services for current contract - ONLY show services that have controls created in Sala Técnica / Controles
   const contractServices = useMemo(() => {
-    const baseServices = services.filter(s => s.contractId === activeContract.id || !s.contractId);
-
-    // Filter by created controls in Sala Técnica / Controles
-    const controlledServiceIds = new Set(
-      serviceProductions
-        .filter(p => p.contractId === activeContract.id || !p.contractId)
-        .map(p => p.serviceId)
+    // Collect all controls created in Sala Técnica for active contract (or global controls without contractId)
+    const contractProds = (serviceProductions || []).filter(
+      p => !p.contractId || p.contractId === activeContract.id
     );
 
-    return baseServices.filter(s => controlledServiceIds.has(s.id));
-  }, [services, serviceProductions, activeContract.id]);
+    const controlledKeys = new Set<string>();
+    contractProds.forEach(p => {
+      if (p.serviceId) {
+        controlledKeys.add(p.serviceId.toString().trim().toLowerCase());
+      }
+    });
+
+    const resultList: any[] = [];
+    const seenIds = new Set<string>();
+
+    const tryAddService = (s: { id: string; code?: string; name?: string; unit?: string; contractId?: string }) => {
+      if (!s || !s.id) return;
+      const keyId = s.id.toString().trim().toLowerCase();
+      const keyCode = (s.code || '').toString().trim().toLowerCase();
+      const keyName = (s.name || '').toString().trim().toLowerCase();
+
+      const isControlled =
+        controlledKeys.has(keyId) ||
+        (keyCode && controlledKeys.has(keyCode)) ||
+        (keyName && controlledKeys.has(keyName));
+
+      if (controlledKeys.size === 0 || isControlled) {
+        if (!seenIds.has(keyId)) {
+          seenIds.add(keyId);
+          resultList.push(s);
+        }
+      }
+    };
+
+    // A) Check master services array (compositions)
+    (services || []).forEach(s => tryAddService(s));
+
+    // B) Check services directly attached to contract (activeContract.services)
+    if (activeContract && Array.isArray((activeContract as any).services)) {
+      (activeContract as any).services.forEach((cs: any) => {
+        const id = cs.serviceId || cs.code || cs.name;
+        if (id) {
+          tryAddService({
+            id,
+            code: cs.code || 'SERV',
+            name: cs.name || cs.serviceId || 'Serviço da Obra',
+            unit: 'un',
+            contractId: activeContract.id
+          });
+        }
+      });
+    }
+
+    // C) Check services inside budget groups (activeContract.groups)
+    if (activeContract && Array.isArray((activeContract as any).groups)) {
+      (activeContract as any).groups.forEach((g: any) => {
+        if (Array.isArray(g.services)) {
+          g.services.forEach((cs: any) => {
+            const id = cs.serviceId || cs.code || cs.name;
+            if (id) {
+              tryAddService({
+                id,
+                code: cs.code || 'SERV',
+                name: cs.name || cs.serviceId || 'Serviço da Obra',
+                unit: 'un',
+                contractId: activeContract.id
+              });
+            }
+          });
+        }
+      });
+    }
+
+    // D) Guarantee: For ANY control in serviceProductions that wasn't found in services/contract, synthesize it so it's ALWAYS selectable!
+    contractProds.forEach(p => {
+      if (p.serviceId) {
+        const key = p.serviceId.toString().trim().toLowerCase();
+        if (!seenIds.has(key)) {
+          const match = (services || []).find(
+            s =>
+              s.id?.toString().trim().toLowerCase() === key ||
+              s.code?.toString().trim().toLowerCase() === key ||
+              s.name?.toString().trim().toLowerCase() === key
+          );
+          seenIds.add(key);
+          resultList.push({
+            id: p.serviceId,
+            code: match?.code || p.serviceId,
+            name: p.customTitle || match?.name || p.serviceId || 'Serviço Controlado',
+            unit: match?.unit || 'un',
+            contractId: activeContract.id
+          });
+        }
+      }
+    });
+
+    // Fallback: If no controls match or result is empty, return services belonging to active contract
+    if (resultList.length === 0) {
+      return (services || []).filter(s => !s.contractId || s.contractId === activeContract.id);
+    }
+
+    return resultList;
+  }, [services, serviceProductions, activeContract]);
 
   // Filtered equipments
   const contractEquipments = useMemo(() => {
