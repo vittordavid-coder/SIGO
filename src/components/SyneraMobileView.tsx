@@ -698,6 +698,26 @@ export function SyneraMobileView({
   // Selected sector (null = Home/Landing page, or one of the 5 sector IDs or 'sincronizacao')
   const [activeSector, setActiveSector] = useState<MobileSector | 'sincronizacao' | null>(null);
 
+  // Mobile User Specific Field Reports (Only show entries created by the logged-in user in mobile view)
+  const userFieldReports = useMemo(() => {
+    if (!fieldReports) return [];
+    
+    return fieldReports.filter(r => {
+      if (!currentUser) return true;
+      
+      const emailMatch = currentUser.email && r.reportedByEmail && 
+        r.reportedByEmail.toLowerCase().trim() === currentUser.email.toLowerCase().trim();
+        
+      const nameMatch = currentUser.name && r.reportedBy && 
+        r.reportedBy.toLowerCase().trim() === currentUser.name.toLowerCase().trim();
+
+      const createdNameMatch = currentUser.name && r.createdByName &&
+        r.createdByName.toLowerCase().trim() === currentUser.name.toLowerCase().trim();
+
+      return emailMatch || nameMatch || createdNameMatch;
+    });
+  }, [fieldReports, currentUser]);
+
   // Selected active contract in mobile
   const [selectedContractId, setSelectedContractId] = useState<string>(() => {
     return contracts[0]?.id || '';
@@ -3160,24 +3180,24 @@ export function SyneraMobileView({
               </div>
             </div>
 
-            {/* CARD QUICK ACCESS DA FILA DE SINCRONIZAÇÃO */}
+            {/* CARD QUICK ACCESS DA SINCRONIZAÇÃO EM SEGUNDO PLANO */}
             <div 
-              onClick={() => setActiveSector('sincronizacao')}
+              onClick={handleProcessSync}
               className="p-4 rounded-3xl bg-slate-800/80 border border-slate-700/80 hover:border-slate-600 cursor-pointer flex items-center justify-between transition-all"
             >
               <div className="flex items-center gap-3">
                 <div className="p-2.5 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-400">
-                  <RefreshCw className={`w-5 h-5 ${isSyncing ? 'animate-spin' : ''}`} />
+                  <RefreshCw className={`w-5 h-5 ${isSyncing ? 'animate-spin text-emerald-400' : ''}`} />
                 </div>
                 <div>
-                  <h4 className="text-xs font-black text-white">Fila de Sincronização Offline</h4>
+                  <h4 className="text-xs font-black text-white">Sincronizar Dados em Segundo Plano</h4>
                   <p className="text-[11px] text-slate-400">
-                    {offlineQueue.length === 0 ? 'Nenhum item pendente de envio' : `${offlineQueue.length} apontamento(s) armazenado(s) localmente`}
+                    {offlineQueue.length === 0 ? 'Todos os dados atualizados' : `${offlineQueue.length} apontamento(s) armazenado(s) localmente`}
                   </p>
                 </div>
               </div>
               <span className="text-xs font-bold text-amber-400 flex items-center gap-1">
-                Ver Fila <ChevronRight className="w-4 h-4" />
+                {isSyncing ? 'Sincronizando...' : 'Sincronizar Agora'}
               </span>
             </div>
 
@@ -3463,7 +3483,7 @@ export function SyneraMobileView({
                         className="flex-1 h-10 rounded-xl bg-slate-900 border-slate-700 text-blue-300 font-bold text-xs flex items-center justify-center gap-1.5 hover:bg-slate-800"
                       >
                         <FileText className="w-4 h-4 text-blue-400" />
-                        Ver Lançamentos ({fieldReports.length})
+                        Ver Lançamentos ({userFieldReports.length})
                       </Button>
 
                       <Button
@@ -3499,10 +3519,10 @@ export function SyneraMobileView({
                         </div>
 
                         <div className="overflow-y-auto flex-1 space-y-3 pr-1 custom-scrollbar">
-                          {fieldReports.length === 0 ? (
+                          {userFieldReports.length === 0 ? (
                             <p className="text-xs text-slate-400 text-center py-8">Nenhum registro de campo efetuado ainda.</p>
                           ) : (
-                            fieldReports.map(rep => (
+                            userFieldReports.map(rep => (
                               <div key={rep.id} className="p-3.5 rounded-2xl bg-slate-950 border border-slate-800 space-y-2">
                                 <div className="flex items-center justify-between">
                                   <span className="text-xs font-black text-white truncate max-w-[200px]">{rep.serviceName}</span>
@@ -5055,10 +5075,10 @@ export function SyneraMobileView({
                         <SelectValue placeholder="Filtrar por Obra" />
                       </SelectTrigger>
                       <SelectContent className="bg-slate-800 border-slate-700 text-white">
-                        <SelectItem value="all">Todas as Obras ({fieldReports.filter(r => r.photoUrl).length})</SelectItem>
+                        <SelectItem value="all">Todas as Obras ({userFieldReports.filter(r => r.photoUrl).length})</SelectItem>
                         {contracts.map(c => (
                           <SelectItem key={c.id} value={c.id}>
-                            {c.name || c.workName || 'Obra'} ({fieldReports.filter(r => r.photoUrl && r.contractId === c.id).length})
+                            {c.name || c.workName || 'Obra'} ({userFieldReports.filter(r => r.photoUrl && r.contractId === c.id).length})
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -5104,7 +5124,7 @@ export function SyneraMobileView({
                   )}
 
                   {/* Lista/Grid de Fotos da Galeria */}
-                  {fieldReports.filter(r => {
+                  {userFieldReports.filter(r => {
                     if (!r.photoUrl) return false;
                     if (galleryFilterContract !== 'all' && r.contractId !== galleryFilterContract) return false;
                     if (gallerySearchQuery.trim()) {
@@ -5132,7 +5152,7 @@ export function SyneraMobileView({
                     </div>
                   ) : (
                     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-                      {fieldReports.filter(r => {
+                      {userFieldReports.filter(r => {
                         if (!r.photoUrl) return false;
                         if (galleryFilterContract !== 'all' && r.contractId !== galleryFilterContract) return false;
                         if (gallerySearchQuery.trim()) {
@@ -5818,6 +5838,37 @@ export function SyneraMobileView({
         )}
       </AnimatePresence>
 
+      {/* TOAST DE SINCRONIZAÇÃO EM SEGUNDO PLANO */}
+      <AnimatePresence>
+        {(isSyncing || syncSuccessMsg) && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 20 }}
+            className="fixed bottom-16 left-4 right-4 max-w-md mx-auto z-50 flex items-center justify-between p-3.5 bg-slate-900/95 border border-emerald-500/50 text-white rounded-2xl shadow-2xl backdrop-blur-xl"
+          >
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-xl bg-emerald-500/20 text-emerald-400">
+                <RefreshCw className={`w-4 h-4 ${isSyncing ? 'animate-spin' : ''}`} />
+              </div>
+              <div>
+                <p className="text-xs font-bold text-slate-100">
+                  {isSyncing ? 'Sincronizando em segundo plano...' : syncSuccessMsg}
+                </p>
+                <p className="text-[10px] text-slate-400 font-medium">
+                  {isSyncing ? 'Enviando apontamentos locais para o servidor' : 'Sua base de dados móvel está atualizada'}
+                </p>
+              </div>
+            </div>
+            {!isSyncing && (
+              <button onClick={() => setSyncSuccessMsg(null)} className="p-1 text-slate-400 hover:text-white rounded-lg">
+                <X className="w-4 h-4" />
+              </button>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* RODAPÉ FIXO DE NAVEGAÇÃO DO SYNERA MOBILE */}
       <div className="fixed bottom-0 left-0 right-0 max-w-md landscape:max-w-5xl sm:max-w-2xl md:max-w-4xl lg:max-w-5xl mx-auto bg-slate-950/95 backdrop-blur-xl border-t border-slate-800/90 py-2 px-4 z-40 flex items-center justify-around shadow-2xl transition-all">
         <button
@@ -5836,7 +5887,7 @@ export function SyneraMobileView({
         >
           <FileText className="w-5 h-5" />
           <span className="text-[10px]">Registros</span>
-          {fieldReports.length > 0 && (
+          {userFieldReports.length > 0 && (
             <span className="absolute -top-1 right-2 w-2 h-2 rounded-full bg-blue-500" />
           )}
         </button>
@@ -5853,13 +5904,13 @@ export function SyneraMobileView({
         </button>
 
         <button
-          onClick={() => setActiveSector('sincronizacao')}
-          className={`flex flex-col items-center gap-1 transition-colors relative ${
-            activeSector === 'sincronizacao' ? 'text-emerald-400 font-extrabold' : 'text-slate-400 hover:text-slate-200'
-          }`}
+          onClick={handleProcessSync}
+          disabled={isSyncing}
+          className="flex flex-col items-center gap-1 text-slate-400 hover:text-slate-200 transition-colors relative"
+          title="Sincronizar dados em segundo plano"
         >
           <RefreshCw className={`w-5 h-5 ${isSyncing ? 'animate-spin text-emerald-400' : ''}`} />
-          <span className="text-[10px]">Sincronizar</span>
+          <span className="text-[10px]">{isSyncing ? 'Sincronizando' : 'Sincronizar'}</span>
           {offlineQueue.length > 0 && (
             <span className="absolute -top-1 right-2 px-1 rounded-full bg-amber-500 text-slate-950 text-[9px] font-black">
               {offlineQueue.length}
@@ -5950,11 +6001,7 @@ export function SyneraMobileView({
                 <Button 
                   onClick={() => { 
                     setShowOptionsMenu(false); 
-                    if (onSyncRequest) {
-                       onSyncRequest().then(() => alert('Dados baixados com sucesso!'));
-                    } else {
-                       alert('O sistema já está sincronizando em segundo plano.');
-                    }
+                    handleProcessSync();
                   }}
                   className="h-14 bg-slate-950 border border-slate-700 hover:border-amber-500 hover:bg-slate-800 text-white justify-start gap-4"
                 >
@@ -5962,8 +6009,8 @@ export function SyneraMobileView({
                     <RefreshCw className="w-4 h-4 text-amber-400" />
                   </div>
                   <div className="flex flex-col items-start text-left">
-                    <span className="font-bold text-sm">Baixar Dados da Obra</span>
-                    <span className="text-[10px] text-slate-400 font-normal">Baixar serviços e controles para offline</span>
+                    <span className="font-bold text-sm">Sincronizar Dados em Segundo Plano</span>
+                    <span className="text-[10px] text-slate-400 font-normal">Enviar pendências e atualizar base de dados</span>
                   </div>
                 </Button>
 

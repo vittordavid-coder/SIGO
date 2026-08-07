@@ -523,23 +523,65 @@ export default function App() {
 
     try {
       if (activeCompId) {
-        await supabase.from('app_state').upsert({
+        let { error: bErr } = await supabase.from('app_state').upsert({
           id: `${activeCompId}_sigo_field_reports`,
           content: updatedReports,
           updated_at: new Date().toISOString()
         });
+        if (bErr) {
+          await supabase.from('app_state').upsert({
+            id: `${activeCompId}_sigo_field_reports`,
+            content: updatedReports
+          }).catch(() => {});
+        }
       }
 
       if (updatedReports.length > 0) {
-        const mapped = updatedReports.map(r => {
-          const snake = mapToSnake(r);
+        const mapped = updatedReports.map((r: any) => {
+          const {
+            id, companyId, contractId, contractName, serviceId, serviceName,
+            unit, qty, productionDate, startStation, endStation, trecho,
+            notes, photo, photoUrl, reportedBy, reportedByEmail, status,
+            syncedAt, createdAt, updatedAt, infoType, tripsQty, lengthM, widthM, heightM
+          } = r;
+
           return {
-            ...snake,
-            company_id: r.companyId || activeCompId || null,
-            production_date: snake.production_date === '' ? null : snake.production_date
+            id: id || `fr-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+            company_id: companyId || activeCompId || null,
+            contract_id: (contractId && contractId !== '') ? contractId : null,
+            contract_name: contractName || null,
+            service_id: (serviceId && serviceId !== '') ? serviceId : null,
+            service_name: serviceName || null,
+            unit: unit || 'un',
+            qty: Number(qty) || 0,
+            production_date: (productionDate && typeof productionDate === 'string' && productionDate.trim() !== '') ? productionDate : null,
+            start_station: startStation || null,
+            end_station: endStation || null,
+            trecho: trecho || null,
+            notes: notes || null,
+            photo: photo || null,
+            photo_url: photoUrl || null,
+            reported_by: reportedBy || null,
+            reported_by_email: reportedByEmail || null,
+            status: status || 'pending',
+            synced_at: (syncedAt && typeof syncedAt === 'string' && syncedAt.trim() !== '') ? syncedAt : null,
+            created_at: (createdAt && typeof createdAt === 'string' && createdAt.trim() !== '') ? createdAt : new Date().toISOString(),
+            updated_at: (updatedAt && typeof updatedAt === 'string' && updatedAt.trim() !== '') ? updatedAt : new Date().toISOString(),
+            ...(infoType ? { info_type: infoType } : {}),
+            ...(tripsQty !== undefined && tripsQty !== null ? { trips_qty: Number(tripsQty) } : {}),
+            ...(lengthM !== undefined && lengthM !== null ? { length_m: Number(lengthM) } : {}),
+            ...(widthM !== undefined && widthM !== null ? { width_m: Number(widthM) } : {}),
+            ...(heightM !== undefined && heightM !== null ? { height_m: Number(heightM) } : {})
           };
         });
-        await supabase.from('field_reports').upsert(mapped);
+
+        let { error: fErr } = await supabase.from('field_reports').upsert(mapped);
+        if (fErr) {
+          const coreMapped = mapped.map(({ info_type, trips_qty, length_m, width_m, height_m, ...rest }: any) => rest);
+          await supabase.from('field_reports').upsert(coreMapped).catch(err => {
+            console.warn('[Supabase] Retry field_reports upsert with core columns failed:', err);
+          });
+        }
       }
     } catch (err) {
       console.warn('[Supabase] Error syncing field reports:', err);
@@ -2085,12 +2127,12 @@ const normalizeWorkMovementSector = (sec?: string): string => {
           }
 
           // 1. Sync blob
-          const { error: blobError } = await supabase.from('app_state').upsert({ ...item, updated_at: new Date().toISOString() });
+          let { error: blobError } = await supabase.from('app_state').upsert({ ...item, updated_at: new Date().toISOString() });
           if (blobError) {
-            console.error(`Erro ao sincronizar blob ${item.id}:`, blobError);
-            // We do not return here! We still MUST try to sync the individual table.
-            // failCount will NOT be incremented for missing app_state so that we don't spam errors
-            // if the user hasn't created the app_state table in their Supabase.
+            const { error: retryBlobErr } = await supabase.from('app_state').upsert({ id: item.id, content: item.content });
+            if (retryBlobErr) {
+              console.warn(`[Sync] Aviso ao sincronizar blob ${item.id}:`, retryBlobErr);
+            }
           }
 
           // 2. Sync individual table
@@ -2209,10 +2251,42 @@ const normalizeWorkMovementSector = (sec?: string): string => {
                    });
                 } else if (activeTable === 'field_reports' || targetTable === 'field_reports') {
                    chunkToUpsert = chunk.map((frItem: any) => {
-                     if (frItem.production_date === '') frItem.production_date = null;
-                     if (frItem.synced_at === '') frItem.synced_at = null;
-                     if (!frItem.company_id) frItem.company_id = compId || null;
-                     return frItem;
+                     const {
+                       id, company_id, contract_id, contract_name, service_id, service_name,
+                       unit, qty, production_date, start_station, end_station, trecho,
+                       notes, photo, photo_url, reported_by, reported_by_email, status,
+                       synced_at, created_at, updated_at,
+                       info_type, trips_qty, length_m, width_m, height_m
+                     } = frItem;
+
+                     return {
+                       id: id || `fr-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+                       company_id: company_id || compId || null,
+                       contract_id: (contract_id && contract_id !== '') ? contract_id : null,
+                       contract_name: contract_name || null,
+                       service_id: (service_id && service_id !== '') ? service_id : null,
+                       service_name: service_name || null,
+                       unit: unit || 'un',
+                       qty: Number(qty) || 0,
+                       production_date: (production_date && typeof production_date === 'string' && production_date.trim() !== '') ? production_date : null,
+                       start_station: start_station || null,
+                       end_station: end_station || null,
+                       trecho: trecho || null,
+                       notes: notes || null,
+                       photo: photo || null,
+                       photo_url: photo_url || null,
+                       reported_by: reported_by || null,
+                       reported_by_email: reported_by_email || null,
+                       status: status || 'pending',
+                       synced_at: (synced_at && typeof synced_at === 'string' && synced_at.trim() !== '') ? synced_at : null,
+                       created_at: (created_at && typeof created_at === 'string' && created_at.trim() !== '') ? created_at : new Date().toISOString(),
+                       updated_at: (updated_at && typeof updated_at === 'string' && updated_at.trim() !== '') ? updated_at : new Date().toISOString(),
+                       ...(info_type ? { info_type } : {}),
+                       ...(trips_qty !== undefined && trips_qty !== null ? { trips_qty: Number(trips_qty) } : {}),
+                       ...(length_m !== undefined && length_m !== null ? { length_m: Number(length_m) } : {}),
+                       ...(width_m !== undefined && width_m !== null ? { width_m: Number(width_m) } : {}),
+                       ...(height_m !== undefined && height_m !== null ? { height_m: Number(height_m) } : {})
+                     };
                    });
                 } else if (activeTable === 'service_productions' || targetTable === 'service_productions') {
                    chunkToUpsert = chunk.map((prodRow: any) => {
@@ -2288,15 +2362,18 @@ const normalizeWorkMovementSector = (sec?: string): string => {
                   }
                   
                   if (tError) {
-                    console.warn(`[Sync] Upsert failed for chunk of ${activeTable}, retrying without company_id / extra columns...`, tError);
-                    const saferChunk = chunkToUpsert.map(({ company_id, productive_price, unproductive_price, ...rest }: any) => rest);
+                    console.warn(`[Sync] Upsert failed for chunk of ${activeTable}, retrying with core columns fallback...`, tError);
+                    const saferChunk = chunkToUpsert.map(({
+                      info_type, trips_qty, length_m, width_m, height_m, synced,
+                      company_id, productive_price, unproductive_price, ...rest
+                    }: any) => rest);
                     const retryResult2 = await supabase.from(activeTable).upsert(saferChunk);
                     tError = retryResult2.error;
                   }
                 }
                 
                 if (tError) {
-                  console.error(`Erro ao sincronizar pedaço da tabela ${activeTable}:`, tError);
+                  console.warn(`[Sync] Aviso ao sincronizar pedaço da tabela ${activeTable}:`, tError);
                 }
 
                 if (targetTable === 'technical_schedules' && !tError) {
