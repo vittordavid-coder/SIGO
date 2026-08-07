@@ -17,7 +17,7 @@ export default defineConfig(({mode}) => {
       VitePWA({
         registerType: 'autoUpdate',
         devOptions: {
-          enabled: true
+          enabled: false
         },
         workbox: {
           globPatterns: ['**/*.{js,css,html,ico,png,svg,json}'],
@@ -32,7 +32,7 @@ export default defineConfig(({mode}) => {
       assetsDir: 'assets',
       emptyOutDir: true,
       chunkSizeWarningLimit: 2000,
-      rollupOptions: { input: { main: path.resolve(__dirname, 'index.html'), cam: path.resolve(__dirname, 'cam.html') },
+      rollupOptions: {
         output: {
           manualChunks(id) {
             if (id.includes('node_modules')) {

@@ -695,8 +695,13 @@ export function SyneraMobileView({
 }: SyneraMobileViewProps) {
   const [isOnline, setIsOnline] = useState<boolean>(() => navigator.onLine);
   
-  // Selected sector (null = Home/Landing page, or one of the 5 sector IDs or 'sincronizacao')
-  const [activeSector, setActiveSector] = useState<MobileSector | 'sincronizacao' | null>(null);
+  // Selected sector (null = Home/Landing page, or one of the 5 sector IDs, 'sincronizacao', 'registros', 'galeria')
+  const [activeSector, setActiveSector] = useState<MobileSector | 'sincronizacao' | 'registros' | 'galeria' | null>(null);
+
+  // States for dedicated Registros screen
+  const [registrosFilterStatus, setRegistrosFilterStatus] = useState<'all' | 'pending' | 'synced'>('all');
+  const [registrosSearch, setRegistrosSearch] = useState<string>('');
+  const [registrosFilterContract, setRegistrosFilterContract] = useState<string>('all');
 
   // Mobile User Specific Field Reports (Only show entries created by the logged-in user in mobile view)
   const userFieldReports = useMemo(() => {
@@ -717,6 +722,27 @@ export function SyneraMobileView({
       return emailMatch || nameMatch || createdNameMatch;
     });
   }, [fieldReports, currentUser]);
+
+  // Filtered reports for Meus Registros screen
+  const filteredUserReports = useMemo(() => {
+    return userFieldReports.filter(r => {
+      const isSynced = r.status === 'synced' || r.status === 'approved' || Boolean(r.syncedAt);
+      if (registrosFilterStatus === 'pending' && isSynced) return false;
+      if (registrosFilterStatus === 'synced' && !isSynced) return false;
+
+      if (registrosFilterContract !== 'all' && r.contractId !== registrosFilterContract) return false;
+
+      if (registrosSearch.trim()) {
+        const q = registrosSearch.toLowerCase().trim();
+        const sName = (r.serviceName || '').toLowerCase();
+        const trecho = (r.trecho || '').toLowerCase();
+        const notes = (r.notes || '').toLowerCase();
+        if (!sName.includes(q) && !trecho.includes(q) && !notes.includes(q)) return false;
+      }
+
+      return true;
+    });
+  }, [userFieldReports, registrosFilterStatus, registrosFilterContract, registrosSearch]);
 
   // Selected active contract in mobile
   const [selectedContractId, setSelectedContractId] = useState<string>(() => {
@@ -1677,7 +1703,8 @@ export function SyneraMobileView({
 
     if (matchedEmp && matchedEmp.team) return matchedEmp.team;
 
-    return null;
+    // Se possui responsáveis cadastrados no RH mas este usuário não tem equipe designada:
+    return '__NO_TEAM_DESIGNATED__';
   }, [currentUser, rhParams, employees]);
 
   const isUserEnabledInMobileResponsibles = useMemo(() => {
@@ -1708,6 +1735,10 @@ export function SyneraMobileView({
       return [];
     }
 
+    if (currentUserTeam === '__NO_TEAM_DESIGNATED__') {
+      return []; // Usuário não foi designado a nenhuma equipe pelo RH do Sistema
+    }
+
     const rawEmps = (employees || []).filter(e => {
       if (!e) return false;
       if (e.dismissalDate && e.dismissalDate.trim() !== '') return false;
@@ -1726,7 +1757,7 @@ export function SyneraMobileView({
     });
     const activeEmps = Array.from(map.values());
 
-    if (!currentUserTeam) {
+    if (currentUserTeam === null) {
       return activeEmps;
     }
 
@@ -1739,7 +1770,7 @@ export function SyneraMobileView({
 
       return isOriginalTeam || isTransferredHere;
     });
-  }, [employees, currentUserTeam, transferredEmpIds, rhEmployeeRecords]);
+  }, [employees, currentUserTeam, transferredEmpIds, rhEmployeeRecords, isUserEnabledInMobileResponsibles]);
 
   // Other team employees for transfer selection
   const otherTeamEmployees = useMemo(() => {
@@ -2574,7 +2605,7 @@ export function SyneraMobileView({
       widthM: prodWidthM ? parseFloat(prodWidthM) : undefined,
       heightM: prodHeightM ? parseFloat(prodHeightM) : undefined,
       productionDate: reportDate,
-      syncedAt: isNowOnline ? new Date().toISOString() : undefined,
+      syncedAt: undefined,
       createdAt: new Date().toISOString(),
       startStation: prodStartStation,
       endStation: prodEndStation,
@@ -2588,6 +2619,14 @@ export function SyneraMobileView({
 
     if (onSaveFieldReport) {
       onSaveFieldReport(newFieldReport);
+    }
+
+    try {
+      const currentLocal = JSON.parse(localStorage.getItem('sigo_field_reports') || '[]');
+      const updatedLocal = [newFieldReport, ...currentLocal.filter((r: any) => r.id !== newFieldReport.id)];
+      localStorage.setItem('sigo_field_reports', JSON.stringify(updatedLocal));
+    } catch (e) {
+      console.warn('Erro ao salvar no localStorage local:', e);
     }
 
     const newQueueItem: OfflinePendingItem = {
@@ -3183,21 +3222,49 @@ export function SyneraMobileView({
             {/* CARD QUICK ACCESS DA SINCRONIZAÇÃO EM SEGUNDO PLANO */}
             <div 
               onClick={handleProcessSync}
-              className="p-4 rounded-3xl bg-slate-800/80 border border-slate-700/80 hover:border-slate-600 cursor-pointer flex items-center justify-between transition-all"
+              className="p-4 rounded-3xl bg-slate-800/80 border border-slate-700/80 hover:border-slate-600 cursor-pointer flex items-center justify-between transition-all shadow-md"
             >
               <div className="flex items-center gap-3">
                 <div className="p-2.5 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-400">
                   <RefreshCw className={`w-5 h-5 ${isSyncing ? 'animate-spin text-emerald-400' : ''}`} />
                 </div>
                 <div>
-                  <h4 className="text-xs font-black text-white">Sincronizar Dados em Segundo Plano</h4>
+                  <h4 className="text-xs font-black text-white">Sincronizar Dados de Campo</h4>
                   <p className="text-[11px] text-slate-400">
-                    {offlineQueue.length === 0 ? 'Todos os dados atualizados' : `${offlineQueue.length} apontamento(s) armazenado(s) localmente`}
+                    {offlineQueue.length === 0 ? 'Todos os dados locais sincronizados' : `${offlineQueue.length} apontamento(s) aguardando envio ao servidor`}
                   </p>
                 </div>
               </div>
               <span className="text-xs font-bold text-amber-400 flex items-center gap-1">
                 {isSyncing ? 'Sincronizando...' : 'Sincronizar Agora'}
+              </span>
+            </div>
+
+            {/* CARD QUICK ACCESS MEUS REGISTROS DE CAMPO */}
+            <div 
+              onClick={() => setActiveSector('registros')}
+              className="p-4 rounded-3xl bg-slate-800/80 border border-slate-700/80 hover:border-blue-500/50 cursor-pointer flex items-center justify-between transition-all shadow-md"
+            >
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 rounded-2xl bg-blue-500/10 border border-blue-500/20 text-blue-400">
+                  <FileText className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h4 className="text-xs font-black text-white">Meus Registros de Campo</h4>
+                    {userFieldReports.filter(r => r.status === 'pending' || !r.syncedAt).length > 0 && (
+                      <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 text-[9px] font-bold">
+                        {userFieldReports.filter(r => r.status === 'pending' || !r.syncedAt).length} pendente(s)
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-[11px] text-slate-400">
+                    {userFieldReports.length} lançamento(s) registrados neste celular
+                  </p>
+                </div>
+              </div>
+              <span className="text-xs font-bold text-blue-400 flex items-center gap-1">
+                Ver Registros <ChevronRight className="w-4 h-4" />
               </span>
             </div>
 
@@ -3227,7 +3294,9 @@ export function SyneraMobileView({
                   {activeSector === 'equipamentos' && 'Equipamentos • Controlador'}
                   {activeSector === 'materiais' && 'Materiais • Almoxarife'}
                   {activeSector === 'project_admin' && 'Administrador da Obra'}
-                  {activeSector === 'sincronizacao' && 'Fila de Sincronização'}
+                  {activeSector === 'sincronizacao' && 'Sincronizar Dados'}
+                  {activeSector === 'registros' && 'Meus Registros de Campo'}
+                  {activeSector === 'galeria' && 'Galeria de Fotos'}
                 </span>
               </div>
             </div>
@@ -5001,6 +5070,264 @@ export function SyneraMobileView({
             )}
 
             {/* ---------------------------------------------------- */}
+            {/* TELA DEDICADA DE MEUS REGISTROS DE CAMPO (STATUS DE SINC) */}
+            {/* ---------------------------------------------------- */}
+            {activeSector === 'registros' && (
+              <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-4 pb-12">
+                <div className="bg-slate-800/80 border border-slate-700/80 rounded-3xl p-4 sm:p-5 space-y-4 shadow-xl">
+                  
+                  {/* Cabeçalho */}
+                  <div className="flex items-center justify-between pb-3 border-b border-slate-700/60">
+                    <div className="flex items-center gap-3">
+                      <button 
+                        onClick={() => setActiveSector(null)} 
+                        className="p-2 rounded-xl bg-slate-700/60 hover:bg-slate-600 text-slate-200 transition-colors"
+                      >
+                        <ArrowLeft className="w-5 h-5" />
+                      </button>
+                      <div>
+                        <h3 className="text-sm font-black text-white uppercase tracking-wide flex items-center gap-2">
+                          <FileText className="w-4 h-4 text-blue-400" />
+                          Meus Registros de Campo
+                        </h3>
+                        <p className="text-[10px] font-bold text-slate-400">
+                          Acompanhe o status de envio e sincronização dos seus lançamentos
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Resumo em Cards de Estatística */}
+                  <div className="grid grid-cols-3 gap-2">
+                    <div className="p-3 rounded-2xl bg-slate-900 border border-slate-700/60 text-center">
+                      <span className="text-[10px] text-slate-400 font-bold block">Total Registrados</span>
+                      <span className="text-base font-black text-white">{userFieldReports.length}</span>
+                    </div>
+                    <div className="p-3 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-center">
+                      <span className="text-[10px] text-amber-300 font-bold block">🟡 Pendentes</span>
+                      <span className="text-base font-black text-amber-400">
+                        {userFieldReports.filter(r => r.status === 'pending' || !r.syncedAt).length}
+                      </span>
+                    </div>
+                    <div className="p-3 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-center">
+                      <span className="text-[10px] text-emerald-300 font-bold block">🟢 Sincronizados</span>
+                      <span className="text-base font-black text-emerald-400">
+                        {userFieldReports.filter(r => r.status === 'synced' || r.status === 'approved' || Boolean(r.syncedAt)).length}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* BANNER PRINCIPAL DE AÇÃO DE SINCRONIZAÇÃO */}
+                  {userFieldReports.filter(r => r.status === 'pending' || !r.syncedAt).length > 0 ? (
+                    <div className="p-4 rounded-2xl bg-gradient-to-r from-amber-950/80 via-slate-900 to-slate-900 border border-amber-500/40 space-y-3">
+                      <div className="flex items-center gap-3">
+                        <div className="p-2.5 rounded-xl bg-amber-500/20 text-amber-400 shrink-0">
+                          <RefreshCw className={`w-5 h-5 ${isSyncing ? 'animate-spin' : ''}`} />
+                        </div>
+                        <div>
+                          <h4 className="text-xs font-black text-amber-300">
+                            {userFieldReports.filter(r => r.status === 'pending' || !r.syncedAt).length} apontamento(s) aguardando envio
+                          </h4>
+                          <p className="text-[10px] text-slate-300">
+                            Os dados estão salvos neste celular. Clique no botão abaixo para transmitir ao servidor.
+                          </p>
+                        </div>
+                      </div>
+                      <Button
+                        onClick={handleProcessSync}
+                        disabled={isSyncing}
+                        className="w-full h-11 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs gap-2 shadow-lg shadow-amber-500/20"
+                      >
+                        <RefreshCw className={`w-4 h-4 ${isSyncing ? 'animate-spin' : ''}`} />
+                        {isSyncing ? 'Enviando Dados...' : 'Sincronizar Pendentes Agora'}
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="p-3.5 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-between">
+                      <div className="flex items-center gap-2.5">
+                        <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
+                        <div>
+                          <p className="text-xs font-bold text-emerald-300">Todos os seus registros estão sincronizados</p>
+                          <p className="text-[10px] text-slate-400">Base de dados atualizada no servidor Supabase.</p>
+                        </div>
+                      </div>
+                      <Button
+                        onClick={handleProcessSync}
+                        disabled={isSyncing}
+                        variant="outline"
+                        className="h-8 px-3 rounded-lg border-emerald-500/40 text-emerald-300 font-bold text-[10px] hover:bg-emerald-500/20"
+                      >
+                        Atualizar
+                      </Button>
+                    </div>
+                  )}
+
+                  {/* ABA DE FILTROS (TODOS, PENDENTES, SINCRONIZADOS) */}
+                  <div className="flex items-center gap-1.5 p-1 rounded-xl bg-slate-900 border border-slate-700/60">
+                    <button
+                      onClick={() => setRegistrosFilterStatus('all')}
+                      className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                        registrosFilterStatus === 'all' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:text-slate-200'
+                      }`}
+                    >
+                      Todos ({userFieldReports.length})
+                    </button>
+                    <button
+                      onClick={() => setRegistrosFilterStatus('pending')}
+                      className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                        registrosFilterStatus === 'pending' ? 'bg-amber-500 text-slate-950 shadow-md font-black' : 'text-slate-400 hover:text-slate-200'
+                      }`}
+                    >
+                      Pendentes ({userFieldReports.filter(r => r.status === 'pending' || !r.syncedAt).length})
+                    </button>
+                    <button
+                      onClick={() => setRegistrosFilterStatus('synced')}
+                      className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                        registrosFilterStatus === 'synced' ? 'bg-emerald-600 text-white shadow-md' : 'text-slate-400 hover:text-slate-200'
+                      }`}
+                    >
+                      Sincronizados ({userFieldReports.filter(r => r.status === 'synced' || r.status === 'approved' || Boolean(r.syncedAt)).length})
+                    </button>
+                  </div>
+
+                  {/* FILTROS ADICIONAIS: PESQUISA E OBRA */}
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <div className="relative flex-1">
+                      <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+                      <Input
+                        value={registrosSearch}
+                        onChange={(e) => setRegistrosSearch(e.target.value)}
+                        placeholder="Buscar por serviço, trecho ou nota..."
+                        className="pl-9 h-9 bg-slate-900 border-slate-700 text-white text-xs rounded-xl"
+                      />
+                    </div>
+                    <Select value={registrosFilterContract} onValueChange={setRegistrosFilterContract}>
+                      <SelectTrigger className="h-9 w-full sm:w-48 bg-slate-900 border-slate-700 text-white text-xs rounded-xl">
+                        <SelectValue placeholder="Filtrar por Obra" />
+                      </SelectTrigger>
+                      <SelectContent className="bg-slate-800 border-slate-700 text-white">
+                        <SelectItem value="all">Todas as Obras</SelectItem>
+                        {contracts.map(c => (
+                          <SelectItem key={c.id} value={c.id}>{c.name || c.workName || 'Obra'}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* LISTA DE CARDS DE REGISTRO DE CAMPO */}
+                  <div className="space-y-3">
+                    {filteredUserReports.length === 0 ? (
+                      <div className="p-8 rounded-2xl bg-slate-900 border border-slate-800 text-center space-y-2">
+                        <FileText className="w-8 h-8 text-slate-600 mx-auto" />
+                        <p className="text-xs font-bold text-slate-400">Nenhum registro encontrado para este filtro.</p>
+                      </div>
+                    ) : (
+                      filteredUserReports.map(rep => {
+                        const isSynced = rep.status === 'synced' || rep.status === 'approved' || Boolean(rep.syncedAt);
+
+                        return (
+                          <div 
+                            key={rep.id} 
+                            className={`p-4 rounded-2xl bg-slate-900 border transition-all space-y-2.5 ${
+                              isSynced ? 'border-slate-800 hover:border-emerald-500/30' : 'border-amber-500/50 bg-slate-900/90 shadow-md'
+                            }`}
+                          >
+                            {/* Header do Card */}
+                            <div className="flex items-start justify-between gap-2">
+                              <div>
+                                <h4 className="text-xs font-black text-white">{rep.serviceName || 'Apontamento de Campo'}</h4>
+                                <p className="text-[10px] text-slate-400 font-medium">
+                                  {contracts.find(c => c.id === rep.contractId)?.name || rep.contractName || 'Obra Geral'}
+                                </p>
+                              </div>
+                              <span className={`text-[10px] font-black px-2.5 py-1 rounded-full border flex items-center gap-1 shrink-0 ${
+                                isSynced 
+                                  ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40' 
+                                  : 'bg-amber-500/20 text-amber-300 border-amber-500/40 animate-pulse'
+                              }`}>
+                                {isSynced ? (
+                                  <>
+                                    <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                                    Enviado / Sincronizado
+                                  </>
+                                ) : (
+                                  <>
+                                    <Clock className="w-3 h-3 text-amber-400" />
+                                    Pendente de Envio
+                                  </>
+                                )}
+                              </span>
+                            </div>
+
+                            {/* Detalhes do Apontamento */}
+                            <div className="grid grid-cols-2 gap-2 text-[11px] bg-slate-950 p-2.5 rounded-xl border border-slate-800/80">
+                              <div>
+                                <span className="text-slate-500 text-[9px] block uppercase font-bold">Quantidade</span>
+                                <span className="text-emerald-400 font-extrabold text-xs">{rep.qty} {rep.unit || 'un'}</span>
+                              </div>
+                              <div>
+                                <span className="text-slate-500 text-[9px] block uppercase font-bold">Data da Produção</span>
+                                <span className="text-slate-200 font-bold">{new Date(rep.productionDate).toLocaleDateString('pt-BR')}</span>
+                              </div>
+                            </div>
+
+                            {rep.trecho && (
+                              <p className="text-[10px] text-slate-300 font-medium bg-slate-950/60 p-2 rounded-lg border border-slate-800">
+                                <strong>Local/Trecho:</strong> {rep.trecho}
+                              </p>
+                            )}
+
+                            {rep.notes && (
+                              <p className="text-[10px] text-slate-400 italic">
+                                "{rep.notes}"
+                              </p>
+                            )}
+
+                            {/* Foto Anexa se Houver */}
+                            {(rep.photoUrl || rep.photo) && (
+                              <div className="relative rounded-xl overflow-hidden border border-slate-800 max-h-36">
+                                <img 
+                                  src={rep.photoUrl || rep.photo} 
+                                  alt="Foto de Campo" 
+                                  className="w-full h-36 object-cover" 
+                                />
+                              </div>
+                            )}
+
+                            {/* Rodapé do Card */}
+                            <div className="flex items-center justify-between text-[9px] text-slate-500 pt-2 border-t border-slate-800">
+                              <span>
+                                {isSynced && rep.syncedAt 
+                                  ? `Enviado em: ${new Date(rep.syncedAt).toLocaleString('pt-BR')}`
+                                  : 'Salvo localmente no dispositivo (aguardando sincronização)'}
+                              </span>
+                              <div className="flex items-center gap-2">
+                                <button
+                                  onClick={() => handleDeleteReport(rep.id)}
+                                  className="text-red-400 hover:text-red-300 font-bold flex items-center gap-1 text-[10px]"
+                                >
+                                  <Trash2 className="w-3 h-3" /> Excluir
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+
+                  <Button
+                    onClick={() => setActiveSector(null)}
+                    variant="outline"
+                    className="w-full h-11 rounded-2xl bg-slate-900 border-slate-700 text-slate-200 font-bold text-xs hover:bg-slate-800"
+                  >
+                    Voltar ao Menu Inicial
+                  </Button>
+                </div>
+              </motion.div>
+            )}
+
+            {/* ---------------------------------------------------- */}
             {/* TELA DA GALERIA DE FOTOS (VISUALIZAR, SELECIONAR, EDITAR, EXCLUIR) */}
             {/* ---------------------------------------------------- */}
             {activeSector === 'galeria' && (
@@ -5882,13 +6209,15 @@ export function SyneraMobileView({
         </button>
 
         <button
-          onClick={() => setIsMyRecordsOpen(true)}
-          className="flex flex-col items-center gap-1 text-slate-400 hover:text-slate-200 transition-colors relative"
+          onClick={() => setActiveSector('registros')}
+          className={`flex flex-col items-center gap-1 transition-colors relative ${
+            activeSector === 'registros' ? 'text-blue-400 font-extrabold' : 'text-slate-400 hover:text-slate-200'
+          }`}
         >
           <FileText className="w-5 h-5" />
           <span className="text-[10px]">Registros</span>
-          {userFieldReports.length > 0 && (
-            <span className="absolute -top-1 right-2 w-2 h-2 rounded-full bg-blue-500" />
+          {userFieldReports.filter(r => r.status === 'pending' || !r.syncedAt).length > 0 && (
+            <span className="absolute -top-1 right-2 w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
           )}
         </button>
 

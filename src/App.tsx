@@ -591,13 +591,33 @@ export default function App() {
   const handleSaveFieldReport = (report: FieldProductionReport) => {
     const updated = [report, ...fieldReports.filter(r => r.id !== report.id)];
     setFieldReports(updated);
-    syncFieldReportsStateToSupabase(updated);
+    // Saved locally only. Will be pushed to Supabase when user clicks "Sincronizar".
   };
 
   const handleUpdateFieldReport = (report: FieldProductionReport) => {
     const updated = fieldReports.map(r => r.id === report.id ? report : r);
     setFieldReports(updated);
-    syncFieldReportsStateToSupabase(updated);
+    // Updated locally only. Will be pushed to Supabase when user clicks "Sincronizar".
+  };
+
+  const handleSyncMobileData = async () => {
+    // Mark all pending local field reports as synced and upload to Supabase
+    const nowIso = new Date().toISOString();
+    const updatedReports = fieldReports.map(r => {
+      if (r.status === 'pending' || !r.syncedAt || !r.synced) {
+        return {
+          ...r,
+          status: 'synced' as const,
+          syncedAt: nowIso,
+          synced: true
+        };
+      }
+      return r;
+    });
+    setFieldReports(updatedReports);
+
+    await syncFieldReportsStateToSupabase(updatedReports);
+    await syncFromSupabase(currentUser?.companyId);
   };
 
   const handleDeleteFieldReport = (reportId: string) => {
@@ -4862,7 +4882,7 @@ const normalizeWorkMovementSector = (sec?: string): string => {
           selectedContractId={selectedContractId}
           onUpdateContractId={setSelectedContractId}
           onLogout={handleLogout}
-          onSyncRequest={() => syncFromSupabase()}
+          onSyncRequest={handleSyncMobileData}
         />
       </div>
     );
