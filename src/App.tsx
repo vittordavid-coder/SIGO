@@ -1349,7 +1349,7 @@ const normalizeWorkMovementSector = (sec?: string): string => {
         // Configuration and Tables
         const finalData: Record<string, any> = { ...blobMap };
 
-        const fetchPromises = Object.keys(tableMap).map(async (tableName) => {
+        const fetchFunctions = Object.keys(tableMap).map((tableName) => async () => {
           const { key, setter } = tableMap[tableName];
           const namespacedKey = activeId ? `${activeId}_${key}` : key;
           
@@ -1502,7 +1502,10 @@ const normalizeWorkMovementSector = (sec?: string): string => {
           }
         });
 
-        await Promise.all(fetchPromises);
+        const BATCH_SIZE = 5;
+        for (let i = 0; i < fetchFunctions.length; i += BATCH_SIZE) {
+          await Promise.all(fetchFunctions.slice(i, i + BATCH_SIZE).map(fn => fn()));
+        }
 
         const loadBlob = (k: string, setter: (v: any) => void) => {
           const val = activeId ? (blobMap[`${activeId}_${k}`] || blobMap[k]) : blobMap[k];
@@ -2923,8 +2926,8 @@ const normalizeWorkMovementSector = (sec?: string): string => {
           }
         }
 
-        // 3. User authenticated! Now force a full sync for THIS company's data specifically
-        await syncFromSupabase(user.role === 'master' ? undefined : user.companyId);
+        // 3. User authenticated! Now force a full sync for THIS company's data specifically in the background
+        syncFromSupabase(user.role === 'master' ? undefined : user.companyId).catch(console.error);
 
         // 4. Generate new Session ID and update users
         const newSessionId = uuidv4();
