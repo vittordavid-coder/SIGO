@@ -2079,13 +2079,9 @@ export function SyneraMobileView({
     }
   }, []);
 
-  // Sincronização automática de dados (Funcionários, Equipamentos e Traçado da Obra) ao estar online
+  // Cache de dados no localStorage para uso offline
   useEffect(() => {
     if (isOnline) {
-      // Sincronizar fila pendente
-      if (offlineQueue.length > 0) {
-        handleProcessSync();
-      }
       try {
         const cachePayload = {
           contracts: contracts.map(c => ({ id: c.id, name: c.name, code: c.code })),
@@ -2646,14 +2642,14 @@ export function SyneraMobileView({
         heightM: prodHeightM ? parseFloat(prodHeightM) : undefined,
         unit: serviceObj?.unit || 'un',
         productionDate: reportDate,
-        syncedAt: isNowOnline ? new Date().toISOString() : undefined,
+        syncedAt: undefined,
         startStation: prodStartStation,
         endStation: prodEndStation,
         trecho: combinedTrecho || prodTrecho,
         notes: fullNotes,
         photo: prodPhoto
       },
-      synced: isNowOnline
+      synced: false
     };
 
     setOfflineQueue(prev => [newQueueItem, ...prev]);
@@ -2669,12 +2665,8 @@ export function SyneraMobileView({
     setProdNotes('');
     setProdPhoto('');
 
-    if (isNowOnline) {
-      setSyncSuccessMsg('Apontamento de Produção salvo e enviado para a Sala Técnica!');
-      setTimeout(() => setSyncSuccessMsg(null), 4000);
-    } else {
-      alert('Apontamento de Produção salvo OFFLINE! Será enviado para a Sala Técnica assim que reconectar.');
-    }
+    setSyncSuccessMsg('Apontamento de Produção salvo no dispositivo! Clique em "Sincronizar" para enviar.');
+    setTimeout(() => setSyncSuccessMsg(null), 4000);
   };
 
   const handleSaveEquipment = () => {
@@ -2884,11 +2876,7 @@ export function SyneraMobileView({
     setTeamOvertime('0');
     setTeamNotes('');
 
-    if (navigator.onLine) {
-      setTimeout(() => handleProcessSync(), 300);
-    } else {
-      alert('Registro de Efetivo salvo OFFLINE com sucesso!');
-    }
+    alert('✅ Registro de Efetivo salvo na fila do dispositivo!\n\nClique no botão "Sincronizar" quando desejar enviar para o servidor.');
   };
 
   const handleSaveMaterials = () => {
@@ -2923,11 +2911,7 @@ export function SyneraMobileView({
     setMatQty('');
     setMatNotes('');
 
-    if (navigator.onLine) {
-      setTimeout(() => handleProcessSync(), 300);
-    } else {
-      alert('Movimentação de Material salva OFFLINE com sucesso!');
-    }
+    alert('✅ Movimentação de Material salva na fila do dispositivo!\n\nClique no botão "Sincronizar" quando desejar enviar para o servidor.');
   };
 
   const handleSaveDailyLog = () => {
@@ -2949,11 +2933,7 @@ export function SyneraMobileView({
     setOfflineQueue(prev => [newQueueItem, ...prev]);
     setLogFiscalization('');
 
-    if (navigator.onLine) {
-      setTimeout(() => handleProcessSync(), 300);
-    } else {
-      alert('Diário de Ocorrências salvo OFFLINE com sucesso!');
-    }
+    alert('✅ Diário de Ocorrências salvo na fila do dispositivo!\n\nClique no botão "Sincronizar" quando desejar enviar para o servidor.');
   };
 
   return (
