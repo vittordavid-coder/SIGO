@@ -2,6 +2,56 @@ import { useState, useRef, useEffect } from 'react';
 import { getSupabaseConfig, createSupabaseClient } from './supabaseClient';
 import { SUPABASE_TABLE_DEFS } from './sqlFormat';
 
+export function safeSetLocalStorage(key: string, value: any): void {
+  try {
+    const json = typeof value === 'string' ? value : JSON.stringify(value);
+    window.localStorage.setItem(key, json);
+  } catch (err: any) {
+    if (err?.name === 'QuotaExceededError' || err?.code === 22 || err?.message?.includes('exceeded the quota')) {
+      console.warn(`[localStorage] Quota excedida ao salvar '${key}'. Aplicando otimização de espaço.`);
+      try {
+        if (Array.isArray(value)) {
+          const lightValue = value.map((item: any) => {
+            if (item && typeof item === 'object') {
+              const copy = { ...item };
+              const isSynced = Boolean(copy.synced || copy.syncedAt || copy.status === 'approved' || copy.status === 'synced');
+              if (typeof copy.photo === 'string' && copy.photo.length > 20000 && (isSynced || value.length > 3)) {
+                copy.photo = copy.photo.startsWith('http') ? copy.photo : '';
+              }
+              if (typeof copy.photoUrl === 'string' && copy.photoUrl.length > 20000 && (isSynced || value.length > 3)) {
+                copy.photoUrl = copy.photoUrl.startsWith('http') ? copy.photoUrl : '';
+              }
+              return copy;
+            }
+            return item;
+          });
+          window.localStorage.setItem(key, JSON.stringify(lightValue));
+          return;
+        } else if (value && typeof value === 'object') {
+          const copyObj = { ...value };
+          if (copyObj.fieldReports && Array.isArray(copyObj.fieldReports)) {
+            copyObj.fieldReports = copyObj.fieldReports.map((item: any) => {
+              if (item && typeof item === 'object') {
+                const c = { ...item };
+                if (typeof c.photo === 'string' && c.photo.length > 20000) c.photo = c.photo.startsWith('http') ? c.photo : '';
+                if (typeof c.photoUrl === 'string' && c.photoUrl.length > 20000) c.photoUrl = c.photoUrl.startsWith('http') ? c.photoUrl : '';
+                return c;
+              }
+              return item;
+            });
+          }
+          window.localStorage.setItem(key, JSON.stringify(copyObj));
+          return;
+        }
+      } catch (fallbackError) {
+        console.warn(`[localStorage] Falha ao salvar versão otimizada de '${key}':`, fallbackError);
+      }
+    } else {
+      console.error(`[localStorage] Erro ao salvar em '${key}':`, err);
+    }
+  }
+}
+
 export function useLocalStorage<T>(key: string, initialValue: T, companyId?: string): [T, (value: T | ((prev: T) => T)) => void] {
   // Use a ref to store the latest value for the interval timer
   const stateRef = useRef<T>(initialValue);
@@ -57,11 +107,7 @@ export function useLocalStorage<T>(key: string, initialValue: T, companyId?: str
       
       const storeKey = companyId && key !== 'sigo_users' ? `${companyId}_${key}` : key;
       if (!isSensitive) {
-        try {
-          window.localStorage.setItem(storeKey, JSON.stringify(valueToStore));
-        } catch (storageError) {
-          console.error(`Error saving to localStorage:`, storageError);
-        }
+        safeSetLocalStorage(storeKey, valueToStore);
       } else if (config.enabled) {
         // Connected mode: explicitly remove sensitive data from localStorage
         window.localStorage.removeItem(key);

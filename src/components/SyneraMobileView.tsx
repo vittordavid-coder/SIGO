@@ -15,6 +15,7 @@ import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Contract, ServiceItem, ServiceProduction, ControllerEquipment, Employee, User, DailyReport, MobileSector, FieldProductionReport, ProjectAlignment } from '../types';
+import { safeSetLocalStorage } from '../lib/useLocalStorage';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Chat } from './Chat';
 
@@ -1515,7 +1516,7 @@ export function SyneraMobileView({
         if (stored) {
           const parsed: FieldProductionReport[] = JSON.parse(stored);
           const filtered = parsed.filter(r => r.id !== reportId);
-          localStorage.setItem('sigo_field_reports', JSON.stringify(filtered));
+          safeSetLocalStorage('sigo_field_reports', filtered);
         }
       } catch (e) {
         console.error('Erro ao excluir foto local:', e);
