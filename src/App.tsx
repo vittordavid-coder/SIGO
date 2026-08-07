@@ -5870,7 +5870,7 @@ const normalizeWorkMovementSector = (sec?: string): string => {
                   selectedContractId={selectedContractId}
                   onUpdateContractId={setSelectedContractId}
                   onLogout={handleLogout}
-                  onSyncRequest={() => syncFromSupabase()}
+                  onSyncRequest={handleSyncMobileData}
                 />
               )}
 

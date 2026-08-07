@@ -1477,6 +1477,15 @@ export function SyneraMobileView({
   // FUNÇÕES DA GALERIA DE FOTOS (Visualizar, Editar, Excluir)
   // ----------------------------------------------------
   const handleDeleteReport = (reportId: string) => {
+    const targetReport = (fieldReports || []).find(r => r.id === reportId);
+    if (targetReport) {
+      const isSynced = targetReport.status === 'synced' || targetReport.status === 'approved' || Boolean(targetReport.syncedAt);
+      if (isSynced) {
+        alert('Este registro já foi sincronizado com o servidor e não pode ser excluído.');
+        return;
+      }
+    }
+
     if (!window.confirm('Tem certeza de que deseja excluir esta foto da galeria?')) return;
 
     if (onDeleteFieldReport) {
@@ -1495,7 +1504,7 @@ export function SyneraMobileView({
     }
 
     setSelectedGalleryPhotos(prev => {
-      const rep = fieldReports.find(r => r.id === reportId);
+      const rep = (fieldReports || []).find(r => r.id === reportId);
       return rep ? prev.filter(url => url !== rep.photoUrl) : prev;
     });
 
@@ -1505,9 +1514,15 @@ export function SyneraMobileView({
 
   const handleBatchDeletePhotos = () => {
     if (selectedGalleryPhotos.length === 0) return;
+    const syncedPhotos = (fieldReports || []).filter(r => r.photoUrl && selectedGalleryPhotos.includes(r.photoUrl) && (r.status === 'synced' || r.status === 'approved' || Boolean(r.syncedAt)));
+    if (syncedPhotos.length > 0) {
+      alert('Fotos já sincronizadas com o servidor não podem ser excluídas.');
+      return;
+    }
+
     if (!window.confirm(`Tem certeza de que deseja excluir ${selectedGalleryPhotos.length} foto(s) selecionada(s)?`)) return;
 
-    const reportsToDelete = fieldReports.filter(r => r.photoUrl && selectedGalleryPhotos.includes(r.photoUrl));
+    const reportsToDelete = (fieldReports || []).filter(r => r.photoUrl && selectedGalleryPhotos.includes(r.photoUrl));
     reportsToDelete.forEach(rep => {
       if (onDeleteFieldReport) {
         onDeleteFieldReport(rep.id);
@@ -1518,9 +1533,15 @@ export function SyneraMobileView({
   };
 
   const handleOpenEditModal = (report: FieldProductionReport) => {
+    const isSynced = report.status === 'synced' || report.status === 'approved' || Boolean(report.syncedAt);
+    if (isSynced) {
+      alert('Este registro já foi sincronizado com o servidor e não pode ser editado.');
+      return;
+    }
+
     setEditingPhotoReport(report);
-    setEditStation(report.location || '');
-    setEditDescription(report.description || '');
+    setEditStation(report.location || report.trecho || '');
+    setEditDescription(report.description || report.notes || '');
   };
 
   const handleSavePhotoEdit = async () => {
@@ -2227,11 +2248,30 @@ export function SyneraMobileView({
     });
 
     // Fallback: If no controls match or result is empty, return services belonging to active contract
-    if (resultList.length === 0) {
-      return (services || []).filter(s => !s.contractId || s.contractId === activeContract.id);
-    }
+    const baseList = resultList.length > 0
+      ? resultList
+      : (services || []).filter(s => !s.contractId || s.contractId === activeContract.id);
 
-    return resultList;
+    // Map baseList to ensure customTitle from Sala Técnica / Controles is used as the control title
+    return baseList.map(s => {
+      const sKeyId = (s.id || '').toString().trim().toLowerCase();
+      const sKeyCode = (s.code || '').toString().trim().toLowerCase();
+      const sKeyName = (s.name || '').toString().trim().toLowerCase();
+
+      const matchingProd = contractProds.find(p => {
+        if (!p.serviceId) return false;
+        const pKey = p.serviceId.toString().trim().toLowerCase();
+        return pKey === sKeyId || pKey === sKeyCode || pKey === sKeyName;
+      });
+
+      if (matchingProd && matchingProd.customTitle) {
+        return {
+          ...s,
+          name: matchingProd.customTitle
+        };
+      }
+      return s;
+    });
   }, [services, serviceProductions, activeContract]);
 
   // Filtered equipments
@@ -2350,16 +2390,9 @@ export function SyneraMobileView({
     setIsSyncing(true);
 
     try {
-      if (onSyncRequest) {
-        try {
-          await onSyncRequest();
-        } catch (e) {
-          console.warn('[Sync PWA] Cloud sync warning:', e);
-        }
-      }
-      // Simulate download time
-      await new Promise(r => setTimeout(r, 800));
-      
+      const nowIso = new Date().toISOString();
+      const todayStr = nowIso.slice(0, 7);
+
       const numServices = services.filter(s => s.contractId === activeContract?.id || !s.contractId).length;
       const numEmployees = (employees || []).length;
       const numEquipments = (equipments || []).length;
@@ -2367,68 +2400,76 @@ export function SyneraMobileView({
       const downloadHistory = [
         {
           id: `sh-${Date.now()}-${Math.random().toString(36).substring(2, 7)}-1`,
-          timestamp: new Date().toISOString(),
+          timestamp: nowIso,
           action: 'download' as const,
           details: `Baixado: Projeto ${activeContract?.name || 'Geral'}`
         },
         {
           id: `sh-${Date.now()}-${Math.random().toString(36).substring(2, 7)}-2`,
-          timestamp: new Date().toISOString(),
+          timestamp: nowIso,
           action: 'download' as const,
           details: `Lista de Funcionários ${numEmployees} colaboradores`
         },
         {
           id: `sh-${Date.now()}-${Math.random().toString(36).substring(2, 7)}-3`,
-          timestamp: new Date().toISOString(),
+          timestamp: nowIso,
           action: 'download' as const,
           details: `Lista de Equipamentos ${numEquipments}`
         },
         {
           id: `sh-${Date.now()}-${Math.random().toString(36).substring(2, 7)}-4`,
-          timestamp: new Date().toISOString(),
+          timestamp: nowIso,
           action: 'download' as const,
           details: `Lista de Serviços atualizados (${numServices})`
         },
         {
           id: `sh-${Date.now()}-${Math.random().toString(36).substring(2, 7)}-5`,
-          timestamp: new Date().toISOString(),
+          timestamp: nowIso,
           action: 'download' as const,
           details: `Lista de materiais atualizados`
         }
       ];
       setSyncHistory(prev => [...downloadHistory, ...prev].slice(0, 50));
 
-      if (offlineQueue.length === 0) {
-        setSyncSuccessMsg('Dados atualizados com sucesso!');
-        setTimeout(() => setSyncSuccessMsg(null), 3000);
-        setIsSyncing(false);
-        return;
-      }
-      const todayStr = new Date().toISOString().slice(0, 7);
-
       for (const item of offlineQueue) {
         if (item.type === 'production') {
-          const { serviceId, qty, trecho, notes, month } = item.data;
+          const { serviceId, qty, trecho, notes, month, productionDate } = item.data;
+          const reportDate = productionDate || new Date().toISOString().slice(0, 10);
+          const targetMonth = month || reportDate.slice(0, 7);
+          const dayNum = parseInt(reportDate.slice(8, 10), 10);
           
-          const currentProd = serviceProductions.find(p => p.serviceId === serviceId && p.month === (month || todayStr)) || {
+          const currentProd = serviceProductions.find(p => p.serviceId === serviceId && p.month === targetMonth) || {
             id: `sp-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+            contractId: activeContract.id,
             serviceId,
-            month: month || todayStr,
+            month: targetMonth,
             currentMonthQty: 0,
             accumulatedQty: 0,
             previousQty: 0,
             unitPrice: 0,
-            dailyNotes: []
+            dailyNotes: [],
+            dailyData: {}
+          };
+
+          const existingDailyData = currentProd.dailyData || {};
+          const existingDayObj = existingDailyData[dayNum] || { planned: 0, actual: 0 };
+          const updatedDailyData = {
+            ...existingDailyData,
+            [dayNum]: {
+              ...existingDayObj,
+              actual: (existingDayObj.actual || 0) + Number(qty || 0)
+            }
           };
 
           const updatedProd: ServiceProduction = {
             ...currentProd,
-            currentMonthQty: (currentProd.currentMonthQty || 0) + qty,
+            currentMonthQty: (currentProd.currentMonthQty || 0) + Number(qty || 0),
+            dailyData: updatedDailyData,
             dailyNotes: [
               ...(currentProd.dailyNotes || []),
               {
-                date: new Date().toISOString().slice(0, 10),
-                qty: qty,
+                date: reportDate,
+                qty: Number(qty || 0),
                 note: `[SYNERA MOBILE / APONTADOR] ${trecho ? `Trecho: ${trecho}. ` : ''}${notes || ''}`,
                 recordedBy: currentUser.name || 'Apontador de Campo'
               }
@@ -2447,7 +2488,7 @@ export function SyneraMobileView({
               contractName: item.contractName,
               responsibleUser: currentUser.name || 'Apontador de Campo',
               details: {
-                notes: `Trecho/Local: ${trecho || 'Campo'}. ${notes || ''}`,
+                notes: `Data Prod: ${reportDate}. Trecho/Local: ${trecho || 'Campo'}. ${notes || ''}`,
                 productionValue: qty,
               }
             });
@@ -2534,17 +2575,50 @@ export function SyneraMobileView({
         }
       }
 
+      // Mark local pending reports as synced
+      let currentLocalReports: FieldProductionReport[] = [];
+      try {
+        currentLocalReports = JSON.parse(localStorage.getItem('sigo_field_reports') || '[]');
+      } catch (e) {}
+
+      const allReportsToMark = fieldReports.length > 0 ? fieldReports : currentLocalReports;
+      const updatedFieldReports = allReportsToMark.map(r => {
+        if (r.status === 'pending' || !r.syncedAt || !r.synced) {
+          const syncedRep: FieldProductionReport = {
+            ...r,
+            status: 'synced' as const,
+            syncedAt: nowIso,
+            synced: true
+          };
+          if (onUpdateFieldReport) {
+            onUpdateFieldReport(syncedRep);
+          }
+          return syncedRep;
+        }
+        return r;
+      });
+
+      try {
+        localStorage.setItem('sigo_field_reports', JSON.stringify(updatedFieldReports));
+      } catch (e) {}
+
       const newHistoryItems = offlineQueue.map(item => ({
         id: `sh-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
-        timestamp: new Date().toISOString(),
+        timestamp: nowIso,
         action: 'upload' as const,
         details: `Enviado [${item.type === 'production' ? 'Produção' : item.type === 'equipment' ? 'Equipamento' : item.type === 'headcount' ? 'RH' : item.type === 'materials' ? 'Material' : 'Diário'}]: ${item.type === 'production' ? item.data.qty + ' ' + item.data.unit + ' de ' + (item.data.serviceName || 'Serviço') : item.type === 'equipment' ? item.data.equipmentName + ' (' + item.data.horometer + 'h)' : item.type === 'headcount' ? item.data.present + ' presentes' : item.type === 'materials' ? item.data.qty + ' ' + item.data.unit + ' de ' + item.data.materialName : 'Relatório Diário'}`
       }));
       setSyncHistory(prev => [...newHistoryItems, ...prev].slice(0, 50));
       setOfflineQueue([]);
       localStorage.removeItem(OFFLINE_QUEUE_KEY);
-      setSyncSuccessMsg('Todos os apontamentos salvos no celular foram sincronizados com o servidor!');
-      setTimeout(() => setSyncSuccessMsg(null), 4000);
+
+      // Trigger cloud upload
+      if (onSyncRequest) {
+        await onSyncRequest();
+      }
+
+      setSyncSuccessMsg('Sincronização concluída! Dados transmitidos com sucesso para a Sala Técnica.');
+      setTimeout(() => setSyncSuccessMsg(null), 3500);
     } catch (err) {
       console.error('Erro na sincronização:', err);
     } finally {
@@ -2567,8 +2641,10 @@ export function SyneraMobileView({
     }
 
     const serviceObj = services.find(s => s.id === prodServiceId);
+    const matchedControl = contractServices.find(cs => cs.id === prodServiceId || cs.code === prodServiceId);
+    const controlTitle = matchedControl?.name || serviceObj?.name || 'Serviço';
+
     const reportDate = prodDate || new Date().toISOString().slice(0, 10);
-    const isNowOnline = navigator.onLine;
 
     let typeDetailNote = '';
     if (prodInfoType === 'trips') {
@@ -2592,7 +2668,7 @@ export function SyneraMobileView({
       contractId: activeContract.id,
       contractName: activeContract.name,
       serviceId: prodServiceId,
-      serviceName: serviceObj?.name || 'Serviço',
+      serviceName: controlTitle,
       unit: serviceObj?.unit || 'un',
       qty: parsedQty,
       infoType: prodInfoType,
@@ -2633,7 +2709,7 @@ export function SyneraMobileView({
       contractName: activeContract.name,
       data: {
         serviceId: prodServiceId,
-        serviceName: serviceObj?.name || 'Serviço',
+        serviceName: controlTitle,
         qty: parsedQty,
         infoType: prodInfoType,
         tripsQty: prodTripsQty ? parseInt(prodTripsQty, 10) : undefined,
@@ -3594,13 +3670,17 @@ export function SyneraMobileView({
 
                                 <div className="text-[9px] text-slate-500 flex items-center justify-between pt-1 border-t border-slate-900">
                                   <span>Sincronizado: {rep.syncedAt ? new Date(rep.syncedAt).toLocaleTimeString('pt-BR') : 'Aguardando Sincronização'}</span>
-                                  {rep.status === 'pending' && onUpdateFieldReport && (
+                                  {!(rep.status === 'synced' || rep.status === 'approved' || Boolean(rep.syncedAt)) ? (
                                     <button
                                       onClick={() => setEditingMyRecord(rep)}
                                       className="text-blue-400 hover:text-blue-300 font-bold flex items-center gap-1 text-[10px]"
                                     >
                                       <Edit3 className="w-3 h-3" /> Editar
                                     </button>
+                                  ) : (
+                                    <span className="text-[10px] text-emerald-400 font-bold flex items-center gap-1 bg-emerald-950/60 px-2 py-0.5 rounded-md border border-emerald-800/60">
+                                      <CheckCircle2 className="w-3 h-3" /> Sincronizado (Bloqueado)
+                                    </span>
                                   )}
                                 </div>
                               </div>
@@ -5282,12 +5362,18 @@ export function SyneraMobileView({
                                   : 'Salvo localmente no dispositivo (aguardando sincronização)'}
                               </span>
                               <div className="flex items-center gap-2">
-                                <button
-                                  onClick={() => handleDeleteReport(rep.id)}
-                                  className="text-red-400 hover:text-red-300 font-bold flex items-center gap-1 text-[10px]"
-                                >
-                                  <Trash2 className="w-3 h-3" /> Excluir
-                                </button>
+                                {!isSynced ? (
+                                  <button
+                                    onClick={() => handleDeleteReport(rep.id)}
+                                    className="text-red-400 hover:text-red-300 font-bold flex items-center gap-1 text-[10px]"
+                                  >
+                                    <Trash2 className="w-3 h-3" /> Excluir
+                                  </button>
+                                ) : (
+                                  <span className="text-[10px] text-emerald-400 font-bold flex items-center gap-1 bg-emerald-950/60 px-2 py-0.5 rounded-md border border-emerald-800/60">
+                                    <CheckCircle2 className="w-3 h-3" /> Sincronizado (Bloqueado)
+                                  </span>
+                                )}
                               </div>
                             </div>
                           </div>
@@ -5513,21 +5599,25 @@ export function SyneraMobileView({
                                 <Eye className="w-4 h-4" />
                               </button>
                               
-                              <button
-                                onClick={() => handleOpenEditModal(report)}
-                                className="p-2 rounded-xl bg-slate-900/90 hover:bg-slate-800 border border-slate-700 text-amber-400 shadow-xl"
-                                title="Editar dados da foto"
-                              >
-                                <Edit3 className="w-4 h-4" />
-                              </button>
+                              {!(report.status === 'synced' || report.status === 'approved' || Boolean(report.syncedAt)) && (
+                                <>
+                                  <button
+                                    onClick={() => handleOpenEditModal(report)}
+                                    className="p-2 rounded-xl bg-slate-900/90 hover:bg-slate-800 border border-slate-700 text-amber-400 shadow-xl"
+                                    title="Editar dados da foto"
+                                  >
+                                    <Edit3 className="w-4 h-4" />
+                                  </button>
 
-                              <button
-                                onClick={() => handleDeleteReport(report.id)}
-                                className="p-2 rounded-xl bg-rose-950/90 hover:bg-rose-900 border border-rose-500/50 text-rose-300 shadow-xl"
-                                title="Excluir foto"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </button>
+                                  <button
+                                    onClick={() => handleDeleteReport(report.id)}
+                                    className="p-2 rounded-xl bg-rose-950/90 hover:bg-rose-900 border border-rose-500/50 text-rose-300 shadow-xl"
+                                    title="Excluir foto"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
+                                </>
+                              )}
                             </div>
 
                             {/* Banner Inferior com dados rápidos */}
@@ -5623,25 +5713,32 @@ export function SyneraMobileView({
                           Baixar Foto com Carimbo
                         </Button>
 
-                        <div className="grid grid-cols-2 gap-2">
-                          <Button
-                            onClick={() => {
-                              handleOpenEditModal(previewingReport);
-                            }}
-                            className="h-9 rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-300 font-bold text-xs flex items-center justify-center gap-1.5 border border-slate-700"
-                          >
-                            <Edit3 className="w-3.5 h-3.5" />
-                            Editar
-                          </Button>
+                        {!(previewingReport.status === 'synced' || previewingReport.status === 'approved' || Boolean(previewingReport.syncedAt)) ? (
+                          <div className="grid grid-cols-2 gap-2">
+                            <Button
+                              onClick={() => {
+                                handleOpenEditModal(previewingReport);
+                              }}
+                              className="h-9 rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-300 font-bold text-xs flex items-center justify-center gap-1.5 border border-slate-700"
+                            >
+                              <Edit3 className="w-3.5 h-3.5" />
+                              Editar
+                            </Button>
 
-                          <Button
-                            onClick={() => handleDeleteReport(previewingReport.id)}
-                            className="h-9 rounded-xl bg-rose-950 hover:bg-rose-900 text-rose-300 font-bold text-xs flex items-center justify-center gap-1.5 border border-rose-800"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                            Excluir
-                          </Button>
-                        </div>
+                            <Button
+                              onClick={() => handleDeleteReport(previewingReport.id)}
+                              className="h-9 rounded-xl bg-rose-950 hover:bg-rose-900 text-rose-300 font-bold text-xs flex items-center justify-center gap-1.5 border border-rose-800"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                              Excluir
+                            </Button>
+                          </div>
+                        ) : (
+                          <div className="p-2 rounded-xl bg-emerald-950/60 border border-emerald-800/80 text-emerald-300 text-[11px] font-bold text-center flex items-center justify-center gap-1.5">
+                            <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                            Registro Sincronizado e Bloqueado
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
