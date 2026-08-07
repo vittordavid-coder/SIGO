@@ -514,23 +514,71 @@ export default function App() {
   const pendingFieldReports = fieldReports.filter(r => r.status === 'pending').length;
 
 
+  const syncFieldReportsStateToSupabase = async (updatedReports: FieldProductionReport[]) => {
+    const config = getSupabaseConfig();
+    if (!config.enabled) return;
+    const supabase = createSupabaseClient(config.url, config.key);
+    if (!supabase) return;
+    const activeCompId = currentUser?.companyId || compId;
+
+    try {
+      if (activeCompId) {
+        await supabase.from('app_state').upsert({
+          id: `${activeCompId}_sigo_field_reports`,
+          content: updatedReports,
+          updated_at: new Date().toISOString()
+        });
+      }
+
+      if (updatedReports.length > 0) {
+        const mapped = updatedReports.map(r => {
+          const snake = mapToSnake(r);
+          return {
+            ...snake,
+            company_id: r.companyId || activeCompId || null,
+            production_date: snake.production_date === '' ? null : snake.production_date
+          };
+        });
+        await supabase.from('field_reports').upsert(mapped);
+      }
+    } catch (err) {
+      console.warn('[Supabase] Error syncing field reports:', err);
+    }
+  };
+
   const handleSaveFieldReport = (report: FieldProductionReport) => {
-    setFieldReports(prev => [report, ...prev]);
+    const updated = [report, ...fieldReports.filter(r => r.id !== report.id)];
+    setFieldReports(updated);
+    syncFieldReportsStateToSupabase(updated);
   };
 
   const handleUpdateFieldReport = (report: FieldProductionReport) => {
-    setFieldReports(prev => prev.map(r => r.id === report.id ? report : r));
+    const updated = fieldReports.map(r => r.id === report.id ? report : r);
+    setFieldReports(updated);
+    syncFieldReportsStateToSupabase(updated);
   };
 
   const handleDeleteFieldReport = (reportId: string) => {
-    setFieldReports(prev => prev.filter(r => r.id !== reportId));
+    const updated = fieldReports.filter(r => r.id !== reportId);
+    setFieldReports(updated);
+
+    const config = getSupabaseConfig();
+    if (config.enabled) {
+      const supabase = createSupabaseClient(config.url, config.key);
+      if (supabase) {
+        supabase.from('field_reports').delete().eq('id', reportId).catch(() => {});
+      }
+    }
+    syncFieldReportsStateToSupabase(updated);
   };
 
   const handleApproveFieldReport = (reportId: string) => {
     const report = fieldReports.find(r => r.id === reportId);
     if (!report) return;
 
-    setFieldReports(prev => prev.map(r => r.id === reportId ? { ...r, status: 'approved' as const } : r));
+    const updatedReport: FieldProductionReport = { ...report, status: 'approved' };
+    const updated = fieldReports.map(r => r.id === reportId ? updatedReport : r);
+    setFieldReports(updated);
 
     const newProd: ServiceProduction = {
       id: `prod-appr-${Date.now()}`,
@@ -545,11 +593,26 @@ export default function App() {
     };
 
     updateServiceProduction(newProd);
+    syncFieldReportsStateToSupabase(updated);
   };
 
   const handleRejectFieldReport = (reportId: string) => {
-    setFieldReports(prev => prev.map(r => r.id === reportId ? { ...r, status: 'rejected' as const } : r));
+    const updated = fieldReports.map(r => r.id === reportId ? { ...r, status: 'rejected' as const } : r);
+    setFieldReports(updated);
+    syncFieldReportsStateToSupabase(updated);
   };
+
+const normalizeWorkMovementSector = (sec?: string): string => {
+  if (!sec) return 'CONTROLADOR';
+  const s = sec.toString().trim().toUpperCase();
+  if (s === 'RH') return 'RH';
+  if (s.includes('ALMOXARIF') || s.includes('ESTOQUE')) return 'ALMOXARIFE';
+  if (s.includes('COMPRA') || s.includes('SUPRIMENTO')) return 'COMPRAS';
+  if (s.includes('FINANCE') || s.includes('CAIXA')) return 'FINANCEIRO';
+  if (s.includes('SALA') || s.includes('TECNICA') || s.includes('TÉCNICA') || s.includes('PROJECT')) return 'SALA TÉCNICA';
+  if (s.includes('CONTROL') || s.includes('ADMIN') || s.includes('GERAL')) return 'CONTROLADOR';
+  return 'CONTROLADOR';
+};
 
   const updateWorkMovements = async (val: WorkMovement[] | ((prev: WorkMovement[]) => WorkMovement[])) => {
     lastLocalUpdate.current = Date.now();
@@ -573,7 +636,7 @@ export default function App() {
               contract_id: (contract_id && contract_id !== '') ? contract_id : null,
               contract_name: contract_name || null,
               timestamp: (timestamp && typeof timestamp === 'string' && timestamp.trim() !== '') ? timestamp : new Date().toISOString(),
-              sector: sector || 'CONTROLADOR',
+              sector: normalizeWorkMovementSector(sector),
               action: action || 'REGISTRO',
               description: description || '',
               responsible_user: responsible_user || 'Sistema',
@@ -615,7 +678,7 @@ export default function App() {
             contract_id: (contract_id && contract_id !== '') ? contract_id : null,
             contract_name: contract_name || null,
             timestamp: (timestamp && typeof timestamp === 'string' && timestamp.trim() !== '') ? timestamp : new Date().toISOString(),
-            sector: sector || 'CONTROLADOR',
+            sector: normalizeWorkMovementSector(sector),
             action: action || 'REGISTRO',
             description: description || '',
             responsible_user: responsible_user || 'Sistema',
@@ -1038,7 +1101,7 @@ export default function App() {
             `${activeId}_sigo_aportes`, `${activeId}_sigo_ctrl_charges`, `${activeId}_sigo_ctrl_ot`, `${activeId}_sigo_warehouses`,
             `${activeId}_sigo_warehouse_items`, `${activeId}_sigo_warehouse_entries`, `${activeId}_sigo_assets`,
             `${activeId}_sigo_warehouse_transfers`, `${activeId}_sigo_warehouse_applications`, `${activeId}_sigo_company_logo_right`,
-            `${activeId}_sigo_work_movements`, `${activeId}_sigo_project_alignments`
+            `${activeId}_sigo_work_movements`, `${activeId}_sigo_project_alignments`, `${activeId}_sigo_field_reports`
           ];
           blobQuery = blobQuery.in('id', expectedBlobIds);
           // Fetch users for this company (or everyone if master)
@@ -1134,6 +1197,7 @@ export default function App() {
           'warehouse_applications': { key: 'sigo_warehouse_applications', setter: setApplications },
           'work_movements': { key: 'sigo_work_movements', setter: setWorkMovements },
           'project_alignments': { key: 'sigo_project_alignments', setter: setProjectAlignments },
+          'field_reports': { key: 'sigo_field_reports', setter: setFieldReports },
           'users': { key: 'sigo_users', setter: setUsers }
         };
 
@@ -1894,7 +1958,6 @@ export default function App() {
       { id: `${compId}_sconet_budget_groups`, content: budgetGroups },
       { id: `${compId}_sigo_abc_config`, content: abcConfig },
       { id: `${compId}_sigo_bdi_config`, content: bdiConfig },
-      { id: 'sigo_users', content: users }, // Shared
       { id: `${compId}_sigo_audit_logs`, content: auditLogs },
       { id: `${compId}_sigo_company_logo`, content: companyLogo },
       { id: `${compId}_sigo_company_logo_right`, content: companyLogoRight },
@@ -1943,6 +2006,11 @@ export default function App() {
       { id: `${compId}_sigo_project_alignments`, content: projectAlignments },
     ];
 
+    // Only allow admins or master role to push global sigo_users blob to avoid overwriting user records
+    if (currentUser?.role === 'master' || currentUser?.role === 'admin') {
+      dataToSync.push({ id: 'sigo_users', content: users });
+    }
+
     const tableMap: Record<string, string> = {
       'sconet_resources': 'resources',
       'sconet_services': 'service_compositions',
@@ -1955,6 +2023,7 @@ export default function App() {
       'sigo_cubation_data': 'cubation_data',
       'sigo_transport_data': 'transport_data',
       'sigo_calc_memories': 'calculation_memories',
+      'sigo_field_reports': 'field_reports',
       'sigo_service_productions': 'service_productions',
       'sigo_daily_reports': 'daily_reports',
       'sigo_pluviometry_records': 'pluviometry_records',
@@ -2078,7 +2147,9 @@ export default function App() {
               }
             }
 
-            if (fetchError) {
+            if (activeTable === 'users' || targetTable === 'users') {
+              console.log('[Sync] Segurança: exclusão automática de órfãos desativada para tabela de usuários.');
+            } else if (fetchError) {
               console.error(`Erro ao buscar órfãos em ${activeTable}:`, fetchError);
             } else {
               const dbIds = dbItems?.map(d => d.id) || [];
@@ -2136,6 +2207,13 @@ export default function App() {
                      if (!rest.payment_type) rest.payment_type = 'month';
                      return rest;
                    });
+                } else if (activeTable === 'field_reports' || targetTable === 'field_reports') {
+                   chunkToUpsert = chunk.map((frItem: any) => {
+                     if (frItem.production_date === '') frItem.production_date = null;
+                     if (frItem.synced_at === '') frItem.synced_at = null;
+                     if (!frItem.company_id) frItem.company_id = compId || null;
+                     return frItem;
+                   });
                 } else if (activeTable === 'service_productions' || targetTable === 'service_productions') {
                    chunkToUpsert = chunk.map((prodRow: any) => {
                      const {
@@ -2175,7 +2253,7 @@ export default function App() {
                        contract_id: (contract_id && contract_id !== '') ? contract_id : null,
                        contract_name: contract_name || null,
                        timestamp: (timestamp && typeof timestamp === 'string' && timestamp.trim() !== '') ? timestamp : new Date().toISOString(),
-                       sector: sector || 'CONTROLADOR',
+                       sector: normalizeWorkMovementSector(sector),
                        action: action || 'REGISTRO',
                        description: description || '',
                        responsible_user: responsible_user || 'Sistema',
@@ -5671,6 +5749,8 @@ export default function App() {
                   onDeleteFieldReport={handleDeleteFieldReport}
                   selectedContractId={selectedContractId}
                   onUpdateContractId={setSelectedContractId}
+                  onLogout={handleLogout}
+                  onSyncRequest={() => syncFromSupabase()}
                 />
               )}
 

@@ -69,25 +69,38 @@ export function Chat({ currentUser, users, contracts, isMobileView }: ChatProps)
   // Load unread count function (moved out to be reusable)
   const fetchUnread = async () => {
     if (!supabase || !currentUser) return;
-    const { data, count, error } = await supabase
-      .from('chat_messages')
-      .select('sender_id', { count: 'exact' })
-      .eq('receiver_id', currentUser.id)
-      .eq('is_read', false);
-    
-    if (error) {
-      console.error('Chat: Error fetching unread count:', error);
-      return;
-    }
+    try {
+      const { data, count, error } = await supabase
+        .from('chat_messages')
+        .select('sender_id', { count: 'exact' })
+        .eq('receiver_id', currentUser.id)
+        .eq('is_read', false);
+      
+      if (error) {
+        console.warn('Chat: Unread count query notice:', error.message || error);
+        // Fallback to localStorage unread count
+        const msgs: ChatMessage[] = JSON.parse(localStorage.getItem('chat_messages') || '[]');
+        const unreadLocal = msgs.filter(m => m.receiver_id === currentUser.id && !m.is_read);
+        setUnreadCount(unreadLocal.length);
+        const counts: Record<string, number> = {};
+        unreadLocal.forEach(m => {
+          counts[m.sender_id] = (counts[m.sender_id] || 0) + 1;
+        });
+        setUnreadBySender(counts);
+        return;
+      }
 
-    if (count !== null) setUnreadCount(count);
-    
-    if (data) {
-      const counts: Record<string, number> = {};
-      data.forEach(m => {
-        counts[m.sender_id] = (counts[m.sender_id] || 0) + 1;
-      });
-      setUnreadBySender(counts);
+      if (count !== null) setUnreadCount(count);
+      
+      if (data) {
+        const counts: Record<string, number> = {};
+        data.forEach(m => {
+          counts[m.sender_id] = (counts[m.sender_id] || 0) + 1;
+        });
+        setUnreadBySender(counts);
+      }
+    } catch (err) {
+      console.warn('Chat: Unread count exception:', err);
     }
   };
 
@@ -102,18 +115,22 @@ export function Chat({ currentUser, users, contracts, isMobileView }: ChatProps)
       
       // Load notification history
       const fetchNotifications = async () => {
-        const { data, error } = await supabase
-          .from('chat_notifications')
-          .select('*')
-          .eq('user_id', currentUser.id)
-          .order('created_at', { ascending: false })
-          .limit(20);
-        
-        if (error) {
-          console.error('Chat: Error fetching notifications:', error);
-          return;
+        try {
+          const { data, error } = await supabase
+            .from('chat_notifications')
+            .select('*')
+            .eq('user_id', currentUser.id)
+            .order('created_at', { ascending: false })
+            .limit(20);
+          
+          if (error) {
+            console.warn('Chat: Notifications query notice:', error.message || error);
+            return;
+          }
+          if (data) setNotifications(data as ChatNotification[]);
+        } catch (e) {
+          console.warn('Chat: Notifications exception:', e);
         }
-        if (data) setNotifications(data as ChatNotification[]);
       };
       
       fetchNotifications();
@@ -360,7 +377,13 @@ export function Chat({ currentUser, users, contracts, isMobileView }: ChatProps)
         .order('created_at', { ascending: true });
 
       if (error) {
-        console.error('Chat: Error loading messages from Supabase:', error);
+        console.warn('Chat: Error loading messages from Supabase:', error.message || error);
+        const msgs: ChatMessage[] = JSON.parse(localStorage.getItem('chat_messages') || '[]');
+        const filtered = msgs.filter(m => 
+          (m.sender_id === currentUser.id && m.receiver_id === otherUserId) ||
+          (m.sender_id === otherUserId && m.receiver_id === currentUser.id)
+        ).sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+        setMessages(filtered);
         return;
       }
 
@@ -397,7 +420,7 @@ export function Chat({ currentUser, users, contracts, isMobileView }: ChatProps)
         .eq('is_read', false);
       
       if (error) {
-        console.error('Chat: Error marking as read:', error);
+        console.warn('Chat: Error marking as read:', error.message || error);
       }
       
       // Refresh global exact count from DB
@@ -463,7 +486,7 @@ export function Chat({ currentUser, users, contracts, isMobileView }: ChatProps)
         type: file.type
       });
     } catch (error) {
-      console.error('Chat: Error uploading file:', error);
+      console.warn('Chat: Error uploading file:', error);
       alert('Erro ao enviar arquivo. Verifique se o bucket "chat-attachments" existe no Supabase.');
     } finally {
       setIsUploading(false);
@@ -499,9 +522,12 @@ export function Chat({ currentUser, users, contracts, isMobileView }: ChatProps)
       console.log('Chat: Sending optimistic message to Supabase...', msgId);
       const { error } = await supabase.from('chat_messages').insert([msg]);
       if (error) {
-        console.error('Chat: Error sending message to Supabase:', error);
-        // On error, the realtime listener won't find it, but it's already in the UI.
-        // We could flag it as "failed" but for now we keep it simple.
+        console.warn('Chat: Error sending message to Supabase:', error.message || error);
+        // On error, insert into localStorage as fallback
+        const msgs: ChatMessage[] = JSON.parse(localStorage.getItem('chat_messages') || '[]');
+        msgs.push(msg);
+        localStorage.setItem('chat_messages', JSON.stringify(msgs));
+        window.dispatchEvent(new Event('chat_messages_updated'));
       }
     } else {
       const msgs: ChatMessage[] = JSON.parse(localStorage.getItem('chat_messages') || '[]');
@@ -548,7 +574,7 @@ export function Chat({ currentUser, users, contracts, isMobileView }: ChatProps)
     
     if (supabase) {
       supabase.from('chat_notifications').insert([newNotif]).then(({ error }) => {
-        if (error) console.error('Chat: Error persisting notification:', error);
+        if (error) console.warn('Chat: Error persisting notification:', error.message || error);
       });
     }
     

@@ -690,6 +690,7 @@ export function SyneraMobileView({
   onAddWorkMovement,
   onSaveDailyReport,
   onLogout,
+  onSyncRequest,
   isCamOnly = false,
 }: SyneraMobileViewProps) {
   const [isOnline, setIsOnline] = useState<boolean>(() => navigator.onLine);
@@ -1570,6 +1571,11 @@ export function SyneraMobileView({
   const [rhTeamFilter, setRhTeamFilter] = useState('ALL');
   const [rhAttendanceDate, setRhAttendanceDate] = useState(() => new Date().toISOString().slice(0, 10));
 
+  // RH Transfer Support States
+  const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
+  const [transferredEmpIds, setTransferredEmpIds] = useState<string[]>([]);
+  const [transferSearchTerm, setTransferSearchTerm] = useState('');
+
   // RH Employee Records State: employeeId -> { status, entryTime, exitTime, transferredToTeam, notes }
   const [rhEmployeeRecords, setRhEmployeeRecords] = useState<Record<string, {
     status: 'presente' | 'falta' | 'folga';
@@ -1597,14 +1603,45 @@ export function SyneraMobileView({
     }
   }, []);
 
-  // Allowed employees according to RH responsibles definition & filtering out dismissed employees
+  // Determine current user's linked team (or null for master/admin)
+  const currentUserTeam = useMemo(() => {
+    if (currentUser?.role === 'master' || currentUser?.role === 'admin') {
+      return null; // Master/Admin tem acesso a todas as equipes
+    }
+    const responsibles = rhParams.mobileResponsibles || [];
+    const activeEmps = (employees || []).filter(e => e && (!e.dismissalDate || !e.dismissalDate.trim()));
+    
+    // Find matched employee for current user
+    const matchedEmp = activeEmps.find(e => 
+      (currentUser?.id && e.id === currentUser.id) ||
+      (currentUser?.name && e.name.toLowerCase().trim() === currentUser.name.toLowerCase().trim()) ||
+      (currentUser?.email && e.email?.toLowerCase().trim() === currentUser.email.toLowerCase().trim()) ||
+      (currentUser?.username && e.cpf?.replace(/\D/g, '') === currentUser.username.replace(/\D/g, ''))
+    );
+
+    const userResponsibles = responsibles.filter((r: any) => {
+      if (r.employeeId === currentUser?.id) return true;
+      if (matchedEmp && r.employeeId === matchedEmp.id) return true;
+      if (currentUser?.name && r.employeeName?.toLowerCase().trim() === currentUser.name.toLowerCase().trim()) return true;
+      if (currentUser?.email && r.employeeName?.toLowerCase().trim() === currentUser.email.toLowerCase().trim()) return true;
+      return false;
+    });
+
+    if (userResponsibles.some((r: any) => r.scope === 'ALL')) return null;
+
+    const assignedTeam = userResponsibles.find((r: any) => r.scope === 'TEAM' && r.teamName)?.teamName;
+    if (assignedTeam) return assignedTeam;
+
+    if (matchedEmp && matchedEmp.team) return matchedEmp.team;
+
+    return null;
+  }, [currentUser, rhParams, employees]);
+
+  // Allowed employees according to RH team linking + transfers & filtering out dismissed employees
   const allowedRhEmployees = useMemo(() => {
-    // 1. Strictly filter out dismissed/inactive employees
     const rawEmps = (employees || []).filter(e => {
       if (!e) return false;
-      // Check dismissal date
       if (e.dismissalDate && e.dismissalDate.trim() !== '') return false;
-      // Check status strings
       const st = (e.status || 'active').toLowerCase().trim();
       if (st === 'dismissed' || st === 'demitido' || st === 'inativo' || st === 'inativo (demitido)' || st === 'desligado') {
         return false;
@@ -1612,7 +1649,6 @@ export function SyneraMobileView({
       return true;
     });
 
-    // Deduplicate employees by ID to avoid duplicate React key warnings
     const map = new Map<string, typeof rawEmps[0]>();
     rawEmps.forEach(e => {
       if (e && e.id && !map.has(e.id)) {
@@ -1620,71 +1656,56 @@ export function SyneraMobileView({
       }
     });
     const activeEmps = Array.from(map.values());
-    const responsibles = rhParams.mobileResponsibles || [];
 
-    // Master / Admin users have full access to all active employees
-    if (currentUser?.role === 'master' || currentUser?.role === 'admin') {
+    if (!currentUserTeam) {
       return activeEmps;
     }
 
-    // If no specific responsibles are configured in RH/Parâmetros, allow all active employees
-    if (!responsibles || responsibles.length === 0) {
-      return activeEmps;
-    }
+    const normUserTeam = currentUserTeam.toLowerCase().trim();
 
-    // Find all responsible definitions that match current user
-    const userMatchedEmployeeIds = new Set<string>();
-    activeEmps.forEach(emp => {
-      if (
-        (currentUser?.id && emp.id === currentUser.id) ||
-        (currentUser?.name && emp.name.toLowerCase().trim() === currentUser.name.toLowerCase().trim()) ||
-        (currentUser?.email && emp.email?.toLowerCase().trim() === currentUser.email.toLowerCase().trim()) ||
-        (currentUser?.username && emp.cpf?.replace(/\D/g, '') === currentUser.username.replace(/\D/g, ''))
-      ) {
-        userMatchedEmployeeIds.add(emp.id);
-      }
+    return activeEmps.filter(emp => {
+      const isOriginalTeam = emp.team && emp.team.toLowerCase().trim() === normUserTeam;
+      const isTransferredHere = transferredEmpIds.includes(emp.id) || 
+        (rhEmployeeRecords[emp.id]?.transferredToTeam && rhEmployeeRecords[emp.id].transferredToTeam?.toLowerCase().trim() === normUserTeam);
+
+      return isOriginalTeam || isTransferredHere;
+    });
+  }, [employees, currentUserTeam, transferredEmpIds, rhEmployeeRecords]);
+
+  // Other team employees for transfer selection
+  const otherTeamEmployees = useMemo(() => {
+    if (!currentUserTeam) return [];
+    const normUserTeam = currentUserTeam.toLowerCase().trim();
+
+    const activeEmps = (employees || []).filter(e => {
+      if (!e) return false;
+      if (e.dismissalDate && e.dismissalDate.trim() !== '') return false;
+      const st = (e.status || 'active').toLowerCase().trim();
+      if (st === 'dismissed' || st === 'demitido' || st === 'inativo' || st === 'desligado') return false;
+      return true;
     });
 
-    const userResponsibles = responsibles.filter((r: any) => {
-      if (r.employeeId === currentUser?.id) return true;
-      if (userMatchedEmployeeIds.has(r.employeeId)) return true;
-      if (currentUser?.name && r.employeeName?.toLowerCase().trim() === currentUser.name.toLowerCase().trim()) return true;
-      if (currentUser?.username && r.employeeName?.toLowerCase().trim() === currentUser.username.toLowerCase().trim()) return true;
-      if (currentUser?.email && r.employeeName?.toLowerCase().trim() === currentUser.email.toLowerCase().trim()) return true;
-      return false;
+    return activeEmps.filter(emp => {
+      const isOriginalTeam = emp.team && emp.team.toLowerCase().trim() === normUserTeam;
+      if (isOriginalTeam) return false;
+
+      const isTransferredHere = transferredEmpIds.includes(emp.id) || 
+        (rhEmployeeRecords[emp.id]?.transferredToTeam && rhEmployeeRecords[emp.id].transferredToTeam?.toLowerCase().trim() === normUserTeam);
+
+      return !isTransferredHere;
     });
+  }, [employees, currentUserTeam, transferredEmpIds, rhEmployeeRecords]);
 
-    // If user has a responsible assignment with scope === 'ALL', return all activeEmps
-    if (userResponsibles.some((r: any) => r.scope === 'ALL')) {
-      return activeEmps;
-    }
+  // Permission helper for attendance marking
+  const canMarkAttendance = (emp: typeof allowedRhEmployees[0]) => {
+    if (!currentUserTeam) return true; // master/admin
+    const normUserTeam = currentUserTeam.toLowerCase().trim();
+    const isOriginalTeam = emp.team && emp.team.toLowerCase().trim() === normUserTeam;
+    const isTransferredHere = transferredEmpIds.includes(emp.id) || 
+      (rhEmployeeRecords[emp.id]?.transferredToTeam && rhEmployeeRecords[emp.id].transferredToTeam?.toLowerCase().trim() === normUserTeam);
 
-    // Collect all assigned team names for this user
-    const assignedTeams = new Set<string>();
-    userResponsibles.forEach((r: any) => {
-      if (r.scope === 'TEAM' && r.teamName) {
-        assignedTeams.add(r.teamName.toLowerCase().trim());
-      }
-    });
-
-    if (assignedTeams.size > 0) {
-      return activeEmps.filter(e => {
-        if (!e.team) return false;
-        const eTeamNorm = e.team.toLowerCase().trim();
-        return assignedTeams.has(eTeamNorm);
-      });
-    }
-
-    // If responsibles are configured in RH/Parâmetros but current non-admin user was not assigned any team:
-    // Check if current user is directly linked to an employee who has a team
-    const matchedUserEmp = activeEmps.find(e => userMatchedEmployeeIds.has(e.id));
-    if (matchedUserEmp && matchedUserEmp.team) {
-      const userTeamNorm = matchedUserEmp.team.toLowerCase().trim();
-      return activeEmps.filter(e => e.team && e.team.toLowerCase().trim() === userTeamNorm);
-    }
-
-    return activeEmps;
-  }, [employees, rhParams, currentUser]);
+    return isOriginalTeam || isTransferredHere;
+  };
 
   // Chat do Synera Mobile
   const [isChatOpen, setIsChatOpen] = useState<boolean>(false);
@@ -2233,6 +2254,13 @@ export function SyneraMobileView({
     setIsSyncing(true);
 
     try {
+      if (onSyncRequest) {
+        try {
+          await onSyncRequest();
+        } catch (e) {
+          console.warn('[Sync PWA] Cloud sync warning:', e);
+        }
+      }
       // Simulate download time
       await new Promise(r => setTimeout(r, 800));
       
@@ -2993,7 +3021,22 @@ export function SyneraMobileView({
                 </div>
 
                 {/* BOTÃO PRINCIPAL DE INSTALAÇÃO DO PWA */}
-                <button onClick={() => setActiveSector(null)} className="p-2 rounded-xl bg-slate-700/50 hover:bg-slate-600/50 text-slate-300 transition-colors"><ArrowLeft className="w-5 h-5" /></button>
+                {!isPwaInstalled ? (
+                  <Button
+                    onClick={handleInstallPwa}
+                    className="w-full h-11 rounded-2xl bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-slate-950 font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-amber-400/20"
+                  >
+                    <Download className="w-4 h-4" />
+                    Instalar App Synera no Celular
+                  </Button>
+                ) : (
+                  <div className="p-2.5 rounded-2xl bg-slate-900/80 border border-slate-700/60 text-slate-300 text-[11px] font-semibold flex items-center justify-between">
+                    <span className="flex items-center gap-1.5 text-emerald-400 font-bold">
+                      <CheckCircle2 className="w-4 h-4" /> App Pronto para Uso
+                    </span>
+                    <span className="text-[10px] text-slate-400">Modo Offline Ativo</span>
+                  </div>
+                )}
               </div>
             )}
 
@@ -3073,7 +3116,13 @@ export function SyneraMobileView({
           <div className="space-y-4">
             {/* Top Bar para Voltar à Home do PWA */}
             <div className="flex items-center justify-between bg-slate-800/90 border border-slate-700/80 p-2.5 rounded-2xl shadow-md">
-                <button onClick={() => setActiveSector(null)} className="p-2 rounded-xl bg-slate-700/50 hover:bg-slate-600/50 text-slate-300 transition-colors"><ArrowLeft className="w-5 h-5" /></button>
+              <button 
+                onClick={() => setActiveSector(null)} 
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-700/60 hover:bg-slate-600 text-slate-200 font-bold text-xs transition-colors"
+              >
+                <ArrowLeft className="w-4 h-4 text-emerald-400" />
+                <span>Voltar ao Menu</span>
+              </button>
 
               <div className="text-right">
                 <span className="text-[9px] font-black uppercase tracking-wider text-slate-400 block">Setor de Atuação</span>
@@ -3208,10 +3257,35 @@ export function SyneraMobileView({
                     </div>
                   </div>
 
-                  <div className="space-y-2 pt-2">
-                <button onClick={() => setActiveSector(null)} className="p-2 rounded-xl bg-slate-700/50 hover:bg-slate-600/50 text-slate-300 transition-colors"><ArrowLeft className="w-5 h-5" /></button>
+                  <div className="space-y-2 pt-3 border-t border-slate-700/60">
+                    <Button
+                      onClick={handleSaveProduction}
+                      className="w-full h-12 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-blue-600/30"
+                    >
+                      <Save className="w-4 h-4 stroke-[2.5]" />
+                      Salvar Apontamento de Produção
+                    </Button>
 
-                <button onClick={() => setActiveSector(null)} className="p-2 rounded-xl bg-slate-700/50 hover:bg-slate-600/50 text-slate-300 transition-colors"><ArrowLeft className="w-5 h-5" /></button>
+                    <div className="flex gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => setIsMyRecordsOpen(true)}
+                        className="flex-1 h-10 rounded-xl bg-slate-900 border-slate-700 text-blue-300 font-bold text-xs flex items-center justify-center gap-1.5 hover:bg-slate-800"
+                      >
+                        <FileText className="w-4 h-4 text-blue-400" />
+                        Ver Lançamentos ({fieldReports.length})
+                      </Button>
+
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        onClick={() => setActiveSector(null)}
+                        className="h-10 px-4 rounded-xl bg-slate-800/80 text-slate-300 font-bold text-xs hover:bg-slate-700"
+                      >
+                        Voltar
+                      </Button>
+                    </div>
                   </div>
                 </div>
 
@@ -3276,7 +3350,12 @@ export function SyneraMobileView({
                           )}
                         </div>
 
-                <button onClick={() => setActiveSector(null)} className="p-2 rounded-xl bg-slate-700/50 hover:bg-slate-600/50 text-slate-300 transition-colors"><ArrowLeft className="w-5 h-5" /></button>
+                        <Button
+                          onClick={() => setIsMyRecordsOpen(false)}
+                          className="w-full h-11 rounded-2xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs border border-slate-700"
+                        >
+                          Fechar Janela de Lançamentos
+                        </Button>
                       </motion.div>
                     </div>
                   )}
@@ -3342,8 +3421,27 @@ export function SyneraMobileView({
                         </div>
 
                         <div className="flex gap-2 pt-2">
-                <button onClick={() => setActiveSector(null)} className="p-2 rounded-xl bg-slate-700/50 hover:bg-slate-600/50 text-slate-300 transition-colors"><ArrowLeft className="w-5 h-5" /></button>
-                <button onClick={() => setActiveSector(null)} className="p-2 rounded-xl bg-slate-700/50 hover:bg-slate-600/50 text-slate-300 transition-colors"><ArrowLeft className="w-5 h-5" /></button>
+                          <Button
+                            variant="outline"
+                            onClick={() => setEditingMyRecord(null)}
+                            className="flex-1 h-10 rounded-xl bg-slate-800 text-slate-300 font-bold text-xs border-slate-700"
+                          >
+                            Cancelar
+                          </Button>
+
+                          <Button
+                            onClick={() => {
+                              if (editingMyRecord && onUpdateFieldReport) {
+                                onUpdateFieldReport(editingMyRecord);
+                                setEditingMyRecord(null);
+                                alert('Apontamento atualizado com sucesso!');
+                              }
+                            }}
+                            className="flex-1 h-10 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-black text-xs shadow-lg shadow-blue-600/30"
+                          >
+                            <Save className="w-4 h-4 mr-1" />
+                            Salvar Alterações
+                          </Button>
                         </div>
                       </motion.div>
                     </div>
@@ -3448,7 +3546,14 @@ export function SyneraMobileView({
                             </div>
 
                             {/* Botão de Atalho para Apontamento de Ponto */}
-                <button onClick={() => setActiveSector(null)} className="p-2 rounded-xl bg-slate-700/50 hover:bg-slate-600/50 text-slate-300 transition-colors"><ArrowLeft className="w-5 h-5" /></button>
+                            <Button
+                              type="button"
+                              onClick={() => setMobileRhSubView('colaboradores')}
+                              className="w-full h-11 rounded-2xl bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-500 hover:to-blue-500 text-white font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-indigo-600/25"
+                            >
+                              <Users className="w-4 h-4" />
+                              Ir para Chamada / Ponto Individual de Colaboradores
+                            </Button>
                           </div>
                         );
                       })()}
@@ -3509,7 +3614,13 @@ export function SyneraMobileView({
                         </div>
                       </div>
 
-                <button onClick={() => setActiveSector(null)} className="p-2 rounded-xl bg-slate-700/50 hover:bg-slate-600/50 text-slate-300 transition-colors"><ArrowLeft className="w-5 h-5" /></button>
+                      <Button
+                        onClick={handleSaveHeadcount}
+                        className="w-full h-12 rounded-2xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-indigo-600/30"
+                      >
+                        <Save className="w-4 h-4 stroke-[2.5]" />
+                        Salvar Resumo do Efetivo de RH
+                      </Button>
                     </div>
                   </div>
                 )}
@@ -3543,36 +3654,51 @@ export function SyneraMobileView({
                         </select>
                       </div>
 
-                      {/* Ações em Lote */}
-                      <div className="flex items-center justify-between pt-1">
+                      {/* Ações e Transferências */}
+                      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 pt-1 border-t border-slate-700/60">
                         <span className="text-[11px] font-bold text-slate-400">
                           Exibindo {allowedRhEmployees.filter(e => {
                             const matchSearch = !rhSearchTerm.trim() || e.name.toLowerCase().includes(rhSearchTerm.toLowerCase()) || (e.role && e.role.toLowerCase().includes(rhSearchTerm.toLowerCase()));
                             const matchTeam = rhTeamFilter === 'ALL' || e.team === rhTeamFilter;
                             return matchSearch && matchTeam;
-                          }).length} colaboradores
+                          }).length} colaboradores {currentUserTeam ? `(Equipe: ${currentUserTeam})` : ''}
                         </span>
 
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const updated = { ...rhEmployeeRecords };
-                            allowedRhEmployees.forEach(emp => {
-                              updated[emp.id] = {
-                                status: 'presente',
-                                entryTime: updated[emp.id]?.entryTime || '07:00',
-                                exitTime: updated[emp.id]?.exitTime || '17:00',
-                                transferredToTeam: updated[emp.id]?.transferredToTeam,
-                                notes: updated[emp.id]?.notes
-                              };
-                            });
-                            setRhEmployeeRecords(updated);
-                          }}
-                          className="px-3 py-1.5 rounded-xl bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[10px] font-black uppercase tracking-wider flex items-center gap-1 hover:bg-emerald-500/30 transition-colors"
-                        >
-                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-                          Marcar Todos Presentes
-                        </button>
+                        <div className="flex items-center gap-2">
+                          {currentUserTeam && (
+                            <button
+                              type="button"
+                              onClick={() => setIsTransferModalOpen(true)}
+                              className="px-3 py-1.5 rounded-xl bg-purple-500/20 text-purple-300 border border-purple-500/40 text-[10px] font-black uppercase tracking-wider flex items-center gap-1 hover:bg-purple-500/30 transition-colors"
+                            >
+                              <Plus className="w-3.5 h-3.5 text-purple-400" />
+                              + Add por Transferência
+                            </button>
+                          )}
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const updated = { ...rhEmployeeRecords };
+                              allowedRhEmployees.forEach(emp => {
+                                if (canMarkAttendance(emp)) {
+                                  updated[emp.id] = {
+                                    status: 'presente',
+                                    entryTime: updated[emp.id]?.entryTime || '07:00',
+                                    exitTime: updated[emp.id]?.exitTime || '17:00',
+                                    transferredToTeam: updated[emp.id]?.transferredToTeam,
+                                    notes: updated[emp.id]?.notes
+                                  };
+                                }
+                              });
+                              setRhEmployeeRecords(updated);
+                            }}
+                            className="px-3 py-1.5 rounded-xl bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[10px] font-black uppercase tracking-wider flex items-center gap-1 hover:bg-emerald-500/30 transition-colors"
+                          >
+                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                            Marcar Todos Presentes
+                          </button>
+                        </div>
                       </div>
                     </div>
 
@@ -3591,7 +3717,13 @@ export function SyneraMobileView({
                             exitTime: '17:00'
                           };
 
+                          const isAttendanceAllowed = canMarkAttendance(emp);
+
                           const updateEmpRecord = (fields: Partial<typeof record>) => {
+                            if (!isAttendanceAllowed) {
+                              alert(`Presença e falta só podem ser preenchidas para colaboradores da sua equipe vinculada (${currentUserTeam}).`);
+                              return;
+                            }
                             setRhEmployeeRecords(prev => ({
                               ...prev,
                               [emp.id]: {
@@ -3617,13 +3749,18 @@ export function SyneraMobileView({
                                   </div>
                                   <div>
                                     <h4 className="font-black text-sm text-white leading-tight">{emp.name}</h4>
-                                    <div className="flex items-center gap-2 mt-0.5">
+                                    <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
                                       <span className="text-[10px] font-bold text-slate-300 bg-slate-700/60 px-2 py-0.5 rounded-full">
                                         {emp.role || 'Colaborador'}
                                       </span>
                                       {emp.team && (
                                         <span className="text-[10px] font-bold text-indigo-300 bg-indigo-500/20 px-2 py-0.5 rounded-full">
                                           {emp.team}
+                                        </span>
+                                      )}
+                                      {!isAttendanceAllowed && (
+                                        <span className="text-[9px] font-black text-amber-300 bg-amber-500/20 px-2 py-0.5 rounded-full border border-amber-500/40">
+                                          🔒 Outra Equipe (Apenas Leitura)
                                         </span>
                                       )}
                                     </div>
@@ -3643,8 +3780,10 @@ export function SyneraMobileView({
                               <div className="grid grid-cols-3 gap-2 pt-1">
                                 <button
                                   type="button"
+                                  disabled={!isAttendanceAllowed}
                                   onClick={() => updateEmpRecord({ status: 'presente' })}
                                   className={`py-2 px-2 rounded-2xl text-xs font-black flex items-center justify-center gap-1.5 transition-all ${
+                                    !isAttendanceAllowed ? 'opacity-50 cursor-not-allowed bg-slate-900/40 text-slate-500 border border-slate-800' :
                                     record.status === 'presente' 
                                       ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/30' 
                                       : 'bg-slate-900/80 text-slate-400 hover:text-white border border-slate-700'
@@ -3656,8 +3795,10 @@ export function SyneraMobileView({
 
                                 <button
                                   type="button"
+                                  disabled={!isAttendanceAllowed}
                                   onClick={() => updateEmpRecord({ status: 'falta' })}
                                   className={`py-2 px-2 rounded-2xl text-xs font-black flex items-center justify-center gap-1.5 transition-all ${
+                                    !isAttendanceAllowed ? 'opacity-50 cursor-not-allowed bg-slate-900/40 text-slate-500 border border-slate-800' :
                                     record.status === 'falta' 
                                       ? 'bg-red-600 text-white shadow-lg shadow-red-600/30' 
                                       : 'bg-slate-900/80 text-slate-400 hover:text-white border border-slate-700'
@@ -3669,8 +3810,10 @@ export function SyneraMobileView({
 
                                 <button
                                   type="button"
+                                  disabled={!isAttendanceAllowed}
                                   onClick={() => updateEmpRecord({ status: 'folga' })}
                                   className={`py-2 px-2 rounded-2xl text-xs font-black flex items-center justify-center gap-1.5 transition-all ${
+                                    !isAttendanceAllowed ? 'opacity-50 cursor-not-allowed bg-slate-900/40 text-slate-500 border border-slate-800' :
                                     record.status === 'folga' 
                                       ? 'bg-amber-600 text-white shadow-lg shadow-amber-600/30' 
                                       : 'bg-slate-900/80 text-slate-400 hover:text-white border border-slate-700'
@@ -3751,9 +3894,117 @@ export function SyneraMobileView({
                         })}
                     </div>
 
+                    {/* MODAL DE SELEÇÃO DE COLABORADOR DE OUTRA EQUIPE (TRANSFERÊNCIA) */}
+                    <AnimatePresence>
+                      {isTransferModalOpen && (
+                        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+                          <motion.div
+                            initial={{ opacity: 0, scale: 0.95 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            exit={{ opacity: 0, scale: 0.95 }}
+                            className="bg-slate-900 border border-slate-800 rounded-3xl p-5 w-full max-w-lg space-y-4 shadow-2xl max-h-[85vh] flex flex-col"
+                          >
+                            <div className="flex items-center justify-between pb-3 border-b border-slate-800 shrink-0">
+                              <div>
+                                <h3 className="font-black text-sm text-white flex items-center gap-2">
+                                  <ArrowRightLeft className="w-4 h-4 text-purple-400" />
+                                  Adicionar Colaborador por Transferência
+                                </h3>
+                                <p className="text-[10px] text-purple-300">
+                                  Selecione um funcionário de outra equipe para incluir na sua equipe ({currentUserTeam || 'Minha Equipe'}).
+                                </p>
+                              </div>
+                              <button onClick={() => setIsTransferModalOpen(false)} className="text-slate-400 hover:text-white p-1">
+                                <X className="w-5 h-5" />
+                              </button>
+                            </div>
+
+                            <div className="relative shrink-0">
+                              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                              <input
+                                type="text"
+                                placeholder="Buscar colaborador de outra equipe por nome ou cargo..."
+                                value={transferSearchTerm}
+                                onChange={e => setTransferSearchTerm(e.target.value)}
+                                className="w-full h-10 pl-9 pr-3 rounded-2xl bg-slate-950 border border-slate-800 text-xs font-medium text-white focus:outline-none focus:border-purple-500"
+                              />
+                            </div>
+
+                            <div className="flex-1 overflow-y-auto space-y-2 pr-1">
+                              {otherTeamEmployees
+                                .filter(e => !transferSearchTerm.trim() || e.name.toLowerCase().includes(transferSearchTerm.toLowerCase()) || (e.role && e.role.toLowerCase().includes(transferSearchTerm.toLowerCase())))
+                                .length === 0 ? (
+                                <div className="text-center py-8 text-xs text-slate-400">
+                                  Nenhum colaborador de outra equipe disponível para transferência.
+                                </div>
+                              ) : (
+                                otherTeamEmployees
+                                  .filter(e => !transferSearchTerm.trim() || e.name.toLowerCase().includes(transferSearchTerm.toLowerCase()) || (e.role && e.role.toLowerCase().includes(transferSearchTerm.toLowerCase())))
+                                  .map(emp => (
+                                    <div key={emp.id} className="p-3 rounded-2xl bg-slate-950 border border-slate-800 flex items-center justify-between gap-2">
+                                      <div>
+                                        <h4 className="font-extrabold text-xs text-white leading-tight">{emp.name}</h4>
+                                        <div className="flex items-center gap-2 text-[10px] text-slate-400 mt-0.5">
+                                          <span>{emp.role || 'Colaborador'}</span>
+                                          {emp.team && (
+                                            <span className="text-purple-300 font-bold bg-purple-500/20 px-2 py-0.5 rounded-full">
+                                              Equipe Origem: {emp.team}
+                                            </span>
+                                          )}
+                                        </div>
+                                      </div>
+
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          const targetTeam = currentUserTeam || 'Minha Equipe';
+                                          setTransferredEmpIds(prev => Array.from(new Set([...prev, emp.id])));
+                                          setRhEmployeeRecords(prev => ({
+                                            ...prev,
+                                            [emp.id]: {
+                                              status: 'presente',
+                                              entryTime: '07:00',
+                                              exitTime: '17:00',
+                                              transferredToTeam: targetTeam,
+                                              notes: `Transferido temporariamente para ${targetTeam}`
+                                            }
+                                          }));
+                                          alert(`${emp.name} foi transferido para a sua equipe (${targetTeam}).`);
+                                          setIsTransferModalOpen(false);
+                                        }}
+                                        className="px-3 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-black text-xs shrink-0 flex items-center gap-1 shadow-md shadow-purple-600/30"
+                                      >
+                                        <Plus className="w-3.5 h-3.5" />
+                                        Transferir
+                                      </button>
+                                    </div>
+                                  ))
+                              )}
+                            </div>
+
+                            <div className="shrink-0 pt-2 border-t border-slate-800">
+                              <Button
+                                variant="outline"
+                                onClick={() => setIsTransferModalOpen(false)}
+                                className="w-full h-10 rounded-2xl bg-slate-800 border-slate-700 text-slate-300 font-bold text-xs"
+                              >
+                                Cancelar
+                              </Button>
+                            </div>
+                          </motion.div>
+                        </div>
+                      )}
+                    </AnimatePresence>
+
                     {/* Botão Flutuante de Salvamento Geral */}
-                    <div className="sticky bottom-4 z-20 pt-2">
-                <button onClick={() => setActiveSector(null)} className="p-2 rounded-xl bg-slate-700/50 hover:bg-slate-600/50 text-slate-300 transition-colors"><ArrowLeft className="w-5 h-5" /></button>
+                    <div className="sticky bottom-4 z-20 pt-2 space-y-2">
+                      <Button
+                        onClick={handleSaveHeadcount}
+                        className="w-full h-12 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-slate-950 font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-2xl shadow-emerald-600/40 border border-emerald-400/40"
+                      >
+                        <Save className="w-4 h-4 stroke-[2.5]" />
+                        Salvar Ponto & Lista de Colaboradores
+                      </Button>
                     </div>
                   </div>
                 )}
@@ -3876,7 +4127,13 @@ export function SyneraMobileView({
                     />
                   </div>
 
-                <button onClick={() => setActiveSector(null)} className="p-2 rounded-xl bg-slate-700/50 hover:bg-slate-600/50 text-slate-300 transition-colors"><ArrowLeft className="w-5 h-5" /></button>
+                  <Button
+                    onClick={handleSaveEquipment}
+                    className="w-full h-12 rounded-2xl bg-gradient-to-r from-amber-600 to-yellow-600 hover:from-amber-500 hover:to-yellow-500 text-slate-950 font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-amber-600/30"
+                  >
+                    <Save className="w-4 h-4 stroke-[2.5]" />
+                    Salvar Apontamento de Equipamento
+                  </Button>
                 </div>
               </motion.div>
             )}
@@ -3958,7 +4215,13 @@ export function SyneraMobileView({
                     />
                   </div>
 
-                <button onClick={() => setActiveSector(null)} className="p-2 rounded-xl bg-slate-700/50 hover:bg-slate-600/50 text-slate-300 transition-colors"><ArrowLeft className="w-5 h-5" /></button>
+                  <Button
+                    onClick={handleSaveMaterials}
+                    className="w-full h-12 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-slate-950 font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/30"
+                  >
+                    <Save className="w-4 h-4 stroke-[2.5]" />
+                    Salvar Movimentação de Material
+                  </Button>
                 </div>
               </motion.div>
             )}
@@ -4118,7 +4381,13 @@ export function SyneraMobileView({
                           </div>
                         </div>
 
-                <button onClick={() => setActiveSector(null)} className="p-2 rounded-xl bg-slate-700/50 hover:bg-slate-600/50 text-slate-300 transition-colors"><ArrowLeft className="w-5 h-5" /></button>
+                        <Button
+                          onClick={handleSaveFinancialMovement}
+                          className="w-full h-11 rounded-2xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-purple-600/30"
+                        >
+                          <Save className="w-4 h-4" />
+                          Salvar Movimentação Financeira
+                        </Button>
                       </div>
 
                       {/* Card de Resumo do Mês Visualizado */}
@@ -4261,7 +4530,13 @@ export function SyneraMobileView({
                           />
                         </div>
 
-                <button onClick={() => setActiveSector(null)} className="p-2 rounded-xl bg-slate-700/50 hover:bg-slate-600/50 text-slate-300 transition-colors"><ArrowLeft className="w-5 h-5" /></button>
+                        <Button
+                          onClick={handleSaveAdmRequest}
+                          className="w-full h-11 rounded-2xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-purple-600/30"
+                        >
+                          <Plus className="w-4 h-4" />
+                          Enviar Solicitação do Administrador
+                        </Button>
                       </div>
 
                       {/* Lista de Solicitações do Administrador */}
@@ -4404,7 +4679,13 @@ export function SyneraMobileView({
                         />
                       </div>
 
-                <button onClick={() => setActiveSector(null)} className="p-2 rounded-xl bg-slate-700/50 hover:bg-slate-600/50 text-slate-300 transition-colors"><ArrowLeft className="w-5 h-5" /></button>
+                      <Button
+                        onClick={handleSaveDailyLog}
+                        className="w-full h-12 rounded-2xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-purple-600/30"
+                      >
+                        <Save className="w-4 h-4 stroke-[2.5]" />
+                        Salvar Diário de Obra & Clima
+                      </Button>
                     </div>
                   )}
 
@@ -4498,7 +4779,13 @@ export function SyneraMobileView({
                   )}
 
                   <div className="pt-2">
-                    <button onClick={() => setActiveSector(null)} className="p-2 rounded-xl bg-slate-700/50 hover:bg-slate-600/50 text-slate-300 transition-colors"><ArrowLeft className="w-5 h-5" /></button>
+                    <Button
+                      variant="outline"
+                      onClick={() => setActiveSector(null)}
+                      className="w-full h-10 rounded-xl bg-slate-900 border-slate-700 text-slate-300 font-bold text-xs hover:bg-slate-800"
+                    >
+                      Voltar ao Menu Principal
+                    </Button>
                   </div>
                 </div>
               </motion.div>
