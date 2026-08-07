@@ -1197,6 +1197,11 @@ export interface FieldProductionReport {
   reportedBy?: string;
   reportedByEmail?: string;
   status?: 'pending' | 'approved' | 'rejected';
+  infoType?: 'qty' | 'trips' | 'dimensions' | string;
+  tripsQty?: number;
+  lengthM?: number;
+  widthM?: number;
+  heightM?: number;
   synced?: boolean;
   syncedAt?: string;
   createdAt?: string;

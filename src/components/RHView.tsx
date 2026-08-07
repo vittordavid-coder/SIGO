@@ -5677,10 +5677,31 @@ export default function RHView({
                             teamName: selectedRespScope === 'TEAM' ? selectedRespTeam.trim() : undefined
                           };
                           const currentList = rhParams.mobileResponsibles || [];
-                          setRhParams({
+                          const updatedParams = {
                             ...rhParams,
                             mobileResponsibles: [...currentList, newResp]
-                          });
+                          };
+                          setRhParams(updatedParams);
+                          localStorage.setItem("rh_parameters_config", JSON.stringify(updatedParams));
+                          
+                          // Sync to Supabase immediately
+                          const configObj = getSupabaseConfig();
+                          if (configObj.enabled) {
+                            const supabase = createSupabaseClient(configObj.url, configObj.key);
+                            if (supabase) {
+                              const compId = currentUser?.companyId || "default";
+                              supabase.from("system_config").upsert({
+                                id: `${compId}_rh_parameters_config`,
+                                company_id: compId,
+                                config_key: "rh_parameters_config",
+                                config_value: updatedParams,
+                                updated_at: new Date().toISOString(),
+                              }, { onConflict: "company_id,config_key" }).then(({ error }) => {
+                                if (error) console.error("Error auto-saving RH parameters to Supabase:", error);
+                              });
+                            }
+                          }
+
                           setSelectedRespEmpId("");
                           setSelectedRespTeam("");
                         }}
@@ -5726,7 +5747,24 @@ export default function RHView({
                               size="icon"
                               onClick={() => {
                                 const updated = (rhParams.mobileResponsibles || []).filter((r: any) => r.id !== resp.id);
-                                setRhParams({ ...rhParams, mobileResponsibles: updated });
+                                const updatedParams = { ...rhParams, mobileResponsibles: updated };
+                                setRhParams(updatedParams);
+                                localStorage.setItem("rh_parameters_config", JSON.stringify(updatedParams));
+                                
+                                const configObj = getSupabaseConfig();
+                                if (configObj.enabled) {
+                                  const supabase = createSupabaseClient(configObj.url, configObj.key);
+                                  if (supabase) {
+                                    const compId = currentUser?.companyId || "default";
+                                    supabase.from("system_config").upsert({
+                                      id: `${compId}_rh_parameters_config`,
+                                      company_id: compId,
+                                      config_key: "rh_parameters_config",
+                                      config_value: updatedParams,
+                                      updated_at: new Date().toISOString(),
+                                    }, { onConflict: "company_id,config_key" });
+                                  }
+                                }
                               }}
                               className="h-8 w-8 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-xl"
                             >

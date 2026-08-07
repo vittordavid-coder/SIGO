@@ -3605,16 +3605,22 @@ const normalizeWorkMovementSector = (sec?: string): string => {
     if (cleanedProd.startDate === "") (cleanedProd as any).startDate = null;
     if (cleanedProd.endDate === "") (cleanedProd as any).endDate = null;
 
+    let updatedList: ServiceProduction[] = [];
+
     setServiceProductions(prev => {
       const idx = prev.findIndex(p => p.id === prod.id || (p.contractId === prod.contractId && p.serviceId === prod.serviceId && p.month === prod.month));
       if (idx >= 0) {
-        // Carry over the ID from existing record if we found it by contract/service/month
         if (prev[idx].id !== prod.id) {
           cleanedProd.id = prev[idx].id;
         }
-        return prev.map((p, i) => i === idx ? { ...cleanedProd } as any : p);
+        updatedList = prev.map((p, i) => i === idx ? { ...cleanedProd } as any : p);
+      } else {
+        updatedList = [...prev, cleanedProd as any];
       }
-      return [...prev, cleanedProd as any];
+      try {
+        localStorage.setItem(`${compId}_sigo_service_productions`, JSON.stringify(updatedList));
+      } catch (e) {}
+      return updatedList;
     });
 
     const config = getSupabaseConfig();
@@ -3622,6 +3628,14 @@ const normalizeWorkMovementSector = (sec?: string): string => {
       const supabase = createSupabaseClient(config.url, config.key);
       if (supabase) {
         try {
+          // 1. Sync entire list to app_state for fallback persistence
+          await supabase.from('app_state').upsert({
+            id: `${compId}_sigo_service_productions`,
+            content: updatedList.length > 0 ? updatedList : serviceProductions,
+            updated_at: new Date().toISOString()
+          });
+
+          // 2. Upsert record to service_productions table
           const sanitized = {
             id: cleanedProd.id || `sp-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
             company_id: compId || null,
@@ -3654,7 +3668,11 @@ const normalizeWorkMovementSector = (sec?: string): string => {
     const prodToDelete = serviceProductions.find(p => p.id === id);
     const serviceName = services.find(s => s.id === prodToDelete?.serviceId)?.name || prodToDelete?.serviceId || id;
     
-    setServiceProductions(prev => prev.filter(p => p.id !== id));
+    const remainingList = serviceProductions.filter(p => p.id !== id);
+    setServiceProductions(remainingList);
+    try {
+      localStorage.setItem(`${compId}_sigo_service_productions`, JSON.stringify(remainingList));
+    } catch (e) {}
     addAuditLog('Exclusão', 'Sala Técnica', `Monitoramento de produção excluído: ${serviceName}`);
 
     const config = getSupabaseConfig();
@@ -3662,6 +3680,11 @@ const normalizeWorkMovementSector = (sec?: string): string => {
       const supabase = createSupabaseClient(config.url, config.key);
       if (supabase) {
         try {
+          await supabase.from('app_state').upsert({
+            id: `${compId}_sigo_service_productions`,
+            content: remainingList,
+            updated_at: new Date().toISOString()
+          });
           await supabase.from('service_productions').delete().eq('id', id);
           console.log('[Supabase] Production deleted immediately');
         } catch (err) {

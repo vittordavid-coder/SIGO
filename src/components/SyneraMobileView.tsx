@@ -6,7 +6,7 @@ import {
   ChevronRight, Calendar, ArrowUpRight, Zap, Building2, Package, ArrowLeft, Layers,
   Search, Edit3, X, Eye, LogOut, LayoutDashboard, Sliders, Grid, ZapOff, RefreshCcw,
   Upload, Navigation, Crosshair, Sparkles, BarChart2, XCircle, ArrowRightLeft, UserCheck, Save, MessageCircle, Settings,
-  RotateCw, Maximize2, Filter, Type, CheckSquare, Square, Stamp
+  RotateCw, Maximize2, Filter, Type, CheckSquare, Square, Stamp, Truck, Box
 } from 'lucide-react';
 import { Button } from './ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "./ui/dialog";
@@ -1557,13 +1557,36 @@ export function SyneraMobileView({
   // ----------------------------------------------------
   // 1. Produção (Sala Técnica)
   const [prodServiceId, setProdServiceId] = useState<string>('');
+  const [prodInfoType, setProdInfoType] = useState<'qty' | 'trips' | 'dimensions'>('qty');
   const [prodQty, setProdQty] = useState<string>('');
+  const [prodTripsQty, setProdTripsQty] = useState<string>('');
+  const [prodLengthM, setProdLengthM] = useState<string>('');
+  const [prodWidthM, setProdWidthM] = useState<string>('');
+  const [prodHeightM, setProdHeightM] = useState<string>('');
   const [prodDate, setProdDate] = useState<string>(() => new Date().toISOString().slice(0, 10));
   const [prodStartStation, setProdStartStation] = useState<string>('');
   const [prodEndStation, setProdEndStation] = useState<string>('');
   const [prodTrecho, setProdTrecho] = useState<string>('');
   const [prodNotes, setProdNotes] = useState<string>('');
   const [prodPhoto, setProdPhoto] = useState<string>('');
+
+  // Auto-calculate quantity based on selected information type
+  useEffect(() => {
+    if (prodInfoType === 'dimensions') {
+      const l = parseFloat(prodLengthM) || 0;
+      const w = parseFloat(prodWidthM) || 0;
+      const h = parseFloat(prodHeightM) || 0;
+      if (l > 0 && w > 0 && h > 0) {
+        const vol = l * w * h;
+        setProdQty(vol.toFixed(2));
+      }
+    } else if (prodInfoType === 'trips') {
+      if (prodTripsQty) {
+        const trips = parseInt(prodTripsQty, 10) || 0;
+        setProdQty(trips.toString());
+      }
+    }
+  }, [prodInfoType, prodLengthM, prodWidthM, prodHeightM, prodTripsQty]);
 
   // RH Mobile States (Sub-view, Search, Records)
   const [mobileRhSubView, setMobileRhSubView] = useState<'resumo' | 'colaboradores'>('resumo');
@@ -1637,8 +1660,34 @@ export function SyneraMobileView({
     return null;
   }, [currentUser, rhParams, employees]);
 
+  const isUserEnabledInMobileResponsibles = useMemo(() => {
+    if (currentUser?.role === 'master' || currentUser?.role === 'admin') return true;
+    const responsibles = rhParams.mobileResponsibles || [];
+    if (responsibles.length === 0) return true;
+
+    const activeEmps = (employees || []).filter(e => e && (!e.dismissalDate || !e.dismissalDate.trim()));
+    const matchedEmp = activeEmps.find(e => 
+      (currentUser?.id && e.id === currentUser.id) ||
+      (currentUser?.name && e.name.toLowerCase().trim() === currentUser.name.toLowerCase().trim()) ||
+      (currentUser?.email && e.email?.toLowerCase().trim() === currentUser.email.toLowerCase().trim()) ||
+      (currentUser?.username && e.cpf?.replace(/\D/g, '') === currentUser.username.replace(/\D/g, ''))
+    );
+
+    return responsibles.some((r: any) => {
+      if (r.employeeId === currentUser?.id) return true;
+      if (matchedEmp && r.employeeId === matchedEmp.id) return true;
+      if (currentUser?.name && r.employeeName?.toLowerCase().trim() === currentUser.name.toLowerCase().trim()) return true;
+      if (currentUser?.email && r.employeeName?.toLowerCase().trim() === currentUser.email.toLowerCase().trim()) return true;
+      return false;
+    });
+  }, [currentUser, rhParams, employees]);
+
   // Allowed employees according to RH team linking + transfers & filtering out dismissed employees
   const allowedRhEmployees = useMemo(() => {
+    if (!isUserEnabledInMobileResponsibles) {
+      return [];
+    }
+
     const rawEmps = (employees || []).filter(e => {
       if (!e) return false;
       if (e.dismissalDate && e.dismissalDate.trim() !== '') return false;
@@ -2474,6 +2523,17 @@ export function SyneraMobileView({
     const reportDate = prodDate || new Date().toISOString().slice(0, 10);
     const isNowOnline = navigator.onLine;
 
+    let typeDetailNote = '';
+    if (prodInfoType === 'trips') {
+      typeDetailNote = `[Tipo: Nº de Viagens (${prodTripsQty || '1'} viagem(ns))]`;
+    } else if (prodInfoType === 'dimensions') {
+      typeDetailNote = `[Tipo: Dimensões (${prodLengthM || '0'}m x ${prodWidthM || '0'}m x ${prodHeightM || '0'}m)]`;
+    } else {
+      typeDetailNote = `[Tipo: Qtd de Serviço]`;
+    }
+
+    const fullNotes = [typeDetailNote, prodNotes].filter(Boolean).join(' - ');
+
     const combinedTrecho = [
       prodStartStation ? `Est. Inicial: ${prodStartStation}` : '',
       prodEndStation ? `Est. Final: ${prodEndStation}` : '',
@@ -2488,13 +2548,18 @@ export function SyneraMobileView({
       serviceName: serviceObj?.name || 'Serviço',
       unit: serviceObj?.unit || 'un',
       qty: parsedQty,
+      infoType: prodInfoType,
+      tripsQty: prodTripsQty ? parseInt(prodTripsQty, 10) : undefined,
+      lengthM: prodLengthM ? parseFloat(prodLengthM) : undefined,
+      widthM: prodWidthM ? parseFloat(prodWidthM) : undefined,
+      heightM: prodHeightM ? parseFloat(prodHeightM) : undefined,
       productionDate: reportDate,
       syncedAt: isNowOnline ? new Date().toISOString() : undefined,
       createdAt: new Date().toISOString(),
       startStation: prodStartStation,
       endStation: prodEndStation,
       trecho: combinedTrecho || prodTrecho,
-      notes: prodNotes,
+      notes: fullNotes,
       photo: prodPhoto,
       reportedBy: currentUser.name || 'Apontador',
       reportedByEmail: currentUser.email,
@@ -2515,13 +2580,18 @@ export function SyneraMobileView({
         serviceId: prodServiceId,
         serviceName: serviceObj?.name || 'Serviço',
         qty: parsedQty,
+        infoType: prodInfoType,
+        tripsQty: prodTripsQty ? parseInt(prodTripsQty, 10) : undefined,
+        lengthM: prodLengthM ? parseFloat(prodLengthM) : undefined,
+        widthM: prodWidthM ? parseFloat(prodWidthM) : undefined,
+        heightM: prodHeightM ? parseFloat(prodHeightM) : undefined,
         unit: serviceObj?.unit || 'un',
         productionDate: reportDate,
         syncedAt: isNowOnline ? new Date().toISOString() : undefined,
         startStation: prodStartStation,
         endStation: prodEndStation,
         trecho: combinedTrecho || prodTrecho,
-        notes: prodNotes,
+        notes: fullNotes,
         photo: prodPhoto
       },
       synced: isNowOnline
@@ -2529,6 +2599,11 @@ export function SyneraMobileView({
 
     setOfflineQueue(prev => [newQueueItem, ...prev]);
     setProdQty('');
+    setProdInfoType('qty');
+    setProdTripsQty('');
+    setProdLengthM('');
+    setProdWidthM('');
+    setProdHeightM('');
     setProdStartStation('');
     setProdEndStation('');
     setProdTrecho('');
@@ -3165,60 +3240,174 @@ export function SyneraMobileView({
                     />
                   </div>
 
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <Label className="text-xs font-bold text-slate-300">Quantidade Realizada *</Label>
-                      <Input
-                        type="number"
-                        step="0.01"
-                        placeholder="Ex: 50.5"
-                        value={prodQty}
-                        onChange={e => setProdQty(e.target.value)}
-                        className="h-11 rounded-2xl bg-slate-900 border-slate-700 text-white font-extrabold text-sm mt-1"
-                      />
+                  {/* Tipo da Informação Selector */}
+                  <div className="space-y-2 bg-slate-900/80 p-3.5 rounded-2xl border border-slate-700/80">
+                    <Label className="text-xs font-black text-blue-300 uppercase tracking-wider block">
+                      Tipo da Informação *
+                    </Label>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setProdInfoType('qty')}
+                        className={`py-2.5 px-3 rounded-xl font-extrabold text-xs transition-all flex items-center justify-center gap-1.5 border ${
+                          prodInfoType === 'qty'
+                            ? 'bg-blue-600 text-white border-blue-400 shadow-md shadow-blue-600/30'
+                            : 'bg-slate-950 text-slate-300 border-slate-800 hover:bg-slate-800'
+                        }`}
+                      >
+                        <Sliders className="w-3.5 h-3.5" />
+                        Quantidade do Serviço
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setProdInfoType('trips')}
+                        className={`py-2.5 px-3 rounded-xl font-extrabold text-xs transition-all flex items-center justify-center gap-1.5 border ${
+                          prodInfoType === 'trips'
+                            ? 'bg-blue-600 text-white border-blue-400 shadow-md shadow-blue-600/30'
+                            : 'bg-slate-950 text-slate-300 border-slate-800 hover:bg-slate-800'
+                        }`}
+                      >
+                        <Truck className="w-3.5 h-3.5" />
+                        Nº de Viagens
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setProdInfoType('dimensions')}
+                        className={`py-2.5 px-3 rounded-xl font-extrabold text-xs transition-all flex items-center justify-center gap-1.5 border ${
+                          prodInfoType === 'dimensions'
+                            ? 'bg-blue-600 text-white border-blue-400 shadow-md shadow-blue-600/30'
+                            : 'bg-slate-950 text-slate-300 border-slate-800 hover:bg-slate-800'
+                        }`}
+                      >
+                        <Box className="w-3.5 h-3.5" />
+                        Dimensões (C x L x A)
+                      </button>
                     </div>
 
+                    {/* Inputs de acordo com o Tipo de Informação */}
+                    {prodInfoType === 'qty' && (
+                      <div className="pt-2">
+                        <Label className="text-xs font-bold text-slate-300 block mb-1">Quantidade Realizada *</Label>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          placeholder="Ex: 50.5"
+                          value={prodQty}
+                          onChange={e => setProdQty(e.target.value)}
+                          className="h-12 rounded-2xl bg-slate-950 border-slate-700 text-white font-black text-base sm:text-lg px-4"
+                        />
+                      </div>
+                    )}
+
+                    {prodInfoType === 'trips' && (
+                      <div className="pt-2 space-y-2">
+                        <Label className="text-xs font-bold text-slate-300 block">Número de Viagens (Inteiro) *</Label>
+                        <Input
+                          type="number"
+                          step="1"
+                          min="1"
+                          placeholder="Ex: 8"
+                          value={prodTripsQty}
+                          onChange={e => setProdTripsQty(e.target.value)}
+                          className="h-12 rounded-2xl bg-slate-950 border-slate-700 text-white font-black text-base sm:text-lg px-4"
+                        />
+                        <div className="flex items-center justify-between text-[11px] text-blue-300 font-bold px-1">
+                          <span>Total Apontado: {prodQty || '0'} viagem(ns)</span>
+                        </div>
+                      </div>
+                    )}
+
+                    {prodInfoType === 'dimensions' && (
+                      <div className="pt-2 space-y-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                          <div>
+                            <Label className="text-xs font-bold text-slate-300 block mb-1">Comprimento (m) *</Label>
+                            <Input
+                              type="number"
+                              step="0.01"
+                              placeholder="Ex: 50.00"
+                              value={prodLengthM}
+                              onChange={e => setProdLengthM(e.target.value)}
+                              className="h-12 rounded-2xl bg-slate-950 border-slate-700 text-white font-black text-base px-3"
+                            />
+                          </div>
+
+                          <div>
+                            <Label className="text-xs font-bold text-slate-300 block mb-1">Largura (m) *</Label>
+                            <Input
+                              type="number"
+                              step="0.01"
+                              placeholder="Ex: 3.50"
+                              value={prodWidthM}
+                              onChange={e => setProdWidthM(e.target.value)}
+                              className="h-12 rounded-2xl bg-slate-950 border-slate-700 text-white font-black text-base px-3"
+                            />
+                          </div>
+
+                          <div>
+                            <Label className="text-xs font-bold text-slate-300 block mb-1">Altura / Espessura (m) *</Label>
+                            <Input
+                              type="number"
+                              step="0.01"
+                              placeholder="Ex: 0.20"
+                              value={prodHeightM}
+                              onChange={e => setProdHeightM(e.target.value)}
+                              className="h-12 rounded-2xl bg-slate-950 border-slate-700 text-white font-black text-base px-3"
+                            />
+                          </div>
+                        </div>
+
+                        {prodLengthM && prodWidthM && prodHeightM && (
+                          <div className="p-3 rounded-xl bg-blue-500/20 border border-blue-500/40 flex items-center justify-between text-xs font-bold text-blue-200">
+                            <span>Volume Calculado (C x L x A):</span>
+                            <span className="text-sm font-black text-white">{prodQty || '0.00'} m³</span>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     <div>
-                      <Label className="text-xs font-bold text-slate-300">Data da Produção *</Label>
+                      <Label className="text-xs font-bold text-slate-300 mb-1 block">Data da Produção *</Label>
                       <Input
                         type="date"
                         value={prodDate}
                         onChange={e => setProdDate(e.target.value)}
-                        className="h-11 rounded-2xl bg-slate-900 border-slate-700 text-white font-bold text-xs mt-1"
+                        className="h-12 rounded-2xl bg-slate-900 border-slate-700 text-white font-bold text-sm px-3"
                       />
                     </div>
-                  </div>
 
-                  {/* Estaca Inicial e Estaca Final */}
-                  <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <Label className="text-xs font-bold text-slate-300">Estaca Inicial *</Label>
+                      <Label className="text-xs font-bold text-slate-300 mb-1 block">Estaca Inicial *</Label>
                       <Input
                         placeholder="Ex: 120+00,00"
                         value={prodStartStation}
                         onChange={e => setProdStartStation(e.target.value)}
-                        className="h-11 rounded-2xl bg-slate-900 border-slate-700 text-white font-bold text-xs mt-1"
+                        className="h-12 rounded-2xl bg-slate-900 border-slate-700 text-white font-bold text-sm px-3"
                       />
                     </div>
 
                     <div>
-                      <Label className="text-xs font-bold text-slate-300">Estaca Final *</Label>
+                      <Label className="text-xs font-bold text-slate-300 mb-1 block">Estaca Final *</Label>
                       <Input
                         placeholder="Ex: 145+10,50"
                         value={prodEndStation}
                         onChange={e => setProdEndStation(e.target.value)}
-                        className="h-11 rounded-2xl bg-slate-900 border-slate-700 text-white font-bold text-xs mt-1"
+                        className="h-12 rounded-2xl bg-slate-900 border-slate-700 text-white font-bold text-sm px-3"
                       />
                     </div>
                   </div>
 
                   <div>
-                    <Label className="text-xs font-bold text-slate-300">Trecho / Local Complementar</Label>
+                    <Label className="text-xs font-bold text-slate-300 mb-1 block">Trecho / Local Complementar</Label>
                     <Input
                       placeholder="Ex: Pista Esquerda / Faixa 1"
                       value={prodTrecho}
                       onChange={e => setProdTrecho(e.target.value)}
-                      className="h-11 rounded-2xl bg-slate-900 border-slate-700 text-white font-medium text-xs mt-1"
+                      className="h-12 rounded-2xl bg-slate-900 border-slate-700 text-white font-bold text-sm px-3"
                     />
                   </div>
 
@@ -3229,7 +3418,7 @@ export function SyneraMobileView({
                       placeholder="Descreva detalhes do serviço executado em campo, equipe utilizada, etc..."
                       value={prodNotes}
                       onChange={e => setProdNotes(e.target.value)}
-                      className="w-full rounded-2xl bg-slate-900 border border-slate-700 text-white p-3 text-xs focus:outline-none focus:border-blue-500 font-medium placeholder:text-slate-500"
+                      className="w-full rounded-2xl bg-slate-900 border border-slate-700 text-white p-3.5 text-sm sm:text-base focus:outline-none focus:border-blue-500 font-bold placeholder:text-slate-500"
                     />
                   </div>
 
