@@ -5604,14 +5604,28 @@ export function SyneraMobileView({
                       );
                     }
 
+                    const getValidDate = (report: any) => {
+                      let d;
+                      if (report.timestamp) d = new Date(report.timestamp);
+                      else if (report.createdAt) d = new Date(report.createdAt);
+                      else if (report.date) {
+                        if (report.date.includes('/')) {
+                          const parts = report.date.split('/');
+                          if (parts.length === 3) d = new Date(`${parts[2]}-${parts[1]}-${parts[0]}T12:00:00`);
+                        } else {
+                          d = new Date(report.date);
+                        }
+                      }
+                      if (!d || isNaN(d.getTime())) d = new Date();
+                      return d;
+                    };
+
                     filteredGalleryPhotos.sort((a, b) => {
-                      const da = new Date(a.date || a.createdAt || new Date()).getTime();
-                      const db = new Date(b.date || b.createdAt || new Date()).getTime();
-                      return db - da;
+                      return getValidDate(b).getTime() - getValidDate(a).getTime();
                     });
 
                     const grouped = filteredGalleryPhotos.reduce((acc, report) => {
-                      const d = new Date(report.date || report.createdAt || new Date());
+                      const d = getValidDate(report);
                       const m = d.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
                       const formatted = m.charAt(0).toUpperCase() + m.slice(1);
                       if (!acc[formatted]) acc[formatted] = [];
