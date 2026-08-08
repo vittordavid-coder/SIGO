@@ -16,6 +16,7 @@ import { Label } from './ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Contract, ServiceItem, ServiceProduction, ControllerEquipment, Employee, User, DailyReport, MobileSector, FieldProductionReport, ProjectAlignment } from '../types';
 import { safeSetLocalStorage } from '../lib/useLocalStorage';
+import { saveFieldReportToIDB, saveMultipleFieldReportsToIDB, getAllFieldReportsFromIDB } from '../lib/offlineStorage';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Chat } from './Chat';
 
@@ -766,6 +767,23 @@ export function SyneraMobileView({
     });
   }, [userFieldReports, registrosFilterStatus, registrosFilterContract, registrosSearch]);
 
+  // Restaura relatórios do IndexedDB para garantir que nenhum apontamento offline seja perdido
+  useEffect(() => {
+    let isMounted = true;
+    getAllFieldReportsFromIDB().then(idbReports => {
+      if (!isMounted || !idbReports || idbReports.length === 0) return;
+      idbReports.forEach(r => {
+        if (r && r.id && onSaveFieldReport) {
+          const exists = fieldReports?.some(f => f.id === r.id);
+          if (!exists) {
+            onSaveFieldReport(r);
+          }
+        }
+      });
+    }).catch(() => {});
+    return () => { isMounted = false; };
+  }, [onSaveFieldReport, fieldReports]);
+
   // Selected active contract in mobile
   const [selectedContractId, setSelectedContractId] = useState<string>(() => {
     return contracts[0]?.id || '';
@@ -1471,6 +1489,7 @@ export function SyneraMobileView({
       if (onSaveFieldReport) {
         onSaveFieldReport(newReport);
       }
+      saveFieldReportToIDB(newReport);
     } catch (e) {
       console.warn('Erro ao disparar onSaveFieldReport:', e);
     }
@@ -2664,6 +2683,7 @@ export function SyneraMobileView({
 
       try {
         localStorage.setItem('sigo_field_reports', JSON.stringify(updatedFieldReports));
+        saveMultipleFieldReportsToIDB(updatedFieldReports);
       } catch (e) {}
 
       const newHistoryItems = offlineQueue.map(item => ({
@@ -2757,6 +2777,7 @@ export function SyneraMobileView({
     if (onSaveFieldReport) {
       onSaveFieldReport(newFieldReport);
     }
+    saveFieldReportToIDB(newFieldReport);
 
     try {
       const currentLocal = JSON.parse(localStorage.getItem('sigo_field_reports') || '[]');

@@ -10,6 +10,7 @@ import {
 import { motion, AnimatePresence, Reorder } from 'motion/react';
 import { v4 as uuidv4 } from 'uuid';
 import { useLocalStorage } from './lib/useLocalStorage';
+import { saveFieldReportToIDB, saveMultipleFieldReportsToIDB, getAllFieldReportsFromIDB, deleteFieldReportFromIDB } from './lib/offlineStorage';
 import { Resource, ServiceComposition, Quotation, User, ABCConfig, BudgetGroup, BDIConfig, AuditLog, UserRole, Contract, Measurement, MeasurementTemplate, CalculationMemory, HighwayLocation, StationGroup, CubationData, TransportData, ServiceProduction, Employee, TimeRecord, DailyReport, DailyReportActivity, PluviometryRecord, TechnicalSchedule, DashboardConfig, ControllerTeam, ControllerEquipment, EquipmentMonthlyData, ControllerManpower, ManpowerMonthlyData, TeamAssignment, MarketingConfig, AppModule, PasswordResetRequest, EquipmentTransfer, Supplier, PurchaseOrder, EmailConfig, PurchaseRequest, PurchaseQuotation, EquipmentMaintenance, FuelTank, FuelLog, EquipmentMeasurement, DailyEquipmentMeasurement, Aporte, Warehouse, WarehouseItem, WarehouseEntry, Asset, WarehouseTransfer, WarehouseApplication, Alojamento, MeasurementParameter, WorkMovement, ProjectAlignment } from './types';
 import { INITIAL_WORK_MOVEMENTS } from './lib/workMovementsSql';
 import { cn, hashPassword } from './lib/utils';
@@ -596,35 +597,44 @@ export default function App() {
   const handleSaveFieldReport = (report: FieldProductionReport) => {
     const updated = [report, ...fieldReports.filter(r => r.id !== report.id)];
     setFieldReports(updated);
-    // Saved locally only. Will be pushed to Supabase when user clicks "Sincronizar".
+    saveFieldReportToIDB(report);
   };
 
   const handleUpdateFieldReport = (report: FieldProductionReport) => {
     const updated = fieldReports.map(r => r.id === report.id ? report : r);
     setFieldReports(updated);
-    // Updated locally only. Will be pushed to Supabase when user clicks "Sincronizar".
+    saveFieldReportToIDB(report);
   };
 
   const handleSyncMobileData = async () => {
     const nowIso = new Date().toISOString();
-    const unsyncedReports = fieldReports.filter(r => !r.synced || !r.syncedAt);
+    // Combine state field reports with IDB reports to ensure no offline report is lost
+    let idbReports: FieldProductionReport[] = [];
+    try {
+      idbReports = await getAllFieldReportsFromIDB();
+    } catch (e) {}
+    
+    const combined = deduplicateById([...fieldReports, ...idbReports]);
+    const unsyncedReports = combined.filter(r => !r.synced || !r.syncedAt || r.status === 'pending');
 
     if (unsyncedReports.length === 0) {
       return;
     }
 
-    const updatedReports = fieldReports.map(r => {
-      if (!r.synced || !r.syncedAt) {
+    const updatedReports = combined.map(r => {
+      if (!r.synced || !r.syncedAt || r.status === 'pending') {
         return {
           ...r,
-          status: r.status || 'pending',
+          status: 'synced' as const,
           syncedAt: nowIso,
           synced: true
         };
       }
       return r;
     });
+
     setFieldReports(updatedReports);
+    saveMultipleFieldReportsToIDB(updatedReports);
 
     const reportsToPush = updatedReports.filter(r => unsyncedReports.some(u => u.id === r.id));
     await syncFieldReportsStateToSupabase(reportsToPush);
@@ -633,6 +643,7 @@ export default function App() {
   const handleDeleteFieldReport = (reportId: string) => {
     const updated = fieldReports.filter(r => r.id !== reportId);
     setFieldReports(updated);
+    deleteFieldReportFromIDB(reportId);
 
     const config = getSupabaseConfig();
     if (config.enabled) {
@@ -1438,16 +1449,12 @@ const normalizeWorkMovementSector = (sec?: string): string => {
             if (tableName === 'fuel_reservoirs' || tableName === 'fuel_logs') {
               finalVal = camelData;
             } else {
-              // The database table is the absolute source of truth for which items exist.
-              // We do NOT add extraBlobItems here because they have been deleted from the database table.
-              // We only keep/merge items that currently exist in the database table (camelData).
-              finalVal = camelData.map(item => {
+              // Merge camelData (from database) with parsedBlobData (local)
+              const mergedDbItems = camelData.map(item => {
                 const blobItem = parsedBlobData.find((b: any) => b?.id === item.id);
                 if (!blobItem) return item;
                 
-                // Start with blob data as it's often the historical source of truth
                 const merged = { ...blobItem };
-                // Only overwrite with database data if the value is not null/undefined
                 Object.keys(item).forEach(k => {
                   if (item[k] !== null && item[k] !== undefined) {
                     merged[k] = item[k];
@@ -1455,12 +1462,23 @@ const normalizeWorkMovementSector = (sec?: string): string => {
                 });
                 return merged;
               });
+
+              // CRITICAL: Always preserve unsynced/pending local items created offline
+              const isUnsynced = (item: any) => item && (item.synced === false || item.status === 'pending' || (!item.syncedAt && !item.synced));
+              const extraUnsyncedBlobItems = parsedBlobData.filter((b: any) => isUnsynced(b) && !mergedDbItems.some((m: any) => m.id === b.id));
+              
+              finalVal = [...mergedDbItems, ...extraUnsyncedBlobItems];
             }
             
             finalVal = deduplicateById(finalVal);
           } else if (!hasError && allData.length === 0) {
+            const isUnsynced = (item: any) => item && (item.synced === false || item.status === 'pending' || (!item.syncedAt && !item.synced));
+            const unsyncedFromBlob = parsedBlobData.filter((b: any) => isUnsynced(b));
+            
             if (tableName === 'project_alignments' && parsedBlobData.length > 0) {
               finalVal = parsedBlobData;
+            } else if (unsyncedFromBlob.length > 0) {
+              finalVal = unsyncedFromBlob;
             } else {
               finalVal = [];
             }
@@ -1477,19 +1495,29 @@ const normalizeWorkMovementSector = (sec?: string): string => {
                 return prev;
               }
             }
-            if (!hasError && allData.length === 0) {
-              // The database table is empty and was successfully queried.
+
+            // CRITICAL: Preserve any unsynced local items present in React state (prev) that might not be in finalVal
+            const isUnsynced = (item: any) => item && (item.synced === false || item.status === 'pending' || (!item.syncedAt && !item.synced));
+            let finalMerged = Array.isArray(finalVal) ? [...finalVal] : [];
+            if (Array.isArray(prev)) {
+              const unsyncedFromPrev = prev.filter((p: any) => isUnsynced(p) && !finalMerged.some((f: any) => f.id === p.id));
+              if (unsyncedFromPrev.length > 0) {
+                finalMerged = [...finalMerged, ...unsyncedFromPrev];
+              }
+            }
+            finalVal = finalMerged;
+
+            if (!hasError && allData.length === 0 && finalMerged.length === 0) {
               if (tableName === 'project_alignments' && parsedBlobData.length > 0) {
-                console.warn(`[Sync] Database table ${tableName} is empty, but blob has data. Fallback to blob to prevent data loss.`);
+                console.warn(`[Sync] Database table ${tableName} is empty, but blob has data. Fallback to blob.`);
                 finalVal = parsedBlobData;
                 return parsedBlobData;
               }
-              // To respect the database as the absolute source of truth and prevent deleted data from coming back,
-              // we must clear the local cache instead of restoring/uploading it back.
-              console.log(`[Sync] Database table ${tableName} is empty. Clearing local cache.`);
+              console.log(`[Sync] Database table ${tableName} is empty and no unsynced local data exists.`);
               finalVal = [];
               return [];
             }
+
             if (JSON.stringify(prev) === JSON.stringify(finalVal)) return prev;
             return finalVal;
           });
