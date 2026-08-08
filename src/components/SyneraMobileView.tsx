@@ -4857,7 +4857,7 @@ export function SyneraMobileView({
                         <div className="text-right">
                           <span className="text-[10px] uppercase tracking-wider font-extrabold text-purple-300 block">Total Despesas</span>
                           <span className="text-sm font-black text-rose-400">
-                            R$ {monthlyMovements.reduce((acc, m) => acc + (m.type === 'despesa' ? m.amount : 0), 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                            R$ {monthlyMovements.reduce((acc, m) => acc + (m.type === 'despesa' ? (m.amount || 0) : 0), 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                           </span>
                         </div>
                       </div>
@@ -4894,7 +4894,7 @@ export function SyneraMobileView({
 
                               <div className="text-right">
                                 <span className="font-extrabold text-xs text-purple-300">
-                                  R$ {m.amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                  R$ {(m.amount || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                                 </span>
                               </div>
                             </div>
@@ -5030,9 +5030,9 @@ export function SyneraMobileView({
 
                               <div className="flex items-center justify-between text-[10px] text-slate-400 border-t border-slate-800 pt-2 font-medium">
                                 <span>Solicitante: <strong className="text-slate-200">{req.requester}</strong></span>
-                                {req.amount && (
+                                {req.amount !== undefined && req.amount !== null && (
                                   <span className="text-purple-300 font-extrabold text-xs">
-                                    R$ {req.amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                    R$ {(Number(req.amount) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                                   </span>
                                 )}
                               </div>

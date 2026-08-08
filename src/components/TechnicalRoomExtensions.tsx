@@ -78,6 +78,8 @@ export function DailyReportView({
   const [expandedMonths, setExpandedMonths] = useState<string[]>([]);
   const [focusedPhotoIdx, setFocusedPhotoIdx] = useState<number | null>(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [activitySearch, setActivitySearch] = useState('');
+  const [activityTypeFilter, setActivityTypeFilter] = useState('all');
   const hasAutoExpanded = React.useRef(false);
   const selectedReport = React.useMemo(() => {
     const r = reports.find(r => r.id === selectedReportId) || (reports.length > 0 ? [...reports].sort((a,b) => b.date.localeCompare(a.date))[0] : null);
@@ -182,6 +184,24 @@ export function DailyReportView({
       }))
     ).sort((a, b) => b.date.localeCompare(a.date));
   }, [reports]);
+
+  const filteredActivities = React.useMemo(() => {
+    return allActivities.filter(a => {
+      const matchesType = activityTypeFilter === 'all' || a.type === activityTypeFilter;
+      const q = activitySearch.toLowerCase().trim();
+      if (!q) return matchesType;
+
+      const dateFormatted = new Date(a.date + 'T12:00:00').toLocaleDateString('pt-BR');
+      const matchesSearch = 
+        (a.code || '').toLowerCase().includes(q) ||
+        (a.description || '').toLowerCase().includes(q) ||
+        (a.type || '').toLowerCase().includes(q) ||
+        a.date.includes(q) ||
+        dateFormatted.includes(q);
+
+      return matchesType && matchesSearch;
+    });
+  }, [allActivities, activitySearch, activityTypeFilter]);
 
   const handleAdd = () => {
     const today = new Date().toISOString().split('T')[0];
@@ -434,15 +454,16 @@ export function DailyReportView({
     currentY = (doc as any).lastAutoTable.finalY + 3;
     currentY = sectionHeader('4. ATIVIDADES EXECUTADAS E PROGRESSO', currentY);
 
-    const activitiesBody = report.activities.map(a => [a.code || '-', a.description, a.type]);
+    const formattedDate = new Date(report.date + 'T12:00:00').toLocaleDateString('pt-BR');
+    const activitiesBody = report.activities.map(a => [formattedDate, a.code || '-', a.description, a.type]);
     autoTable(doc, {
         startY: currentY,
-        head: [['CÓD.', 'DESCRIÇÃO DA ATIVIDADE', 'TIPO / CATEGORIA']],
-        body: activitiesBody.length > 0 ? activitiesBody : [['-', 'Nenhum registro de atividade para este dia.', '-']],
+        head: [['DATA', 'CÓD.', 'DESCRIÇÃO DA ATIVIDADE', 'TIPO / CATEGORIA']],
+        body: activitiesBody.length > 0 ? activitiesBody : [[formattedDate, '-', 'Nenhum registro de atividade para este dia.', '-']],
         theme: 'grid',
         headStyles: { fillColor: [15, 23, 42], textColor: [255, 255, 255], fontSize: 6.5, cellPadding: 1.2 },
         styles: { fontSize: 6.5, cellPadding: 1.2 },
-        columnStyles: { 0: { cellWidth: 15 }, 1: { cellWidth: 'auto' }, 2: { cellWidth: 35 } }
+        columnStyles: { 0: { cellWidth: 20 }, 1: { cellWidth: 15 }, 2: { cellWidth: 'auto' }, 3: { cellWidth: 30 } }
     });
 
     currentY = (doc as any).lastAutoTable.finalY + 3;
@@ -691,19 +712,17 @@ export function DailyReportView({
 
     // Activities
     addSectionHeader('4. ATIVIDADES EXECUTADAS E PROGRESSO', 'FF0F172A');
-    const headAct = worksheet.addRow(['Cód.', 'Atividade', 'Tipo']);
-    worksheet.mergeCells(`C${headAct.number}:D${headAct.number}`);
+    const headAct = worksheet.addRow(['Data', 'Cód.', 'Atividade', 'Tipo']);
     headAct.font = { bold: true, size: 9 };
     headAct.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF1F5F9' } };
     
+    const formattedReportDate = new Date(report.date + 'T12:00:00').toLocaleDateString('pt-BR');
     if (report.activities.length === 0) {
-      const row = worksheet.addRow(['-', 'Nenhum registro de atividade.', '-']);
-      worksheet.mergeCells(`C${row.number}:D${row.number}`);
+      const row = worksheet.addRow([formattedReportDate, '-', 'Nenhum registro de atividade.', '-']);
       row.font = { size: 9 };
     } else {
       report.activities.forEach(a => {
-        const row = worksheet.addRow([a.code, a.description, a.type]);
-        worksheet.mergeCells(`C${row.number}:D${row.number}`);
+        const row = worksheet.addRow([formattedReportDate, a.code || '-', a.description, a.type]);
         row.font = { size: 9 };
       });
     }
@@ -782,78 +801,173 @@ export function DailyReportView({
         </TabsList>
 
         <TabsContent value="activities">
-          <Card className="overflow-hidden border border-gray-100 shadow-sm rounded-2xl flex-1 flex flex-col h-[calc(100vh-280px)]">
-            <Table>
-              <TableHeader className="bg-gray-50">
-                <TableRow>
-                  <TableHead className="w-24">Cód</TableHead>
-                  <TableHead>Descrição</TableHead>
-                  <TableHead className="w-32">Tipo</TableHead>
-                  {!readonly && <TableHead className="w-16"></TableHead>}
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {allActivities.map(a => (
-                  <TableRow key={a.id}>
-                    <TableCell className="p-2 font-mono text-xs">
-                      <div className="flex items-center gap-2">
-                        <Input 
-                          disabled={readonly}
-                          className="h-8 w-20 text-xs font-mono font-black text-blue-600 border-transparent hover:border-gray-200 focus:border-blue-500 transition-all"
-                          value={a.code || ''}
-                          onChange={e => handleUpdateActivity(a.reportId, a.id, 'code', e.target.value)}
-                        />
-                      </div>
-                    </TableCell>
-                    <TableCell className="p-2">
-                      <Input 
-                        disabled={readonly}
-                        className="h-8 text-sm border-transparent hover:border-gray-200 focus:border-blue-500 transition-all" 
-                        value={a.description}
-                        onChange={e => handleUpdateActivity(a.reportId, a.id, 'description', e.target.value)}
-                      />
-                    </TableCell>
-                    <TableCell className="p-2 border-l">
-                      <Select 
-                        disabled={readonly}
-                        value={a.type} 
-                        onValueChange={v => handleUpdateActivity(a.reportId, a.id, 'type', v)}
-                      >
-                        <SelectTrigger className="h-8 text-sm border-transparent"><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="Produção">Produção</SelectItem>
-                          <SelectItem value="Projeto">Projeto</SelectItem>
-                          <SelectItem value="Cronograma">Cronograma</SelectItem>
-                          <SelectItem value="Outros">Outros</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </TableCell>
-                    {!readonly && (
-                      <TableCell className="p-2 border-l text-center">
-                        <Button variant="ghost" size="xs" className="h-7 w-7 text-red-400 hover:text-red-600" onClick={() => {
-                          const report = reports.find(r => r.id === a.reportId);
-                          if (report) {
-                            onUpdate({
-                              ...report,
-                              activities: report.activities.filter(act => act.id !== a.id)
-                            });
-                          }
-                        }}>
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </Button>
-                      </TableCell>
+          <Card className="overflow-hidden border border-gray-100 shadow-sm rounded-2xl flex-1 flex flex-col min-h-[500px]">
+            {/* Header Control & Search Bar */}
+            <div className="p-4 bg-gray-50/70 border-b flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+              <div className="flex items-center gap-2 flex-1 max-w-md">
+                <div className="relative w-full">
+                  <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <Input 
+                    placeholder="Buscar por data, código, descrição ou tipo..." 
+                    value={activitySearch}
+                    onChange={e => setActivitySearch(e.target.value)}
+                    className="pl-9 h-9 text-xs bg-white rounded-xl border-gray-200 focus:border-blue-500"
+                  />
+                  {activitySearch && (
+                    <button onClick={() => setActivitySearch('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Type Filter Pills */}
+              <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0">
+                {[
+                  { id: 'all', label: 'Todas', count: allActivities.length },
+                  { id: 'Produção', label: 'Produção', count: allActivities.filter(a => a.type === 'Produção').length },
+                  { id: 'Projeto', label: 'Projeto', count: allActivities.filter(a => a.type === 'Projeto').length },
+                  { id: 'Cronograma', label: 'Cronograma', count: allActivities.filter(a => a.type === 'Cronograma').length },
+                  { id: 'Outros', label: 'Outros', count: allActivities.filter(a => a.type === 'Outros').length },
+                ].map(tab => (
+                  <button
+                    key={tab.id}
+                    onClick={() => setActivityTypeFilter(tab.id)}
+                    className={cn(
+                      "px-3 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap flex items-center gap-1.5",
+                      activityTypeFilter === tab.id
+                        ? "bg-blue-600 text-white shadow-sm"
+                        : "bg-white border border-gray-200 text-gray-600 hover:bg-gray-100"
                     )}
-                  </TableRow>
+                  >
+                    <span>{tab.label}</span>
+                    <span className={cn(
+                      "text-[10px] px-1.5 py-0.2 rounded-full font-mono font-black",
+                      activityTypeFilter === tab.id ? "bg-blue-700 text-white" : "bg-gray-100 text-gray-700"
+                    )}>
+                      {tab.count}
+                    </span>
+                  </button>
                 ))}
-                {allActivities.length === 0 && (
-                  <TableRow>
-                    <TableCell colSpan={3} className="h-24 text-center text-gray-400 italic">
-                      Nenhuma atividade registrada. Crie um RDO para começar.
-                    </TableCell>
+              </div>
+            </div>
+
+            {/* Table */}
+            <div className="overflow-x-auto flex-1">
+              <Table>
+                <TableHeader className="bg-slate-100/80 sticky top-0 z-10">
+                  <TableRow className="hover:bg-transparent">
+                    <TableHead className="w-32 py-3 text-xs font-black uppercase tracking-wider text-slate-700">Data</TableHead>
+                    <TableHead className="w-28 py-3 text-xs font-black uppercase tracking-wider text-slate-700">Cód</TableHead>
+                    <TableHead className="py-3 text-xs font-black uppercase tracking-wider text-slate-700">Descrição da Atividade</TableHead>
+                    <TableHead className="w-36 py-3 text-xs font-black uppercase tracking-wider text-slate-700 text-center">Tipo / Categoria</TableHead>
+                    {!readonly && <TableHead className="w-16 py-3 text-center"></TableHead>}
                   </TableRow>
-                )}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {filteredActivities.map((a, idx) => {
+                    const activityDateFormatted = new Date(a.date + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+                    
+                    return (
+                      <TableRow key={`${a.reportId}-${a.id || 'act'}-${idx}`} className="hover:bg-slate-50/80 transition-colors border-b border-gray-100">
+                        {/* DATA */}
+                        <TableCell className="py-2.5 px-4">
+                          <button 
+                            onClick={() => {
+                              setSelectedReportId(a.reportId);
+                              setActiveItem('viewer');
+                            }}
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-blue-50 hover:bg-blue-100 text-blue-900 border border-blue-200/60 rounded-lg text-xs font-black transition-all group"
+                            title="Ver RDO do Dia"
+                          >
+                            <Calendar className="w-3.5 h-3.5 text-blue-600 group-hover:scale-110 transition-transform" />
+                            <span>{activityDateFormatted}</span>
+                          </button>
+                        </TableCell>
+
+                        {/* CÓD */}
+                        <TableCell className="py-2.5 px-3 font-mono text-xs">
+                          <Input 
+                            disabled={readonly}
+                            className="h-8 w-24 text-xs font-mono font-black text-blue-700 bg-white border-gray-200 focus:border-blue-500 rounded-lg shadow-2xs"
+                            value={a.code || ''}
+                            onChange={e => handleUpdateActivity(a.reportId, a.id, 'code', e.target.value)}
+                          />
+                        </TableCell>
+
+                        {/* DESCRIÇÃO DA ATIVIDADE */}
+                        <TableCell className="py-2.5 px-3">
+                          <Input 
+                            disabled={readonly}
+                            className="h-8 text-xs font-semibold text-gray-900 bg-white border-gray-200 focus:border-blue-500 rounded-lg shadow-2xs" 
+                            value={a.description}
+                            onChange={e => handleUpdateActivity(a.reportId, a.id, 'description', e.target.value)}
+                          />
+                        </TableCell>
+
+                        {/* TIPO */}
+                        <TableCell className="py-2.5 px-3 text-center">
+                          <Select 
+                            disabled={readonly}
+                            value={a.type} 
+                            onValueChange={v => handleUpdateActivity(a.reportId, a.id, 'type', v)}
+                          >
+                            <SelectTrigger className={cn(
+                              "h-8 text-xs font-black rounded-lg border shadow-2xs mx-auto",
+                              a.type === 'Produção' ? "bg-emerald-50 text-emerald-800 border-emerald-200" :
+                              a.type === 'Projeto' ? "bg-blue-50 text-blue-800 border-blue-200" :
+                              a.type === 'Cronograma' ? "bg-amber-50 text-amber-800 border-amber-200" :
+                              "bg-purple-50 text-purple-800 border-purple-200"
+                            )}>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="Produção">Produção</SelectItem>
+                              <SelectItem value="Projeto">Projeto</SelectItem>
+                              <SelectItem value="Cronograma">Cronograma</SelectItem>
+                              <SelectItem value="Outros">Outros</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </TableCell>
+
+                        {/* DELETE */}
+                        {!readonly && (
+                          <TableCell className="py-2.5 px-2 text-center">
+                            <Button 
+                              variant="ghost" 
+                              size="xs" 
+                              className="h-7 w-7 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-lg" 
+                              onClick={() => {
+                                const report = reports.find(r => r.id === a.reportId);
+                                if (report) {
+                                  onUpdate({
+                                    ...report,
+                                    activities: report.activities.filter(act => act.id !== a.id)
+                                  });
+                                }
+                              }}
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </Button>
+                          </TableCell>
+                        )}
+                      </TableRow>
+                    );
+                  })}
+
+                  {filteredActivities.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={readonly ? 4 : 5} className="h-32 text-center text-gray-400">
+                        <HardHat className="w-8 h-8 mx-auto mb-2 opacity-30 text-gray-400" />
+                        <p className="text-xs font-bold uppercase tracking-wider">
+                          {activitySearch || activityTypeFilter !== 'all' ? 'Nenhuma atividade encontrada com os filtros aplicados.' : 'Nenhuma atividade registrada no diário de obras.'}
+                        </p>
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </div>
           </Card>
         </TabsContent>
 
@@ -1322,18 +1436,31 @@ export function DailyReportView({
                           <Table>
                             <TableHeader className="bg-gray-50">
                               <TableRow>
-                                <TableHead className="text-xs uppercase font-black tracking-wider text-gray-505 w-24">Cód</TableHead>
-                                <TableHead className="text-xs uppercase font-black tracking-wider text-gray-505">Descrição Geral da Atividade</TableHead>
-                                <TableHead className="text-xs uppercase font-black tracking-wider text-gray-505 text-right">Classificação</TableHead>
+                                <TableHead className="text-xs uppercase font-black tracking-wider text-gray-600 w-32">Data</TableHead>
+                                <TableHead className="text-xs uppercase font-black tracking-wider text-gray-600 w-28">Cód</TableHead>
+                                <TableHead className="text-xs uppercase font-black tracking-wider text-gray-600">Descrição Geral da Atividade</TableHead>
+                                <TableHead className="text-xs uppercase font-black tracking-wider text-gray-600 text-right w-36">Tipo</TableHead>
                               </TableRow>
                             </TableHeader>
                             <TableBody>
-                              {selectedReport.activities.map(a => (
-                                <TableRow key={a.id} className="hover:bg-gray-50/50">
-                                  <TableCell className="py-3 text-xs font-mono font-black text-blue-600">{a.code || '-'}</TableCell>
-                                  <TableCell className="py-3 text-xs font-medium text-gray-800">{a.description}</TableCell>
+                              {selectedReport.activities.map((a, idx) => (
+                                <TableRow key={`${a.id || 'act'}-${idx}`} className="hover:bg-gray-50/50 border-b border-gray-100">
+                                  <TableCell className="py-3 text-xs font-extrabold text-gray-700">
+                                    <span className="inline-flex items-center gap-1.5 bg-blue-50 text-blue-900 border border-blue-200/60 px-2.5 py-1 rounded-lg font-mono">
+                                      <Calendar className="w-3.5 h-3.5 text-blue-600" />
+                                      {new Date(selectedReport.date + 'T12:00:00').toLocaleDateString('pt-BR')}
+                                    </span>
+                                  </TableCell>
+                                  <TableCell className="py-3 text-xs font-mono font-black text-blue-700">{a.code || '-'}</TableCell>
+                                  <TableCell className="py-3 text-xs font-semibold text-gray-800">{a.description}</TableCell>
                                   <TableCell className="py-3 text-right">
-                                    <Badge variant="outline" className="text-[10px] font-black uppercase tracking-wider bg-white rounded-lg px-2 py-0.5">
+                                    <Badge variant="outline" className={cn(
+                                      "text-[10px] font-black uppercase tracking-wider rounded-lg px-2.5 py-0.5",
+                                      a.type === 'Produção' ? "bg-emerald-50 text-emerald-800 border-emerald-200" :
+                                      a.type === 'Projeto' ? "bg-blue-50 text-blue-800 border-blue-200" :
+                                      a.type === 'Cronograma' ? "bg-amber-50 text-amber-800 border-amber-200" :
+                                      "bg-purple-50 text-purple-800 border-purple-200"
+                                    )}>
                                       {a.type}
                                     </Badge>
                                   </TableCell>
@@ -1341,7 +1468,7 @@ export function DailyReportView({
                               ))}
                               {selectedReport.activities.length === 0 && (
                                 <TableRow>
-                                  <TableCell colSpan={3} className="text-center py-6 text-gray-400 text-xs font-bold uppercase">
+                                  <TableCell colSpan={4} className="text-center py-6 text-gray-400 text-xs font-bold uppercase">
                                     Sem atividades mapeadas para este dia de obra.
                                   </TableCell>
                                 </TableRow>

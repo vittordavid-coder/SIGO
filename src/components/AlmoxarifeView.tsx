@@ -1182,12 +1182,12 @@ export default function AlmoxarifeView({
                               <TableCell className="font-semibold text-slate-900 text-xs py-3">{item.description}</TableCell>
                               <TableCell className="text-center text-xs text-slate-500">{item.unit}</TableCell>
                               <TableCell className="text-right text-xs pr-4">
-                                <Badge variant={item.quantity > 5 ? "outline" : "destructive"} className="font-bold">
-                                  {item.quantity.toLocaleString('pt-BR')} {item.unit}
+                                <Badge variant={(item.quantity || 0) > 5 ? "outline" : "destructive"} className="font-bold">
+                                  {(item.quantity || 0).toLocaleString('pt-BR')} {item.unit}
                                 </Badge>
                               </TableCell>
-                              <TableCell className="text-right text-xs text-slate-600">R$ {item.avgPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
-                              <TableCell className="text-right text-xs font-bold text-emerald-700">R$ {totalVal.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
+                              <TableCell className="text-right text-xs text-slate-600">R$ {(item.avgPrice || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
+                              <TableCell className="text-right text-xs font-bold text-emerald-700">R$ {(totalVal || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
                               <TableCell className="text-center text-xs">
                                 <span className="bg-slate-100 text-slate-700 px-2 py-0.5 rounded-full text-[10px] font-bold">
                                   {whNames}
@@ -1562,7 +1562,7 @@ export default function AlmoxarifeView({
                           <TableCell className="text-xs font-bold text-slate-900">
                             <div>
                               <p>{asset.description}</p>
-                              {asset.value && <p className="text-[10px] text-emerald-700 mt-0.5">Valor: R$ {asset.value.toLocaleString()}</p>}
+                              {asset.value ? <p className="text-[10px] text-emerald-700 mt-0.5">Valor: R$ {(Number(asset.value) || 0).toLocaleString()}</p> : null}
                             </div>
                           </TableCell>
                           <TableCell className="text-xs text-slate-600">{asset.category}</TableCell>

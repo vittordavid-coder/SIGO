@@ -674,71 +674,95 @@ export default function App() {
     const updatedReport: FieldProductionReport = { ...baseReport, status: 'approved' };
     const updatedFieldReports = fieldReports.map(r => r.id === reportId ? updatedReport : r);
     setFieldReports(updatedFieldReports);
+    syncFieldReportsStateToSupabase(updatedFieldReports);
 
-    const reportDate = baseReport.productionDate || new Date().toISOString().slice(0, 10);
+    const targetContractId = baseReport.contractId || selectedContractId;
+    const reportDate = baseReport.productionDate || baseReport.date || new Date().toISOString().slice(0, 10);
     const targetMonth = reportDate.slice(0, 7);
     const dayNum = parseInt(reportDate.slice(8, 10), 10);
     const reportQty = Number(baseReport.qty) || 0;
 
-    // 1. Update Service Production control
-    if (baseReport.serviceId) {
-      const existingProd = serviceProductions.find(p => 
-        p.contractId === baseReport.contractId && 
-        p.serviceId === baseReport.serviceId && 
-        p.month === targetMonth
-      );
+    // Resolver correspondência de serviço entre serviços cadastrados e serviceProductions
+    const cleanSId = (baseReport.serviceId || '').toString().trim().toLowerCase();
+    const cleanSName = (baseReport.serviceName || '').toString().trim().toLowerCase();
 
-      const existingDailyData = existingProd?.dailyData || {};
-      const existingDayObj = existingDailyData[dayNum] || { planned: 0, actual: 0 };
-      const updatedDailyData = {
-        ...existingDailyData,
-        [dayNum]: {
-          ...existingDayObj,
-          actual: (existingDayObj.actual || 0) + reportQty
+    const matchedService = (services || []).find(s => 
+      (cleanSId && (s.id?.toString().trim().toLowerCase() === cleanSId || s.code?.toString().trim().toLowerCase() === cleanSId)) ||
+      (cleanSName && (s.name?.toString().trim().toLowerCase() === cleanSName || s.code?.toString().trim().toLowerCase() === cleanSName))
+    );
+
+    const matchedServiceId = matchedService?.id || baseReport.serviceId || matchedService?.code || 'SERV-01';
+    const matchedServiceName = matchedService?.name || baseReport.serviceName || 'Serviço de Obra';
+    const matchedUnit = matchedService?.unit || baseReport.unit || 'un';
+
+    // 1. Atualizar controle de Produção de Serviços (serviceProductions)
+    const existingProd = serviceProductions.find(p => 
+      (p.contractId === targetContractId || !p.contractId) && 
+      p.month === targetMonth &&
+      (
+        p.serviceId === matchedServiceId ||
+        (cleanSId && p.serviceId?.toString().trim().toLowerCase() === cleanSId) ||
+        (matchedService?.code && p.serviceId?.toString().trim().toLowerCase() === matchedService.code.toLowerCase()) ||
+        (cleanSName && p.customTitle?.toString().trim().toLowerCase() === cleanSName)
+      )
+    );
+
+    const existingDailyData = existingProd?.dailyData || {};
+    const existingDayObj = existingDailyData[dayNum] || { planned: 0, actual: 0 };
+    const updatedDailyData = {
+      ...existingDailyData,
+      [dayNum]: {
+        ...existingDayObj,
+        actual: (existingDayObj.actual || 0) + reportQty
+      }
+    };
+
+    const newMonthQty = Object.values(updatedDailyData).reduce((sum, d) => sum + (Number(d.actual) || 0), 0);
+    const prevQty = existingProd?.previousQty || 0;
+
+    const updatedProd: ServiceProduction = {
+      id: existingProd?.id || `sp-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+      contractId: targetContractId,
+      serviceId: existingProd?.serviceId || matchedServiceId,
+      customTitle: existingProd?.customTitle || matchedServiceName,
+      month: targetMonth,
+      currentMonthQty: newMonthQty,
+      accumulatedQty: prevQty + newMonthQty,
+      previousQty: prevQty,
+      unitPrice: existingProd?.unitPrice || matchedService?.unitPrice || 0,
+      dailyData: updatedDailyData,
+      dailyNotes: [
+        ...(existingProd?.dailyNotes || []),
+        {
+          date: reportDate,
+          qty: reportQty,
+          note: `[Aprovado Synera Mobile - ${approvedBy || 'Sala Técnica'}] ${baseReport.trecho ? `Trecho: ${baseReport.trecho}. ` : ''}${baseReport.notes || ''}`.trim(),
+          recordedBy: baseReport.reportedBy || 'Synera Mobile'
         }
-      };
+      ]
+    };
 
-      const updatedProd: ServiceProduction = {
-        id: existingProd?.id || `sp-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
-        contractId: baseReport.contractId,
-        serviceId: baseReport.serviceId,
-        month: targetMonth,
-        currentMonthQty: ((existingProd?.currentMonthQty || 0) + reportQty),
-        accumulatedQty: ((existingProd?.accumulatedQty || 0) + reportQty),
-        dailyData: updatedDailyData,
-        dailyNotes: [
-          ...(existingProd?.dailyNotes || []),
-          {
-            date: reportDate,
-            qty: reportQty,
-            note: `[Aprovado Sala Técnica - ${approvedBy || 'Engenharia'}] ${baseReport.trecho ? `Trecho: ${baseReport.trecho}. ` : ''}${baseReport.notes || ''}`.trim(),
-            recordedBy: baseReport.reportedBy || 'Apontador'
-          }
-        ]
-      };
+    updateServiceProduction(updatedProd);
 
-      updateServiceProduction(updatedProd);
-    }
-
-    // 2. Add activity to Diário de Obra (RDO)
+    // 2. Adicionar atividade ao Diário de Obra (RDO)
     let activityDesc = '';
     if (baseReport.startStation || baseReport.endStation) {
-      activityDesc = `Execução de "${baseReport.serviceName}" da estaca ${baseReport.startStation || '0'} a ${baseReport.endStation || '0'}.`;
+      activityDesc = `Execução de "${matchedServiceName}" da estaca ${baseReport.startStation || '0'} a ${baseReport.endStation || '0'} (${reportQty} ${matchedUnit}).`;
     } else if (baseReport.trecho) {
-      activityDesc = `Execução de "${baseReport.serviceName}" - Trecho: ${baseReport.trecho}.`;
+      activityDesc = `Execução de "${matchedServiceName}" - Trecho: ${baseReport.trecho} (${reportQty} ${matchedUnit}).`;
     } else {
-      activityDesc = `Execução de "${baseReport.serviceName}" (${reportQty} ${baseReport.unit || 'un'}).`;
+      activityDesc = `Execução de "${matchedServiceName}" (${reportQty} ${matchedUnit}).`;
     }
 
     const newActivity: DailyReportActivity = {
       id: `act-appr-${Date.now()}-${Math.random().toString(36).substring(2, 5)}`,
-      code: baseReport.serviceId || 'CAMPO',
+      code: matchedService?.code || baseReport.serviceId || 'CAMPO',
       description: activityDesc,
       type: 'Produção',
       category: 'CONTRATADA'
     };
 
-    const existingRdo = dailyReports.find(r => r.contractId === baseReport.contractId && r.date === reportDate);
+    const existingRdo = dailyReports.find(r => r.contractId === targetContractId && r.date === reportDate);
     if (existingRdo) {
       const updatedRdo: DailyReport = {
         ...existingRdo,
@@ -747,7 +771,7 @@ export default function App() {
       updateDailyReport(updatedRdo);
     } else {
       const newRdo: Omit<DailyReport, 'id'> = {
-        contractId: baseReport.contractId,
+        contractId: targetContractId,
         companyId: currentUser?.companyId,
         date: reportDate,
         weatherMorning: 'Bom',
@@ -758,12 +782,10 @@ export default function App() {
         equipment: [],
         activities: [newActivity],
         accidents: 'Nenhum acidente registrado.',
-        fiscalizationComments: ''
+        fiscalizationComments: `Aprovado via Sala Técnica / Synera Mobile (${approvedBy || 'Engenharia'}).`
       };
       addDailyReport(newRdo);
     }
-
-    syncFieldReportsStateToSupabase(updatedFieldReports);
   };
 
   const handleRejectFieldReport = (reportId: string) => {

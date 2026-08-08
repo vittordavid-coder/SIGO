@@ -119,6 +119,32 @@ export function TechnicalCampoView({
     setEditingReport(null);
   };
 
+  // Save Edit Changes & Approve Immediately
+  const handleSaveAndApprove = () => {
+    if (!editingReport) return;
+    const parsedQty = parseFloat(editQty);
+    if (isNaN(parsedQty) || parsedQty <= 0) {
+      alert('Informe uma quantidade válida.');
+      return;
+    }
+
+    const selectedService = services.find(s => s.id === editServiceId);
+
+    const updated: FieldProductionReport = {
+      ...editingReport,
+      serviceId: editServiceId,
+      serviceName: selectedService?.name || editingReport.serviceName,
+      unit: selectedService?.unit || editingReport.unit,
+      qty: parsedQty,
+      productionDate: editDate,
+      trecho: editTrecho,
+      notes: editNotes,
+    };
+
+    onApproveReport(editingReport.id, 'Engenheiro da Sala Técnica', updated);
+    setEditingReport(null);
+  };
+
   // Confirm Reject
   const handleConfirmReject = () => {
     if (!rejectingReport) return;
@@ -323,8 +349,8 @@ export function TechnicalCampoView({
                   </td>
                 </tr>
               ) : (
-                filteredReports.map(report => (
-                  <tr key={report.id} className="hover:bg-gray-50/80 transition-colors">
+                filteredReports.map((report, idx) => (
+                  <tr key={`${report.id}-${idx}`} className="hover:bg-gray-50/80 transition-colors">
                     
                     {/* Status Badge */}
                     <td className="p-3.5">
@@ -372,7 +398,7 @@ export function TechnicalCampoView({
 
                     {/* Quantidade Realizada */}
                     <td className="p-3.5 text-right font-black text-sm text-blue-900 whitespace-nowrap">
-                      {report.qty.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} {report.unit}
+                      {(report.qty || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })} {report.unit}
                     </td>
 
                     {/* Trecho / Estaca */}
@@ -557,8 +583,12 @@ export function TechnicalCampoView({
                 <Button variant="ghost" onClick={() => setEditingReport(null)} className="h-10 px-4 text-xs font-bold">
                   Cancelar
                 </Button>
-                <Button onClick={handleSaveEdit} className="h-10 px-5 bg-blue-600 hover:bg-blue-500 text-white font-black text-xs rounded-xl shadow-md">
-                  Salvar Alterações
+                <Button variant="outline" onClick={handleSaveEdit} className="h-10 px-4 border-blue-200 text-blue-700 hover:bg-blue-50 font-extrabold text-xs rounded-xl shadow-sm">
+                  Salvar
+                </Button>
+                <Button onClick={handleSaveAndApprove} className="h-10 px-5 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs rounded-xl shadow-md flex items-center gap-1.5">
+                  <Check className="w-4 h-4" />
+                  <span>Aprovar e Gravar</span>
                 </Button>
               </div>
             </motion.div>

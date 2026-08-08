@@ -798,15 +798,16 @@ export async function exportMonthlyRDOReportPDF(options: {
       currentY = (doc as any).lastAutoTable.finalY + 3;
       currentY = sectionHeader('4. ATIVIDADES EXECUTADAS E PROGRESSO', currentY);
 
-      const activitiesBody = report.activities.map(a => [a.code || '-', a.description, a.type]);
+      const formattedDate = new Date(report.date + 'T12:00:00').toLocaleDateString('pt-BR');
+      const activitiesBody = report.activities.map(a => [formattedDate, a.code || '-', a.description, a.type]);
       autoTable(doc, {
           startY: currentY,
-          head: [['CÓD.', 'DESCRIÇÃO DA ATIVIDADE', 'TIPO / CATEGORIA']],
-          body: activitiesBody.length > 0 ? activitiesBody : [['-', 'Nenhum registro de atividade para este dia.', '-']],
+          head: [['DATA', 'CÓD.', 'DESCRIÇÃO DA ATIVIDADE', 'TIPO / CATEGORIA']],
+          body: activitiesBody.length > 0 ? activitiesBody : [[formattedDate, '-', 'Nenhum registro de atividade para este dia.', '-']],
           theme: 'grid',
           headStyles: { fillColor: [15, 23, 42], textColor: [255, 255, 255], fontSize: 6.5, cellPadding: 1.2 },
           styles: { fontSize: 6.5, cellPadding: 1.2 },
-          columnStyles: { 0: { cellWidth: 15 }, 1: { cellWidth: 'auto' }, 2: { cellWidth: 35 } }
+          columnStyles: { 0: { cellWidth: 20 }, 1: { cellWidth: 15 }, 2: { cellWidth: 'auto' }, 3: { cellWidth: 30 } }
       });
 
       currentY = (doc as any).lastAutoTable.finalY + 3;

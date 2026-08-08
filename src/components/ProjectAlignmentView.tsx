@@ -1714,7 +1714,7 @@ export function ProjectAlignmentView({
       kml += `      <name>Medições de Régua (${savedMeasurements.length})</name>\n`;
       savedMeasurements.forEach(m => {
         kml += `      <Placemark>\n`;
-        kml += `        <name>${escapeXml(m.title)} - ${m.totalDistanceMeters.toLocaleString('pt-BR')} m</name>\n`;
+        kml += `        <name>${escapeXml(m.title)} - ${(m.totalDistanceMeters || 0).toLocaleString('pt-BR')} m</name>\n`;
         kml += `        <LineString>\n`;
         kml += `          <coordinates>\n`;
         m.points.forEach(p => {
@@ -1756,7 +1756,7 @@ export function ProjectAlignmentView({
     if (!currentAlignment || !currentAlignment.points || currentAlignment.points.length === 0) return null;
     const pts = currentAlignment.points;
     const totalKm = (currentAlignment.totalLengthMeters / 1000).toFixed(3);
-    const totalMeters = currentAlignment.totalLengthMeters.toLocaleString('pt-BR');
+    const totalMeters = (currentAlignment.totalLengthMeters || 0).toLocaleString('pt-BR');
     const curvesCount = pts.filter(p => p.radius && p.radius > 0).length;
 
     const radiuses = pts.map(p => p.radius).filter((r): r is number => Boolean(r && r > 0));
@@ -2131,7 +2131,7 @@ export function ProjectAlignmentView({
                           <div className="p-3 rounded-xl bg-blue-950/60 border border-blue-500/30 space-y-2">
                             <div className="flex items-center justify-between text-xs">
                               <span className="text-slate-400">Distância Atual:</span>
-                              <strong className="text-blue-300 font-black text-sm">{activeMeasureDistance.toLocaleString('pt-BR')} m</strong>
+                              <strong className="text-blue-300 font-black text-sm">{(activeMeasureDistance || 0).toLocaleString('pt-BR')} m</strong>
                             </div>
                             <div className="text-[10px] text-slate-400">
                               Vértices marcados: {currentMeasurePoints.length}
@@ -2179,7 +2179,7 @@ export function ProjectAlignmentView({
                             <div key={m.id} className="p-3 rounded-2xl bg-slate-900 border border-slate-800 flex items-center justify-between gap-2">
                               <div>
                                 <h5 className="text-xs font-bold text-white">{m.title}</h5>
-                                <p className="text-[10px] text-blue-400 font-black">{m.totalDistanceMeters.toLocaleString('pt-BR')} m</p>
+                                <p className="text-[10px] text-blue-400 font-black">{(m.totalDistanceMeters || 0).toLocaleString('pt-BR')} m</p>
                               </div>
                               <button
                                 onClick={() => handleDeleteMeasurement(m.id)}
