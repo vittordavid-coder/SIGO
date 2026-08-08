@@ -2549,46 +2549,6 @@ export function SyneraMobileView({
           const targetMonth = month || reportDate.slice(0, 7);
           const dayNum = parseInt(reportDate.slice(8, 10), 10);
           
-          const currentProd = serviceProductions.find(p => p.serviceId === serviceId && p.month === targetMonth) || {
-            id: `sp-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
-            contractId: activeContract.id,
-            serviceId,
-            month: targetMonth,
-            currentMonthQty: 0,
-            accumulatedQty: 0,
-            previousQty: 0,
-            unitPrice: 0,
-            dailyNotes: [],
-            dailyData: {}
-          };
-
-          const existingDailyData = currentProd.dailyData || {};
-          const existingDayObj = existingDailyData[dayNum] || { planned: 0, actual: 0 };
-          const updatedDailyData = {
-            ...existingDailyData,
-            [dayNum]: {
-              ...existingDayObj,
-              actual: (existingDayObj.actual || 0) + Number(qty || 0)
-            }
-          };
-
-          const updatedProd: ServiceProduction = {
-            ...currentProd,
-            currentMonthQty: (currentProd.currentMonthQty || 0) + Number(qty || 0),
-            dailyData: updatedDailyData,
-            dailyNotes: [
-              ...(currentProd.dailyNotes || []),
-              {
-                date: reportDate,
-                qty: Number(qty || 0),
-                note: `[SYNERA MOBILE / APONTADOR] ${trecho ? `Trecho: ${trecho}. ` : ''}${notes || ''}`,
-                recordedBy: currentUser.name || 'Apontador de Campo'
-              }
-            ]
-          };
-
-          onUpdateServiceProduction(updatedProd);
-
           if (onAddWorkMovement) {
             const sName = services.find(s => s.id === serviceId)?.name || 'Serviço';
             onAddWorkMovement({

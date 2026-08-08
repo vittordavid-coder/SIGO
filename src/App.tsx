@@ -651,7 +651,98 @@ export default function App() {
     await syncFieldReportsStateToSupabase(reportsToPush);
   };
 
+  const recalculateServiceProductionFromReports = (report: FieldProductionReport, allReports: FieldProductionReport[]) => {
+    const targetContractId = report.contractId || selectedContractId;
+    const reportDate = report.productionDate || report.date || new Date().toISOString().slice(0, 10);
+    const targetMonth = reportDate.slice(0, 7);
+
+    const cleanSId = (report.serviceId || '').toString().trim().toLowerCase();
+    const cleanSName = (report.serviceName || '').toString().trim().toLowerCase();
+
+    const matchedService = (services || []).find(s => 
+      (cleanSId && (s.id?.toString().trim().toLowerCase() === cleanSId || s.code?.toString().trim().toLowerCase() === cleanSId)) ||
+      (cleanSName && (s.name?.toString().trim().toLowerCase() === cleanSName || s.code?.toString().trim().toLowerCase() === cleanSName))
+    );
+
+    const matchedServiceId = matchedService?.id || report.serviceId || matchedService?.code || 'SERV-01';
+    const matchedServiceName = matchedService?.name || report.serviceName || 'Serviço de Obra';
+
+    const existingProd = serviceProductions.find(p => 
+      (p.contractId === targetContractId || !p.contractId) && 
+      p.month === targetMonth &&
+      (
+        p.serviceId === matchedServiceId ||
+        (cleanSId && p.serviceId?.toString().trim().toLowerCase() === cleanSId) ||
+        (matchedService?.code && p.serviceId?.toString().trim().toLowerCase() === matchedService.code.toLowerCase()) ||
+        (cleanSName && p.customTitle?.toString().trim().toLowerCase() === cleanSName)
+      )
+    );
+
+    if (!existingProd) return;
+
+    const approvedQtyByDate: Record<string, number> = {};
+    allReports.forEach(r => {
+      if (r.status !== 'approved') return;
+      const rContractId = r.contractId || targetContractId;
+      if (rContractId !== targetContractId) return;
+
+      const rDate = r.productionDate || r.date || '';
+      if (!rDate.startsWith(targetMonth)) return;
+
+      const cleanRServiceId = (r.serviceId || '').toString().trim().toLowerCase();
+      const cleanRServiceName = (r.serviceName || '').toString().trim().toLowerCase();
+      const cleanTargetId = (matchedServiceId || '').toString().trim().toLowerCase();
+      const cleanTargetCode = (matchedService?.code || '').toString().trim().toLowerCase();
+      const cleanTargetName = (matchedServiceName || '').toString().trim().toLowerCase();
+
+      const isSameService =
+        (cleanTargetId && cleanRServiceId === cleanTargetId) ||
+        (cleanTargetCode && (cleanRServiceId === cleanTargetCode || cleanRServiceName === cleanTargetCode)) ||
+        (cleanTargetName && cleanRServiceName === cleanTargetName);
+
+      if (isSameService) {
+        const dStr = rDate.slice(0, 10);
+        const q = Number(r.qty) || 0;
+        approvedQtyByDate[dStr] = (approvedQtyByDate[dStr] || 0) + q;
+      }
+    });
+
+    const existingDailyData = existingProd.dailyData || {};
+    const updatedDailyData = { ...existingDailyData };
+
+    Object.keys(updatedDailyData).forEach(k => {
+      if (k.includes('-')) {
+        updatedDailyData[k] = {
+          ...updatedDailyData[k],
+          actual: approvedQtyByDate[k] || 0
+        };
+        const dayNum = parseInt(k.slice(8, 10), 10);
+        if (updatedDailyData[dayNum]) {
+          updatedDailyData[dayNum] = {
+            ...updatedDailyData[dayNum],
+            actual: approvedQtyByDate[k] || 0
+          };
+        }
+      }
+    });
+
+    const newMonthQty = Object.entries(updatedDailyData)
+      .filter(([k]) => k.includes('-'))
+      .reduce((sum, [, d]) => sum + (Number((d as any).actual) || 0), 0);
+    const prevQty = existingProd.previousQty || 0;
+
+    const updatedProd: ServiceProduction = {
+      ...existingProd,
+      currentMonthQty: newMonthQty,
+      accumulatedQty: prevQty + newMonthQty,
+      dailyData: updatedDailyData
+    };
+
+    updateServiceProduction(updatedProd);
+  };
+
   const handleDeleteFieldReport = (reportId: string) => {
+    const report = fieldReports.find(r => r.id === reportId);
     const updated = fieldReports.filter(r => r.id !== reportId);
     setFieldReports(updated);
     deleteFieldReportFromIDB(reportId);
@@ -664,6 +755,10 @@ export default function App() {
       }
     }
     syncFieldReportsStateToSupabase(updated);
+
+    if (report && report.status === 'approved') {
+      recalculateServiceProductionFromReports(report, updated);
+    }
   };
 
   const handleApproveFieldReport = (reportId: string, approvedBy?: string, editedData?: Partial<FieldProductionReport>) => {
@@ -707,25 +802,72 @@ export default function App() {
       )
     );
 
-    const existingDailyData = existingProd?.dailyData || {};
-    const existingDayObj = existingDailyData[dayNum] || { planned: 0, actual: 0 };
-    const updatedDailyData = {
-      ...existingDailyData,
-      [dayNum]: {
-        ...existingDayObj,
-        actual: (existingDayObj.actual || 0) + reportQty
-      }
-    };
+    // Calcular o total acumulado das quantidades REALIZADAS para TODOS os relatórios APROVADOS deste serviço neste mês
+    const approvedQtyByDate: Record<string, number> = {};
+    updatedFieldReports.forEach(r => {
+      if (r.status !== 'approved') return;
+      const rContractId = r.contractId || targetContractId;
+      if (rContractId !== targetContractId) return;
 
-    const newMonthQty = Object.values(updatedDailyData).reduce((sum, d) => sum + (Number(d.actual) || 0), 0);
+      const rDate = r.productionDate || r.date || '';
+      if (!rDate.startsWith(targetMonth)) return;
+
+      const cleanRServiceId = (r.serviceId || '').toString().trim().toLowerCase();
+      const cleanRServiceName = (r.serviceName || '').toString().trim().toLowerCase();
+      const cleanTargetId = (matchedServiceId || '').toString().trim().toLowerCase();
+      const cleanTargetCode = (matchedService?.code || '').toString().trim().toLowerCase();
+      const cleanTargetName = (matchedServiceName || '').toString().trim().toLowerCase();
+
+      const isSameService =
+        (cleanTargetId && cleanRServiceId === cleanTargetId) ||
+        (cleanTargetCode && (cleanRServiceId === cleanTargetCode || cleanRServiceName === cleanTargetCode)) ||
+        (cleanTargetName && cleanRServiceName === cleanTargetName);
+
+      if (isSameService) {
+        const dStr = rDate.slice(0, 10);
+        const q = Number(r.qty) || 0;
+        approvedQtyByDate[dStr] = (approvedQtyByDate[dStr] || 0) + q;
+      }
+    });
+
+    const existingDailyData = existingProd?.dailyData || {};
+    const updatedDailyData = { ...existingDailyData };
+
+    // Atualizar os dias com a soma exata das quantidades realizadas nos relatórios aprovados
+    Object.entries(approvedQtyByDate).forEach(([dStr, totalApprovedQty]) => {
+      const dNum = parseInt(dStr.slice(8, 10), 10);
+      const existingObj = existingDailyData[dStr] || existingDailyData[dNum] || { planned: 0, actual: 0 };
+      updatedDailyData[dStr] = {
+        ...existingObj,
+        actual: totalApprovedQty
+      };
+      updatedDailyData[dNum] = {
+        ...existingObj,
+        actual: totalApprovedQty
+      };
+    });
+
+    const newMonthQty = Object.entries(updatedDailyData)
+      .filter(([k]) => k.includes('-'))
+      .reduce((sum, [, d]) => sum + (Number((d as any).actual) || 0), 0);
     const prevQty = existingProd?.previousQty || 0;
 
     const updatedProd: ServiceProduction = {
+      ...(existingProd || {}),
       id: existingProd?.id || `sp-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
       contractId: targetContractId,
       serviceId: existingProd?.serviceId || matchedServiceId,
       customTitle: existingProd?.customTitle || matchedServiceName,
       month: targetMonth,
+      numEquip: existingProd?.numEquip ?? 1,
+      hoursDay: existingProd?.hoursDay ?? 8,
+      workDays: existingProd?.workDays ?? 22,
+      efficiency: existingProd?.efficiency ?? 100,
+      unitHour: existingProd?.unitHour ?? 100,
+      rainPercent: existingProd?.rainPercent ?? 0,
+      startDate: existingProd?.startDate || "",
+      endDate: existingProd?.endDate || "",
+      prevMonthAccumulated: existingProd?.prevMonthAccumulated || prevQty,
       currentMonthQty: newMonthQty,
       accumulatedQty: prevQty + newMonthQty,
       previousQty: prevQty,
@@ -789,9 +931,14 @@ export default function App() {
   };
 
   const handleRejectFieldReport = (reportId: string) => {
+    const report = fieldReports.find(r => r.id === reportId);
     const updated = fieldReports.map(r => r.id === reportId ? { ...r, status: 'rejected' as const } : r);
     setFieldReports(updated);
     syncFieldReportsStateToSupabase(updated);
+
+    if (report) {
+      recalculateServiceProductionFromReports(report, updated);
+    }
   };
 
 const normalizeWorkMovementSector = (sec?: string): string => {

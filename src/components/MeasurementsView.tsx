@@ -2211,6 +2211,7 @@ export function MeasurementsView({
                 manpowerMonthly={manpowerMonthly}
                 equipmentMonthly={equipmentMonthly}
                 employees={employees}
+                fieldReports={fieldReports}
               />
             )}
 
@@ -9590,6 +9591,7 @@ function ProductionControlView({
   manpowerMonthly,
   equipmentMonthly,
   employees,
+  fieldReports = [],
 }: {
   contract: Contract;
   services: ServiceComposition[];
@@ -9607,6 +9609,7 @@ function ProductionControlView({
   manpowerMonthly?: ManpowerMonthlyData[];
   equipmentMonthly?: EquipmentMonthlyData[];
   employees?: Employee[];
+  fieldReports?: FieldProductionReport[];
 }) {
   const [selectedServiceId, setSelectedServiceId] = useState<string | null>(
     null,
@@ -9637,9 +9640,100 @@ function ProductionControlView({
     return filtered;
   }, [services, serviceFilter]);
 
+  const selectedService = useMemo(() => {
+    if (!selectedServiceId) return undefined;
+    return services.find(
+      (s) => s.id === selectedServiceId || (s.code && s.code === selectedServiceId)
+    );
+  }, [services, selectedServiceId]);
+
+  const campoTotals = useMemo(() => {
+    if (!contract?.id || !selectedService || !selectedMonth) return {};
+    const totals: Record<string, number> = {};
+    const cleanId = (selectedService.id || "").toString().trim().toLowerCase();
+    const cleanCode = (selectedService.code || "").toString().trim().toLowerCase();
+    const cleanName = (selectedService.name || "").toString().trim().toLowerCase();
+
+    (fieldReports || []).forEach((r) => {
+      if (r.contractId && r.contractId !== contract.id) return;
+      if (r.status !== "approved") return;
+
+      const rDate = r.productionDate || r.date || "";
+      if (!rDate.startsWith(selectedMonth)) return;
+
+      const rSId = (r.serviceId || "").toString().trim().toLowerCase();
+      const rSName = (r.serviceName || "").toString().trim().toLowerCase();
+
+      const matches =
+        (cleanId && rSId === cleanId) ||
+        (cleanCode && (rSId === cleanCode || rSName === cleanCode)) ||
+        (cleanName && rSName === cleanName);
+
+      if (matches) {
+        const dateStr = rDate.slice(0, 10);
+        const q = Number(r.qty) || 0;
+        totals[dateStr] = (totals[dateStr] || 0) + q;
+      }
+    });
+
+    return totals;
+  }, [fieldReports, contract.id, selectedService, selectedMonth]);
+
   const activeProductions = useMemo(() => {
-    return serviceProductions.filter((p) => p.contractId === contract.id);
-  }, [serviceProductions, contract.id]);
+    const existing = serviceProductions.filter((p) => p.contractId === contract.id);
+    const existingKeys = new Set(existing.map((p) => `${p.serviceId}_${p.month}`));
+    const additionalFromCampo: ServiceProduction[] = [];
+
+    (fieldReports || []).forEach((r) => {
+      if (r.contractId && r.contractId !== contract.id) return;
+      if (r.status !== "approved") return;
+
+      const rDate = r.productionDate || r.date || "";
+      if (!rDate) return;
+      const rMonth = rDate.slice(0, 7);
+
+      const matchedS = services.find((s) => {
+        const cleanId = (s.id || "").toString().trim().toLowerCase();
+        const cleanCode = (s.code || "").toString().trim().toLowerCase();
+        const cleanName = (s.name || "").toString().trim().toLowerCase();
+        const rSId = (r.serviceId || "").toString().trim().toLowerCase();
+        const rSName = (r.serviceName || "").toString().trim().toLowerCase();
+
+        return (
+          (cleanId && rSId === cleanId) ||
+          (cleanCode && (rSId === cleanCode || rSName === cleanCode)) ||
+          (cleanName && rSName === cleanName)
+        );
+      });
+
+      if (!matchedS) return;
+
+      const key = `${matchedS.id}_${rMonth}`;
+      if (!existingKeys.has(key) && !additionalFromCampo.some((p) => `${p.serviceId}_${p.month}` === key)) {
+        additionalFromCampo.push({
+          id: `sp-campo-${matchedS.id}-${rMonth}`,
+          contractId: contract.id,
+          serviceId: matchedS.id,
+          customTitle: matchedS.name,
+          month: rMonth,
+          numEquip: 1,
+          hoursDay: 8,
+          workDays: 22,
+          efficiency: 100,
+          unitHour: 100,
+          rainPercent: 0,
+          currentMonthQty: 0,
+          accumulatedQty: 0,
+          previousQty: 0,
+          unitPrice: matchedS.unitPrice || 0,
+          dailyData: {},
+          dailyNotes: []
+        });
+      }
+    });
+
+    return [...existing, ...additionalFromCampo];
+  }, [serviceProductions, contract.id, fieldReports, services]);
 
   const groupedProductions = useMemo(() => {
     const groups: { [key: string]: ServiceProduction[] } = {};
@@ -9662,13 +9756,49 @@ function ProductionControlView({
   }, [activeProductions, listMonthFilter]);
 
   const production = useMemo(() => {
-    return serviceProductions.find(
+    if (!selectedServiceId) return undefined;
+    const cleanId = selectedServiceId.toString().trim().toLowerCase();
+    const cleanCode = selectedService?.code?.toString().trim().toLowerCase();
+    const cleanName = selectedService?.name?.toString().trim().toLowerCase();
+
+    const found = serviceProductions.find(
       (p) =>
-        p.contractId === contract.id &&
-        p.serviceId === selectedServiceId &&
-        p.month === selectedMonth,
+        (p.contractId === contract.id || !p.contractId) &&
+        p.month === selectedMonth &&
+        (
+          p.serviceId === selectedServiceId ||
+          (cleanId && p.serviceId?.toString().trim().toLowerCase() === cleanId) ||
+          (cleanCode && p.serviceId?.toString().trim().toLowerCase() === cleanCode) ||
+          (cleanName && p.customTitle?.toString().trim().toLowerCase() === cleanName)
+        )
     );
-  }, [serviceProductions, contract.id, selectedServiceId, selectedMonth]);
+
+    if (found) return found;
+
+    if (selectedService) {
+      return {
+        id: `sp-${selectedService.id}-${selectedMonth}`,
+        contractId: contract.id,
+        serviceId: selectedService.id,
+        customTitle: selectedService.name,
+        month: selectedMonth,
+        numEquip: 1,
+        hoursDay: 8,
+        workDays: 22,
+        efficiency: 100,
+        unitHour: 100,
+        rainPercent: 0,
+        currentMonthQty: 0,
+        accumulatedQty: 0,
+        previousQty: 0,
+        unitPrice: selectedService.unitPrice || 0,
+        dailyData: {},
+        dailyNotes: []
+      };
+    }
+
+    return undefined;
+  }, [serviceProductions, contract.id, selectedServiceId, selectedService, selectedMonth]);
 
   const calculatedAccumulated = useMemo(() => {
     if (!selectedServiceId || !selectedMonth) return 0;
@@ -9757,7 +9887,22 @@ function ProductionControlView({
 
     for (let i = 1; i <= daysInMonth; i++) {
       const dateStr = `${selectedMonth}-${i.toString().padStart(2, "0")}`;
-      const dayData = production.dailyData[dateStr] || { actual: 0 };
+      const dayNum = i;
+      const dayPaddedStr = i.toString().padStart(2, "0");
+
+      const prodDayData = production?.dailyData
+        ? (production.dailyData[dateStr] ||
+           production.dailyData[dayNum] ||
+           production.dailyData[dayNum.toString()] ||
+           production.dailyData[dayPaddedStr])
+        : undefined;
+
+      const manualActual = prodDayData?.actual;
+      const campoActual = campoTotals[dateStr] || 0;
+
+      const actualDay = (manualActual !== undefined && manualActual > 0)
+        ? Math.max(manualActual, campoActual)
+        : campoActual;
 
       const dateObj = new Date(dateStr + "T12:00:00");
       const isWeekend = dateObj.getDay() === 0;
@@ -9769,7 +9914,6 @@ function ProductionControlView({
         isWeekend || isBeforeStart || isAfterEnd ? 0 : targetDaily;
       plannedAcc += plannedDay;
 
-      const actualDay = dayData.actual || 0;
       actualAcc += actualDay;
 
       const todayAtNoon = new Date();
@@ -9792,9 +9936,7 @@ function ProductionControlView({
       });
     }
     return rows;
-  }, [production, selectedMonth, daysInMonth]);
-
-  const selectedService = services.find((s) => s.id === selectedServiceId);
+  }, [production, selectedMonth, daysInMonth, campoTotals]);
 
   const serviceUnitPrice = useMemo(() => {
     if (!selectedServiceId) return 0;
@@ -10465,9 +10607,35 @@ function ProductionControlView({
                                   (x) => x.id === p.serviceId,
                                 );
                                 const dailyData = p.dailyData || {};
+                                const matchedS = s || services.find((x) => x.id === p.serviceId);
+                                const cleanId = (matchedS?.id || p.serviceId || "").toString().trim().toLowerCase();
+                                const cleanCode = (matchedS?.code || "").toString().trim().toLowerCase();
+                                const cleanName = (matchedS?.name || p.customTitle || "").toString().trim().toLowerCase();
+
+                                const cTotals: Record<string, number> = {};
+                                (fieldReports || []).forEach((r) => {
+                                  if (r.contractId && r.contractId !== contract.id) return;
+                                  if (r.status !== "approved") return;
+                                  const rDate = r.productionDate || r.date || "";
+                                  if (!rDate.startsWith(p.month)) return;
+                                  const rSId = (r.serviceId || "").toString().trim().toLowerCase();
+                                  const rSName = (r.serviceName || "").toString().trim().toLowerCase();
+                                  if (
+                                    (cleanId && rSId === cleanId) ||
+                                    (cleanCode && (rSId === cleanCode || rSName === cleanCode)) ||
+                                    (cleanName && rSName === cleanName)
+                                  ) {
+                                    const dStr = rDate.slice(0, 10);
+                                    cTotals[dStr] = (cTotals[dStr] || 0) + (Number(r.qty) || 0);
+                                  }
+                                });
+
                                 let totalExec = 0;
-                                Object.values(dailyData).forEach((val: any) => {
-                                  totalExec += val.actual || 0;
+                                const dateKeys = new Set([...Object.keys(dailyData), ...Object.keys(cTotals)]);
+                                dateKeys.forEach((k) => {
+                                  const mVal = (dailyData[k] as any)?.actual || 0;
+                                  const cVal = cTotals[k] || 0;
+                                  totalExec += Math.max(mVal, cVal);
                                 });
 
                                 return (

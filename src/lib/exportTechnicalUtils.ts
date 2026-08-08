@@ -1630,7 +1630,7 @@ export function exportMonthlyControlReportPDF(options: {
 
       for (let i = 1; i <= daysInMonth; i++) {
         const dateStr = `${options.month}-${i.toString().padStart(2, '0')}`;
-        const dayData = p.dailyData[dateStr] || { actual: 0 };
+        const dayData = (p.dailyData ? (p.dailyData[dateStr] || p.dailyData[i] || p.dailyData[i.toString()] || p.dailyData[i.toString().padStart(2, '0')]) : null) || { actual: 0 };
         const dateObj = new Date(dateStr + 'T12:00:00');
         const isWeekend = dateObj.getDay() === 0;
 
@@ -2666,7 +2666,7 @@ export async function exportMonthlyControlReportExcel(options: {
     // First loop just to get the actualAcc for the total parameter block
     for (let i = 1; i <= daysInMonth; i++) {
       const dateStr = `${options.month}-${i.toString().padStart(2, '0')}`;
-      const actualDay = p.dailyData[dateStr]?.actual || 0;
+      const actualDay = (p.dailyData ? (p.dailyData[dateStr]?.actual || p.dailyData[i]?.actual || p.dailyData[i.toString()]?.actual || p.dailyData[i.toString().padStart(2, '0')]?.actual) : null) || 0;
       actualAcc += actualDay;
     }
     const totalAccFinal = (p.prevMonthAccumulated || 0) + actualAcc;
@@ -2770,7 +2770,7 @@ export async function exportMonthlyControlReportExcel(options: {
 
     for (let i = 1; i <= daysInMonth; i++) {
       const dateStr = `${options.month}-${i.toString().padStart(2, '0')}`;
-      const dayData = p.dailyData[dateStr] || { actual: 0 };
+      const dayData = (p.dailyData ? (p.dailyData[dateStr] || p.dailyData[i] || p.dailyData[i.toString()] || p.dailyData[i.toString().padStart(2, '0')]) : null) || { actual: 0 };
       const dateObj = new Date(dateStr + 'T12:00:00');
       const isWeekend = dateObj.getDay() === 0;
       
