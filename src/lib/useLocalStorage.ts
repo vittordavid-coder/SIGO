@@ -8,18 +8,22 @@ export function safeSetLocalStorage(key: string, value: any): void {
     window.localStorage.setItem(key, json);
   } catch (err: any) {
     if (err?.name === 'QuotaExceededError' || err?.code === 22 || err?.message?.includes('exceeded the quota')) {
-      console.warn(`[localStorage] Quota excedida ao salvar '${key}'. Aplicando otimização de espaço.`);
+      console.warn(`[localStorage] Quota excedida ao salvar '${key}'. Aplicando otimização de espaço mantendo dados pendentes.`);
       try {
         if (Array.isArray(value)) {
           const lightValue = value.map((item: any) => {
             if (item && typeof item === 'object') {
               const copy = { ...item };
               const isSynced = Boolean(copy.synced || copy.syncedAt || copy.status === 'approved' || copy.status === 'synced');
-              if (typeof copy.photo === 'string' && copy.photo.length > 20000 && (isSynced || value.length > 3)) {
-                copy.photo = copy.photo.startsWith('http') ? copy.photo : '';
-              }
-              if (typeof copy.photoUrl === 'string' && copy.photoUrl.length > 20000 && (isSynced || value.length > 3)) {
-                copy.photoUrl = copy.photoUrl.startsWith('http') ? copy.photoUrl : '';
+              // Apenas remove fotos de registros JÁ SINCRONIZADOS com o servidor
+              // NUNCA limpa fotos de registros offline pendentes de envio
+              if (isSynced) {
+                if (typeof copy.photo === 'string' && copy.photo.length > 20000) {
+                  copy.photo = copy.photo.startsWith('http') ? copy.photo : '';
+                }
+                if (typeof copy.photoUrl === 'string' && copy.photoUrl.length > 20000) {
+                  copy.photoUrl = copy.photoUrl.startsWith('http') ? copy.photoUrl : '';
+                }
               }
               return copy;
             }
@@ -33,8 +37,11 @@ export function safeSetLocalStorage(key: string, value: any): void {
             copyObj.fieldReports = copyObj.fieldReports.map((item: any) => {
               if (item && typeof item === 'object') {
                 const c = { ...item };
-                if (typeof c.photo === 'string' && c.photo.length > 20000) c.photo = c.photo.startsWith('http') ? c.photo : '';
-                if (typeof c.photoUrl === 'string' && c.photoUrl.length > 20000) c.photoUrl = c.photoUrl.startsWith('http') ? c.photoUrl : '';
+                const isSynced = Boolean(c.synced || c.syncedAt || c.status === 'approved' || c.status === 'synced');
+                if (isSynced) {
+                  if (typeof c.photo === 'string' && c.photo.length > 20000) c.photo = c.photo.startsWith('http') ? c.photo : '';
+                  if (typeof c.photoUrl === 'string' && c.photoUrl.length > 20000) c.photoUrl = c.photoUrl.startsWith('http') ? c.photoUrl : '';
+                }
                 return c;
               }
               return item;
@@ -55,48 +62,76 @@ export function safeSetLocalStorage(key: string, value: any): void {
 export function useLocalStorage<T>(key: string, initialValue: T, companyId?: string): [T, (value: T | ((prev: T) => T)) => void] {
   // Use a ref to store the latest value for the interval timer
   const stateRef = useRef<T>(initialValue);
-  const [storedValue, setStoredValue] = useState<T>(() => {
+
+  const loadFromStorage = (): T => {
     try {
       const config = getSupabaseConfig();
       const storeKey = companyId && key !== 'sigo_users' ? `${companyId}_${key}` : key;
       const isSensitive = key === 'sigo_users' || key === 'sigo_reset_requests';
       
-      // Load from localStorage as initial cache
-      const item = window.localStorage.getItem(storeKey);
-      let val;
-      try {
-        val = item ? JSON.parse(item) : initialValue;
-      } catch (e) {
-        val = item as unknown as T;
+      let item = window.localStorage.getItem(storeKey);
+      let val: any = null;
+      if (item) {
+        try {
+          val = JSON.parse(item);
+        } catch (e) {
+          val = item;
+        }
       }
+
+      // Se a chave com prefixo da empresa estiver vazia/nula ou array vazio, tenta carregar da chave sem prefixo
+      if ((val === null || (Array.isArray(val) && val.length === 0)) && storeKey !== key) {
+        const unprefixed = window.localStorage.getItem(key);
+        if (unprefixed) {
+          try {
+            const parsedUnprefixed = JSON.parse(unprefixed);
+            if (parsedUnprefixed && (!Array.isArray(parsedUnprefixed) || parsedUnprefixed.length > 0)) {
+              val = parsedUnprefixed;
+            }
+          } catch (e) {}
+        }
+      }
+
+      // Para arrays de relatórios de campo, combinar registros pendentes de ambas as chaves se existirem
+      if (key === 'sigo_field_reports' && Array.isArray(val)) {
+        try {
+          const unprefixedStr = window.localStorage.getItem('sigo_field_reports');
+          if (unprefixedStr) {
+            const unprefixedArr = JSON.parse(unprefixedStr);
+            if (Array.isArray(unprefixedArr) && unprefixedArr.length > 0) {
+              const combinedMap = new Map();
+              [...val, ...unprefixedArr].forEach(item => {
+                if (item && item.id) combinedMap.set(item.id, item);
+              });
+              val = Array.from(combinedMap.values());
+            }
+          }
+        } catch (e) {}
+      }
+
       if (val === null && initialValue !== null) val = initialValue;
       
-      // If Supabase is enabled and no local cached data is found, return initialValue
       if (config.enabled && isSensitive && !item) {
         return initialValue;
       }
       
-      stateRef.current = val;
-      return val;
+      return val as T;
     } catch (error) {
       console.error(error);
       return initialValue;
     }
+  };
+
+  const [storedValue, setStoredValue] = useState<T>(() => {
+    const val = loadFromStorage();
+    stateRef.current = val;
+    return val;
   });
 
   // Sync state when key or companyId changes
   useEffect(() => {
     try {
-      const storeKey = companyId && key !== 'sigo_users' ? `${companyId}_${key}` : key;
-      const item = window.localStorage.getItem(storeKey);
-      let val;
-      try {
-        val = item ? JSON.parse(item) : initialValue;
-      } catch (e) {
-        val = item as unknown as T;
-      }
-      if (val === null && initialValue !== null) val = initialValue;
-      
+      const val = loadFromStorage();
       if (JSON.stringify(val) !== JSON.stringify(storedValue)) {
         setStoredValue(val);
         stateRef.current = val;
@@ -118,8 +153,10 @@ export function useLocalStorage<T>(key: string, initialValue: T, companyId?: str
       const storeKey = companyId && key !== 'sigo_users' ? `${companyId}_${key}` : key;
       if (!isSensitive) {
         safeSetLocalStorage(storeKey, valueToStore);
+        if (storeKey !== key) {
+          safeSetLocalStorage(key, valueToStore);
+        }
       } else if (config.enabled) {
-        // Connected mode: explicitly remove sensitive data from localStorage
         window.localStorage.removeItem(key);
         if (companyId) window.localStorage.removeItem(`${companyId}_${key}`);
       }

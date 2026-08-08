@@ -33,6 +33,10 @@ export default defineConfig(({mode}) => {
       emptyOutDir: true,
       chunkSizeWarningLimit: 2000,
       rollupOptions: {
+        input: {
+          main: path.resolve(__dirname, 'index.html'),
+          cam: path.resolve(__dirname, 'cam.html'),
+        },
         output: {
           manualChunks(id) {
             if (id.includes('node_modules')) {

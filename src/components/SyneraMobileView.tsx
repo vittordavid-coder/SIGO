@@ -723,12 +723,14 @@ export function SyneraMobileView({
   const [registrosSearch, setRegistrosSearch] = useState<string>('');
   const [registrosFilterContract, setRegistrosFilterContract] = useState<string>('all');
 
-  // Mobile User Specific Field Reports (Only show entries created by the logged-in user in mobile view)
+  // Mobile User Specific Field Reports (Only show entries created by the logged-in user or unsynced offline records)
   const userFieldReports = useMemo(() => {
     if (!fieldReports) return [];
     
     return fieldReports.filter(r => {
-      if (!currentUser) return true;
+      if (!currentUser || isCamOnly || currentUser.id === 'offline-cam-user') return true;
+      // Sempre exibe apontamentos pendentes/offline locais para que nunca se percam da vista
+      if (r.status === 'pending' || !r.syncedAt || !r.synced) return true;
       
       const emailMatch = currentUser.email && r.reportedByEmail && 
         r.reportedByEmail.toLowerCase().trim() === currentUser.email.toLowerCase().trim();
@@ -739,9 +741,9 @@ export function SyneraMobileView({
       const createdNameMatch = currentUser.name && r.createdByName &&
         r.createdByName.toLowerCase().trim() === currentUser.name.toLowerCase().trim();
 
-      return emailMatch || nameMatch || createdNameMatch;
+      return emailMatch || nameMatch || createdNameMatch || !r.reportedByEmail;
     });
-  }, [fieldReports, currentUser]);
+  }, [fieldReports, currentUser, isCamOnly]);
 
   // Filtered reports for Meus Registros screen
   const filteredUserReports = useMemo(() => {
@@ -1457,6 +1459,9 @@ export function SyneraMobileView({
       location: stationText,
       description: descText,
       photoUrl: finalPhotoUrl,
+      photo: finalPhotoUrl,
+      reportedBy: currentUser?.name || currentUser?.username || 'Apontador',
+      reportedByEmail: currentUser?.email || 'apontador@synera.app',
       createdByName: currentUser?.name || currentUser?.username || 'Apontador',
       synced: false,
       timestamp: new Date().toISOString()
@@ -1468,6 +1473,18 @@ export function SyneraMobileView({
       }
     } catch (e) {
       console.warn('Erro ao disparar onSaveFieldReport:', e);
+    }
+
+    try {
+      const stored = localStorage.getItem('sigo_field_reports');
+      const parsed: FieldProductionReport[] = stored ? JSON.parse(stored) : [];
+      const updatedLocal = [newReport, ...parsed.filter(r => r.id !== newReport.id)];
+      safeSetLocalStorage('sigo_field_reports', updatedLocal);
+      if (activeContract && (activeContract as any).companyId) {
+        safeSetLocalStorage(`${(activeContract as any).companyId}_sigo_field_reports`, updatedLocal);
+      }
+    } catch (err) {
+      console.warn('Erro ao salvar no localStorage local:', err);
     }
 
     try {
@@ -2731,8 +2748,9 @@ export function SyneraMobileView({
       trecho: combinedTrecho || prodTrecho,
       notes: fullNotes,
       photo: prodPhoto,
-      reportedBy: currentUser.name || 'Apontador',
-      reportedByEmail: currentUser.email,
+      photoUrl: prodPhoto,
+      reportedBy: currentUser?.name || 'Apontador',
+      reportedByEmail: currentUser?.email || 'apontador@synera.app',
       status: 'pending'
     };
 
@@ -2743,7 +2761,10 @@ export function SyneraMobileView({
     try {
       const currentLocal = JSON.parse(localStorage.getItem('sigo_field_reports') || '[]');
       const updatedLocal = [newFieldReport, ...currentLocal.filter((r: any) => r.id !== newFieldReport.id)];
-      localStorage.setItem('sigo_field_reports', JSON.stringify(updatedLocal));
+      safeSetLocalStorage('sigo_field_reports', updatedLocal);
+      if (activeContract && (activeContract as any).companyId) {
+        safeSetLocalStorage(`${(activeContract as any).companyId}_sigo_field_reports`, updatedLocal);
+      }
     } catch (e) {
       console.warn('Erro ao salvar no localStorage local:', e);
     }
