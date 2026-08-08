@@ -1552,6 +1552,33 @@ export function SyneraMobileView({
     setSelectedGalleryPhotos([]);
   };
 
+  const handleShareMultiplePhotos = async (urls: string[]) => {
+    if (urls.length === 0) return;
+    
+    try {
+      const files = await Promise.all(
+        urls.map(async (url, index) => {
+          const res = await fetch(url);
+          const blob = await res.blob();
+          return new File([blob], `synera_cam_foto_${index + 1}.jpg`, { type: blob.type });
+        })
+      );
+
+      if (navigator.canShare && navigator.canShare({ files })) {
+        await navigator.share({
+          title: 'Fotos Synera Cam',
+          files
+        });
+      } else {
+        alert("Seu navegador não suporta o compartilhamento de arquivos múltiplos.");
+      }
+    } catch (error) {
+      console.error("Erro ao compartilhar", error);
+    }
+  };
+
+  const [fullScreenPhotoIndex, setFullScreenPhotoIndex] = useState<number | null>(null);
+
   const handleOpenEditModal = (report: FieldProductionReport) => {
     const isSynced = report.status === 'synced' || report.status === 'approved' || Boolean(report.syncedAt);
     if (isSynced) {
@@ -5518,6 +5545,13 @@ export function SyneraMobileView({
                         </button>
 
                         <button
+                          onClick={() => handleShareMultiplePhotos(selectedGalleryPhotos)}
+                          className="px-2.5 py-1.5 bg-fuchsia-600 hover:bg-fuchsia-500 text-white font-bold text-[11px] rounded-lg flex items-center gap-1 shadow-md shadow-fuchsia-600/30"
+                        >
+                          <Share2 className="w-3.5 h-3.5" />
+                          Compartilhar
+                        </button>
+                        <button
                           onClick={handleBatchDeletePhotos}
                           className="px-2.5 py-1.5 bg-rose-600 hover:bg-rose-500 text-white font-black text-[11px] rounded-lg flex items-center gap-1 shadow-md shadow-rose-600/30"
                         >
@@ -5537,121 +5571,190 @@ export function SyneraMobileView({
                   )}
 
                   {/* Lista/Grid de Fotos da Galeria */}
-                  {userFieldReports.filter(r => {
-                    if (!r.photoUrl) return false;
-                    if (galleryFilterContract !== 'all' && r.contractId !== galleryFilterContract) return false;
-                    if (gallerySearchQuery.trim()) {
-                      const q = gallerySearchQuery.toLowerCase();
-                      const descMatch = (r.description || '').toLowerCase().includes(q);
-                      const locMatch = (r.location || '').toLowerCase().includes(q);
-                      return descMatch || locMatch;
-                    }
-                    return true;
-                  }).length === 0 ? (
-                    <div className="py-12 text-center space-y-3">
-                      <div className="w-16 h-16 bg-slate-800/80 rounded-full mx-auto flex items-center justify-center">
-                        <Camera className="w-8 h-8 text-slate-500" />
-                      </div>
-                      <p className="text-slate-300 text-xs font-bold px-8">Nenhuma foto encontrada para os filtros selecionados.</p>
-                      <Button
-                        onClick={() => {
-                          setGalleryFilterContract('all');
-                          setGallerySearchQuery('');
-                        }}
-                        className="h-8 px-3 text-[11px] bg-slate-700 hover:bg-slate-600 text-white rounded-lg"
-                      >
-                        Limpar Filtros
-                      </Button>
-                    </div>
-                  ) : (
-                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-                      {userFieldReports.filter(r => {
-                        if (!r.photoUrl) return false;
-                        if (galleryFilterContract !== 'all' && r.contractId !== galleryFilterContract) return false;
-                        if (gallerySearchQuery.trim()) {
-                          const q = gallerySearchQuery.toLowerCase();
-                          const descMatch = (r.description || '').toLowerCase().includes(q);
-                          const locMatch = (r.location || '').toLowerCase().includes(q);
-                          return descMatch || locMatch;
-                        }
-                        return true;
-                      }).map(report => {
-                        const isSelected = selectedGalleryPhotos.includes(report.photoUrl as string);
-                        return (
-                          <div 
-                            key={report.id} 
-                            className={`group relative aspect-[3/4] bg-slate-950 rounded-2xl overflow-hidden border-2 transition-all ${
-                              isSelected ? 'border-fuchsia-500 ring-2 ring-fuchsia-500/50 scale-[0.98]' : 'border-slate-700/80 hover:border-slate-500'
-                            }`}
+                  {(() => {
+                    const filteredGalleryPhotos = userFieldReports.filter(r => {
+                      if (!r.photoUrl) return false;
+                      if (galleryFilterContract !== 'all' && r.contractId !== galleryFilterContract) return false;
+                      if (gallerySearchQuery.trim()) {
+                        const q = gallerySearchQuery.toLowerCase();
+                        const descMatch = (r.description || '').toLowerCase().includes(q);
+                        const locMatch = (r.location || '').toLowerCase().includes(q);
+                        return descMatch || locMatch;
+                      }
+                      return true;
+                    });
+
+                    if (filteredGalleryPhotos.length === 0) {
+                      return (
+                        <div className="py-12 text-center space-y-3">
+                          <div className="w-16 h-16 bg-slate-800/80 rounded-full mx-auto flex items-center justify-center">
+                            <Camera className="w-8 h-8 text-slate-500" />
+                          </div>
+                          <p className="text-slate-300 text-xs font-bold px-8">Nenhuma foto encontrada para os filtros selecionados.</p>
+                          <Button
+                            onClick={() => {
+                              setGalleryFilterContract('all');
+                              setGallerySearchQuery('');
+                            }}
+                            className="h-8 px-3 text-[11px] bg-slate-700 hover:bg-slate-600 text-white rounded-lg"
                           >
-                            <img src={report.photoUrl} alt="Foto Campo" className="w-full h-full object-cover" />
-                            
-                            {/* Checkbox de seleção superior */}
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setSelectedGalleryPhotos(prev => 
-                                  prev.includes(report.photoUrl as string) 
-                                    ? prev.filter(url => url !== report.photoUrl) 
-                                    : [...prev, report.photoUrl as string]
+                            Limpar Filtros
+                          </Button>
+                        </div>
+                      );
+                    }
+
+                    filteredGalleryPhotos.sort((a, b) => {
+                      const da = new Date(a.date || a.createdAt || new Date()).getTime();
+                      const db = new Date(b.date || b.createdAt || new Date()).getTime();
+                      return db - da;
+                    });
+
+                    const grouped = filteredGalleryPhotos.reduce((acc, report) => {
+                      const d = new Date(report.date || report.createdAt || new Date());
+                      const m = d.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+                      const formatted = m.charAt(0).toUpperCase() + m.slice(1);
+                      if (!acc[formatted]) acc[formatted] = [];
+                      acc[formatted].push(report);
+                      return acc;
+                    }, {} as Record<string, typeof filteredGalleryPhotos>);
+
+                    return (
+                      <div className="space-y-6 pb-6">
+                        {Object.entries(grouped).map(([month, reports]) => (
+                          <div key={month} className="space-y-3">
+                            <h4 className="text-sm font-black text-slate-300 uppercase tracking-wider sticky top-0 bg-slate-800/80 p-2 rounded-xl backdrop-blur-sm z-20 shadow-md border border-slate-700/60">
+                              {month} <span className="text-slate-500 font-bold ml-1 text-xs">({reports.length})</span>
+                            </h4>
+                            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                              {reports.map(report => {
+                                const globalIndex = filteredGalleryPhotos.findIndex(r => r.id === report.id);
+                                const isSelected = selectedGalleryPhotos.includes(report.photoUrl as string);
+                                return (
+                                  <div 
+                                    key={report.id} 
+                                    onClick={() => setFullScreenPhotoIndex(globalIndex)}
+                                    className={`group relative aspect-[3/4] bg-slate-950 rounded-2xl overflow-hidden border-2 transition-all cursor-pointer ${
+                                      isSelected ? 'border-fuchsia-500 ring-2 ring-fuchsia-500/50 scale-[0.98]' : 'border-slate-700/80 hover:border-slate-500'
+                                    }`}
+                                  >
+                                    <img src={report.photoUrl} alt="Foto Campo" className="w-full h-full object-cover" />
+                                    
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setSelectedGalleryPhotos(prev => 
+                                           prev.includes(report.photoUrl as string)
+                                             ? prev.filter(url => url !== report.photoUrl)
+                                             : [...prev, report.photoUrl as string]
+                                        );
+                                      }}
+                                      className={`absolute top-2 right-2 w-7 h-7 rounded-full flex items-center justify-center shadow-lg transition-transform z-30 ${
+                                        isSelected ? 'bg-fuchsia-500 text-white scale-110' : 'bg-slate-900/80 text-slate-400 border border-slate-600 hover:text-white'
+                                      }`}
+                                      title={isSelected ? 'Desmarcar foto' : 'Selecionar foto'}
+                                    >
+                                      {isSelected ? <Check className="w-4 h-4 stroke-[3]" /> : <Square className="w-4 h-4" />}
+                                    </button>
+
+                                    <div className="absolute top-2 left-2 px-2 py-0.5 rounded-md bg-slate-950/80 border border-amber-500/40 backdrop-blur text-[9px] font-black text-amber-300 z-30">
+                                      {report.location || 'Estaca N/I'}
+                                    </div>
+
+                                    <div className="absolute inset-x-2 top-10 flex items-center justify-center gap-1.5 opacity-90 sm:opacity-0 group-hover:opacity-100 transition-opacity z-30">
+                                      {!(report.status === 'synced' || report.status === 'approved' || Boolean(report.syncedAt)) && (
+                                        <>
+                                          <button
+                                            onClick={(e) => { e.stopPropagation(); handleOpenEditModal(report); }}
+                                            className="p-2 rounded-xl bg-slate-900/90 hover:bg-slate-800 border border-slate-700 text-amber-400 shadow-xl"
+                                            title="Editar dados da foto"
+                                          >
+                                            <Edit3 className="w-4 h-4" />
+                                          </button>
+                                          <button
+                                            onClick={(e) => { e.stopPropagation(); handleDeleteReport(report.id); }}
+                                            className="p-2 rounded-xl bg-rose-950/90 hover:bg-rose-900 border border-rose-500/50 text-rose-300 shadow-xl"
+                                            title="Excluir foto"
+                                          >
+                                            <Trash2 className="w-4 h-4" />
+                                          </button>
+                                        </>
+                                      )}
+                                    </div>
+                                    
+                                    <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-slate-950 via-slate-950/90 to-transparent p-2.5 pt-6 pointer-events-none z-20">
+                                      <p className="text-[10px] font-extrabold text-white truncate">{report.description || 'Sem descrição'}</p>
+                                      <p className="text-[9px] text-slate-400 font-medium">
+                                        {report.timestamp ? new Date(report.timestamp).toLocaleDateString('pt-BR') : report.date}
+                                      </p>
+                                    </div>
+                                  </div>
                                 );
-                              }}
-                              className={`absolute top-2 right-2 w-7 h-7 rounded-full flex items-center justify-center shadow-lg transition-transform ${
-                                isSelected ? 'bg-fuchsia-500 text-white scale-110' : 'bg-slate-900/80 text-slate-400 border border-slate-600 hover:text-white'
-                              }`}
-                              title={isSelected ? 'Desmarcar foto' : 'Selecionar foto'}
-                            >
-                              {isSelected ? <Check className="w-4 h-4 stroke-[3]" /> : <Square className="w-4 h-4" />}
-                            </button>
-
-                            {/* Badge de Estaca no canto superior esquerdo */}
-                            <div className="absolute top-2 left-2 px-2 py-0.5 rounded-md bg-slate-950/80 border border-amber-500/40 backdrop-blur text-[9px] font-black text-amber-300">
-                              {report.location || 'Estaca N/I'}
-                            </div>
-
-                            {/* Botoes de Ação Rápida (Visualizar, Editar, Excluir) */}
-                            <div className="absolute inset-x-2 top-10 flex items-center justify-center gap-1.5 opacity-90 sm:opacity-0 group-hover:opacity-100 transition-opacity z-10">
-                              <button
-                                onClick={() => setPreviewingReport(report)}
-                                className="p-2 rounded-xl bg-slate-900/90 hover:bg-slate-800 border border-slate-700 text-blue-400 shadow-xl"
-                                title="Visualizar foto ampliada"
-                              >
-                                <Eye className="w-4 h-4" />
-                              </button>
-                              
-                              {!(report.status === 'synced' || report.status === 'approved' || Boolean(report.syncedAt)) && (
-                                <>
-                                  <button
-                                    onClick={() => handleOpenEditModal(report)}
-                                    className="p-2 rounded-xl bg-slate-900/90 hover:bg-slate-800 border border-slate-700 text-amber-400 shadow-xl"
-                                    title="Editar dados da foto"
-                                  >
-                                    <Edit3 className="w-4 h-4" />
-                                  </button>
-
-                                  <button
-                                    onClick={() => handleDeleteReport(report.id)}
-                                    className="p-2 rounded-xl bg-rose-950/90 hover:bg-rose-900 border border-rose-500/50 text-rose-300 shadow-xl"
-                                    title="Excluir foto"
-                                  >
-                                    <Trash2 className="w-4 h-4" />
-                                  </button>
-                                </>
-                              )}
-                            </div>
-
-                            {/* Banner Inferior com dados rápidos */}
-                            <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-slate-950 via-slate-950/90 to-transparent p-2.5 pt-6">
-                              <p className="text-[10px] font-extrabold text-white truncate">{report.description || 'Sem descrição'}</p>
-                              <p className="text-[9px] text-slate-400 font-medium">
-                                {report.timestamp ? new Date(report.timestamp).toLocaleDateString('pt-BR') : report.date}
-                              </p>
+                              })}
                             </div>
                           </div>
-                        );
-                      })}
-                    </div>
-                  )}
+                        ))}
+
+                        <AnimatePresence>
+                          {fullScreenPhotoIndex !== null && filteredGalleryPhotos[fullScreenPhotoIndex] && (
+                            <motion.div 
+                              initial={{ opacity: 0 }}
+                              animate={{ opacity: 1 }}
+                              exit={{ opacity: 0 }}
+                              className="fixed inset-0 z-[100] bg-black text-white flex flex-col"
+                            >
+                              <div className="flex justify-between items-center p-4 bg-gradient-to-b from-black/80 to-transparent absolute top-0 w-full z-10">
+                                 <button onClick={() => setFullScreenPhotoIndex(null)} className="p-2 bg-slate-900/40 border border-slate-700/50 rounded-full hover:bg-slate-900/60"><ArrowLeft className="w-5 h-5 text-white" /></button>
+                                 <div className="flex flex-col items-center">
+                                  <span className="font-bold text-sm tracking-wider text-slate-200">{fullScreenPhotoIndex + 1} / {filteredGalleryPhotos.length}</span>
+                                  <span className="text-[10px] text-amber-400 font-bold">{filteredGalleryPhotos[fullScreenPhotoIndex].location || 'Estaca N/I'}</span>
+                                 </div>
+                                 <div className="flex items-center gap-2">
+                                  <button 
+                                    onClick={() => handleShareMultiplePhotos([filteredGalleryPhotos[fullScreenPhotoIndex].photoUrl as string])}
+                                    className="p-2 bg-slate-900/40 border border-slate-700/50 rounded-full hover:bg-slate-900/60"
+                                  >
+                                    <Share2 className="w-5 h-5 text-fuchsia-400" />
+                                  </button>
+                                 </div>
+                              </div>
+
+                              <motion.div 
+                                drag="x"
+                                dragConstraints={{ left: 0, right: 0 }}
+                                dragElastic={1}
+                                onDragEnd={(e, { offset, velocity }) => {
+                                  const swipe = Math.abs(offset.x) * velocity.x;
+                                  if (swipe < -500 || offset.x < -60) {
+                                    if (fullScreenPhotoIndex < filteredGalleryPhotos.length - 1) setFullScreenPhotoIndex(prev => prev! + 1);
+                                  } else if (swipe > 500 || offset.x > 60) {
+                                    if (fullScreenPhotoIndex > 0) setFullScreenPhotoIndex(prev => prev! - 1);
+                                  }
+                                }}
+                                className="flex-1 w-full h-full flex items-center justify-center overflow-hidden touch-none"
+                              >
+                                <motion.img 
+                                  key={fullScreenPhotoIndex}
+                                  initial={{ opacity: 0, scale: 0.95 }}
+                                  animate={{ opacity: 1, scale: 1 }}
+                                  exit={{ opacity: 0, scale: 0.95 }}
+                                  transition={{ duration: 0.15 }}
+                                  src={filteredGalleryPhotos[fullScreenPhotoIndex].photoUrl}
+                                  alt="Preview"
+                                  className="max-w-full max-h-full object-contain pointer-events-none" 
+                                />
+                              </motion.div>
+                              <div className="absolute bottom-0 w-full p-4 bg-gradient-to-t from-black/90 to-transparent">
+                                <p className="text-xs text-white font-medium text-center bg-slate-900/60 p-3 rounded-2xl border border-slate-700/50 backdrop-blur-sm shadow-xl">
+                                  {filteredGalleryPhotos[fullScreenPhotoIndex].description || 'Nenhuma descrição fornecida.'}
+                                </p>
+                              </div>
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
+                      </div>
+                    );
+                  })()}
 
                 </div>
               </motion.div>

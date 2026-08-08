@@ -1213,7 +1213,7 @@ const normalizeWorkMovementSector = (sec?: string): string => {
 
       setSupabaseSyncError(null);
       try {
-        const activeId = targetCompanyId || currentUser?.companyId;
+        const activeId = targetCompanyId === 'USERS_ONLY' ? null : (targetCompanyId || currentUser?.companyId);
         
         // Defer polling if we just made a local update to allow DB to catch up
         if (isPolling && Date.now() - lastLocalUpdate.current < 10000) {
@@ -1982,10 +1982,21 @@ const normalizeWorkMovementSector = (sec?: string): string => {
 
   // Supabase Initial Load & Polling
   React.useEffect(() => {
-    syncFnRef.current();
+    // Only auto-sync if we are NOT in the mobile app, as mobile is offline-first.
+    const isMobileMode = typeof window !== 'undefined' && 
+      (window.location.pathname.includes('cam.html') || window.location.search.includes('tab=mobile') || window.sessionStorage.getItem('sigo_main_tab') === 'mobile' || mainTab === 'mobile');
+      
+    if (!isMobileMode) {
+      syncFnRef.current();
+    }
     
     // Poll every 5 minutes (300000ms) to conserve DB resources
     const interval = setInterval(() => {
+      const currentTab = window.sessionStorage.getItem('sigo_main_tab') || mainTab;
+      if (currentTab === 'mobile' || window.location.pathname.includes('cam.html')) {
+        return; // Don't poll in mobile mode
+      }
+      
       // Skip heavy DB queries if tab is in the background
       if (document.hasFocus()) {
         syncFnRef.current(undefined, true);
@@ -1994,7 +2005,7 @@ const normalizeWorkMovementSector = (sec?: string): string => {
       }
     }, 300000);
     return () => clearInterval(interval);
-  }, []); // Only on mount
+  }, [mainTab]); // React to mainTab changes
 
   // Fetch employees by contract when selecting it in RH view
   useEffect(() => {
@@ -2818,7 +2829,7 @@ const normalizeWorkMovementSector = (sec?: string): string => {
       const config = getSupabaseConfig();
       if (config.enabled) {
         try {
-          const data = await syncFromSupabase();
+          const data = await syncFromSupabase('USERS_ONLY');
           if (data && data['sigo_users']) {
             latestUsers = data['sigo_users'];
           } else {

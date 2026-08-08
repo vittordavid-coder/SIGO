@@ -63,7 +63,12 @@ export function useLocalStorage<T>(key: string, initialValue: T, companyId?: str
       
       // Load from localStorage as initial cache
       const item = window.localStorage.getItem(storeKey);
-      let val = item ? JSON.parse(item) : initialValue;
+      let val;
+      try {
+        val = item ? JSON.parse(item) : initialValue;
+      } catch (e) {
+        val = item as unknown as T;
+      }
       if (val === null && initialValue !== null) val = initialValue;
       
       // If Supabase is enabled and no local cached data is found, return initialValue
@@ -84,7 +89,12 @@ export function useLocalStorage<T>(key: string, initialValue: T, companyId?: str
     try {
       const storeKey = companyId && key !== 'sigo_users' ? `${companyId}_${key}` : key;
       const item = window.localStorage.getItem(storeKey);
-      let val = item ? JSON.parse(item) : initialValue;
+      let val;
+      try {
+        val = item ? JSON.parse(item) : initialValue;
+      } catch (e) {
+        val = item as unknown as T;
+      }
       if (val === null && initialValue !== null) val = initialValue;
       
       if (JSON.stringify(val) !== JSON.stringify(storedValue)) {
