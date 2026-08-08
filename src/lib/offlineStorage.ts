@@ -7,18 +7,26 @@ const STORE_FIELD_REPORTS = 'field_reports';
 
 function openDB(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
-    if (typeof window === 'undefined' || !window.indexedDB) {
-      return reject(new Error('IndexedDB not available'));
-    }
-    const request = window.indexedDB.open(DB_NAME, DB_VERSION);
-    request.onupgradeneeded = () => {
-      const db = request.result;
-      if (!db.objectStoreNames.contains(STORE_FIELD_REPORTS)) {
-        db.createObjectStore(STORE_FIELD_REPORTS, { keyPath: 'id' });
+    try {
+      if (typeof window === 'undefined' || !window.indexedDB) {
+        return reject(new Error('IndexedDB not available'));
       }
-    };
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error);
+      const request = window.indexedDB.open(DB_NAME, DB_VERSION);
+      request.onupgradeneeded = () => {
+        try {
+          const db = request.result;
+          if (!db.objectStoreNames.contains(STORE_FIELD_REPORTS)) {
+            db.createObjectStore(STORE_FIELD_REPORTS, { keyPath: 'id' });
+          }
+        } catch (e) {
+          reject(e);
+        }
+      };
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error || new Error('IndexedDB open error'));
+    } catch (err) {
+      reject(err);
+    }
   });
 }
 

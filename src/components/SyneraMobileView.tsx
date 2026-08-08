@@ -1168,8 +1168,12 @@ export function SyneraMobileView({
       if (stream) {
         setCameraStream(stream);
         if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-          videoRef.current.play().catch(pErr => console.warn('Falha no auto-play do vídeo:', pErr));
+          const v = videoRef.current;
+          v.muted = true;
+          v.setAttribute('playsinline', 'true');
+          v.setAttribute('webkit-playsinline', 'true');
+          v.srcObject = stream;
+          v.play().catch(pErr => console.warn('Falha no auto-play do vídeo:', pErr));
         }
 
         // Aplicar lanterna se disponível
@@ -1205,11 +1209,18 @@ export function SyneraMobileView({
     }
   };
 
-  // Garantir vinculação do stream de vídeo ao elemento <video> quando este é renderizado
+  // Garantir vinculação do stream de vídeo ao elemento <video> quando este é renderizado (compatível com iOS Safari/WebKit)
   useEffect(() => {
     if (videoRef.current && cameraStream && isCameraOpen) {
-      videoRef.current.srcObject = cameraStream;
-      videoRef.current.play().catch(pErr => console.warn('Falha no auto-play do vídeo:', pErr));
+      const v = videoRef.current;
+      v.muted = true;
+      v.setAttribute('playsinline', 'true');
+      v.setAttribute('webkit-playsinline', 'true');
+      v.srcObject = cameraStream;
+      v.onloadedmetadata = () => {
+        v.play().catch(pErr => console.warn('Falha no play do vídeo no iOS:', pErr));
+      };
+      v.play().catch(pErr => console.warn('Falha no auto-play do vídeo:', pErr));
     }
   }, [cameraStream, isCameraOpen]);
 
@@ -1423,7 +1434,7 @@ export function SyneraMobileView({
     }
   };
 
-  const handleDownloadPhoto = (dataUrl: string) => {
+  const handleDownloadPhoto = async (dataUrl: string) => {
     try {
       const arr = dataUrl.split(',');
       const mime = arr[0].match(/:(.*?);/)?.[1] || 'image/jpeg';
@@ -1434,6 +1445,23 @@ export function SyneraMobileView({
         u8arr[n] = bstr.charCodeAt(n);
       }
       const blob = new Blob([u8arr], { type: mime });
+
+      if (typeof navigator !== 'undefined' && navigator.share && navigator.canShare) {
+        try {
+          const file = new File([blob], `synera_cam_${Date.now()}.jpg`, { type: mime });
+          if (navigator.canShare({ files: [file] })) {
+            await navigator.share({
+              files: [file],
+              title: 'Foto Synera Cam',
+              text: 'Evidência fotográfica capturada via Synera Cam'
+            });
+            return;
+          }
+        } catch (shareErr: any) {
+          if (shareErr.name === 'AbortError') return;
+        }
+      }
+
       const blobUrl = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = blobUrl;

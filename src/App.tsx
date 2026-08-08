@@ -101,7 +101,12 @@ export default function App() {
   });
 
   const isPWA = typeof window !== 'undefined' && (window.matchMedia('(display-mode: standalone)').matches || Boolean((navigator as any).standalone));
-  const isSyneraCamUrl = typeof window !== 'undefined' && window.location.pathname.includes("cam.html");
+  const isSyneraCamUrl = typeof window !== 'undefined' && (
+    window.location.pathname.includes("cam.html") || 
+    window.location.href.includes("cam.html") || 
+    window.location.search.includes("cam=true") ||
+    window.location.hash.includes("cam")
+  );
 
   // Fallback offline user for Synera Cam to bypass login when offline/standalone
   const effectiveUser = currentUser || (isSyneraCamUrl ? {
@@ -159,12 +164,18 @@ export default function App() {
 
   const [isMobileDevice, setIsMobileDevice] = useState<boolean>(() => {
     if (typeof window === 'undefined') return false;
-    return window.innerWidth < 768 || /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
+    const ua = navigator.userAgent || '';
+    const isTouchMac = navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1;
+    const isMobileUA = /Mobi|Android|iPhone|iPad|iPod|iOS/i.test(ua);
+    return window.innerWidth < 768 || isMobileUA || isTouchMac;
   });
 
   useEffect(() => {
     const handleResize = () => {
-      setIsMobileDevice(window.innerWidth < 768 || /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent));
+      const ua = navigator.userAgent || '';
+      const isTouchMac = navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1;
+      const isMobileUA = /Mobi|Android|iPhone|iPad|iPod|iOS/i.test(ua);
+      setIsMobileDevice(window.innerWidth < 768 || isMobileUA || isTouchMac);
     };
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
