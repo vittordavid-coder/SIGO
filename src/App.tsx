@@ -171,8 +171,13 @@ export default function App() {
 
   const [mainTab, setMainTab] = useState<'home' | 'quotations' | 'measurements' | 'rh' | 'control' | 'purchases' | 'project_admin' | 'settings' | 'admin' | 'profile' | 'gerencia' | 'financeiro' | 'almoxarife' | 'help' | 'mobile'>(() => {
     try {
-      if (typeof window !== 'undefined' && (window.matchMedia('(display-mode: standalone)').matches || Boolean((navigator as any).standalone))) {
-        return 'mobile';
+      if (typeof window !== 'undefined') {
+        if (window.location.pathname.includes('cam.html') || window.location.pathname.includes('mobile.html') || window.location.search.includes('tab=mobile')) {
+          return 'mobile';
+        }
+        if (window.matchMedia('(display-mode: standalone)').matches || Boolean((navigator as any).standalone)) {
+          return 'mobile';
+        }
       }
       return (window.sessionStorage.getItem('sigo_main_tab') as any) || 'home';
     } catch {
@@ -2095,9 +2100,9 @@ const normalizeWorkMovementSector = (sec?: string): string => {
     }
   }, [selectedContractId, mainTab, isSupabaseSynced]);
 
-  const handleSyncAllToSupabase = async () => {
+  const handleSyncAllToSupabase = async (force = false) => {
     const config = getSupabaseConfig();
-    if (!config.enabled || !config.url || !config.key || !currentUser || !isSupabaseSynced || supabaseSyncError) {
+    if (!config.enabled || !config.url || !config.key || !currentUser || (!force && (!isSupabaseSynced || supabaseSyncError))) {
       console.warn('[Sync] Sincronização bloqueada: Pendente de carregamento ou erro de conexão.');
       return;
     }
@@ -4651,7 +4656,7 @@ const normalizeWorkMovementSector = (sec?: string): string => {
     equipmentMaintenance, equipmentMonthlyData, manpowerMonthlyData
   ]);
 
-  if (!isSupabaseSynced && getSupabaseConfig().enabled && !isSyneraCamUrl) {
+  if (!isSupabaseSynced && getSupabaseConfig().enabled && mainTab !== 'mobile') {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 bg-[radial-gradient(circle_at_top_right,_var(--tw-gradient-stops))] from-blue-50/50 via-white to-gray-50/50">
          <div className="flex flex-col items-center gap-6 p-10 bg-white/80 backdrop-blur-md rounded-[32px] border border-blue-100 shadow-2xl shadow-blue-200/40">

@@ -4130,7 +4130,7 @@ export function SyneraMobileView({
                               <div className="flex items-start justify-between gap-2">
                                 <div className="flex items-center gap-3">
                                   <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-indigo-500 to-blue-600 text-white font-black text-sm flex items-center justify-center shrink-0 shadow-md">
-                                    {emp.name.split(' ').map(n => n[0]).slice(0, 2).join('')}
+                                    {emp.name ? emp.name.split(' ').filter(n=>n).map(n => n[0]).slice(0, 2).join('') : 'UN'}
                                   </div>
                                   <div>
                                     <h4 className="font-black text-sm text-white leading-tight">{emp.name}</h4>
@@ -4817,7 +4817,7 @@ export function SyneraMobileView({
                                   <span className="text-xs font-black text-white truncate max-w-[180px]">{m.description}</span>
                                 </div>
                                 <div className="flex items-center gap-2 text-[10px] text-slate-400">
-                                  <span>Data: {new Date(m.date).toLocaleDateString('pt-BR')}</span>
+                                  <span>Data: {(m.date ? new Date(m.date).toLocaleDateString('pt-BR') : '')}</span>
                                   <span>Cat: {m.category}</span>
                                 </div>
                               </div>
@@ -5699,7 +5699,7 @@ export function SyneraMobileView({
                                     <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-slate-950 via-slate-950/90 to-transparent p-2.5 pt-6 pointer-events-none z-20">
                                       <p className="text-[10px] font-extrabold text-white truncate">{report.description || 'Sem descrição'}</p>
                                       <p className="text-[9px] text-slate-400 font-medium">
-                                        {report.timestamp ? new Date(report.timestamp).toLocaleDateString('pt-BR') : report.date}
+                                        {report.timestamp ? (report.timestamp && !isNaN(new Date(report.timestamp).getTime()) ? new Date(report.timestamp).toLocaleDateString('pt-BR') : report.date) : report.date}
                                       </p>
                                     </div>
                                   </div>
