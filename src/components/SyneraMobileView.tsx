@@ -1606,15 +1606,15 @@ export function SyneraMobileView({
   // ----------------------------------------------------
   const handleDeleteReport = (reportId: string) => {
     const targetReport = (fieldReports || []).find(r => r.id === reportId);
+    let confirmMsg = 'Tem certeza de que deseja excluir este registro de campo do celular?';
     if (targetReport) {
       const isSynced = targetReport.status === 'synced' || targetReport.status === 'approved' || Boolean(targetReport.syncedAt);
       if (isSynced) {
-        alert('Este registro já foi sincronizado com o servidor e não pode ser excluído.');
-        return;
+        confirmMsg = 'Atenção: Este registro já foi sincronizado com o servidor. Deseja realmente excluí-lo? Ele será removido do celular e permanentemente excluído do banco de dados do servidor.';
       }
     }
 
-    if (!window.confirm('Tem certeza de que deseja excluir esta foto da galeria?')) return;
+    if (!window.confirm(confirmMsg)) return;
 
     if (onDeleteFieldReport) {
       onDeleteFieldReport(reportId);
@@ -1627,7 +1627,7 @@ export function SyneraMobileView({
           safeSetLocalStorage('sigo_field_reports', filtered);
         }
       } catch (e) {
-        console.error('Erro ao excluir foto local:', e);
+        console.error('Erro ao excluir registro local:', e);
       }
     }
 
@@ -2631,6 +2631,12 @@ export function SyneraMobileView({
 
   // Process sync offline queue
   const handleProcessSync = async () => {
+    // Before syncing, ask the user if they are sure they want to synchronize
+    const confirmSync = window.confirm('Deseja realmente sincronizar os dados com o servidor agora? Esta ação enviará todos os seus apontamentos de campo locais e atualizará os dados do dispositivo.');
+    if (!confirmSync) {
+      return;
+    }
+
     setIsSyncing(true);
 
     if (isCamOnly) {
@@ -5677,18 +5683,17 @@ export function SyneraMobileView({
                                   : 'Salvo localmente no dispositivo (aguardando sincronização)'}
                               </span>
                               <div className="flex items-center gap-2">
-                                {!isSynced ? (
-                                  <button
-                                    onClick={() => handleDeleteReport(rep.id)}
-                                    className="text-red-400 hover:text-red-300 font-bold flex items-center gap-1 text-[10px]"
-                                  >
-                                    <Trash2 className="w-3 h-3" /> Excluir
-                                  </button>
-                                ) : (
-                                  <span className="text-[10px] text-emerald-400 font-bold flex items-center gap-1 bg-emerald-950/60 px-2 py-0.5 rounded-md border border-emerald-800/60">
-                                    <CheckCircle2 className="w-3 h-3" /> Sincronizado (Bloqueado)
+                                {isSynced && (
+                                  <span className="text-[9px] text-emerald-400 font-bold flex items-center gap-1 bg-emerald-950/60 px-2 py-0.5 rounded-md border border-emerald-800/60 shrink-0">
+                                    <CheckCircle2 className="w-3.5 h-3.5" /> Sincronizado
                                   </span>
                                 )}
+                                <button
+                                  onClick={() => handleDeleteReport(rep.id)}
+                                  className="text-red-400 hover:text-red-300 font-extrabold flex items-center gap-1 text-[10px] shrink-0"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" /> Excluir
+                                </button>
                               </div>
                             </div>
                           </div>

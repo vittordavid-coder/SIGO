@@ -183,6 +183,75 @@ export default function App() {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
+  // Real-time synchronization for field_reports using Supabase postgres_changes
+  useEffect(() => {
+    const config = getSupabaseConfig();
+    if (!config.enabled) return;
+    const supabase = createSupabaseClient(config.url, config.key);
+    if (!supabase) return;
+
+    console.info('[Supabase Realtime] Subscribing to field_reports changes...');
+    const channel = supabase
+      .channel('field_reports_realtime_sync')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'field_reports'
+        },
+        async (payload: any) => {
+          console.info('[Supabase Realtime] Change received:', payload);
+          const { eventType, new: newRow, old: oldRow } = payload;
+          
+          setFieldReports((current) => {
+            const list = Array.isArray(current) ? [...current] : [];
+            const deletedIds = getDeletedFieldReportIds();
+            const activeId = currentUser?.companyId || compId;
+
+            if (eventType === 'INSERT' || eventType === 'UPDATE') {
+              if (!newRow || !newRow.id) return list;
+              if (deletedIds.includes(newRow.id)) return list;
+              
+              // Only keep reports belonging to the current company (or default/shared)
+              if (activeId && newRow.company_id && newRow.company_id !== activeId && newRow.company_id !== 'default') {
+                return list;
+              }
+
+              // Transform DB row to camelCase
+              const camelItem = mapToCamel(newRow) as FieldProductionReport;
+              
+              // Persist to IndexedDB in background
+              saveFieldReportToIDB(camelItem).catch(() => {});
+
+              // Deduplicate and update
+              const index = list.findIndex(item => item.id === camelItem.id);
+              if (index >= 0) {
+                const updatedList = [...list];
+                updatedList[index] = { ...updatedList[index], ...camelItem };
+                return updatedList;
+              } else {
+                return [camelItem, ...list];
+              }
+            } else if (eventType === 'DELETE') {
+              if (!oldRow || !oldRow.id) return list;
+              // Delete from IndexedDB in background
+              deleteFieldReportFromIDB(oldRow.id).catch(() => {});
+              return list.filter(item => item.id !== oldRow.id);
+            }
+            return list;
+          });
+        }
+      )
+      .subscribe((status: string) => {
+        console.info(`[Supabase Realtime] Subscription status for field_reports: ${status}`);
+      });
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [compId, currentUser?.companyId]);
+
   const [mainTab, setMainTab] = useState<'home' | 'quotations' | 'measurements' | 'rh' | 'control' | 'purchases' | 'project_admin' | 'settings' | 'admin' | 'profile' | 'gerencia' | 'financeiro' | 'almoxarife' | 'help' | 'mobile'>(() => {
     try {
       if (typeof window !== 'undefined') {
@@ -579,17 +648,19 @@ export default function App() {
 
     try {
       if (activeCompId) {
-        let { error: bErr } = await supabase.from('app_state').upsert({
+        // Run blob replication in background to ensure zero latency and fast database operations
+        supabase.from('app_state').upsert({
           id: `${activeCompId}_sigo_field_reports`,
           content: validRegistros,
           updated_at: new Date().toISOString()
-        });
-        if (bErr) {
-          await supabase.from('app_state').upsert({
-            id: `${activeCompId}_sigo_field_reports`,
-            content: validRegistros
-          }).catch(() => {});
-        }
+        }).then(({ error }) => {
+          if (error) {
+            supabase.from('app_state').upsert({
+              id: `${activeCompId}_sigo_field_reports`,
+              content: validRegistros
+            }).catch(() => {});
+          }
+        }).catch(() => {});
       }
 
       const reportsToUpsert = specificReportsToUpsert !== undefined 
@@ -1710,8 +1781,14 @@ const normalizeWorkMovementSector = (sec?: string): string => {
               }
             }
             
-            if (tableName === 'fuel_reservoirs' || tableName === 'fuel_logs') {
-              finalVal = camelData;
+            if (tableName === 'fuel_reservoirs' || tableName === 'fuel_logs' || tableName === 'field_reports') {
+              if (tableName === 'field_reports') {
+                const isUnsynced = (item: any) => item && (item.synced === false || item.status === 'pending' || (!item.syncedAt && !item.synced));
+                const unsyncedFromBlob = parsedBlobData.filter((b: any) => isUnsynced(b) && !camelData.some((c: any) => c.id === b.id));
+                finalVal = [...camelData, ...unsyncedFromBlob];
+              } else {
+                finalVal = camelData;
+              }
             } else {
               // Merge camelData (from database) with parsedBlobData (local)
               const mergedDbItems = camelData.map(item => {
