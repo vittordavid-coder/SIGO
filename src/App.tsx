@@ -10,7 +10,7 @@ import {
 import { motion, AnimatePresence, Reorder } from 'motion/react';
 import { v4 as uuidv4 } from 'uuid';
 import { useLocalStorage } from './lib/useLocalStorage';
-import { saveFieldReportToIDB, saveMultipleFieldReportsToIDB, getAllFieldReportsFromIDB, deleteFieldReportFromIDB } from './lib/offlineStorage';
+import { saveFieldReportToIDB, saveMultipleFieldReportsToIDB, getAllFieldReportsFromIDB, deleteFieldReportFromIDB, getDeletedFieldReportIds, addDeletedFieldReportId } from './lib/offlineStorage';
 import { Resource, ServiceComposition, Quotation, User, ABCConfig, BudgetGroup, BDIConfig, AuditLog, UserRole, Contract, Measurement, MeasurementTemplate, CalculationMemory, HighwayLocation, StationGroup, CubationData, TransportData, ServiceProduction, Employee, TimeRecord, DailyReport, DailyReportActivity, PluviometryRecord, TechnicalSchedule, DashboardConfig, ControllerTeam, ControllerEquipment, EquipmentMonthlyData, ControllerManpower, ManpowerMonthlyData, TeamAssignment, MarketingConfig, AppModule, PasswordResetRequest, EquipmentTransfer, Supplier, PurchaseOrder, EmailConfig, PurchaseRequest, PurchaseQuotation, EquipmentMaintenance, FuelTank, FuelLog, EquipmentMeasurement, DailyEquipmentMeasurement, Aporte, Warehouse, WarehouseItem, WarehouseEntry, Asset, WarehouseTransfer, WarehouseApplication, Alojamento, MeasurementParameter, WorkMovement, ProjectAlignment } from './types';
 import { INITIAL_WORK_MOVEMENTS } from './lib/workMovementsSql';
 import { cn, hashPassword } from './lib/utils';
@@ -645,20 +645,28 @@ export default function App() {
     }
   };
 
-  const handleSaveFieldReport = (report: FieldProductionReport) => {
+  const handleSaveFieldReport = async (report: FieldProductionReport): Promise<boolean> => {
     const updated = [report, ...fieldReports.filter(r => r.id !== report.id)];
     setFieldReports(updated);
-    saveFieldReportToIDB(report);
+    await saveFieldReportToIDB(report);
+    await syncFieldReportsStateToSupabase(updated);
+    return true;
   };
 
-  const handleUpdateFieldReport = (report: FieldProductionReport) => {
+  const handleUpdateFieldReport = async (report: FieldProductionReport): Promise<boolean> => {
     const updated = fieldReports.map(r => r.id === report.id ? report : r);
     setFieldReports(updated);
-    saveFieldReportToIDB(report);
+    await saveFieldReportToIDB(report);
+    await syncFieldReportsStateToSupabase(updated);
+    if (report.status === 'approved') {
+      recalculateServiceProductionFromReports(report, updated);
+    }
+    return true;
   };
 
   const handleSyncMobileData = async () => {
     const nowIso = new Date().toISOString();
+    const deletedIds = getDeletedFieldReportIds();
 
     // 1. Combine state field reports with IDB reports to ensure no offline report is lost
     let idbReports: FieldProductionReport[] = [];
@@ -666,7 +674,11 @@ export default function App() {
       idbReports = await getAllFieldReportsFromIDB();
     } catch (e) {}
 
-    const combined = deduplicateById([...fieldReports, ...idbReports]);
+    // Exclude deleted reports
+    idbReports = idbReports.filter(r => r && r.id && !deletedIds.includes(r.id));
+    const cleanFieldReports = fieldReports.filter(r => r && r.id && !deletedIds.includes(r.id));
+
+    const combined = deduplicateById([...cleanFieldReports, ...idbReports]);
     // Filter out camera-only photo reports (starting with photo-) - camera photos stay local to device
     const unsyncedReports = combined.filter(r => !r.id.startsWith('photo-') && (!r.synced || !r.syncedAt || r.status === 'pending'));
 
@@ -685,7 +697,7 @@ export default function App() {
       });
 
       setFieldReports(updatedReports);
-      saveMultipleFieldReportsToIDB(updatedReports);
+      await saveMultipleFieldReportsToIDB(updatedReports);
 
       const reportsToPush = updatedReports.filter(r => unsyncedReports.some(u => u.id === r.id));
       await syncFieldReportsStateToSupabase(reportsToPush);
@@ -789,35 +801,60 @@ export default function App() {
     updateServiceProduction(updatedProd);
   };
 
-  const handleDeleteFieldReport = (reportId: string) => {
+  const handleDeleteFieldReport = async (reportId: string): Promise<boolean> => {
+    addDeletedFieldReportId(reportId);
     const report = fieldReports.find(r => r.id === reportId);
     const updated = fieldReports.filter(r => r.id !== reportId);
     setFieldReports(updated);
-    deleteFieldReportFromIDB(reportId);
+
+    try {
+      const stored = localStorage.getItem('sigo_field_reports');
+      if (stored) {
+        const parsed: FieldProductionReport[] = JSON.parse(stored);
+        const filtered = parsed.filter(r => r.id !== reportId);
+        localStorage.setItem('sigo_field_reports', JSON.stringify(filtered));
+      }
+    } catch (e) {}
+
+    await deleteFieldReportFromIDB(reportId);
 
     const config = getSupabaseConfig();
     if (config.enabled) {
       const supabase = createSupabaseClient(config.url, config.key);
       if (supabase) {
-        supabase.from('field_reports').delete().eq('id', reportId).catch(() => {});
+        try {
+          await supabase.from('field_reports').delete().eq('id', reportId);
+        } catch (e) {
+          console.warn('[Supabase] Error deleting field report row:', e);
+        }
       }
     }
-    syncFieldReportsStateToSupabase(updated);
+
+    await syncFieldReportsStateToSupabase(updated);
 
     if (report && report.status === 'approved') {
       recalculateServiceProductionFromReports(report, updated);
     }
+
+    return true;
   };
 
-  const handleApproveFieldReport = (reportId: string, approvedBy?: string, editedData?: Partial<FieldProductionReport>) => {
+  const handleApproveFieldReport = async (reportId: string, approvedBy?: string, editedData?: Partial<FieldProductionReport>): Promise<boolean> => {
     const report = fieldReports.find(r => r.id === reportId);
-    if (!report) return;
+    if (!report) return false;
 
     const baseReport = editedData ? { ...report, ...editedData } : report;
-    const updatedReport: FieldProductionReport = { ...baseReport, status: 'approved' };
+    const updatedReport: FieldProductionReport = { 
+      ...baseReport, 
+      status: 'approved',
+      approvedBy: approvedBy || 'Sala Técnica / Engenharia',
+      approvedAt: new Date().toISOString()
+    };
     const updatedFieldReports = fieldReports.map(r => r.id === reportId ? updatedReport : r);
     setFieldReports(updatedFieldReports);
-    syncFieldReportsStateToSupabase(updatedFieldReports);
+
+    await saveMultipleFieldReportsToIDB(updatedFieldReports);
+    await syncFieldReportsStateToSupabase(updatedFieldReports);
 
     const targetContractId = baseReport.contractId || selectedContractId;
     const reportDate = baseReport.productionDate || baseReport.date || new Date().toISOString().slice(0, 10);
@@ -976,9 +1013,11 @@ export default function App() {
       };
       addDailyReport(newRdo);
     }
+
+    return true;
   };
 
-  const handleRejectFieldReport = (reportId: string, rejectedBy?: string, reason?: string) => {
+  const handleRejectFieldReport = async (reportId: string, rejectedBy?: string, reason?: string): Promise<boolean> => {
     const nowIso = new Date().toISOString();
     const report = fieldReports.find(r => r.id === reportId);
     const updated = fieldReports.map(r => r.id === reportId ? { 
@@ -989,12 +1028,14 @@ export default function App() {
       rejectedAt: nowIso
     } : r);
     setFieldReports(updated);
-    saveMultipleFieldReportsToIDB(updated);
-    syncFieldReportsStateToSupabase(updated);
+    await saveMultipleFieldReportsToIDB(updated);
+    await syncFieldReportsStateToSupabase(updated);
 
     if (report && report.status === 'approved') {
       recalculateServiceProductionFromReports(report, updated);
     }
+
+    return true;
   };
 
 const normalizeWorkMovementSector = (sec?: string): string => {
@@ -1722,6 +1763,13 @@ const normalizeWorkMovementSector = (sec?: string): string => {
               }
             }
 
+            if (tableName === 'field_reports') {
+              const deletedIds = getDeletedFieldReportIds();
+              if (deletedIds.length > 0) {
+                finalVal = (Array.isArray(finalVal) ? finalVal : []).filter((item: any) => item && item.id && !deletedIds.includes(item.id));
+              }
+            }
+
             // CRITICAL: Preserve any unsynced local items present in React state (prev) that might not be in finalVal
             const isUnsynced = (item: any) => item && (item.synced === false || item.status === 'pending' || (!item.syncedAt && !item.synced));
             let finalMerged = Array.isArray(finalVal) ? [...finalVal] : [];
@@ -1731,6 +1779,14 @@ const normalizeWorkMovementSector = (sec?: string): string => {
                 finalMerged = [...finalMerged, ...unsyncedFromPrev];
               }
             }
+
+            if (tableName === 'field_reports') {
+              const deletedIds = getDeletedFieldReportIds();
+              if (deletedIds.length > 0) {
+                finalMerged = finalMerged.filter((item: any) => item && item.id && !deletedIds.includes(item.id));
+              }
+            }
+
             finalVal = finalMerged;
 
             if (!hasError && allData.length === 0 && finalMerged.length === 0) {

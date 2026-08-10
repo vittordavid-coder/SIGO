@@ -16,7 +16,7 @@ import { Label } from './ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Contract, ServiceItem, ServiceProduction, ControllerEquipment, Employee, User, DailyReport, MobileSector, FieldProductionReport, ProjectAlignment } from '../types';
 import { safeSetLocalStorage } from '../lib/useLocalStorage';
-import { saveFieldReportToIDB, saveMultipleFieldReportsToIDB, getAllFieldReportsFromIDB } from '../lib/offlineStorage';
+import { saveFieldReportToIDB, saveMultipleFieldReportsToIDB, getAllFieldReportsFromIDB, deleteFieldReportFromIDB, getDeletedFieldReportIds, addDeletedFieldReportId } from '../lib/offlineStorage';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Chat } from './Chat';
 
@@ -774,8 +774,9 @@ export function SyneraMobileView({
     let isMounted = true;
     getAllFieldReportsFromIDB().then(idbReports => {
       if (!isMounted || !idbReports || idbReports.length === 0) return;
+      const deletedIds = getDeletedFieldReportIds();
       idbReports.forEach(r => {
-        if (r && r.id && onSaveFieldReport) {
+        if (r && r.id && !deletedIds.includes(r.id) && onSaveFieldReport) {
           const exists = fieldReports?.some(f => f.id === r.id);
           if (!exists) {
             onSaveFieldReport(r);

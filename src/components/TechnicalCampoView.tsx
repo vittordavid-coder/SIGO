@@ -15,10 +15,10 @@ interface TechnicalCampoViewProps {
   fieldReports: FieldProductionReport[];
   services: ServiceItem[];
   serviceProductions: ServiceProduction[];
-  onApproveReport: (reportId: string, approvedBy: string, editedData?: Partial<FieldProductionReport>) => void;
-  onRejectReport: (reportId: string, rejectedBy: string, reason?: string) => void;
-  onEditReport: (report: FieldProductionReport) => void;
-  onDeleteReport?: (reportId: string) => void;
+  onApproveReport: (reportId: string, approvedBy: string, editedData?: Partial<FieldProductionReport>) => Promise<boolean> | void;
+  onRejectReport: (reportId: string, rejectedBy: string, reason?: string) => Promise<boolean> | void;
+  onEditReport: (report: FieldProductionReport) => Promise<boolean> | void;
+  onDeleteReport?: (reportId: string) => Promise<boolean> | void;
 }
 
 export function TechnicalCampoView({
@@ -46,6 +46,21 @@ export function TechnicalCampoView({
   const [editDate, setEditDate] = useState<string>('');
   const [editTrecho, setEditTrecho] = useState<string>('');
   const [editNotes, setEditNotes] = useState<string>('');
+
+  // Processing & Feedback modal states
+  const [isProcessing, setIsProcessing] = useState<boolean>(false);
+  const [processingMessage, setProcessingMessage] = useState<string>('');
+  const [feedbackModal, setFeedbackModal] = useState<{
+    isOpen: boolean;
+    type: 'success' | 'error';
+    title: string;
+    message: string;
+  }>({
+    isOpen: false,
+    type: 'success',
+    title: '',
+    message: ''
+  });
 
   // Filter reports for current contract
   const contractReports = useMemo(() => {
@@ -96,7 +111,7 @@ export function TechnicalCampoView({
   };
 
   // Save Edit Changes
-  const handleSaveEdit = () => {
+  const handleSaveEdit = async () => {
     if (!editingReport) return;
     const parsedQty = parseFloat(editQty);
     if (isNaN(parsedQty) || parsedQty <= 0) {
@@ -117,12 +132,32 @@ export function TechnicalCampoView({
       notes: editNotes,
     };
 
-    onEditReport(updated);
-    setEditingReport(null);
+    setIsProcessing(true);
+    setProcessingMessage('Atualizando e gravando alterações no banco de dados...');
+    try {
+      await onEditReport(updated);
+      setEditingReport(null);
+      setFeedbackModal({
+        isOpen: true,
+        type: 'success',
+        title: 'Edição Gravada no Banco de Dados!',
+        message: 'As alterações no registro de campo foram salvas e sincronizadas com sucesso no banco de dados.'
+      });
+    } catch (err: any) {
+      setFeedbackModal({
+        isOpen: true,
+        type: 'error',
+        title: 'Erro ao Salvar no Banco',
+        message: err?.message || 'Não foi possível gravar as alterações no banco de dados. Tente novamente.'
+      });
+    } finally {
+      setIsProcessing(false);
+      setProcessingMessage('');
+    }
   };
 
   // Save Edit Changes & Approve Immediately
-  const handleSaveAndApprove = () => {
+  const handleSaveAndApprove = async () => {
     if (!editingReport) return;
     const parsedQty = parseFloat(editQty);
     if (isNaN(parsedQty) || parsedQty <= 0) {
@@ -143,16 +178,118 @@ export function TechnicalCampoView({
       notes: editNotes,
     };
 
-    onApproveReport(editingReport.id, 'Engenheiro da Sala Técnica', updated);
-    setEditingReport(null);
+    setIsProcessing(true);
+    setProcessingMessage('Aprovando e atualizando saldo no banco de dados...');
+    try {
+      await onApproveReport(editingReport.id, 'Engenheiro da Sala Técnica', updated);
+      setEditingReport(null);
+      setFeedbackModal({
+        isOpen: true,
+        type: 'success',
+        title: 'Apontamento Aprovado e Gravado no Banco!',
+        message: 'O registro foi aprovado com sucesso! Os quantitativos e o saldo de produção do serviço foram atualizados no banco de dados.'
+      });
+    } catch (err: any) {
+      setFeedbackModal({
+        isOpen: true,
+        type: 'error',
+        title: 'Erro na Aprovação',
+        message: err?.message || 'Falha ao confirmar aprovação no banco de dados.'
+      });
+    } finally {
+      setIsProcessing(false);
+      setProcessingMessage('');
+    }
+  };
+
+  // Direct Approve
+  const handleDirectApprove = async (reportId: string) => {
+    setIsProcessing(true);
+    setProcessingMessage('Aprovando e consolidando no banco de dados...');
+    try {
+      await onApproveReport(reportId, 'Engenheiro da Sala Técnica');
+      setFeedbackModal({
+        isOpen: true,
+        type: 'success',
+        title: 'Apontamento Aprovado no Banco de Dados!',
+        message: 'O registro foi aprovado com sucesso! Os quantitativos do serviço foram atualizados e salvos no banco de dados.'
+      });
+    } catch (err: any) {
+      setFeedbackModal({
+        isOpen: true,
+        type: 'error',
+        title: 'Erro na Aprovação',
+        message: err?.message || 'Ocorreu um erro ao gravar a aprovação no banco de dados.'
+      });
+    } finally {
+      setIsProcessing(false);
+      setProcessingMessage('');
+    }
   };
 
   // Confirm Reject
-  const handleConfirmReject = () => {
+  const handleConfirmReject = async () => {
     if (!rejectingReport) return;
-    onRejectReport(rejectingReport.id, 'Sala Técnica / Engenharia', rejectReason);
-    setRejectingReport(null);
-    setRejectReason('');
+    if (!rejectReason.trim()) {
+      alert('Informe o motivo da rejeição.');
+      return;
+    }
+    const reportId = rejectingReport.id;
+    setIsProcessing(true);
+    setProcessingMessage('Registrando rejeição no banco de dados...');
+    try {
+      await onRejectReport(reportId, 'Sala Técnica / Engenharia', rejectReason);
+      setRejectingReport(null);
+      setRejectReason('');
+      setFeedbackModal({
+        isOpen: true,
+        type: 'success',
+        title: 'Rejeição Registrada no Banco de Dados!',
+        message: 'O registro foi rejeitado com sucesso e a atualização foi confirmada no banco de dados.'
+      });
+    } catch (err: any) {
+      setFeedbackModal({
+        isOpen: true,
+        type: 'error',
+        title: 'Erro ao Rejeitar',
+        message: err?.message || 'Não foi possível gravar a rejeição no banco de dados.'
+      });
+    } finally {
+      setIsProcessing(false);
+      setProcessingMessage('');
+    }
+  };
+
+  // Direct Delete
+  const handleDirectDelete = async (report: FieldProductionReport) => {
+    if (!onDeleteReport) return;
+    const confirmMsg = report.status === 'approved'
+      ? 'Atenção: Este registro está APROVADO. Deseja realmente excluí-lo? A quantidade produzida será deduzida dos totais do serviço no banco de dados.'
+      : 'Deseja realmente excluir este registro de campo do banco de dados?';
+
+    if (!window.confirm(confirmMsg)) return;
+
+    setIsProcessing(true);
+    setProcessingMessage('Excluindo registro permanentemente do banco de dados...');
+    try {
+      await onDeleteReport(report.id);
+      setFeedbackModal({
+        isOpen: true,
+        type: 'success',
+        title: 'Registro Excluído do Banco de Dados!',
+        message: 'O registro de campo foi excluído permanentemente e a alteração foi confirmada no banco de dados.'
+      });
+    } catch (err: any) {
+      setFeedbackModal({
+        isOpen: true,
+        type: 'error',
+        title: 'Erro ao Excluir',
+        message: err?.message || 'Falha ao remover o registro do banco de dados.'
+      });
+    } finally {
+      setIsProcessing(false);
+      setProcessingMessage('');
+    }
   };
 
   // Format date display (YYYY-MM-DD -> DD/MM/YYYY)
@@ -462,7 +599,7 @@ export function TechnicalCampoView({
                           <>
                             <Button
                               size="sm"
-                              onClick={() => onApproveReport(report.id, 'Engenheiro da Sala Técnica')}
+                              onClick={() => handleDirectApprove(report.id)}
                               className="h-8 px-2.5 text-xs font-black bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg gap-1 shadow-sm"
                               title="Aprovar e Gravar no Banco de Dados"
                             >
@@ -501,17 +638,9 @@ export function TechnicalCampoView({
                           <Button
                             size="sm"
                             variant="ghost"
-                            onClick={() => {
-                              if (window.confirm(
-                                report.status === 'approved'
-                                  ? 'Atenção: Este registro está APROVADO. Deseja realmente excluí-lo? A quantidade produzida será deduzida e recalculada nos controles dos serviços vinculados.'
-                                  : 'Deseja realmente excluir este registro de campo?'
-                              )) {
-                                onDeleteReport(report.id);
-                              }
-                            }}
+                            onClick={() => handleDirectDelete(report)}
                             className="h-8 px-2 text-xs font-bold text-rose-600 hover:bg-rose-50 rounded-lg gap-1"
-                            title="Excluir registro de campo"
+                            title="Excluir registro do banco de dados"
                           >
                             <Trash2 className="w-3.5 h-3.5 text-rose-600" />
                             <span className="hidden sm:inline">Excluir</span>
@@ -697,6 +826,82 @@ export function TechnicalCampoView({
                 <X className="w-5 h-5" />
               </button>
               <img src={viewingPhotoUrl} alt="Evidência de Campo" className="w-full h-auto max-h-[75vh] object-contain rounded-2xl" />
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* ---------------------------------------------------- */}
+      {/* MODAL DE FEEDBACK DE BANCO DE DADOS */}
+      {/* ---------------------------------------------------- */}
+      <AnimatePresence>
+        {feedbackModal.isOpen && (
+          <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className="bg-white rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl border border-gray-100 text-center space-y-4"
+            >
+              <div 
+                className="mx-auto w-14 h-14 rounded-2xl flex items-center justify-center shadow-lg"
+                style={{
+                  backgroundColor: feedbackModal.type === 'success' ? '#ECFDF5' : '#FEF2F2',
+                  color: feedbackModal.type === 'success' ? '#059669' : '#DC2626'
+                }}
+              >
+                {feedbackModal.type === 'success' ? (
+                  <CheckCircle2 className="w-8 h-8" />
+                ) : (
+                  <AlertCircle className="w-8 h-8" />
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <h3 className="text-lg font-black text-gray-900 tracking-tight">
+                  {feedbackModal.title}
+                </h3>
+                <p className="text-xs text-gray-600 font-medium leading-relaxed">
+                  {feedbackModal.message}
+                </p>
+              </div>
+
+              <div className="pt-2">
+                <Button
+                  onClick={() => setFeedbackModal(prev => ({ ...prev, isOpen: false }))}
+                  className={`w-full h-11 rounded-2xl font-black text-xs uppercase tracking-wider text-white shadow-md ${
+                    feedbackModal.type === 'success'
+                      ? 'bg-emerald-600 hover:bg-emerald-500 shadow-emerald-600/20'
+                      : 'bg-rose-600 hover:bg-rose-500 shadow-rose-600/20'
+                  }`}
+                >
+                  Entendido
+                </Button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* ---------------------------------------------------- */}
+      {/* OVERLAY DE PROCESSAMENTO NO BANCO DE DADOS */}
+      {/* ---------------------------------------------------- */}
+      <AnimatePresence>
+        {isProcessing && (
+          <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.9 }}
+              className="bg-slate-900 text-white rounded-3xl p-6 max-w-sm w-full shadow-2xl border border-slate-800 text-center space-y-4"
+            >
+              <div className="mx-auto w-12 h-12 rounded-2xl bg-blue-600/20 border border-blue-500/30 flex items-center justify-center text-blue-400 animate-spin">
+                <RefreshCw className="w-6 h-6" />
+              </div>
+              <div>
+                <h4 className="text-sm font-black text-white">Processando no Banco de Dados</h4>
+                <p className="text-xs text-slate-400 mt-1">{processingMessage || 'Gravando alterações...'}</p>
+              </div>
             </motion.div>
           </div>
         )}

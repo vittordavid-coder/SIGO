@@ -63,6 +63,43 @@ export async function saveMultipleFieldReportsToIDB(reports: any[]): Promise<voi
   }
 }
 
+export function getDeletedFieldReportIds(): string[] {
+  try {
+    const stored = typeof window !== 'undefined' ? localStorage.getItem('sigo_deleted_field_reports') : null;
+    return stored ? JSON.parse(stored) : [];
+  } catch {
+    return [];
+  }
+}
+
+export function addDeletedFieldReportId(id: string): void {
+  if (!id) return;
+  try {
+    const current = getDeletedFieldReportIds();
+    if (!current.includes(id)) {
+      current.push(id);
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('sigo_deleted_field_reports', JSON.stringify(current));
+      }
+    }
+  } catch (e) {
+    console.warn('[Storage] Error saving deleted field report ID:', e);
+  }
+}
+
+export function removeDeletedFieldReportId(id: string): void {
+  if (!id) return;
+  try {
+    const current = getDeletedFieldReportIds();
+    const filtered = current.filter(item => item !== id);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('sigo_deleted_field_reports', JSON.stringify(filtered));
+    }
+  } catch (e) {
+    console.warn('[Storage] Error removing deleted field report ID:', e);
+  }
+}
+
 export async function getAllFieldReportsFromIDB(): Promise<any[]> {
   try {
     const db = await openDB();
@@ -70,7 +107,12 @@ export async function getAllFieldReportsFromIDB(): Promise<any[]> {
     const store = tx.objectStore(STORE_FIELD_REPORTS);
     const request = store.getAll();
     return new Promise((resolve) => {
-      request.onsuccess = () => resolve(request.result || []);
+      request.onsuccess = () => {
+        const results = request.result || [];
+        const deletedIds = getDeletedFieldReportIds();
+        const valid = results.filter((r: any) => r && r.id && !deletedIds.includes(r.id));
+        resolve(valid);
+      };
       request.onerror = () => resolve([]);
     });
   } catch (e) {
