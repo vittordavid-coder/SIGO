@@ -1,3 +1,4 @@
+import { LoadingScreenTipsManager } from "./LoadingScreenTipsManager";
 import React, { useRef, useState } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { isPast, format } from 'date-fns';
@@ -58,6 +59,8 @@ interface SettingsViewProps {
   currentUser: User;
   defaultOrg: string;
   onDefaultOrgChange: (val: string) => void;
+  systemConfig: any[];
+  onSystemConfigChange: (val: any[]) => void;
   abcConfig: ABCConfig;
   onABCConfigChange: (config: ABCConfig) => void;
   resources: Resource[];
@@ -92,6 +95,7 @@ interface SettingsViewProps {
 export function SettingsView({ 
   companyLogo, companyLogoRight, logoMode, onLogoUpload, onLogoClear, onLogoModeChange,
   currentUser, defaultOrg, onDefaultOrgChange,
+  systemConfig, onSystemConfigChange,
   abcConfig, onABCConfigChange,
   resources, services, quotations, schedules, budgetItems, budgetGroups, bdiConfig,
   contracts, onAddContract, onUpdateContract, onDeleteContract,
@@ -733,6 +737,7 @@ export function SettingsView({
               </div>
             </CardContent>
           </Card>
+          {currentUser.role === 'master' && <LoadingScreenTipsManager systemConfig={systemConfig} onSystemConfigChange={onSystemConfigChange} />}
         </TabsContent>
 
         <TabsContent value="requests" className="mt-0 space-y-6">

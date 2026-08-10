@@ -52,6 +52,7 @@ import { Chat } from './components/Chat';
 import { ManagementView } from './components/ManagementView';
 import { FinanceView } from './components/FinanceView';
 import { SyneraMobileView } from './components/SyneraMobileView';
+import { ActiveSyncLoader } from './components/ActiveSyncLoader';
 
 import { getSupabaseConfig, createSupabaseClient } from './lib/supabaseClient';
 
@@ -299,6 +300,10 @@ export default function App() {
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isSupabaseSynced, setIsSupabaseSynced] = useState(false);
+  const [syncProgress, setSyncProgress] = useState<{ percent: number; stepName: string }>({
+    percent: 15,
+    stepName: 'Iniciando conexão com a nuvem Synera...'
+  });
   const [supabaseSyncError, setSupabaseSyncError] = useState<string | null>(null);
   const lastLocalUpdate = React.useRef<number>(0);
   const lastSyncedHashRef = React.useRef<Record<string, string>>({});
@@ -1821,10 +1826,27 @@ const normalizeWorkMovementSector = (sec?: string): string => {
           }
         });
 
-        const BATCH_SIZE = 5;
-        for (let i = 0; i < fetchFunctions.length; i += BATCH_SIZE) {
-          await Promise.all(fetchFunctions.slice(i, i + BATCH_SIZE).map(fn => fn()));
+        setSyncProgress({ percent: 25, stepName: 'Carregando Obras e Apontamentos de Campo...' });
+
+        // Separate priority tables (essential for immediate view) from secondary background tables
+        const priorityTableNames = ['users', 'contracts', 'field_reports', 'service_compositions', 'service_productions', 'project_alignments'];
+        const priorityIndices: number[] = [];
+        const secondaryIndices: number[] = [];
+
+        keysToFetch.forEach((tableName, idx) => {
+          if (priorityTableNames.includes(tableName)) {
+            priorityIndices.push(idx);
+          } else {
+            secondaryIndices.push(idx);
+          }
+        });
+
+        // 1. Execute Priority Tables first with high concurrency
+        if (priorityIndices.length > 0) {
+          await Promise.all(priorityIndices.map(idx => fetchFunctions[idx]()));
         }
+
+        setSyncProgress({ percent: 80, stepName: 'Sincronizando Medições e Configurações...' });
 
         const loadBlob = (k: string, setter: (v: any) => void) => {
           const val = activeId ? (blobMap[`${activeId}_${k}`] || blobMap[k]) : blobMap[k];
@@ -1841,7 +1863,22 @@ const normalizeWorkMovementSector = (sec?: string): string => {
         loadBlob('sigo_logo_mode', setLogoMode);
         loadBlob('sigo_default_org', setDefaultOrganization);
 
+        // Unlock UI immediately as priority data is ready
+        setSyncProgress({ percent: 100, stepName: 'Concluído! Abrindo Synera...' });
         setIsSupabaseSynced(true);
+
+        // 2. Asynchronously fetch remaining secondary tables in background without blocking UI
+        if (secondaryIndices.length > 0) {
+          const BATCH_SIZE = 8;
+          (async () => {
+            for (let i = 0; i < secondaryIndices.length; i += BATCH_SIZE) {
+              const batch = secondaryIndices.slice(i, i + BATCH_SIZE);
+              await Promise.all(batch.map(idx => fetchFunctions[idx]()));
+            }
+            console.log('[Sync] Background secondary table synchronization complete.');
+          })();
+        }
+
         return finalData;
       } catch (e) {
         console.error('Supabase sync exception:', e);
@@ -4972,31 +5009,11 @@ const normalizeWorkMovementSector = (sec?: string): string => {
 
   if (!isSupabaseSynced && getSupabaseConfig().enabled && mainTab !== 'mobile') {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 bg-[radial-gradient(circle_at_top_right,_var(--tw-gradient-stops))] from-blue-50/50 via-white to-gray-50/50">
-         <div className="flex flex-col items-center gap-6 p-10 bg-white/80 backdrop-blur-md rounded-[32px] border border-blue-100 shadow-2xl shadow-blue-200/40">
-           <div className="relative">
-              <div className="w-24 h-24 border-4 border-blue-100 border-t-blue-600 rounded-full animate-spin" />
-              <div className="absolute inset-0 flex items-center justify-center">
-                <Package className="w-10 h-10 text-blue-600 animate-pulse" />
-              </div>
-           </div>
-           <div className="text-center space-y-3">
-              <h3 className="text-2xl font-bold text-gray-900">Sincronização Ativa</h3>
-              <div className="space-y-1">
-                <p className="text-base text-gray-500 max-w-[280px]">Prioridade: **Servidor Central**</p>
-                <p className="text-sm text-gray-400 max-w-[280px] leading-relaxed">Conectando ao banco de dados para garantir que você tenha as informações mais recentes e seguras.</p>
-              </div>
-           </div>
-           <div className="w-48 h-1 bg-gray-100 rounded-full overflow-hidden">
-             <motion.div 
-               className="h-full bg-blue-600"
-               initial={{ width: "0%" }}
-               animate={{ width: "100%" }}
-               transition={{ duration: 2, repeat: Infinity }}
-             />
-           </div>
-         </div>
-      </div>
+      <ActiveSyncLoader 
+        progress={syncProgress} 
+        onBypass={() => setIsSupabaseSynced(true)} 
+        customTips={systemConfig.find(c => c.configKey === 'loading_screen_tips')?.configValue}
+      />
     );
   }
 
@@ -5991,6 +6008,8 @@ const normalizeWorkMovementSector = (sec?: string): string => {
                   currentUser={currentUser!}
                   defaultOrg={defaultOrganization}
                   onDefaultOrgChange={setDefaultOrganization}
+                  systemConfig={systemConfig}
+                  onSystemConfigChange={setSystemConfig}
                   abcConfig={abcConfig}
                   onABCConfigChange={setAbcConfig}
                   dashboardConfig={dashboardConfig}

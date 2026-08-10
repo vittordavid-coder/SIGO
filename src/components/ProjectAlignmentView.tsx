@@ -10,7 +10,7 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
-import { MapContainer, TileLayer, Polyline, Marker, Popup, useMap, useMapEvents } from 'react-leaflet';
+import { MapContainer, TileLayer, Polyline, Marker, Popup, CircleMarker, useMap, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import { Contract, ProjectAlignment, ProjectAlignmentPoint, ProjectPin, ProjectMeasurement } from '../types';
 import {
@@ -938,6 +938,7 @@ export function ProjectAlignmentView({
   }, [currentAlignment, selectedPointId]);
 
   // Visual Importer Modal State (rh-like multi step)
+  const [showImportExportModal, setShowImportExportModal] = useState<boolean>(false);
   const [showImportModal, setShowImportModal] = useState<boolean>(false);
   const [importStep, setImportStep] = useState<1 | 2 | 3>(1);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -1118,6 +1119,69 @@ export function ProjectAlignmentView({
     ];
 
     XLSX.writeFile(wb, `Modelo_Tracado_Horizontal_${contract.workName || 'Obra'}.xlsx`);
+  };
+
+  const handleKmlImport = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      try {
+        const xml = evt.target?.result as string;
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(xml, 'text/xml');
+        const coordsNodes = Array.from(doc.getElementsByTagName('coordinates'));
+        
+        let newPoints: ProjectAlignmentPoint[] = [];
+        let idCounter = 1;
+
+        coordsNodes.forEach(coordNode => {
+           const coordsText = coordNode.textContent?.trim().split(/\s+/);
+           coordsText?.forEach(c => {
+              const parts = c.split(',');
+              if (parts.length >= 2) {
+                 newPoints.push({
+                   id: `kml-pt-${idCounter}-${Date.now()}`,
+                   station: `KML ${idCounter}`,
+                   lat: parseFloat(parts[1]),
+                   lng: parseFloat(parts[0]),
+                   elevation: parts.length > 2 ? parseFloat(parts[2]) : undefined,
+                   type: 'PI'
+                 });
+                 idCounter++;
+              }
+           });
+        });
+
+        if (newPoints.length === 0) {
+          throw new Error("Nenhuma coordenada encontrada no arquivo KML.");
+        }
+
+        const newAlignment: ProjectAlignment = {
+          id: currentAlignment?.id || `align-${Date.now()}`,
+          contractId: contract.id,
+          name: file.name.replace('.kml', ''),
+          points: newPoints,
+          pins: currentAlignment?.pins || [],
+          savedMeasurements: currentAlignment?.savedMeasurements || [],
+          updatedAt: new Date().toISOString()
+        };
+
+        if (onSaveProjectAlignment) {
+          onSaveProjectAlignment(newAlignment);
+        }
+        
+        setShowImportExportModal(false);
+        setSaveSuccessMessage("KML importado com sucesso!");
+        setTimeout(() => setSaveSuccessMessage(null), 3000);
+
+      } catch (err: any) {
+        alert("Erro ao importar KML: " + err.message);
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = '';
   };
 
   // Step 1: Handle File Selection for Visual Importer
@@ -1828,24 +1892,11 @@ export function ProjectAlignmentView({
           {/* BOTOES DE AÇÃO DA SALA TÉCNICA (IMPORTAÇÃO E KML) */}
           <div className="flex flex-wrap items-center gap-3">
             <button
-              onClick={() => {
-                setImportStep(1);
-                setShowImportModal(true);
-              }}
+              onClick={() => setShowImportExportModal(true)}
               className="px-5 py-3.5 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-black text-xs uppercase tracking-wider flex items-center gap-2.5 shadow-xl shadow-emerald-500/20 transition-all hover:scale-[1.02] active:scale-[0.98]"
             >
-              <Upload className="w-4 h-4 stroke-[2.5]" />
-              Importar Planilha (.xlsx)
-            </button>
-
-            <button
-              onClick={() => setShowKmlModal(true)}
-              disabled={!currentAlignment}
-              className="px-4 py-3.5 rounded-2xl bg-slate-900 hover:bg-slate-800 text-blue-300 font-bold text-xs uppercase tracking-wider flex items-center gap-2 border border-blue-500/30 shadow-lg disabled:opacity-50 transition-all hover:scale-[1.02] active:scale-[0.98]"
-              title="Exportar traçado, estacas e alfinetes em formato Google Earth KML"
-            >
-              <Share2 className="w-4 h-4 text-blue-400" />
-              Exportar KML
+              <RefreshCw className="w-4 h-4 stroke-[2.5]" />
+              Importar / Exportar
             </button>
           </div>
         </div>
@@ -2569,7 +2620,7 @@ export function ProjectAlignmentView({
                     );
                   })
                 ) : (
-                  /* Quando o zoom estiver distante, mostra apenas pequenos vértices discretos */
+                  /* Quando o zoom estiver distante, mostra apenas pequenos vértices discretos otimizados (CircleMarker) */
                   currentAlignment.points.map((pt, idx) => {
                     const isStart = idx === 0;
                     const isEnd = idx === currentAlignment.points?.length - 1;
@@ -2581,18 +2632,19 @@ export function ProjectAlignmentView({
                     if (isSelected) markerColor = '#f59e0b';
 
                     return (
-                      <Marker
+                      <CircleMarker
                         key={`vtx-marker-${pt.id}`}
-                        position={[pt.lat, pt.lng]}
+                        center={[pt.lat, pt.lng]}
+                        radius={isSelected ? 5 : 2}
+                        pathOptions={{ 
+                          color: '#ffffff', 
+                          weight: 1, 
+                          fillColor: markerColor, 
+                          fillOpacity: 1 
+                        }}
                         eventHandlers={{
                           click: () => setSelectedPointId(pt.id)
                         }}
-                        icon={L.divIcon({
-                          className: 'custom-vertex-marker',
-                          html: `<div style="background-color: ${markerColor}; width: ${isSelected ? '14px' : '8px'}; height: ${isSelected ? '14px' : '8px'}; border-radius: 50%; border: 2px solid #ffffff; box-shadow: 0 0 6px rgba(0,0,0,0.6);"></div>`,
-                          iconSize: [isSelected ? 14 : 8, isSelected ? 14 : 8],
-                          iconAnchor: [isSelected ? 7 : 4, isSelected ? 7 : 4]
-                        })}
                       >
                         <Popup className="custom-leaflet-popup">
                           <div className="p-2 space-y-1 text-xs">
@@ -2600,7 +2652,7 @@ export function ProjectAlignmentView({
                             <p className="text-[10px] text-gray-500 font-bold">Aproxime o zoom (nível {cadSettings.minStationZoom}+) para exibir a rotulagem das estacas em CAD</p>
                           </div>
                         </Popup>
-                      </Marker>
+                      </CircleMarker>
                     );
                   })
                 )}
@@ -2633,15 +2685,11 @@ export function ProjectAlignmentView({
                       pathOptions={{ color: '#3b82f6', weight: 4, dashArray: '6, 6' }}
                     />
                     {currentMeasurePoints.map((p, i) => (
-                      <Marker
+                      <CircleMarker
                         key={`m-curr-${i}`}
-                        position={[p.lat, p.lng]}
-                        icon={L.divIcon({
-                          className: 'measure-node',
-                          html: `<div style="background-color: #3b82f6; width: 10px; height: 10px; border-radius: 50%; border: 2px solid white;"></div>`,
-                          iconSize: [10, 10],
-                          iconAnchor: [5, 5]
-                        })}
+                        center={[p.lat, p.lng]}
+                        radius={4}
+                        pathOptions={{ color: '#ffffff', weight: 1, fillColor: '#3b82f6', fillOpacity: 1 }}
                       />
                     ))}
                   </>
@@ -2755,6 +2803,102 @@ export function ProjectAlignmentView({
       )}
 
       {/* MODAL DE IMPORTAÇÃO VISUAL DA PLANILHA (SISTEMA RH-LIKE) */}
+      {/* MODAL DE IMPORTAÇÃO / EXPORTAÇÃO (SISTEMA RH-LIKE) */}
+      <AnimatePresence>
+        {showImportExportModal && (
+          <div className="fixed inset-0 z-[2000] bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white text-slate-800 rounded-[32px] shadow-2xl border border-slate-200 w-full max-w-4xl overflow-hidden flex flex-col max-h-[90vh]"
+            >
+              <div className="p-6 border-b border-slate-100 flex items-center justify-between shrink-0">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shadow-sm">
+                    <RefreshCw className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-bold text-slate-900">Importar / Exportar Dados do Traçado</h3>
+                    <p className="text-xs text-slate-500">
+                      Selecione o formato para exportação, importe seus dados (KML ou Excel) ou baixe o modelo padrão.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowImportExportModal(false)}
+                  className="p-2 rounded-full text-slate-400 hover:text-slate-700 bg-slate-50 hover:bg-slate-100 transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              
+              <div className="p-6 overflow-y-auto">
+                <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+                  {/* Option 1: Baixar Modelo Excel */}
+                  <button
+                    onClick={handleDownloadSampleExcel}
+                    className="flex flex-col items-center justify-center border-2 border-slate-100 hover:border-emerald-500 hover:bg-emerald-50/50 p-6 rounded-2xl transition group text-center cursor-pointer"
+                  >
+                    <div className="w-12 h-12 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center border border-emerald-100 group-hover:scale-110 transition-transform mb-3">
+                      <FileSpreadsheet className="w-6 h-6" />
+                    </div>
+                    <span className="font-extrabold text-slate-800 text-sm">Baixar Modelo</span>
+                    <span className="text-slate-400 text-[10px] mt-1 leading-tight">Planilha padrão (.xlsx) de traçado</span>
+                  </button>
+
+                  {/* Option 2: Importar Excel */}
+                  <button
+                    onClick={() => {
+                      setShowImportExportModal(false);
+                      setImportStep(1);
+                      setShowImportModal(true);
+                    }}
+                    className="flex flex-col items-center justify-center border-2 border-slate-100 hover:border-blue-500 hover:bg-blue-50/50 p-6 rounded-2xl transition group text-center cursor-pointer"
+                  >
+                    <div className="w-12 h-12 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center border border-blue-100 group-hover:scale-110 transition-transform mb-3">
+                      <Upload className="w-6 h-6" />
+                    </div>
+                    <span className="font-extrabold text-slate-800 text-sm">Importar Planilha</span>
+                    <span className="text-slate-400 text-[10px] mt-1 leading-tight">Mapear dados do Excel (.xlsx)</span>
+                  </button>
+
+                  {/* Option 3: Importar KML */}
+                  <div className="relative flex flex-col items-center justify-center border-2 border-slate-100 hover:border-amber-500 hover:bg-amber-50/50 p-6 rounded-2xl transition group text-center cursor-pointer overflow-hidden">
+                    <input
+                      type="file"
+                      accept=".kml"
+                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                      onChange={handleKmlImport}
+                    />
+                    <div className="w-12 h-12 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center border border-amber-100 group-hover:scale-110 transition-transform mb-3">
+                      <Map className="w-6 h-6" />
+                    </div>
+                    <span className="font-extrabold text-slate-800 text-sm">Importar KML</span>
+                    <span className="text-slate-400 text-[10px] mt-1 leading-tight">Poligonais e marcadores do Google Earth</span>
+                  </div>
+
+                  {/* Option 4: Exportar KML */}
+                  <button
+                    onClick={() => {
+                      setShowImportExportModal(false);
+                      setShowKmlModal(true);
+                    }}
+                    disabled={!currentAlignment}
+                    className="flex flex-col items-center justify-center border-2 border-slate-100 hover:border-purple-500 hover:bg-purple-50/50 p-6 rounded-2xl transition group text-center cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <div className="w-12 h-12 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center border border-purple-100 group-hover:scale-110 transition-transform mb-3">
+                      <Share2 className="w-6 h-6" />
+                    </div>
+                    <span className="font-extrabold text-slate-800 text-sm">Exportar KML</span>
+                    <span className="text-slate-400 text-[10px] mt-1 leading-tight">Salvar traçado atual em KML</span>
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
       <AnimatePresence>
         {showImportModal && (
           <div className="fixed inset-0 z-[2000] bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">

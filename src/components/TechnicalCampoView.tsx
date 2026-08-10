@@ -62,9 +62,33 @@ export function TechnicalCampoView({
     message: ''
   });
 
-  // Filter reports for current contract
+  // Filter reports for current contract with resilient matching (by ID, Code, Name or WorkName)
   const contractReports = useMemo(() => {
-    return fieldReports.filter(r => r.contractId === contract.id || !r.contractId);
+    if (!contract) return [];
+    
+    const cleanId = (contract.id || '').toString().trim().toLowerCase();
+    const cleanCode = (contract.code || '').toString().trim().toLowerCase();
+    const cleanName = (contract.name || (contract as any).workName || '').toString().trim().toLowerCase();
+
+    return fieldReports.filter(r => {
+      if (!r) return false;
+      const rContractId = (r.contractId || '').toString().trim().toLowerCase();
+      const rContractName = (r.contractName || '').toString().trim().toLowerCase();
+
+      // Explicit match by ID
+      if (cleanId && rContractId && rContractId === cleanId) return true;
+      
+      // Match by Contract Code
+      if (cleanCode && rContractId && rContractId === cleanCode) return true;
+
+      // Match by Contract Name / WorkName
+      if (cleanName && (rContractName && (rContractName === cleanName || rContractId === cleanName))) return true;
+
+      // If report has no contractId and no contractName specified at all
+      if (!rContractId && !rContractName) return true;
+
+      return false;
+    });
   }, [fieldReports, contract]);
 
   const isPendingReport = (status?: string) => !status || status === 'pending' || status === 'synced';
