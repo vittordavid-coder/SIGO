@@ -38,6 +38,8 @@ export interface ServiceComposition {
   items: CompositionItem[];
 }
 
+export type ServiceItem = ServiceComposition;
+
 export interface BudgetGroup {
   id: string;
   name: string;
@@ -398,6 +400,8 @@ export interface Contract {
   companyId?: string;
   quotationId?: string;
   contractNumber: string;
+  name?: string;
+  code?: string;
   workName?: string; // OBRA
   totalValue?: number; // Valor Total
   object: string;

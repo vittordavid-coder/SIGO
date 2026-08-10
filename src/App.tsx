@@ -13,6 +13,7 @@ import { useLocalStorage } from './lib/useLocalStorage';
 import { saveFieldReportToIDB, saveMultipleFieldReportsToIDB, getAllFieldReportsFromIDB, deleteFieldReportFromIDB, getDeletedFieldReportIds, addDeletedFieldReportId } from './lib/offlineStorage';
 import { Resource, ServiceComposition, Quotation, User, ABCConfig, BudgetGroup, BDIConfig, AuditLog, UserRole, Contract, Measurement, MeasurementTemplate, CalculationMemory, HighwayLocation, StationGroup, CubationData, TransportData, ServiceProduction, Employee, TimeRecord, DailyReport, DailyReportActivity, PluviometryRecord, TechnicalSchedule, DashboardConfig, ControllerTeam, ControllerEquipment, EquipmentMonthlyData, ControllerManpower, ManpowerMonthlyData, TeamAssignment, MarketingConfig, AppModule, PasswordResetRequest, EquipmentTransfer, Supplier, PurchaseOrder, EmailConfig, PurchaseRequest, PurchaseQuotation, EquipmentMaintenance, FuelTank, FuelLog, EquipmentMeasurement, DailyEquipmentMeasurement, Aporte, Warehouse, WarehouseItem, WarehouseEntry, Asset, WarehouseTransfer, WarehouseApplication, Alojamento, MeasurementParameter, WorkMovement, ProjectAlignment } from './types';
 import { INITIAL_WORK_MOVEMENTS } from './lib/workMovementsSql';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { cn, hashPassword } from './lib/utils';
 import { calculateBDI } from './lib/calculations';
 import { compressImage } from './lib/imageUtils';
@@ -698,14 +699,14 @@ export default function App() {
 
       setFieldReports(updatedReports);
       await saveMultipleFieldReportsToIDB(updatedReports);
-
-      const reportsToPush = updatedReports.filter(r => unsyncedReports.some(u => u.id === r.id));
-      await syncFieldReportsStateToSupabase(reportsToPush);
     }
 
-    // 2. Refresh/Download latest contracts and system state from Supabase AFTER local push
+    // Always push field reports state to Supabase during mobile sync
+    await syncFieldReportsStateToSupabase(updatedReports);
+
+    // 2. Refresh/Download latest contracts and system state from Supabase AFTER local push (Fast sync for mobile)
     try {
-      await syncFromSupabase();
+      await syncFromSupabase(undefined, false, true);
     } catch (e) {
       console.warn('[Sync] Error syncing from Supabase during mobile sync:', e);
     }
@@ -1471,7 +1472,7 @@ const normalizeWorkMovementSector = (sec?: string): string => {
     });
   };
 
-  const syncFromSupabase = async (targetCompanyId?: string, isPolling: boolean = false) => {
+  const syncFromSupabase = async (targetCompanyId?: string, isPolling: boolean = false, isMobileFastSync: boolean = false) => {
     const config = getSupabaseConfig();
     if (config.enabled && config.url && config.key) {
       const supabase = createSupabaseClient(config.url, config.key);
@@ -1619,7 +1620,10 @@ const normalizeWorkMovementSector = (sec?: string): string => {
         // Configuration and Tables
         const finalData: Record<string, any> = { ...blobMap };
 
-        const fetchFunctions = Object.keys(tableMap).map((tableName) => async () => {
+        const mobileKeyTables = ['contracts', 'service_compositions', 'service_productions', 'equipments', 'employees', 'users', 'project_alignments', 'field_reports', 'daily_reports'];
+        const keysToFetch = isMobileFastSync ? Object.keys(tableMap).filter(t => mobileKeyTables.includes(t)) : Object.keys(tableMap);
+
+        const fetchFunctions = keysToFetch.map((tableName) => async () => {
           const { key, setter } = tableMap[tableName];
           const namespacedKey = activeId ? `${activeId}_${key}` : key;
           
@@ -1642,7 +1646,7 @@ const normalizeWorkMovementSector = (sec?: string): string => {
             let query = supabase.from(effectiveTableName).select('*').range(from, from + pageSize - 1);
             if (activeId && tableName !== 'users' && !isMaster) {
               // Include items that belong to the company OR have no company (global/shared) OR are marked as 'default'
-              if (tableName === 'service_compositions' || tableName === 'resources') {
+              if (tableName === 'service_compositions' || tableName === 'resources' || tableName === 'field_reports' || tableName === 'contracts' || tableName === 'equipments') {
                 query = query.or(`company_id.eq.${activeId},company_id.is.null,company_id.eq.default`);
               } else {
                 query = query.eq('company_id', activeId);
@@ -5272,28 +5276,30 @@ const normalizeWorkMovementSector = (sec?: string): string => {
   if (effectiveUser && (window.location.pathname.includes("cam.html") || isMobileDevice || effectiveUser.userGroup === 'mobile' || effectiveUser.role === 'apontador')) {
     return (
       <div className="min-h-screen bg-slate-950 text-slate-100 font-sans">
-        <SyneraMobileView
-          isCamOnly={window.location.pathname.includes("cam.html")}
-          contracts={finalContracts}
-          services={filteredServices}
-          serviceProductions={serviceProductions}
-          equipments={finalControllerEquipments}
-          employees={employees}
-          users={users}
-          currentUser={effectiveUser}
-          projectAlignments={projectAlignments}
-          onUpdateServiceProduction={updateServiceProduction}
-          onAddWorkMovement={addWorkMovement}
-          onSaveDailyReport={(r) => addDailyReport(r)}
-          fieldReports={fieldReports}
-          onSaveFieldReport={handleSaveFieldReport}
-          onUpdateFieldReport={handleUpdateFieldReport}
-          onDeleteFieldReport={handleDeleteFieldReport}
-          selectedContractId={selectedContractId}
-          onUpdateContractId={setSelectedContractId}
-          onLogout={handleLogout}
-          onSyncRequest={handleSyncMobileData}
-        />
+        <ErrorBoundary fallbackTitle="Synera Mobile / Synera Cam">
+          <SyneraMobileView
+            isCamOnly={window.location.pathname.includes("cam.html")}
+            contracts={finalContracts}
+            services={filteredServices}
+            serviceProductions={serviceProductions}
+            equipments={finalControllerEquipments}
+            employees={employees}
+            users={users}
+            currentUser={effectiveUser}
+            projectAlignments={projectAlignments}
+            onUpdateServiceProduction={updateServiceProduction}
+            onAddWorkMovement={addWorkMovement}
+            onSaveDailyReport={(r) => addDailyReport(r)}
+            fieldReports={fieldReports}
+            onSaveFieldReport={handleSaveFieldReport}
+            onUpdateFieldReport={handleUpdateFieldReport}
+            onDeleteFieldReport={handleDeleteFieldReport}
+            selectedContractId={selectedContractId}
+            onUpdateContractId={setSelectedContractId}
+            onLogout={handleLogout}
+            onSyncRequest={handleSyncMobileData}
+          />
+        </ErrorBoundary>
       </div>
     );
   }

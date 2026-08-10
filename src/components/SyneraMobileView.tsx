@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { 
   Smartphone, Wifi, WifiOff, RefreshCw, CheckCircle2, Check, Clock, 
-  Send, Camera, HardHat, Wrench, Users, FileText, AlertTriangle, 
+  Send, Camera, HardHat, Wrench, Users, FileText, AlertTriangle, AlertCircle,
   MapPin, CloudSun, Plus, Trash2, ShieldCheck, Download, Share2, 
   ChevronRight, Calendar, ArrowUpRight, Zap, Building2, Package, ArrowLeft, Layers,
   Search, Edit3, X, Eye, LogOut, LayoutDashboard, Sliders, Grid, ZapOff, RefreshCcw,
@@ -798,6 +798,7 @@ export function SyneraMobileView({
       onUpdateContractId(id);
     }
   };
+  const setSelectedContractId = setSelectedContract;
 
   useEffect(() => {
     if (propSelectedContractId && propSelectedContractId !== selectedContractId) {
@@ -2752,6 +2753,7 @@ export function SyneraMobileView({
 
     const newFieldReport: FieldProductionReport = {
       id: `f-rep-${Date.now()}`,
+      companyId: (activeContract as any).companyId || currentUser?.companyId || '',
       contractId: activeContract.id,
       contractName: activeContract.name,
       serviceId: prodServiceId,
@@ -4853,7 +4855,7 @@ export function SyneraMobileView({
                         </div>
 
                         <Button
-                          onClick={handleSaveFinancialMovement}
+                          onClick={handleSaveMovimentacao}
                           className="w-full h-11 rounded-2xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-purple-600/30"
                         >
                           <Save className="w-4 h-4" />
@@ -5002,7 +5004,7 @@ export function SyneraMobileView({
                         </div>
 
                         <Button
-                          onClick={handleSaveAdmRequest}
+                          onClick={handleSaveSolicitacao}
                           className="w-full h-11 rounded-2xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-purple-600/30"
                         >
                           <Plus className="w-4 h-4" />
