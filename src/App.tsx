@@ -636,33 +636,17 @@ export default function App() {
     ).length;
   }, [fieldReports, selectedContractId]);
 
-  const syncFieldReportsStateToSupabase = async (updatedReports: FieldProductionReport[], specificReportsToUpsert?: FieldProductionReport[]) => {
+  const syncFieldReportsStateToSupabase = async (updatedReports: FieldProductionReport[], specificReportsToUpsert?: FieldProductionReport[]): Promise<boolean> => {
     const config = getSupabaseConfig();
-    if (!config.enabled) return;
+    if (!config.enabled) return false;
     const supabase = createSupabaseClient(config.url, config.key);
-    if (!supabase) return;
+    if (!supabase) return false;
     const activeCompId = currentUser?.companyId || compId;
 
     // Filter out camera photo-only reports (starting with photo-) - only send production REGISTROS to system
     const validRegistros = (updatedReports || []).filter(r => !r.id.startsWith('photo-'));
 
     try {
-      if (activeCompId) {
-        // Run blob replication in background to ensure zero latency and fast database operations
-        supabase.from('app_state').upsert({
-          id: `${activeCompId}_sigo_field_reports`,
-          content: validRegistros,
-          updated_at: new Date().toISOString()
-        }).then(({ error }) => {
-          if (error) {
-            supabase.from('app_state').upsert({
-              id: `${activeCompId}_sigo_field_reports`,
-              content: validRegistros
-            }).catch(() => {});
-          }
-        }).catch(() => {});
-      }
-
       const reportsToUpsert = specificReportsToUpsert !== undefined 
         ? specificReportsToUpsert.filter(r => !r.id.startsWith('photo-')) 
         : validRegistros;
@@ -713,31 +697,70 @@ export default function App() {
 
         let { error: fErr } = await supabase.from('field_reports').upsert(mapped);
         if (fErr) {
+          console.warn('[Supabase] First attempt failed, retrying with core columns:', fErr);
           const coreMapped = mapped.map(({ info_type, trips_qty, length_m, width_m, height_m, ...rest }: any) => rest);
-          await supabase.from('field_reports').upsert(coreMapped).catch(err => {
-            console.warn('[Supabase] Retry field_reports upsert with core columns failed:', err);
-          });
+          const { error: retryErr } = await supabase.from('field_reports').upsert(coreMapped);
+          if (retryErr) {
+            console.error('[Supabase] Retry field_reports upsert with core columns failed:', retryErr);
+            return false;
+          }
         }
       }
+      return true;
     } catch (err) {
       console.warn('[Supabase] Error syncing field reports:', err);
+      return false;
     }
   };
   const handleSaveFieldReport = async (report: FieldProductionReport): Promise<boolean> => {
-    const updated = [report, ...fieldReports.filter(r => r.id !== report.id)];
-    setFieldReports(updated);
+    // 1. Initial save as pending/unsynced
+    const updatedPending = [report, ...fieldReports.filter(r => r.id !== report.id)];
+    setFieldReports(updatedPending);
     await saveFieldReportToIDB(report);
-    await syncFieldReportsStateToSupabase(updated, [report]);
+
+    // 2. Try to sync to Supabase
+    const success = await syncFieldReportsStateToSupabase(updatedPending, [report]);
+    
+    // 3. If success, mark as synced!
+    if (success && !report.id.startsWith('photo-')) {
+      const syncedReport = {
+        ...report,
+        status: (report.status === 'pending' ? 'synced' : report.status) as any,
+        synced: true,
+        syncedAt: new Date().toISOString()
+      };
+      const updatedSynced = [syncedReport, ...fieldReports.filter(r => r.id !== report.id)];
+      setFieldReports(updatedSynced);
+      await saveFieldReportToIDB(syncedReport);
+    }
     return true;
   };
 
   const handleUpdateFieldReport = async (report: FieldProductionReport): Promise<boolean> => {
-    const updated = fieldReports.map(r => r.id === report.id ? report : r);
-    setFieldReports(updated);
+    const updatedPending = fieldReports.map(r => r.id === report.id ? report : r);
+    setFieldReports(updatedPending);
     await saveFieldReportToIDB(report);
-    await syncFieldReportsStateToSupabase(updated, [report]);
-    if (report.status === 'approved') {
-      recalculateServiceProductionFromReports(report, updated);
+
+    const success = await syncFieldReportsStateToSupabase(updatedPending, [report]);
+
+    if (success && !report.id.startsWith('photo-')) {
+      const syncedReport = {
+        ...report,
+        status: (report.status === 'pending' ? 'synced' : report.status) as any,
+        synced: true,
+        syncedAt: new Date().toISOString()
+      };
+      const updatedSynced = fieldReports.map(r => r.id === report.id ? syncedReport : r);
+      setFieldReports(updatedSynced);
+      await saveFieldReportToIDB(syncedReport);
+      
+      if (syncedReport.status === 'approved') {
+        recalculateServiceProductionFromReports(syncedReport, updatedSynced);
+      }
+    } else {
+      if (report.status === 'approved') {
+        recalculateServiceProductionFromReports(report, updatedPending);
+      }
     }
     return true;
   };
@@ -762,24 +785,37 @@ export default function App() {
 
     let updatedReports = combined;
     if (unsyncedReports.length > 0) {
-      updatedReports = combined.map(r => {
-        if (!r.id.startsWith('photo-') && (!r.synced || !r.syncedAt || r.status === 'pending')) {
-          return {
-            ...r,
-            status: 'synced' as const,
-            syncedAt: nowIso,
-            synced: true
-          };
-        }
-        return r;
-      });
+      // ONLY mark as synced and save to IndexedDB AFTER successful upload to the 'field_reports' table!
+      // This matches the user's requirement: "No synera mobile, os dados após estarem salvos na tabela field_reports, ficam sincronizados no pwa, somente após confimação que os dados estão sincronizados."
+      
+      // Try to sync unsyncedReports to Supabase 'field_reports' table
+      const syncSuccess = await syncFieldReportsStateToSupabase(combined, unsyncedReports);
+      
+      if (syncSuccess) {
+        // Only if it succeeds, update local status of the unsynced reports to 'synced'
+        updatedReports = combined.map(r => {
+          if (!r.id.startsWith('photo-') && (!r.synced || !r.syncedAt || r.status === 'pending')) {
+            return {
+              ...r,
+              status: 'synced' as const,
+              syncedAt: nowIso,
+              synced: true
+            };
+          }
+          return r;
+        });
 
-      setFieldReports(updatedReports);
-      await saveMultipleFieldReportsToIDB(updatedReports);
+        setFieldReports(updatedReports);
+        await saveMultipleFieldReportsToIDB(updatedReports);
+      } else {
+        // If it fails, do not mark them as synced! Throw an error or warning so the UI/user knows it failed
+        console.warn('[Sync] Failed to upload field reports to the server table.');
+        throw new Error('Não foi possível salvar os apontamentos na tabela field_reports do servidor. Verifique sua conexão e tente novamente.');
+      }
+    } else {
+      // Even if nothing to sync, make sure we run a push for safety of any in-memory state
+      await syncFieldReportsStateToSupabase(combined);
     }
-
-    // Always push field reports state to Supabase during mobile sync
-    await syncFieldReportsStateToSupabase(updatedReports);
 
     // 2. Refresh/Download latest contracts and system state from Supabase AFTER local push (Fast sync for mobile)
     try {
@@ -1592,7 +1628,7 @@ const normalizeWorkMovementSector = (sec?: string): string => {
             `${activeId}_sigo_aportes`, `${activeId}_sigo_ctrl_charges`, `${activeId}_sigo_ctrl_ot`, `${activeId}_sigo_warehouses`,
             `${activeId}_sigo_warehouse_items`, `${activeId}_sigo_warehouse_entries`, `${activeId}_sigo_assets`,
             `${activeId}_sigo_warehouse_transfers`, `${activeId}_sigo_warehouse_applications`, `${activeId}_sigo_company_logo_right`,
-            `${activeId}_sigo_work_movements`, `${activeId}_sigo_project_alignments`, `${activeId}_sigo_field_reports`
+            `${activeId}_sigo_work_movements`, `${activeId}_sigo_project_alignments`
           ];
           blobQuery = blobQuery.in('id', expectedBlobIds);
           // Fetch users for this company (or everyone if master)
@@ -1756,7 +1792,7 @@ const normalizeWorkMovementSector = (sec?: string): string => {
           }
           
           let finalVal: any[] = [];
-          const blobData = blobMap[namespacedKey] || (tableName === 'users' ? blobMap[key] : null);
+          const blobData = tableName === 'field_reports' ? null : (blobMap[namespacedKey] || (tableName === 'users' ? blobMap[key] : null));
           const parsedBlobData = blobData ? (Array.isArray(blobData) ? blobData : [blobData]) : [];
 
           if (!hasError && allData.length > 0) {
@@ -2555,7 +2591,6 @@ const normalizeWorkMovementSector = (sec?: string): string => {
       { id: `${compId}_sigo_logo_mode`, content: logoMode },
       { id: `${compId}_sconet_contracts`, content: contracts },
       { id: `${compId}_sconet_measurements`, content: measurements },
-      { id: `${compId}_sigo_field_reports`, content: fieldReports },
       { id: `${compId}_sigo_service_productions`, content: serviceProductions },
       { id: `${compId}_sigo_measurement_templates`, content: measurementTemplates },
       { id: `${compId}_sigo_calc_memories`, content: calculationMemories },
