@@ -567,8 +567,7 @@ export default function App() {
     ).length;
   }, [fieldReports, selectedContractId]);
 
-
-  const syncFieldReportsStateToSupabase = async (updatedReports: FieldProductionReport[]) => {
+  const syncFieldReportsStateToSupabase = async (updatedReports: FieldProductionReport[], specificReportsToUpsert?: FieldProductionReport[]) => {
     const config = getSupabaseConfig();
     if (!config.enabled) return;
     const supabase = createSupabaseClient(config.url, config.key);
@@ -593,8 +592,12 @@ export default function App() {
         }
       }
 
-      if (validRegistros.length > 0) {
-        const mapped = validRegistros.map((r: any) => {
+      const reportsToUpsert = specificReportsToUpsert !== undefined 
+        ? specificReportsToUpsert.filter(r => !r.id.startsWith('photo-')) 
+        : validRegistros;
+
+      if (reportsToUpsert.length > 0) {
+        const mapped = reportsToUpsert.map((r: any) => {
           const {
             id, companyId, contractId, contractName, serviceId, serviceName,
             unit, qty, productionDate, startStation, endStation, trecho,
@@ -602,7 +605,6 @@ export default function App() {
             syncedAt, createdAt, updatedAt, infoType, tripsQty, lengthM, widthM, heightM,
             rejectedBy, rejectionReason, rejectedAt, approvedBy, approvedAt
           } = r;
-
           return {
             id: id || `fr-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
             company_id: companyId || activeCompId || null,
@@ -650,12 +652,11 @@ export default function App() {
       console.warn('[Supabase] Error syncing field reports:', err);
     }
   };
-
   const handleSaveFieldReport = async (report: FieldProductionReport): Promise<boolean> => {
     const updated = [report, ...fieldReports.filter(r => r.id !== report.id)];
     setFieldReports(updated);
     await saveFieldReportToIDB(report);
-    await syncFieldReportsStateToSupabase(updated);
+    await syncFieldReportsStateToSupabase(updated, [report]);
     return true;
   };
 
@@ -663,7 +664,7 @@ export default function App() {
     const updated = fieldReports.map(r => r.id === report.id ? report : r);
     setFieldReports(updated);
     await saveFieldReportToIDB(report);
-    await syncFieldReportsStateToSupabase(updated);
+    await syncFieldReportsStateToSupabase(updated, [report]);
     if (report.status === 'approved') {
       recalculateServiceProductionFromReports(report, updated);
     }
@@ -836,7 +837,7 @@ export default function App() {
       }
     }
 
-    await syncFieldReportsStateToSupabase(updated);
+    await syncFieldReportsStateToSupabase(updated, []);
 
     if (report && report.status === 'approved') {
       recalculateServiceProductionFromReports(report, updated);
@@ -860,7 +861,7 @@ export default function App() {
     setFieldReports(updatedFieldReports);
 
     await saveMultipleFieldReportsToIDB(updatedFieldReports);
-    await syncFieldReportsStateToSupabase(updatedFieldReports);
+    await syncFieldReportsStateToSupabase(updatedFieldReports, [updatedReport]);
 
     const targetContractId = baseReport.contractId || selectedContractId;
     const reportDate = baseReport.productionDate || baseReport.date || new Date().toISOString().slice(0, 10);
@@ -1035,7 +1036,7 @@ export default function App() {
     } : r);
     setFieldReports(updated);
     await saveMultipleFieldReportsToIDB(updated);
-    await syncFieldReportsStateToSupabase(updated);
+    await syncFieldReportsStateToSupabase(updated, [updated.find(r => r.id === reportId)!]);
 
     if (report && report.status === 'approved') {
       recalculateServiceProductionFromReports(report, updated);
