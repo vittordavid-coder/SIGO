@@ -528,7 +528,38 @@ export default function App() {
   const [workMovements, setWorkMovements] = useLocalStorage<WorkMovement[]>('sigo_work_movements', INITIAL_WORK_MOVEMENTS, compId);
   const [fieldReports, setFieldReports] = useLocalStorage<FieldProductionReport[]>('sigo_field_reports', [], compId);
 
-  const pendingFieldReports = fieldReports.filter(r => r.status === 'pending').length;
+  const [selectedContractId, setSelectedContractId] = useState<string | null>(() => {
+    try {
+      const sessionVal = window.sessionStorage.getItem('sigo_selected_contract_id');
+      if (sessionVal) return sessionVal;
+      const localVal = window.localStorage.getItem('sigo_selected_contract_id');
+      if (localVal) return localVal;
+      return null;
+    } catch {
+      return null;
+    }
+  });
+
+  useEffect(() => {
+    try {
+      if (selectedContractId) {
+        window.sessionStorage.setItem('sigo_selected_contract_id', selectedContractId);
+        window.localStorage.setItem('sigo_selected_contract_id', selectedContractId);
+      } else {
+        window.sessionStorage.removeItem('sigo_selected_contract_id');
+        window.localStorage.removeItem('sigo_selected_contract_id');
+      }
+    } catch (e) {}
+  }, [selectedContractId]);
+
+  const pendingFieldReports = useMemo(() => {
+    return fieldReports.filter(r => 
+      !r.id.startsWith('photo-') && 
+      r.status !== 'approved' && 
+      r.status !== 'rejected' &&
+      (!selectedContractId || !r.contractId || r.contractId === selectedContractId)
+    ).length;
+  }, [fieldReports, selectedContractId]);
 
 
   const syncFieldReportsStateToSupabase = async (updatedReports: FieldProductionReport[]) => {
@@ -538,28 +569,32 @@ export default function App() {
     if (!supabase) return;
     const activeCompId = currentUser?.companyId || compId;
 
+    // Filter out camera photo-only reports (starting with photo-) - only send production REGISTROS to system
+    const validRegistros = (updatedReports || []).filter(r => !r.id.startsWith('photo-'));
+
     try {
       if (activeCompId) {
         let { error: bErr } = await supabase.from('app_state').upsert({
           id: `${activeCompId}_sigo_field_reports`,
-          content: updatedReports,
+          content: validRegistros,
           updated_at: new Date().toISOString()
         });
         if (bErr) {
           await supabase.from('app_state').upsert({
             id: `${activeCompId}_sigo_field_reports`,
-            content: updatedReports
+            content: validRegistros
           }).catch(() => {});
         }
       }
 
-      if (updatedReports.length > 0) {
-        const mapped = updatedReports.map((r: any) => {
+      if (validRegistros.length > 0) {
+        const mapped = validRegistros.map((r: any) => {
           const {
             id, companyId, contractId, contractName, serviceId, serviceName,
             unit, qty, productionDate, startStation, endStation, trecho,
             notes, photo, photoUrl, reportedBy, reportedByEmail, status,
-            syncedAt, createdAt, updatedAt, infoType, tripsQty, lengthM, widthM, heightM
+            syncedAt, createdAt, updatedAt, infoType, tripsQty, lengthM, widthM, heightM,
+            rejectedBy, rejectionReason, rejectedAt, approvedBy, approvedAt
           } = r;
 
           return {
@@ -581,9 +616,14 @@ export default function App() {
             reported_by: reportedBy || null,
             reported_by_email: reportedByEmail || null,
             status: status || 'pending',
-            synced_at: (syncedAt && typeof syncedAt === 'string' && syncedAt.trim() !== '') ? syncedAt : null,
+            synced_at: (syncedAt && typeof syncedAt === 'string' && syncedAt.trim() !== '') ? syncedAt : new Date().toISOString(),
             created_at: (createdAt && typeof createdAt === 'string' && createdAt.trim() !== '') ? createdAt : new Date().toISOString(),
             updated_at: (updatedAt && typeof updatedAt === 'string' && updatedAt.trim() !== '') ? updatedAt : new Date().toISOString(),
+            rejected_by: rejectedBy || null,
+            rejection_reason: rejectionReason || null,
+            rejected_at: rejectedAt || null,
+            approved_by: approvedBy || null,
+            approved_at: approvedAt || null,
             ...(infoType ? { info_type: infoType } : {}),
             ...(tripsQty !== undefined && tripsQty !== null ? { trips_qty: Number(tripsQty) } : {}),
             ...(lengthM !== undefined && lengthM !== null ? { length_m: Number(lengthM) } : {}),
@@ -619,36 +659,44 @@ export default function App() {
 
   const handleSyncMobileData = async () => {
     const nowIso = new Date().toISOString();
-    // Combine state field reports with IDB reports to ensure no offline report is lost
+
+    // 1. Combine state field reports with IDB reports to ensure no offline report is lost
     let idbReports: FieldProductionReport[] = [];
     try {
       idbReports = await getAllFieldReportsFromIDB();
     } catch (e) {}
-    
-    const combined = deduplicateById([...fieldReports, ...idbReports]);
-    const unsyncedReports = combined.filter(r => !r.synced || !r.syncedAt || r.status === 'pending');
 
-    if (unsyncedReports.length === 0) {
-      return;
+    const combined = deduplicateById([...fieldReports, ...idbReports]);
+    // Filter out camera-only photo reports (starting with photo-) - camera photos stay local to device
+    const unsyncedReports = combined.filter(r => !r.id.startsWith('photo-') && (!r.synced || !r.syncedAt || r.status === 'pending'));
+
+    let updatedReports = combined;
+    if (unsyncedReports.length > 0) {
+      updatedReports = combined.map(r => {
+        if (!r.id.startsWith('photo-') && (!r.synced || !r.syncedAt || r.status === 'pending')) {
+          return {
+            ...r,
+            status: 'synced' as const,
+            syncedAt: nowIso,
+            synced: true
+          };
+        }
+        return r;
+      });
+
+      setFieldReports(updatedReports);
+      saveMultipleFieldReportsToIDB(updatedReports);
+
+      const reportsToPush = updatedReports.filter(r => unsyncedReports.some(u => u.id === r.id));
+      await syncFieldReportsStateToSupabase(reportsToPush);
     }
 
-    const updatedReports = combined.map(r => {
-      if (!r.synced || !r.syncedAt || r.status === 'pending') {
-        return {
-          ...r,
-          status: 'synced' as const,
-          syncedAt: nowIso,
-          synced: true
-        };
-      }
-      return r;
-    });
-
-    setFieldReports(updatedReports);
-    saveMultipleFieldReportsToIDB(updatedReports);
-
-    const reportsToPush = updatedReports.filter(r => unsyncedReports.some(u => u.id === r.id));
-    await syncFieldReportsStateToSupabase(reportsToPush);
+    // 2. Refresh/Download latest contracts and system state from Supabase AFTER local push
+    try {
+      await syncFromSupabase();
+    } catch (e) {
+      console.warn('[Sync] Error syncing from Supabase during mobile sync:', e);
+    }
   };
 
   const recalculateServiceProductionFromReports = (report: FieldProductionReport, allReports: FieldProductionReport[]) => {
@@ -930,13 +978,21 @@ export default function App() {
     }
   };
 
-  const handleRejectFieldReport = (reportId: string) => {
+  const handleRejectFieldReport = (reportId: string, rejectedBy?: string, reason?: string) => {
+    const nowIso = new Date().toISOString();
     const report = fieldReports.find(r => r.id === reportId);
-    const updated = fieldReports.map(r => r.id === reportId ? { ...r, status: 'rejected' as const } : r);
+    const updated = fieldReports.map(r => r.id === reportId ? { 
+      ...r, 
+      status: 'rejected' as const,
+      rejectedBy: rejectedBy || 'Sala Técnica / Engenharia',
+      rejectionReason: reason || undefined,
+      rejectedAt: nowIso
+    } : r);
     setFieldReports(updated);
+    saveMultipleFieldReportsToIDB(updated);
     syncFieldReportsStateToSupabase(updated);
 
-    if (report) {
+    if (report && report.status === 'approved') {
       recalculateServiceProductionFromReports(report, updated);
     }
   };
@@ -1033,29 +1089,6 @@ const normalizeWorkMovementSector = (sec?: string): string => {
     }
   };
   
-  const [selectedContractId, setSelectedContractId] = useState<string | null>(() => {
-    try {
-      const sessionVal = window.sessionStorage.getItem('sigo_selected_contract_id');
-      if (sessionVal) return sessionVal;
-      const localVal = window.localStorage.getItem('sigo_selected_contract_id');
-      if (localVal) return localVal;
-      return null;
-    } catch {
-      return null;
-    }
-  });
-
-  useEffect(() => {
-    try {
-      if (selectedContractId) {
-        window.sessionStorage.setItem('sigo_selected_contract_id', selectedContractId);
-        window.localStorage.setItem('sigo_selected_contract_id', selectedContractId);
-      } else {
-        window.sessionStorage.removeItem('sigo_selected_contract_id');
-        window.localStorage.removeItem('sigo_selected_contract_id');
-      }
-    } catch (e) {}
-  }, [selectedContractId]);
   const [isContractSheetOpen, setIsContractSheetOpen] = useState(false);
 
   // Custom navigation helper to support sub-tabs
@@ -1637,7 +1670,20 @@ const normalizeWorkMovementSector = (sec?: string): string => {
                 const merged = { ...blobItem };
                 Object.keys(item).forEach(k => {
                   if (item[k] !== null && item[k] !== undefined) {
-                    merged[k] = item[k];
+                    // Don't downgrade synced/rejected state if local state has newer/more specific information
+                    if (k === 'status' && (blobItem.status === 'synced' || blobItem.status === 'rejected') && item.status === 'pending') {
+                      // preserve local status
+                    } else if (k === 'syncedAt' && !item.syncedAt && blobItem.syncedAt) {
+                      // preserve local syncedAt
+                    } else if (k === 'synced' && !item.synced && blobItem.synced) {
+                      // preserve local synced
+                    } else if (k === 'rejectionReason' && !item.rejectionReason && blobItem.rejectionReason) {
+                      // preserve local rejection reason
+                    } else if (k === 'rejectedBy' && !item.rejectedBy && blobItem.rejectedBy) {
+                      // preserve local rejected by
+                    } else {
+                      merged[k] = item[k];
+                    }
                   }
                 });
                 return merged;
@@ -5843,6 +5889,7 @@ const normalizeWorkMovementSector = (sec?: string): string => {
                   onApproveFieldReport={handleApproveFieldReport}
                   onRejectFieldReport={handleRejectFieldReport}
                   onEditFieldReport={handleUpdateFieldReport}
+                  onDeleteFieldReport={handleDeleteFieldReport}
                 />
               )}
 

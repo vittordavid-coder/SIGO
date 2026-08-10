@@ -1206,4 +1206,9 @@ export interface FieldProductionReport {
   syncedAt?: string;
   createdAt?: string;
   timestamp?: string;
+  rejectedBy?: string;
+  rejectionReason?: string;
+  rejectedAt?: string;
+  approvedBy?: string;
+  approvedAt?: string;
 }

@@ -712,6 +712,8 @@ export function SyneraMobileView({
   onSaveDailyReport,
   onLogout,
   onSyncRequest,
+  selectedContractId: propSelectedContractId,
+  onUpdateContractId,
   isCamOnly = false,
 }: SyneraMobileViewProps) {
   const [isOnline, setIsOnline] = useState<boolean>(() => navigator.onLine);
@@ -785,9 +787,32 @@ export function SyneraMobileView({
   }, [onSaveFieldReport, fieldReports]);
 
   // Selected active contract in mobile
-  const [selectedContractId, setSelectedContractId] = useState<string>(() => {
-    return contracts[0]?.id || '';
+  const [selectedContractId, setSelectedContractIdState] = useState<string>(() => {
+    return propSelectedContractId || (currentUser?.allowedContractIds?.[0]) || contracts[0]?.id || '';
   });
+
+  const setSelectedContract = (id: string) => {
+    setSelectedContractIdState(id);
+    if (onUpdateContractId) {
+      onUpdateContractId(id);
+    }
+  };
+
+  useEffect(() => {
+    if (propSelectedContractId && propSelectedContractId !== selectedContractId) {
+      setSelectedContractIdState(propSelectedContractId);
+    } else if (currentUser?.allowedContractIds && currentUser.allowedContractIds.length > 0) {
+      const allowedId = currentUser.allowedContractIds[0];
+      if (allowedId && allowedId !== selectedContractId) {
+        setSelectedContractIdState(allowedId);
+        if (onUpdateContractId) onUpdateContractId(allowedId);
+      }
+    } else if (contracts.length > 0 && (!selectedContractId || !contracts.some(c => c.id === selectedContractId))) {
+      const defaultId = contracts[0].id;
+      setSelectedContractIdState(defaultId);
+      if (onUpdateContractId) onUpdateContractId(defaultId);
+    }
+  }, [currentUser, contracts, propSelectedContractId, selectedContractId, onUpdateContractId]);
 
   // ----------------------------------------------------
   // CAMERA DE CAMPO PWA & ESTACA MAIS PRÓXIMA (SALA TÉCNICA)
@@ -1534,27 +1559,14 @@ export function SyneraMobileView({
       console.warn('Erro ao salvar no localStorage local:', err);
     }
 
-    try {
-      const queueItem: OfflinePendingItem = {
-        id: newReport.id,
-        type: 'production',
-        timestamp: newReport.timestamp,
-        contractId: activeContract.id,
-        contractName: activeContract.name || activeContract.workName || 'Obra Principal',
-        data: newReport,
-        synced: false
-      };
-
-      setOfflineQueue(prev => [queueItem, ...prev]);
-    } catch (e) {
-      console.warn('Erro ao salvar item na offlineQueue:', e);
-    }
+    // Fotos tiradas com a câmera ficam salvas apenas na galeria local do dispositivo.
+    // Elas NÃO são enviadas como registros de produção para o sistema/servidor.
 
     setCapturedPhotoUrl(null);
     setPhotoDescription('');
     // setIsCameraOpen(false); // Mantém a câmera aberta como solicitado
 
-    alert(`📸 Foto de campo registrada e salva na galeria!\nEstaca: ${stationText}\nDescrição: ${descText}`);
+    alert(`📸 Foto de campo registrada e salva na galeria local do dispositivo!\nEstaca: ${stationText}\nDescrição: ${descText}`);
   };
 
   // ----------------------------------------------------
@@ -1690,11 +1702,13 @@ export function SyneraMobileView({
     alert('Foto e carimbo técnico atualizados com sucesso!');
   };
 
-  // Offline Pending Queue State
+  // Offline Pending Queue State (Registros de Apontamento)
   const [offlineQueue, setOfflineQueue] = useState<OfflinePendingItem[]>(() => {
     try {
       const saved = localStorage.getItem(OFFLINE_QUEUE_KEY);
-      return saved ? JSON.parse(saved) : [];
+      const parsed: OfflinePendingItem[] = saved ? JSON.parse(saved) : [];
+      // Garantir que fotos de câmera não estejam na fila do sistema (apenas apontamentos de produção/equipamento/rh/materiais/diário)
+      return parsed.filter(item => !item.id.startsWith('photo-'));
     } catch {
       return [];
     }
@@ -3217,6 +3231,30 @@ export function SyneraMobileView({
             {/* CARD DESTACADO DA ESTACA DE PROJETO ATUAL (SYNERA CAM - TELA INICIAL) */}
             {isCamOnly && (
               <div className="relative overflow-hidden bg-gradient-to-br from-slate-950 via-emerald-950/90 to-slate-950 border-2 border-emerald-500/80 rounded-3xl p-5 shadow-2xl space-y-3 ring-1 ring-emerald-500/30">
+                <div className="flex items-center justify-between pb-2 border-b border-emerald-500/20">
+                  <div className="flex items-center gap-2">
+                    <Building2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                    <span className="text-xs font-black text-slate-300 uppercase tracking-wider">Obra Conectada:</span>
+                  </div>
+                  {contracts && contracts.length > 1 ? (
+                    <select
+                      value={selectedContractId}
+                      onChange={(e) => setSelectedContract(e.target.value)}
+                      className="bg-slate-900 text-emerald-300 font-extrabold text-xs px-2.5 py-1 rounded-xl border border-emerald-500/40 focus:outline-none focus:border-emerald-400"
+                    >
+                      {contracts.map(c => (
+                        <option key={c.id} value={c.id} className="bg-slate-900 text-white font-bold">
+                          {c.name || c.workName || c.client || `Obra #${c.id}`}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <span className="text-xs font-black text-emerald-400 bg-emerald-500/20 px-2.5 py-1 rounded-xl border border-emerald-500/30">
+                      {activeContract.name || activeContract.workName || activeContract.client || 'Obra Principal'}
+                    </span>
+                  )}
+                </div>
+
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <div className="w-12 h-12 rounded-2xl bg-emerald-500/20 border border-emerald-400/40 flex items-center justify-center shrink-0 shadow-inner">
@@ -3744,6 +3782,23 @@ export function SyneraMobileView({
 
                                 {rep.trecho && <p className="text-[10px] text-slate-400">Trecho: {rep.trecho}</p>}
                                 {rep.notes && <p className="text-[10px] text-slate-300 italic">"{rep.notes}"</p>}
+
+                                {rep.status === 'rejected' && (
+                                  <div className="p-2.5 rounded-xl bg-rose-950/80 border border-rose-500/50 space-y-1 text-[10px]">
+                                    <div className="flex items-center gap-1.5 text-rose-300 font-extrabold uppercase">
+                                      <AlertCircle className="w-3.5 h-3.5 text-rose-400 shrink-0" />
+                                      <span>Registro Rejeitado pela Sala Técnica</span>
+                                    </div>
+                                    <p className="text-rose-100 font-bold">
+                                      Motivo: "{rep.rejectionReason || 'Sem motivo especificado.'}"
+                                    </p>
+                                    {rep.rejectedBy && (
+                                      <p className="text-rose-400 text-[9px]">
+                                        Rejeitado por: {rep.rejectedBy} {rep.rejectedAt ? `em ${new Date(rep.rejectedAt).toLocaleString('pt-BR')}` : ''}
+                                      </p>
+                                    )}
+                                  </div>
+                                )}
 
                                 <div className="text-[9px] text-slate-500 flex items-center justify-between pt-1 border-t border-slate-900">
                                   <span>Sincronizado: {rep.syncedAt ? new Date(rep.syncedAt).toLocaleTimeString('pt-BR') : 'Aguardando Sincronização'}</span>
@@ -5418,6 +5473,23 @@ export function SyneraMobileView({
                               <p className="text-[10px] text-slate-400 italic">
                                 "{rep.notes}"
                               </p>
+                            )}
+
+                            {rep.status === 'rejected' && (
+                              <div className="p-3 rounded-xl bg-rose-950/90 border border-rose-500/60 space-y-1 text-xs">
+                                <div className="flex items-center gap-1.5 text-rose-300 font-black uppercase text-[10px]">
+                                  <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+                                  <span>Registro Rejeitado pela Sala Técnica</span>
+                                </div>
+                                <p className="text-rose-100 font-bold text-xs bg-rose-900/40 p-2.5 rounded-lg border border-rose-800/50">
+                                  "{rep.rejectionReason || 'Não foi fornecida uma justificativa específica.'}"
+                                </p>
+                                {rep.rejectedBy && (
+                                  <p className="text-rose-400 text-[10px] pt-0.5">
+                                    Rejeitado por: {rep.rejectedBy} {rep.rejectedAt ? `em ${new Date(rep.rejectedAt).toLocaleString('pt-BR')}` : ''}
+                                  </p>
+                                )}
+                              </div>
                             )}
 
                             {/* Foto Anexa se Houver */}

@@ -360,6 +360,7 @@ interface MeasurementsViewProps {
   onApproveFieldReport?: (reportId: string, approvedBy: string, editedData?: Partial<FieldProductionReport>) => void;
   onRejectFieldReport?: (reportId: string, rejectedBy: string, reason?: string) => void;
   onEditFieldReport?: (report: FieldProductionReport) => void;
+  onDeleteFieldReport?: (reportId: string) => void;
   projectAlignments?: ProjectAlignment[];
   onSaveProjectAlignment?: (alignment: ProjectAlignment) => void;
   onDeleteProjectAlignment?: (alignmentId: string) => void;
@@ -465,6 +466,7 @@ export function MeasurementsView({
   onApproveFieldReport = () => {},
   onRejectFieldReport = () => {},
   onEditFieldReport = () => {},
+  onDeleteFieldReport,
   activeSubTab,
   onSetActiveSubTab,
   selectedContractId,
@@ -2391,6 +2393,7 @@ export function MeasurementsView({
                   onApproveReport={onApproveFieldReport}
                   onRejectReport={onRejectFieldReport}
                   onEditReport={onEditFieldReport}
+                  onDeleteReport={onDeleteFieldReport}
                 />
               </motion.div>
             )}

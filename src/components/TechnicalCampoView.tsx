@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { 
   Smartphone, CheckCircle2, XCircle, Clock, Search, Edit3, 
   Check, X, Eye, Filter, Calendar, MapPin, UserCheck, HardHat, 
-  AlertCircle, ChevronDown, RefreshCw, FileText, Camera
+  AlertCircle, ChevronDown, RefreshCw, FileText, Camera, Trash2
 } from 'lucide-react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -18,6 +18,7 @@ interface TechnicalCampoViewProps {
   onApproveReport: (reportId: string, approvedBy: string, editedData?: Partial<FieldProductionReport>) => void;
   onRejectReport: (reportId: string, rejectedBy: string, reason?: string) => void;
   onEditReport: (report: FieldProductionReport) => void;
+  onDeleteReport?: (reportId: string) => void;
 }
 
 export function TechnicalCampoView({
@@ -28,6 +29,7 @@ export function TechnicalCampoView({
   onApproveReport,
   onRejectReport,
   onEditReport,
+  onDeleteReport,
 }: TechnicalCampoViewProps) {
   const [filterStatus, setFilterStatus] = useState<'all' | 'pending' | 'approved' | 'rejected'>('pending');
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -386,7 +388,7 @@ export function TechnicalCampoView({
                     <td className="p-3.5 text-gray-500 whitespace-nowrap text-[11px]">
                       <div className="flex items-center gap-1">
                         <RefreshCw className="w-3 h-3 text-gray-400" />
-                        <span>{formatDateTime(report.syncedAt)}</span>
+                        <span>{formatDateTime(report.syncedAt || (report.synced ? (report.createdAt || report.timestamp) : undefined))}</span>
                       </div>
                     </td>
 
@@ -492,6 +494,28 @@ export function TechnicalCampoView({
                           <span className="text-[10px] text-rose-600 font-bold px-2 py-1 bg-rose-50 rounded-md">
                             Rejeitado
                           </span>
+                        )}
+
+                        {/* Botão EXCLUIR (Permite excluir qualquer registro, inclusive aprovados) */}
+                        {onDeleteReport && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => {
+                              if (window.confirm(
+                                report.status === 'approved'
+                                  ? 'Atenção: Este registro está APROVADO. Deseja realmente excluí-lo? A quantidade produzida será deduzida e recalculada nos controles dos serviços vinculados.'
+                                  : 'Deseja realmente excluir este registro de campo?'
+                              )) {
+                                onDeleteReport(report.id);
+                              }
+                            }}
+                            className="h-8 px-2 text-xs font-bold text-rose-600 hover:bg-rose-50 rounded-lg gap-1"
+                            title="Excluir registro de campo"
+                          >
+                            <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+                            <span className="hidden sm:inline">Excluir</span>
+                          </Button>
                         )}
                       </div>
                     </td>
@@ -601,34 +625,60 @@ export function TechnicalCampoView({
       {/* ---------------------------------------------------- */}
       <AnimatePresence>
         {rejectingReport && (
-          <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4">
-            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl border border-gray-100 space-y-4">
-              <div className="flex items-center gap-3 text-rose-600">
-                <AlertCircle className="w-6 h-6" />
-                <h3 className="text-base font-black text-gray-900">Rejeitar Apontamento de Campo</h3>
+          <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4 sm:p-6 overflow-y-auto">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95 }} 
+              animate={{ opacity: 1, scale: 1 }} 
+              exit={{ opacity: 0, scale: 0.95 }} 
+              className="bg-white rounded-3xl p-6 sm:p-8 max-w-2xl w-full shadow-2xl border border-gray-200 space-y-6 my-auto"
+            >
+              <div className="flex items-center gap-3 text-rose-600 pb-3 border-b border-rose-100">
+                <div className="p-3 rounded-2xl bg-rose-50 border border-rose-200 shrink-0">
+                  <AlertCircle className="w-7 h-7 text-rose-600" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-black text-gray-900">Rejeitar Apontamento de Campo</h3>
+                  <p className="text-xs text-gray-500 font-medium">O motivo informado será retornado diretamente ao apontador no Synera Mobile</p>
+                </div>
               </div>
 
-              <p className="text-xs text-gray-600">
-                Tem certeza que deseja rejeitar o apontamento de <strong className="text-gray-900">{rejectingReport.qty} {rejectingReport.unit}</strong> do serviço <strong className="text-gray-900">{rejectingReport.serviceName}</strong>?
-              </p>
+              <div className="bg-rose-50/60 p-4 rounded-2xl border border-rose-100 space-y-2">
+                <p className="text-xs text-rose-900 font-bold uppercase tracking-wide">Resumo do Registro Selecionado:</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-gray-800">
+                  <div><strong>Serviço:</strong> {rejectingReport.serviceName || 'N/A'}</div>
+                  <div><strong>Quantidade:</strong> <span className="font-extrabold text-rose-700">{rejectingReport.qty} {rejectingReport.unit}</span></div>
+                  <div><strong>Data Produção:</strong> {formatDate(rejectingReport.productionDate || '')}</div>
+                  <div><strong>Apontador:</strong> {rejectingReport.reportedBy || rejectingReport.createdByName || 'N/A'}</div>
+                  {rejectingReport.trecho && <div className="sm:col-span-2"><strong>Trecho/Estaca:</strong> {rejectingReport.trecho}</div>}
+                </div>
+              </div>
 
-              <div>
-                <Label className="text-xs font-bold text-gray-700">Motivo da Rejeição (Opcional)</Label>
+              <div className="space-y-2">
+                <Label className="text-xs font-black text-gray-800 uppercase tracking-wider block">
+                  Motivo da Rejeição * (Detalhe para o Apontador)
+                </Label>
                 <textarea 
                   value={rejectReason}
                   onChange={e => setRejectReason(e.target.value)}
-                  placeholder="Informe o motivo da não aprovação..."
-                  rows={2}
-                  className="w-full rounded-2xl bg-gray-50 border border-gray-200 text-xs font-medium text-gray-900 p-3 mt-1 focus:bg-white"
+                  placeholder="Descreva detalhadamente o motivo da não aprovação deste lançamento de campo..."
+                  rows={4}
+                  className="w-full rounded-2xl bg-gray-50 border border-gray-300 text-sm font-medium text-gray-900 p-4 focus:bg-white focus:border-rose-500 focus:ring-2 focus:ring-rose-200 transition-all outline-none"
                 />
               </div>
 
-              <div className="flex items-center justify-end gap-2 pt-2 border-t">
-                <Button variant="ghost" onClick={() => setRejectingReport(null)} className="h-10 px-4 text-xs font-bold">
+              <div className="flex flex-col sm:flex-row items-center justify-end gap-3 pt-4 border-t border-gray-100">
+                <Button 
+                  variant="ghost" 
+                  onClick={() => setRejectingReport(null)} 
+                  className="w-full sm:w-auto h-11 px-6 text-xs font-bold text-gray-600 hover:bg-gray-100 rounded-xl"
+                >
                   Cancelar
                 </Button>
-                <Button onClick={handleConfirmReject} className="h-10 px-5 bg-rose-600 hover:bg-rose-500 text-white font-black text-xs rounded-xl shadow-md">
-                  Confirmar Rejeição
+                <Button 
+                  onClick={handleConfirmReject} 
+                  className="w-full sm:w-auto h-11 px-6 bg-rose-600 hover:bg-rose-500 text-white font-black text-xs uppercase tracking-wider rounded-xl shadow-lg shadow-rose-600/20"
+                >
+                  Confirmar Rejeição do Registro
                 </Button>
               </div>
             </motion.div>
