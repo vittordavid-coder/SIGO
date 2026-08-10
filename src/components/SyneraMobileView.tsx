@@ -6,7 +6,7 @@ import {
   ChevronRight, Calendar, ArrowUpRight, Zap, Building2, Package, ArrowLeft, Layers,
   Search, Edit3, X, Eye, LogOut, LayoutDashboard, Sliders, Grid, ZapOff, RefreshCcw,
   Upload, Navigation, Crosshair, Sparkles, BarChart2, XCircle, ArrowRightLeft, UserCheck, Save, MessageCircle, Settings,
-  RotateCw, Maximize2, Filter, Type, CheckSquare, Square, Stamp, Truck, Box
+  RotateCw, Maximize2, Filter, Type, CheckSquare, Square, Stamp, Truck, Box, FolderDown
 } from 'lucide-react';
 import { Button } from './ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "./ui/dialog";
@@ -718,33 +718,63 @@ export function SyneraMobileView({
 }: SyneraMobileViewProps) {
   const [isOnline, setIsOnline] = useState<boolean>(() => navigator.onLine);
   
-  // Selected sector (null = Home/Landing page, or one of the 5 sector IDs, 'sincronizacao', 'registros', 'galeria')
-  const [activeSector, setActiveSector] = useState<MobileSector | 'sincronizacao' | 'registros' | 'galeria' | null>(null);
+  // Selected sector (null = Home/Landing page, or one of the 5 sector IDs, 'sincronizacao', 'registros', 'projetos_baixados', 'galeria')
+  const [activeSector, setActiveSector] = useState<MobileSector | 'sincronizacao' | 'registros' | 'projetos_baixados' | 'galeria' | null>(null);
+
+  // Downloaded Projects cache state for Synera Cam (iOS / Android)
+  const [camDownloadedProjects, setCamDownloadedProjects] = useState<Array<{
+    contractId: string;
+    contractName: string;
+    contractNumber?: string;
+    client?: string;
+    workName?: string;
+    downloadedAt: string;
+    alignmentCount: number;
+    status: 'ready' | 'downloading';
+  }>>(() => {
+    try {
+      const stored = localStorage.getItem('synera_cam_downloaded_projects');
+      if (stored) return JSON.parse(stored);
+    } catch {}
+    return [];
+  });
+  const [isDownloadingProject, setIsDownloadingProject] = useState<boolean>(false);
 
   // States for dedicated Registros screen
   const [registrosFilterStatus, setRegistrosFilterStatus] = useState<'all' | 'pending' | 'synced'>('all');
   const [registrosSearch, setRegistrosSearch] = useState<string>('');
   const [registrosFilterContract, setRegistrosFilterContract] = useState<string>('all');
 
-  // Mobile User Specific Field Reports (Only show entries created by the logged-in user or unsynced offline records)
+  // Mobile User Specific Field Reports (Strictly show ONLY entries created by the logged-in user)
   const userFieldReports = useMemo(() => {
-    if (!fieldReports) return [];
-    
+    if (!fieldReports || isCamOnly) return [];
+    if (!currentUser || currentUser.id === 'offline-cam-user') return [];
+
     return fieldReports.filter(r => {
-      if (!currentUser || isCamOnly || currentUser.id === 'offline-cam-user') return true;
-      // Sempre exibe apontamentos pendentes/offline locais para que nunca se percam da vista
-      if (r.status === 'pending' || !r.syncedAt || !r.synced) return true;
-      
-      const emailMatch = currentUser.email && r.reportedByEmail && 
-        r.reportedByEmail.toLowerCase().trim() === currentUser.email.toLowerCase().trim();
+      const emailMatch = Boolean(
+        currentUser.email && r.reportedByEmail && 
+        r.reportedByEmail.toLowerCase().trim() === currentUser.email.toLowerCase().trim()
+      );
         
-      const nameMatch = currentUser.name && r.reportedBy && 
-        r.reportedBy.toLowerCase().trim() === currentUser.name.toLowerCase().trim();
+      const nameMatch = Boolean(
+        currentUser.name && r.reportedBy && 
+        r.reportedBy.toLowerCase().trim() === currentUser.name.toLowerCase().trim()
+      );
 
-      const createdNameMatch = currentUser.name && r.createdByName &&
-        r.createdByName.toLowerCase().trim() === currentUser.name.toLowerCase().trim();
+      const createdNameMatch = Boolean(
+        currentUser.name && r.createdByName &&
+        r.createdByName.toLowerCase().trim() === currentUser.name.toLowerCase().trim()
+      );
 
-      return emailMatch || nameMatch || createdNameMatch || !r.reportedByEmail;
+      const userIdMatch = Boolean(r.userId && r.userId === currentUser.id);
+
+      const isUserReport = emailMatch || nameMatch || createdNameMatch || userIdMatch;
+
+      // Pending/offline local reports created on this device by this user
+      const isLocalPending = (r.status === 'pending' || !r.syncedAt || !r.synced) &&
+        (!r.reportedByEmail || isUserReport);
+
+      return isUserReport || isLocalPending;
     });
   }, [fieldReports, currentUser, isCamOnly]);
 
@@ -2246,6 +2276,93 @@ export function SyneraMobileView({
     }
   }, [isOnline, contracts, services, equipments, employees, projectAlignments]);
 
+  // SyncDownloadedProjects list whenever contracts/projectAlignments update
+  useEffect(() => {
+    if (contracts && contracts.length > 0) {
+      try {
+        const existing = JSON.parse(localStorage.getItem('synera_cam_downloaded_projects') || '[]');
+        let updated = false;
+        const newList = Array.isArray(existing) ? [...existing] : [];
+
+        contracts.forEach(c => {
+          if (!newList.some((p: any) => p.contractId === c.id)) {
+            const alignmentsCount = (projectAlignments || []).filter(a => !a.contractId || a.contractId === c.id).length;
+            newList.push({
+              contractId: c.id,
+              contractName: c.name || (c as any).workName || 'Obra Principal',
+              contractNumber: c.contractNumber,
+              client: c.client,
+              workName: (c as any).workName || c.name,
+              downloadedAt: new Date().toISOString(),
+              alignmentCount: alignmentsCount,
+              status: 'ready'
+            });
+            updated = true;
+          }
+        });
+
+        if (updated) {
+          localStorage.setItem('synera_cam_downloaded_projects', JSON.stringify(newList));
+          setCamDownloadedProjects(newList);
+        }
+      } catch {}
+    }
+  }, [contracts, projectAlignments]);
+
+  // Handler to download/update project offline data on iOS and Android
+  const handleDownloadProjectForCam = async (targetContractId: string) => {
+    setIsDownloadingProject(true);
+    try {
+      const targetContract = contracts.find(c => c.id === targetContractId) || activeContract;
+      if (!targetContract) {
+        alert('Nenhum projeto encontrado para download.');
+        setIsDownloadingProject(false);
+        return;
+      }
+
+      const alignmentsToSave = (projectAlignments || []).filter(a => !a.contractId || a.contractId === targetContract.id);
+      
+      try {
+        localStorage.setItem('sigo_project_alignments', JSON.stringify(alignmentsToSave));
+      } catch (e) {
+        console.warn('Erro ao salvar alinhamentos no localStorage:', e);
+      }
+
+      const newEntry = {
+        contractId: targetContract.id,
+        contractName: targetContract.name || (targetContract as any).workName || 'Obra Principal',
+        contractNumber: targetContract.contractNumber,
+        client: targetContract.client,
+        workName: (targetContract as any).workName || targetContract.name,
+        downloadedAt: new Date().toISOString(),
+        alignmentCount: alignmentsToSave.length,
+        status: 'ready' as const
+      };
+
+      const existing = JSON.parse(localStorage.getItem('synera_cam_downloaded_projects') || '[]');
+      const filteredExisting = Array.isArray(existing) ? existing.filter((p: any) => p.contractId !== targetContract.id) : [];
+      const updatedList = [newEntry, ...filteredExisting];
+
+      try {
+        localStorage.setItem('synera_cam_downloaded_projects', JSON.stringify(updatedList));
+      } catch (e) {}
+
+      setCamDownloadedProjects(updatedList);
+      setSelectedContract(targetContract.id);
+
+      if (onSyncRequest) {
+        await onSyncRequest();
+      }
+
+      alert(`Projeto "${targetContract.name || 'Obra'}" baixado e ativado no dispositivo!\n${alignmentsToSave.length} estaca(s) salvas para uso off-line no iOS/Android.`);
+    } catch (err) {
+      console.error('[Cam Download Error]:', err);
+      alert('Erro ao baixar dados do projeto. Verifique a conexão e tente novamente.');
+    } finally {
+      setIsDownloadingProject(false);
+    }
+  };
+
   // Persist offline queue
   useEffect(() => {
     try {
@@ -2515,6 +2632,24 @@ export function SyneraMobileView({
   // Process sync offline queue
   const handleProcessSync = async () => {
     setIsSyncing(true);
+
+    if (isCamOnly) {
+      try {
+        const nowIso = new Date().toISOString();
+        if (onSyncRequest) {
+          await onSyncRequest();
+        }
+        setOfflineQueue([]);
+        localStorage.removeItem(OFFLINE_QUEUE_KEY);
+        setSyncSuccessMsg('Synera Cam sincronizado! Fotos enviadas e dados mantidos no celular.');
+        setTimeout(() => setSyncSuccessMsg(null), 3500);
+      } catch (err) {
+        console.warn('Erro ao sincronizar Synera Cam:', err);
+      } finally {
+        setIsSyncing(false);
+      }
+      return;
+    }
 
     try {
       const nowIso = new Date().toISOString();
@@ -3414,33 +3549,60 @@ export function SyneraMobileView({
               </span>
             </div>
 
-            {/* CARD QUICK ACCESS MEUS REGISTROS DE CAMPO */}
-            <div 
-              onClick={() => setActiveSector('registros')}
-              className="p-4 rounded-3xl bg-slate-800/80 border border-slate-700/80 hover:border-blue-500/50 cursor-pointer flex items-center justify-between transition-all shadow-md"
-            >
-              <div className="flex items-center gap-3">
-                <div className="p-2.5 rounded-2xl bg-blue-500/10 border border-blue-500/20 text-blue-400">
-                  <FileText className="w-5 h-5" />
-                </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h4 className="text-xs font-black text-white">Meus Registros de Campo</h4>
-                    {userFieldReports.filter(r => r.status === 'pending' || !r.syncedAt).length > 0 && (
-                      <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 text-[9px] font-bold">
-                        {userFieldReports.filter(r => r.status === 'pending' || !r.syncedAt).length} pendente(s)
-                      </span>
-                    )}
+            {/* CARD QUICK ACCESS: PROJETOS OFF-LINE (SYNERA CAM) OU MEUS REGISTROS (SYNERA MOBILE) */}
+            {isCamOnly ? (
+              <div 
+                onClick={() => setActiveSector('projetos_baixados' as any)}
+                className="p-4 rounded-3xl bg-slate-800/80 border border-slate-700/80 hover:border-emerald-500/50 cursor-pointer flex items-center justify-between transition-all shadow-md"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="p-2.5 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400">
+                    <FolderDown className="w-5 h-5" />
                   </div>
-                  <p className="text-[11px] text-slate-400">
-                    {userFieldReports.length} lançamento(s) registrados neste celular
-                  </p>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h4 className="text-xs font-black text-white">Projetos Off-line no Cam</h4>
+                      <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[9px] font-bold">
+                        {camDownloadedProjects.length} baixado(s)
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-400">
+                      {activeContract ? `${activeContract.name || (activeContract as any).workName || 'Obra Ativa'} ativado` : 'Gerencie projetos para uso off-line no iOS e Android'}
+                    </p>
+                  </div>
                 </div>
+                <span className="text-xs font-bold text-emerald-400 flex items-center gap-1">
+                  Ver Projetos <ChevronRight className="w-4 h-4" />
+                </span>
               </div>
-              <span className="text-xs font-bold text-blue-400 flex items-center gap-1">
-                Ver Registros <ChevronRight className="w-4 h-4" />
-              </span>
-            </div>
+            ) : (
+              <div 
+                onClick={() => setActiveSector('registros')}
+                className="p-4 rounded-3xl bg-slate-800/80 border border-slate-700/80 hover:border-blue-500/50 cursor-pointer flex items-center justify-between transition-all shadow-md"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="p-2.5 rounded-2xl bg-blue-500/10 border border-blue-500/20 text-blue-400">
+                    <FileText className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h4 className="text-xs font-black text-white">Meus Registros de Campo</h4>
+                      {userFieldReports.filter(r => r.status === 'pending' || !r.syncedAt).length > 0 && (
+                        <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 text-[9px] font-bold">
+                          {userFieldReports.filter(r => r.status === 'pending' || !r.syncedAt).length} pendente(s)
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-[11px] text-slate-400">
+                      {userFieldReports.length} lançamento(s) registrados neste celular
+                    </p>
+                  </div>
+                </div>
+                <span className="text-xs font-bold text-blue-400 flex items-center gap-1">
+                  Ver Registros <ChevronRight className="w-4 h-4" />
+                </span>
+              </div>
+            )}
 
           </motion.div>
         )}
@@ -3470,6 +3632,7 @@ export function SyneraMobileView({
                   {activeSector === 'project_admin' && 'Administrador da Obra'}
                   {activeSector === 'sincronizacao' && 'Sincronizar Dados'}
                   {activeSector === 'registros' && 'Meus Registros de Campo'}
+                  {activeSector === ('projetos_baixados' as any) && 'Projetos Off-line no Synera Cam'}
                   {activeSector === 'galeria' && 'Galeria de Fotos'}
                 </span>
               </div>
@@ -5546,6 +5709,145 @@ export function SyneraMobileView({
             )}
 
             {/* ---------------------------------------------------- */}
+            {/* TELA DEDICADA DE PROJETOS BAIXADOS (SYNERA CAM OFF-LINE) */}
+            {/* ---------------------------------------------------- */}
+            {activeSector === ('projetos_baixados' as any) && (
+              <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-4 pb-12">
+                <div className="bg-slate-800/80 border border-slate-700/80 rounded-3xl p-4 sm:p-5 space-y-4 shadow-xl">
+                  
+                  {/* Cabeçalho */}
+                  <div className="flex items-center justify-between pb-3 border-b border-slate-700/60">
+                    <div className="flex items-center gap-3">
+                      <button 
+                        onClick={() => setActiveSector(null)} 
+                        className="p-2 rounded-xl bg-slate-700/60 hover:bg-slate-600 text-slate-200 transition-colors"
+                      >
+                        <ArrowLeft className="w-4 h-4" />
+                      </button>
+                      <div>
+                        <h3 className="font-black text-sm text-white flex items-center gap-2">
+                          <FolderDown className="w-4 h-4 text-emerald-400" />
+                          Projetos Off-line no Synera Cam
+                        </h3>
+                        <p className="text-[11px] text-slate-400">
+                          Contratos, eixos e estacas armazenados no celular (iOS & Android)
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Card de Ação Principal: Baixar / Atualizar Dados do Projeto Ativo */}
+                  <div className="p-4 rounded-2xl bg-gradient-to-r from-emerald-950/80 via-slate-900 to-slate-900 border border-emerald-500/40 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Building2 className="w-5 h-5 text-emerald-400 shrink-0" />
+                        <div>
+                          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Projeto / Obra Ativa:</span>
+                          <h4 className="text-sm font-black text-white">{activeContract?.name || (activeContract as any)?.workName || 'Obra Principal'}</h4>
+                        </div>
+                      </div>
+                      <span className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+                        {(projectAlignments || []).length} estacas cadastradas
+                      </span>
+                    </div>
+
+                    <p className="text-xs text-slate-300 leading-relaxed">
+                      Ao clicar em "Baixar Projeto", as coordenadas GPS e estacas do eixo são salvas diretamente na memória do seu dispositivo (iPhone, iPad ou Android) para funcionar 100% off-line no Synera Cam.
+                    </p>
+
+                    <Button
+                      onClick={() => handleDownloadProjectForCam(activeContract?.id)}
+                      disabled={isDownloadingProject}
+                      className="w-full h-12 rounded-2xl bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-black text-xs uppercase tracking-wider gap-2 shadow-lg shadow-emerald-500/20 transition-all active:scale-[0.98]"
+                    >
+                      <Download className={`w-4 h-4 stroke-[2.5] ${isDownloadingProject ? 'animate-bounce' : ''}`} />
+                      {isDownloadingProject ? 'Baixando Dados do Projeto...' : 'Baixar / Atualizar Dados do Projeto no iOS/Android'}
+                    </Button>
+                  </div>
+
+                  {/* Lista de Projetos Armazenados Localmente */}
+                  <div className="space-y-3 pt-2">
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-xs font-black uppercase text-slate-300 tracking-wider flex items-center gap-1.5">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                        Projetos Disponíveis no Aparelho ({camDownloadedProjects.length})
+                      </h4>
+                    </div>
+
+                    {camDownloadedProjects.length === 0 ? (
+                      <div className="p-6 text-center bg-slate-900/60 rounded-2xl border border-slate-700/50 space-y-2">
+                        <FolderDown className="w-8 h-8 text-slate-500 mx-auto" />
+                        <p className="text-xs text-slate-300 font-bold">Nenhum projeto foi baixado ainda.</p>
+                        <p className="text-[11px] text-slate-400">
+                          Clique no botão verde acima para baixar as estacas e dados da obra e ter suporte off-line no Synera Cam.
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="space-y-2.5">
+                        {camDownloadedProjects.map(proj => {
+                          const isSelected = proj.contractId === selectedContractId;
+                          return (
+                            <div 
+                              key={proj.contractId}
+                              className={`p-4 rounded-2xl border transition-all ${
+                                isSelected 
+                                  ? 'bg-slate-900/90 border-emerald-500/80 ring-1 ring-emerald-500/40 shadow-lg' 
+                                  : 'bg-slate-900/50 border-slate-700/60 hover:border-slate-600'
+                              }`}
+                            >
+                              <div className="flex items-center justify-between gap-3">
+                                <div className="space-y-1 min-w-0">
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-xs font-black text-white truncate">{proj.contractName}</span>
+                                    {isSelected && (
+                                      <span className="text-[9px] font-black px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 shrink-0 uppercase">
+                                        Projeto Ativo
+                                      </span>
+                                    )}
+                                  </div>
+                                  <div className="flex items-center gap-2 text-[10px] text-slate-400 font-medium">
+                                    <span className="flex items-center gap-1">
+                                      <Calendar className="w-3 h-3 text-slate-400" />
+                                      Baixado: {new Date(proj.downloadedAt).toLocaleDateString('pt-BR')} às {new Date(proj.downloadedAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                                    </span>
+                                    <span>•</span>
+                                    <span className="text-emerald-400 font-bold">
+                                      {proj.alignmentCount} estacas
+                                    </span>
+                                  </div>
+                                </div>
+
+                                {!isSelected && (
+                                  <Button
+                                    onClick={() => {
+                                      setSelectedContract(proj.contractId);
+                                      alert(`Projeto "${proj.contractName}" ativado no Synera Cam.`);
+                                    }}
+                                    className="h-9 px-3.5 text-[11px] font-extrabold rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-100 border border-slate-700 shrink-0"
+                                  >
+                                    Ativar no Cam
+                                  </Button>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+
+                  <Button
+                    onClick={() => setActiveSector(null)}
+                    variant="outline"
+                    className="w-full h-11 rounded-2xl bg-slate-900 border-slate-700 text-slate-200 font-bold text-xs hover:bg-slate-800"
+                  >
+                    Voltar ao Menu Inicial
+                  </Button>
+                </div>
+              </motion.div>
+            )}
+
+            {/* ---------------------------------------------------- */}
             {/* TELA DA GALERIA DE FOTOS (VISUALIZAR, SELECIONAR, EDITAR, EXCLUIR) */}
             {/* ---------------------------------------------------- */}
             {activeSector === 'galeria' && (
@@ -6527,18 +6829,35 @@ export function SyneraMobileView({
           <span className="text-[10px]">Início</span>
         </button>
 
-        <button
-          onClick={() => setActiveSector('registros')}
-          className={`flex flex-col items-center gap-1 transition-colors relative ${
-            activeSector === 'registros' ? 'text-blue-400 font-extrabold' : 'text-slate-400 hover:text-slate-200'
-          }`}
-        >
-          <FileText className="w-5 h-5" />
-          <span className="text-[10px]">Registros</span>
-          {userFieldReports.filter(r => r.status === 'pending' || !r.syncedAt).length > 0 && (
-            <span className="absolute -top-1 right-2 w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
-          )}
-        </button>
+        {isCamOnly ? (
+          <button
+            onClick={() => setActiveSector('projetos_baixados' as any)}
+            className={`flex flex-col items-center gap-1 transition-colors relative ${
+              activeSector === ('projetos_baixados' as any) ? 'text-emerald-400 font-extrabold' : 'text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <FolderDown className="w-5 h-5" />
+            <span className="text-[10px]">Projetos</span>
+            {camDownloadedProjects.length > 0 && (
+              <span className="absolute -top-1 -right-1 px-1 rounded-full bg-emerald-500 text-slate-950 text-[8px] font-black">
+                {camDownloadedProjects.length}
+              </span>
+            )}
+          </button>
+        ) : (
+          <button
+            onClick={() => setActiveSector('registros')}
+            className={`flex flex-col items-center gap-1 transition-colors relative ${
+              activeSector === 'registros' ? 'text-blue-400 font-extrabold' : 'text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <FileText className="w-5 h-5" />
+            <span className="text-[10px]">Registros</span>
+            {userFieldReports.filter(r => r.status === 'pending' || !r.syncedAt).length > 0 && (
+              <span className="absolute -top-1 right-2 w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+            )}
+          </button>
+        )}
 
         {/* BOTÃO CENTRAL DE CÂMERA EM DESTAQUE NO RODAPÉ */}
         <button
