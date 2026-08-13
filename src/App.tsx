@@ -1272,6 +1272,24 @@ const normalizeWorkMovementSector = (sec?: string): string => {
     link.href = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%232563eb'/%3E%3Ctext x='50%25' y='55%25' dominant-baseline='middle' text-anchor='middle' font-family='sans-serif' font-weight='bold' font-size='20' fill='white'%3ES%3C/text%3E%3C/svg%3E";
   }, []);
 
+  // Sync rh_parameters_config from systemConfig array to standalone localStorage key for compatibility
+  useEffect(() => {
+    if (Array.isArray(systemConfig) && systemConfig.length > 0) {
+      const rhParamsItem = systemConfig.find(c => c.configKey === 'rh_parameters_config');
+      if (rhParamsItem && rhParamsItem.configValue) {
+        try {
+          const currentLocal = window.localStorage.getItem('rh_parameters_config');
+          const valueStr = JSON.stringify(rhParamsItem.configValue);
+          if (currentLocal !== valueStr) {
+            window.localStorage.setItem('rh_parameters_config', valueStr);
+          }
+        } catch (e) {
+          console.error('[Sync] Error copying rh_parameters_config to local storage:', e);
+        }
+      }
+    }
+  }, [systemConfig]);
+
   // Sync logic when user changes
   useEffect(() => {
     if (currentUser?.id) {
@@ -1628,7 +1646,7 @@ const normalizeWorkMovementSector = (sec?: string): string => {
             `${activeId}_sigo_aportes`, `${activeId}_sigo_ctrl_charges`, `${activeId}_sigo_ctrl_ot`, `${activeId}_sigo_warehouses`,
             `${activeId}_sigo_warehouse_items`, `${activeId}_sigo_warehouse_entries`, `${activeId}_sigo_assets`,
             `${activeId}_sigo_warehouse_transfers`, `${activeId}_sigo_warehouse_applications`, `${activeId}_sigo_company_logo_right`,
-            `${activeId}_sigo_work_movements`, `${activeId}_sigo_project_alignments`
+            `${activeId}_sigo_work_movements`, `${activeId}_sigo_project_alignments`, `${activeId}_sigo_system_config`
           ];
           blobQuery = blobQuery.in('id', expectedBlobIds);
           // Fetch users for this company (or everyone if master)
@@ -1733,7 +1751,7 @@ const normalizeWorkMovementSector = (sec?: string): string => {
         // Configuration and Tables
         const finalData: Record<string, any> = { ...blobMap };
 
-        const mobileKeyTables = ['contracts', 'service_compositions', 'service_productions', 'equipments', 'employees', 'users', 'project_alignments', 'field_reports', 'daily_reports'];
+        const mobileKeyTables = ['contracts', 'service_compositions', 'service_productions', 'equipments', 'employees', 'users', 'project_alignments', 'field_reports', 'daily_reports', 'system_config'];
         const keysToFetch = isMobileFastSync ? Object.keys(tableMap).filter(t => mobileKeyTables.includes(t)) : Object.keys(tableMap);
 
         const fetchFunctions = keysToFetch.map((tableName) => async () => {
@@ -2630,6 +2648,7 @@ const normalizeWorkMovementSector = (sec?: string): string => {
       { id: `${compId}_sigo_warehouse_applications`, content: applications },
       { id: `${compId}_sigo_work_movements`, content: workMovements },
       { id: `${compId}_sigo_project_alignments`, content: projectAlignments },
+      { id: `${compId}_sigo_system_config`, content: systemConfig },
     ];
 
     // Only allow admins or master role to push global sigo_users blob to avoid overwriting user records
@@ -2682,6 +2701,7 @@ const normalizeWorkMovementSector = (sec?: string): string => {
       'sigo_warehouse_applications': 'warehouse_applications',
       'sigo_work_movements': 'work_movements',
       'sigo_project_alignments': 'project_alignments',
+      'sigo_system_config': 'system_config',
       'sigo_users': 'users'
     };
 
@@ -5428,6 +5448,7 @@ const normalizeWorkMovementSector = (sec?: string): string => {
             onUpdateContractId={setSelectedContractId}
             onLogout={handleLogout}
             onSyncRequest={handleSyncMobileData}
+            systemConfig={systemConfig}
           />
         </ErrorBoundary>
       </div>
@@ -6420,6 +6441,7 @@ const normalizeWorkMovementSector = (sec?: string): string => {
                   onUpdateContractId={setSelectedContractId}
                   onLogout={handleLogout}
                   onSyncRequest={handleSyncMobileData}
+                  systemConfig={systemConfig}
                 />
               )}
 

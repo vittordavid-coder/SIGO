@@ -41,6 +41,7 @@ export interface SyneraMobileViewProps {
   selectedContractId?: string;
   onUpdateContractId?: (id: string) => void;
   onSyncRequest?: () => Promise<void>;
+  systemConfig?: any[];
 }
 
 export interface OfflinePendingItem {
@@ -715,6 +716,7 @@ export function SyneraMobileView({
   selectedContractId: propSelectedContractId,
   onUpdateContractId,
   isCamOnly = false,
+  systemConfig = [],
 }: SyneraMobileViewProps) {
   const [isOnline, setIsOnline] = useState<boolean>(() => navigator.onLine);
   
@@ -1842,13 +1844,19 @@ export function SyneraMobileView({
 
   // Load RH Parameters for mobile responsibles definition
   const rhParams = useMemo(() => {
+    if (Array.isArray(systemConfig) && systemConfig.length > 0) {
+      const item = systemConfig.find(c => c.configKey === 'rh_parameters_config');
+      if (item && item.configValue) {
+        return item.configValue;
+      }
+    }
     try {
       const saved = localStorage.getItem("rh_parameters_config");
       return saved ? JSON.parse(saved) : {};
     } catch {
       return {};
     }
-  }, []);
+  }, [systemConfig]);
 
   // Determine current user's linked team (or null for master/admin)
   const currentUserTeam = useMemo(() => {
