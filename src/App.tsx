@@ -183,6 +183,25 @@ export default function App() {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
+  const checkIfPwaOrMobile = (currentTab?: string) => {
+    if (typeof window === 'undefined') return false;
+    const ua = navigator.userAgent || '';
+    const isTouchMac = navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1;
+    const isMobileUA = /Mobi|Android|iPhone|iPad|iPod|iOS/i.test(ua);
+    const isMobileDev = window.innerWidth < 768 || isMobileUA || isTouchMac;
+    
+    const activeTab = currentTab || window.sessionStorage.getItem('sigo_main_tab') || 'home';
+    
+    return !!(
+      window.location.pathname.includes('cam.html') ||
+      window.location.search.includes('tab=mobile') ||
+      window.sessionStorage.getItem('sigo_main_tab') === 'mobile' ||
+      activeTab === 'mobile' ||
+      isMobileDev ||
+      (currentUser && (currentUser.userGroup === 'mobile' || currentUser.role === 'apontador'))
+    );
+  };
+
   // Real-time synchronization for field_reports using Supabase postgres_changes
   useEffect(() => {
     const config = getSupabaseConfig();
@@ -221,8 +240,10 @@ export default function App() {
               // Transform DB row to camelCase
               const camelItem = mapToCamel(newRow) as FieldProductionReport;
               
-              // Persist to IndexedDB in background
-              saveFieldReportToIDB(camelItem).catch(() => {});
+              // Persist to IndexedDB in background ONLY if in PWA/Mobile mode
+              if (checkIfPwaOrMobile()) {
+                saveFieldReportToIDB(camelItem).catch(() => {});
+              }
 
               // Deduplicate and update
               const index = list.findIndex(item => item.id === camelItem.id);
@@ -235,8 +256,10 @@ export default function App() {
               }
             } else if (eventType === 'DELETE') {
               if (!oldRow || !oldRow.id) return list;
-              // Delete from IndexedDB in background
-              deleteFieldReportFromIDB(oldRow.id).catch(() => {});
+              // Delete from IndexedDB in background ONLY if in PWA/Mobile mode
+              if (checkIfPwaOrMobile()) {
+                deleteFieldReportFromIDB(oldRow.id).catch(() => {});
+              }
               return list.filter(item => item.id !== oldRow.id);
             }
             return list;
@@ -601,7 +624,68 @@ export default function App() {
   const [transfers, setTransfers] = useLocalStorage<WarehouseTransfer[]>('sigo_warehouse_transfers', [], compId);
   const [applications, setApplications] = useLocalStorage<WarehouseApplication[]>('sigo_warehouse_applications', [], compId);
   const [workMovements, setWorkMovements] = useLocalStorage<WorkMovement[]>('sigo_work_movements', INITIAL_WORK_MOVEMENTS, compId);
-  const [fieldReports, setFieldReports] = useLocalStorage<FieldProductionReport[]>('sigo_field_reports', [], compId);
+  const [fieldReports, setFieldReports] = useState<FieldProductionReport[]>([]);
+  const isPwaOrMobile = checkIfPwaOrMobile(mainTab);
+
+  // Load and clean up local/offline storage based on mode (PWA/Mobile vs. Desktop)
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const namespacedKey = compId ? `${compId}_sigo_field_reports` : 'sigo_field_reports';
+
+    if (isPwaOrMobile) {
+      // 1. In PWA/Mobile mode, load cached reports from local storage or IndexedDB
+      try {
+        const stored = localStorage.getItem(namespacedKey) || localStorage.getItem('sigo_field_reports');
+        if (stored) {
+          setFieldReports(JSON.parse(stored));
+        } else {
+          // Fallback to IndexedDB
+          getAllFieldReportsFromIDB().then(idbReports => {
+            if (idbReports && idbReports.length > 0) {
+              setFieldReports(idbReports);
+            }
+          }).catch(console.error);
+        }
+      } catch (e) {
+        console.warn('[Offline Storage] Failed to read cached field reports:', e);
+      }
+    } else {
+      // 2. In Desktop/Admin mode, completely clean up offline data caches.
+      // "Dados não podem ficam salvos off-line. Apenas os PWA podem ter dados offline."
+      console.log('[Offline Security] Cleared offline cache for desktop view.');
+      try {
+        localStorage.removeItem(namespacedKey);
+        localStorage.removeItem('sigo_field_reports');
+        localStorage.removeItem('sigo_deleted_field_reports');
+      } catch (e) {}
+      
+      // Clear IndexedDB field_reports store
+      (async () => {
+        try {
+          const idbReports = await getAllFieldReportsFromIDB();
+          for (const rep of idbReports) {
+            await deleteFieldReportFromIDB(rep.id);
+          }
+        } catch (e) {}
+      })();
+
+      // Start as empty state, allowing syncFromSupabase to load them fresh from DB
+      setFieldReports([]);
+    }
+  }, [isPwaOrMobile, compId]);
+
+  // Synchronize fieldReports changes to localStorage/IndexedDB ONLY if PWA/Mobile is active
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (!isPwaOrMobile) return; // Completely skip for Desktop
+
+    const namespacedKey = compId ? `${compId}_sigo_field_reports` : 'sigo_field_reports';
+    try {
+      localStorage.setItem(namespacedKey, JSON.stringify(fieldReports));
+      localStorage.setItem('sigo_field_reports', JSON.stringify(fieldReports));
+    } catch (e) {}
+  }, [fieldReports, isPwaOrMobile, compId]);
 
   const [selectedContractId, setSelectedContractId] = useState<string | null>(() => {
     try {
@@ -734,7 +818,9 @@ export default function App() {
                   syncError: indError.message || 'Erro de validação ou conexão'
                 };
                 updatedStateReports = updatedStateReports.map(item => item.id === updatedItem.id ? updatedItem : item);
-                await saveFieldReportToIDB(updatedItem);
+                if (isPwaOrMobile) {
+                  await saveFieldReportToIDB(updatedItem);
+                }
               } else {
                 const updatedItem: FieldProductionReport = {
                   ...originalReport,
@@ -744,7 +830,9 @@ export default function App() {
                   syncError: undefined
                 };
                 updatedStateReports = updatedStateReports.map(item => item.id === updatedItem.id ? updatedItem : item);
-                await saveFieldReportToIDB(updatedItem);
+                if (isPwaOrMobile) {
+                  await saveFieldReportToIDB(updatedItem);
+                }
               }
             }
 
@@ -764,7 +852,9 @@ export default function App() {
             syncError: undefined
           };
           updatedStateReports = updatedStateReports.map(item => item.id === updatedItem.id ? updatedItem : item);
-          await saveFieldReportToIDB(updatedItem);
+          if (isPwaOrMobile) {
+            await saveFieldReportToIDB(updatedItem);
+          }
         }
         setFieldReports(updatedStateReports);
       }
@@ -779,7 +869,9 @@ export default function App() {
     // 1. Initial save as pending/unsynced
     const updatedPending = [report, ...fieldReports.filter(r => r.id !== report.id)];
     setFieldReports(updatedPending);
-    await saveFieldReportToIDB(report);
+    if (isPwaOrMobile) {
+      await saveFieldReportToIDB(report);
+    }
 
     // 2. Try to sync to Supabase
     await syncFieldReportsStateToSupabase(updatedPending, [report]);
@@ -789,7 +881,9 @@ export default function App() {
   const handleUpdateFieldReport = async (report: FieldProductionReport): Promise<boolean> => {
     const updatedPending = fieldReports.map(r => r.id === report.id ? report : r);
     setFieldReports(updatedPending);
-    await saveFieldReportToIDB(report);
+    if (isPwaOrMobile) {
+      await saveFieldReportToIDB(report);
+    }
 
     await syncFieldReportsStateToSupabase(updatedPending, [report]);
     return true;
@@ -955,21 +1049,25 @@ export default function App() {
   };
 
   const handleDeleteFieldReport = async (reportId: string): Promise<boolean> => {
-    addDeletedFieldReportId(reportId);
+    if (isPwaOrMobile) {
+      addDeletedFieldReportId(reportId);
+    }
     const report = fieldReports.find(r => r.id === reportId);
     const updated = fieldReports.filter(r => r.id !== reportId);
     setFieldReports(updated);
 
-    try {
-      const stored = localStorage.getItem('sigo_field_reports');
-      if (stored) {
-        const parsed: FieldProductionReport[] = JSON.parse(stored);
-        const filtered = parsed.filter(r => r.id !== reportId);
-        localStorage.setItem('sigo_field_reports', JSON.stringify(filtered));
-      }
-    } catch (e) {}
+    if (isPwaOrMobile) {
+      try {
+        const stored = localStorage.getItem('sigo_field_reports');
+        if (stored) {
+          const parsed: FieldProductionReport[] = JSON.parse(stored);
+          const filtered = parsed.filter(r => r.id !== reportId);
+          localStorage.setItem('sigo_field_reports', JSON.stringify(filtered));
+        }
+      } catch (e) {}
 
-    await deleteFieldReportFromIDB(reportId);
+      await deleteFieldReportFromIDB(reportId);
+    }
 
     const config = getSupabaseConfig();
     if (config.enabled) {
@@ -983,7 +1081,9 @@ export default function App() {
       }
     }
 
-    await syncFieldReportsStateToSupabase(updated, []);
+    if (isPwaOrMobile) {
+      await syncFieldReportsStateToSupabase(updated, []);
+    }
 
     if (report && report.status === 'approved') {
       recalculateServiceProductionFromReports(report, updated);
@@ -1887,27 +1987,29 @@ const normalizeWorkMovementSector = (sec?: string): string => {
                 const unsyncedFromBlob = parsedBlobData.filter((b: any) => isUnsynced(b) && !camelData.some((c: any) => c.id === b.id));
                 finalVal = [...camelData, ...unsyncedFromBlob];
 
-                // Align IndexedDB (offline database) with the server list to clean up obsolete synced records and update statuses
-                (async () => {
-                  try {
-                    const idbReports = await getAllFieldReportsFromIDB();
-                    const serverIds = camelData.map((c: any) => c.id);
-                    const obsoleteReports = idbReports.filter((r: any) => 
-                      !isUnsynced(r) && !serverIds.includes(r.id) && !r.id.startsWith('photo-')
-                    );
-                    
-                    for (const obs of obsoleteReports) {
-                      await deleteFieldReportFromIDB(obs.id);
-                      console.log(`[IDB] Removed server-deleted obsolete report: ${obs.id}`);
+                // Align IndexedDB (offline database) with the server list to clean up obsolete synced records and update statuses ONLY if in PWA/Mobile mode
+                if (isPwaOrMobile) {
+                  (async () => {
+                    try {
+                      const idbReports = await getAllFieldReportsFromIDB();
+                      const serverIds = camelData.map((c: any) => c.id);
+                      const obsoleteReports = idbReports.filter((r: any) => 
+                        !isUnsynced(r) && !serverIds.includes(r.id) && !r.id.startsWith('photo-')
+                      );
+                      
+                      for (const obs of obsoleteReports) {
+                        await deleteFieldReportFromIDB(obs.id);
+                        console.log(`[IDB] Removed server-deleted obsolete report: ${obs.id}`);
+                      }
+                      
+                      if (camelData.length > 0) {
+                        await saveMultipleFieldReportsToIDB(camelData);
+                      }
+                    } catch (idbErr) {
+                      console.warn('[Sync] Failed to align IndexedDB with server field reports:', idbErr);
                     }
-                    
-                    if (camelData.length > 0) {
-                      await saveMultipleFieldReportsToIDB(camelData);
-                    }
-                  } catch (idbErr) {
-                    console.warn('[Sync] Failed to align IndexedDB with server field reports:', idbErr);
-                  }
-                })();
+                  })();
+                }
               } else {
                 finalVal = camelData;
               }
