@@ -652,7 +652,7 @@ export default function App() {
         : validRegistros;
 
       if (reportsToUpsert.length > 0) {
-        const mapped = reportsToUpsert.map((r: any) => {
+        const mappedAndOriginal = reportsToUpsert.map((r: any) => {
           const {
             id, companyId, contractId, contractName, serviceId, serviceName,
             unit, qty, productionDate, startStation, endStation, trecho,
@@ -660,7 +660,7 @@ export default function App() {
             syncedAt, createdAt, updatedAt, infoType, tripsQty, lengthM, widthM, heightM,
             rejectedBy, rejectionReason, rejectedAt, approvedBy, approvedAt
           } = r;
-          return {
+          const mappedRow = {
             id: id || `fr-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
             company_id: companyId || activeCompId || null,
             contract_id: (contractId && contractId !== '') ? contractId : null,
@@ -678,7 +678,7 @@ export default function App() {
             photo_url: photoUrl || null,
             reported_by: reportedBy || null,
             reported_by_email: reportedByEmail || null,
-            status: status || 'pending',
+            status: status === 'pending' ? 'pending' : (status || 'pending'),
             synced_at: (syncedAt && typeof syncedAt === 'string' && syncedAt.trim() !== '') ? syncedAt : new Date().toISOString(),
             created_at: (createdAt && typeof createdAt === 'string' && createdAt.trim() !== '') ? createdAt : new Date().toISOString(),
             updated_at: (updatedAt && typeof updatedAt === 'string' && updatedAt.trim() !== '') ? updatedAt : new Date().toISOString(),
@@ -693,18 +693,80 @@ export default function App() {
             ...(widthM !== undefined && widthM !== null ? { width_m: Number(widthM) } : {}),
             ...(heightM !== undefined && heightM !== null ? { height_m: Number(heightM) } : {})
           };
+          return { original: r, mapped: mappedRow };
         });
 
-        let { error: fErr } = await supabase.from('field_reports').upsert(mapped);
+        const mappedRows = mappedAndOriginal.map(x => x.mapped);
+        
+        let { error: fErr } = await supabase.from('field_reports').upsert(mappedRows);
         if (fErr) {
           console.warn('[Supabase] First attempt failed, retrying with core columns:', fErr);
-          const coreMapped = mapped.map(({ info_type, trips_qty, length_m, width_m, height_m, ...rest }: any) => rest);
-          const { error: retryErr } = await supabase.from('field_reports').upsert(coreMapped);
-          if (retryErr) {
-            console.error('[Supabase] Retry field_reports upsert with core columns failed:', retryErr);
-            return false;
+          const coreMapped = mappedRows.map(({ info_type, trips_qty, length_m, width_m, height_m, ...rest }: any) => rest);
+          let { error: coreErr } = await supabase.from('field_reports').upsert(coreMapped);
+          
+          if (coreErr) {
+            console.warn('[Supabase] Batch upsert failed, processing one-by-one to isolate errors...');
+            let updatedStateReports = [...fieldReports];
+            let someFailed = false;
+
+            for (const pair of mappedAndOriginal) {
+              const row = pair.mapped;
+              const originalReport = pair.original;
+              
+              let { error: indError } = await supabase.from('field_reports').upsert(row);
+              if (indError) {
+                const { info_type, trips_qty, length_m, width_m, height_m, ...coreRow } = row as any;
+                let { error: indCoreErr } = await supabase.from('field_reports').upsert(coreRow);
+                if (indCoreErr) {
+                  indError = indCoreErr;
+                } else {
+                  indError = null;
+                }
+              }
+
+              if (indError) {
+                console.error(`[Supabase] Row upsert failed for ${row.id}:`, indError);
+                someFailed = true;
+                const updatedItem: FieldProductionReport = {
+                  ...originalReport,
+                  status: 'pending',
+                  synced: false,
+                  syncError: indError.message || 'Erro de validação ou conexão'
+                };
+                updatedStateReports = updatedStateReports.map(item => item.id === updatedItem.id ? updatedItem : item);
+                await saveFieldReportToIDB(updatedItem);
+              } else {
+                const updatedItem: FieldProductionReport = {
+                  ...originalReport,
+                  status: 'synced',
+                  synced: true,
+                  syncedAt: new Date().toISOString(),
+                  syncError: undefined
+                };
+                updatedStateReports = updatedStateReports.map(item => item.id === updatedItem.id ? updatedItem : item);
+                await saveFieldReportToIDB(updatedItem);
+              }
+            }
+
+            setFieldReports(updatedStateReports);
+            return !someFailed;
           }
         }
+
+        // Entire batch succeeded (either full columns or core columns)
+        let updatedStateReports = [...fieldReports];
+        for (const report of reportsToUpsert) {
+          const updatedItem: FieldProductionReport = {
+            ...report,
+            status: 'synced',
+            synced: true,
+            syncedAt: new Date().toISOString(),
+            syncError: undefined
+          };
+          updatedStateReports = updatedStateReports.map(item => item.id === updatedItem.id ? updatedItem : item);
+          await saveFieldReportToIDB(updatedItem);
+        }
+        setFieldReports(updatedStateReports);
       }
       return true;
     } catch (err) {
@@ -712,6 +774,7 @@ export default function App() {
       return false;
     }
   };
+
   const handleSaveFieldReport = async (report: FieldProductionReport): Promise<boolean> => {
     // 1. Initial save as pending/unsynced
     const updatedPending = [report, ...fieldReports.filter(r => r.id !== report.id)];
@@ -719,20 +782,7 @@ export default function App() {
     await saveFieldReportToIDB(report);
 
     // 2. Try to sync to Supabase
-    const success = await syncFieldReportsStateToSupabase(updatedPending, [report]);
-    
-    // 3. If success, mark as synced!
-    if (success && !report.id.startsWith('photo-')) {
-      const syncedReport = {
-        ...report,
-        status: (report.status === 'pending' ? 'synced' : report.status) as any,
-        synced: true,
-        syncedAt: new Date().toISOString()
-      };
-      const updatedSynced = [syncedReport, ...fieldReports.filter(r => r.id !== report.id)];
-      setFieldReports(updatedSynced);
-      await saveFieldReportToIDB(syncedReport);
-    }
+    await syncFieldReportsStateToSupabase(updatedPending, [report]);
     return true;
   };
 
@@ -741,33 +791,39 @@ export default function App() {
     setFieldReports(updatedPending);
     await saveFieldReportToIDB(report);
 
-    const success = await syncFieldReportsStateToSupabase(updatedPending, [report]);
-
-    if (success && !report.id.startsWith('photo-')) {
-      const syncedReport = {
-        ...report,
-        status: (report.status === 'pending' ? 'synced' : report.status) as any,
-        synced: true,
-        syncedAt: new Date().toISOString()
-      };
-      const updatedSynced = fieldReports.map(r => r.id === report.id ? syncedReport : r);
-      setFieldReports(updatedSynced);
-      await saveFieldReportToIDB(syncedReport);
-      
-      if (syncedReport.status === 'approved') {
-        recalculateServiceProductionFromReports(syncedReport, updatedSynced);
-      }
-    } else {
-      if (report.status === 'approved') {
-        recalculateServiceProductionFromReports(report, updatedPending);
-      }
-    }
+    await syncFieldReportsStateToSupabase(updatedPending, [report]);
     return true;
   };
 
   const handleSyncMobileData = async () => {
     const nowIso = new Date().toISOString();
+    const config = getSupabaseConfig();
     const deletedIds = getDeletedFieldReportIds();
+
+    // 0. Sync local offline deletions to Supabase first if any exist and Supabase is enabled
+    if (deletedIds.length > 0 && config.enabled) {
+      const supabase = createSupabaseClient(config.url, config.key);
+      if (supabase) {
+        try {
+          console.log(`[Sync] Syncing ${deletedIds.length} offline deletions to Supabase...`);
+          const { error: delErr } = await supabase.from('field_reports').delete().in('id', deletedIds);
+          if (!delErr) {
+            console.log('[Sync] Offline deletions synced successfully.');
+            // Clear successfully deleted IDs from local list
+            for (const id of deletedIds) {
+              removeDeletedFieldReportId(id);
+            }
+          } else {
+            console.warn('[Sync] Failed to sync offline deletions:', delErr);
+          }
+        } catch (e) {
+          console.warn('[Sync] Error syncing offline deletions:', e);
+        }
+      }
+    }
+
+    // Refresh deleted list in case some were cleared
+    const activeDeletedIds = getDeletedFieldReportIds();
 
     // 1. Combine state field reports with IDB reports to ensure no offline report is lost
     let idbReports: FieldProductionReport[] = [];
@@ -776,14 +832,13 @@ export default function App() {
     } catch (e) {}
 
     // Exclude deleted reports
-    idbReports = idbReports.filter(r => r && r.id && !deletedIds.includes(r.id));
-    const cleanFieldReports = fieldReports.filter(r => r && r.id && !deletedIds.includes(r.id));
+    idbReports = idbReports.filter(r => r && r.id && !activeDeletedIds.includes(r.id));
+    const cleanFieldReports = fieldReports.filter(r => r && r.id && !activeDeletedIds.includes(r.id));
 
     const combined = deduplicateById([...cleanFieldReports, ...idbReports]);
     // Filter out camera-only photo reports (starting with photo-) - camera photos stay local to device
-    const unsyncedReports = combined.filter(r => !r.id.startsWith('photo-') && (!r.synced || !r.syncedAt || r.status === 'pending'));
+    const unsyncedReports = combined.filter(r => !r.id.startsWith('photo-') && (!r.synced || !r.syncedAt || r.status === 'pending' || r.syncError));
 
-    let updatedReports = combined;
     if (unsyncedReports.length > 0) {
       // ONLY mark as synced and save to IndexedDB AFTER successful upload to the 'field_reports' table!
       // This matches the user's requirement: "No synera mobile, os dados após estarem salvos na tabela field_reports, ficam sincronizados no pwa, somente após confimação que os dados estão sincronizados."
@@ -791,26 +846,10 @@ export default function App() {
       // Try to sync unsyncedReports to Supabase 'field_reports' table
       const syncSuccess = await syncFieldReportsStateToSupabase(combined, unsyncedReports);
       
-      if (syncSuccess) {
-        // Only if it succeeds, update local status of the unsynced reports to 'synced'
-        updatedReports = combined.map(r => {
-          if (!r.id.startsWith('photo-') && (!r.synced || !r.syncedAt || r.status === 'pending')) {
-            return {
-              ...r,
-              status: 'synced' as const,
-              syncedAt: nowIso,
-              synced: true
-            };
-          }
-          return r;
-        });
-
-        setFieldReports(updatedReports);
-        await saveMultipleFieldReportsToIDB(updatedReports);
-      } else {
-        // If it fails, do not mark them as synced! Throw an error or warning so the UI/user knows it failed
-        console.warn('[Sync] Failed to upload field reports to the server table.');
-        throw new Error('Não foi possível salvar os apontamentos na tabela field_reports do servidor. Verifique sua conexão e tente novamente.');
+      if (!syncSuccess) {
+        // If some failed, throw an error so the UI/user knows there are issues, but let them see which ones failed
+        console.warn('[Sync] Some field reports failed to sync.');
+        throw new Error('Alguns apontamentos não puderam ser salvos no servidor e ficaram como pendentes. Verifique as mensagens de erro nos registros vermelhos.');
       }
     } else {
       // Even if nothing to sync, make sure we run a push for safety of any in-memory state
@@ -1203,7 +1242,7 @@ const normalizeWorkMovementSector = (sec?: string): string => {
     }
   };
 
-  const addWorkMovement = async (movement: Omit<WorkMovement, 'id' | 'timestamp'>) => {
+  const addWorkMovement = async (movement: Omit<WorkMovement, 'id' | 'timestamp'>): Promise<boolean> => {
     const newMovement: WorkMovement = {
       ...movement,
       id: `wm-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
@@ -1235,13 +1274,20 @@ const normalizeWorkMovementSector = (sec?: string): string => {
             reference_code: reference_code || null,
             details: details && typeof details === 'object' ? details : {}
           };
-          await supabase.from('work_movements').upsert(sanitized);
+          const { error } = await supabase.from('work_movements').upsert(sanitized);
+          if (error) {
+            console.error('[Supabase] Work movement error:', error);
+            return false;
+          }
           console.log('[Supabase] Work movement persisted immediately');
+          return true;
         } catch (err) {
           console.warn('[Sync] Work movement persist failed', err);
+          return false;
         }
       }
     }
+    return false;
   };
   
   const [isContractSheetOpen, setIsContractSheetOpen] = useState(false);
@@ -1837,9 +1883,31 @@ const normalizeWorkMovementSector = (sec?: string): string => {
             
             if (tableName === 'fuel_reservoirs' || tableName === 'fuel_logs' || tableName === 'field_reports') {
               if (tableName === 'field_reports') {
-                const isUnsynced = (item: any) => item && (item.synced === false || item.status === 'pending' || (!item.syncedAt && !item.synced));
+                const isUnsynced = (item: any) => item && (item.synced === false || item.status === 'pending' || item.syncError || (!item.syncedAt && !item.synced));
                 const unsyncedFromBlob = parsedBlobData.filter((b: any) => isUnsynced(b) && !camelData.some((c: any) => c.id === b.id));
                 finalVal = [...camelData, ...unsyncedFromBlob];
+
+                // Align IndexedDB (offline database) with the server list to clean up obsolete synced records and update statuses
+                (async () => {
+                  try {
+                    const idbReports = await getAllFieldReportsFromIDB();
+                    const serverIds = camelData.map((c: any) => c.id);
+                    const obsoleteReports = idbReports.filter((r: any) => 
+                      !isUnsynced(r) && !serverIds.includes(r.id) && !r.id.startsWith('photo-')
+                    );
+                    
+                    for (const obs of obsoleteReports) {
+                      await deleteFieldReportFromIDB(obs.id);
+                      console.log(`[IDB] Removed server-deleted obsolete report: ${obs.id}`);
+                    }
+                    
+                    if (camelData.length > 0) {
+                      await saveMultipleFieldReportsToIDB(camelData);
+                    }
+                  } catch (idbErr) {
+                    console.warn('[Sync] Failed to align IndexedDB with server field reports:', idbErr);
+                  }
+                })();
               } else {
                 finalVal = camelData;
               }
@@ -3114,9 +3182,9 @@ const normalizeWorkMovementSector = (sec?: string): string => {
 
 
   // --- Technical Management (RDO, Pluviometry, Schedule) ---
-  const addDailyReport = async (report: Omit<DailyReport, 'id'>) => {
+  const addDailyReport = async (report: Omit<DailyReport, 'id'>): Promise<boolean> => {
     const newId = uuidv4();
-    const fullReport = { ...report, id: newId, companyId: currentUser?.companyId };
+    const fullReport = { ...report, id: newId, companyId: currentUser?.companyId || compId };
     setDailyReports(prev => [...prev, fullReport]);
     addAuditLog('Adição', 'Sala Técnica', `RDO adicionado para: ${report.date}`);
     
@@ -3125,13 +3193,20 @@ const normalizeWorkMovementSector = (sec?: string): string => {
       const supabase = createSupabaseClient(config.url, config.key);
       if (supabase) {
         try {
-          await supabase.from('daily_reports').upsert(mapToSnake(fullReport));
+          const { error } = await supabase.from('daily_reports').upsert(mapToSnake(fullReport));
+          if (error) {
+            console.error('[Supabase] RDO error:', error);
+            return false;
+          }
           console.log('[Supabase] RDO persisted immediately');
+          return true;
         } catch (err) {
           console.warn('[Sync] RDO persistence failed', err);
+          return false;
         }
       }
     }
+    return false;
   };
 
   const updateDailyReport = async (updated: DailyReport) => {
@@ -6109,6 +6184,7 @@ const normalizeWorkMovementSector = (sec?: string): string => {
               {mainTab === 'rh' && (
                 <RHView 
                   currentUser={effectiveUser}
+                  users={users}
                   employees={employees}
                   alojamentos={alojamentos || []}
                   onUpdateAlojamentos={updateAlojamentos}

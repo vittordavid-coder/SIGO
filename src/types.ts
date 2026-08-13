@@ -1215,4 +1215,5 @@ export interface FieldProductionReport {
   rejectedAt?: string;
   approvedBy?: string;
   approvedAt?: string;
+  syncError?: string;
 }

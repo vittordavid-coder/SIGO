@@ -35,8 +35,8 @@ export interface SyneraMobileViewProps {
   onUpdateFieldReport?: (report: FieldProductionReport) => void;
   onDeleteFieldReport?: (reportId: string) => void;
   onUpdateServiceProduction: (p: ServiceProduction) => void;
-  onAddWorkMovement?: (movement: any) => void;
-  onSaveDailyReport?: (report: DailyReport) => void;
+  onAddWorkMovement?: (movement: any) => Promise<boolean>;
+  onSaveDailyReport?: (report: DailyReport) => Promise<boolean>;
   onLogout?: () => void;
   selectedContractId?: string;
   onUpdateContractId?: (id: string) => void;
@@ -52,6 +52,7 @@ export interface OfflinePendingItem {
   contractName: string;
   data: any;
   synced: boolean;
+  error?: string;
 }
 
 const CACHE_KEY = 'synera_mobile_cached_data_v1';
@@ -2707,157 +2708,176 @@ export function SyneraMobileView({
       ];
       setSyncHistory(prev => [...downloadHistory, ...prev].slice(0, 50));
 
-      for (const item of offlineQueue) {
-        if (item.type === 'production') {
-          const { serviceId, qty, trecho, notes, month, productionDate } = item.data;
-          const reportDate = productionDate || new Date().toISOString().slice(0, 10);
-          const targetMonth = month || reportDate.slice(0, 7);
-          const dayNum = parseInt(reportDate.slice(8, 10), 10);
-          
-          if (onAddWorkMovement) {
-            const sName = services.find(s => s.id === serviceId)?.name || 'Serviço';
-            onAddWorkMovement({
-              sector: 'SALA TÉCNICA',
-              action: 'APONTAMENTO DE CAMPO (PWA)',
-              description: `Produção realizada no campo: ${qty} un em ${sName} (${item.contractName})`,
-              referenceCode: `PWA-${item.id.slice(-4)}`,
-              contractName: item.contractName,
-              responsibleUser: currentUser.name || 'Apontador de Campo',
-              details: {
-                notes: `Data Prod: ${reportDate}. Trecho/Local: ${trecho || 'Campo'}. ${notes || ''}`,
-                productionValue: qty,
-              }
-            });
-          }
-        } else if (item.type === 'equipment') {
-          if (onAddWorkMovement) {
-            onAddWorkMovement({
-              sector: 'CONTROLADOR',
-              action: 'MEDIÇÃO EQUIPAMENTO',
-              description: `Aferição no equipamento ${item.data.equipmentName} (${item.data.horometer}h)`,
-              referenceCode: `FROTA-${item.id.slice(-4)}`,
-              contractName: item.contractName,
-              responsibleUser: currentUser.name || 'Apontador de Campo',
-              details: {
-                equipmentName: item.data.equipmentName,
-                hoursOrHorometer: item.data.horometer,
-                notes: `Combustível: ${item.data.fuel}L. Status: ${item.data.status}. ${item.data.notes}`
-              }
-            });
-          }
-        } else if (item.type === 'headcount') {
-          if (onAddWorkMovement) {
-            onAddWorkMovement({
-              sector: 'RH',
-              type: 'hr_headcount',
-              action: 'APONTAMENTO DE MÃO DE OBRA',
-              description: `Registro de efetivo de campo: ${item.data.present} presentes, ${item.data.absent} faltas`,
-              referenceCode: `RH-${item.id.slice(-4)}`,
-              contractName: item.contractName,
-              responsibleUser: currentUser.name || 'Apontador de Campo',
-              details: {
-                notes: `Líder: ${item.data.leader}. Horas Extras: ${item.data.overtime}h. ${item.data.notes}`,
-                records: item.data.records
-              }
-            });
-          }
-        } else if (item.type === 'materials') {
-          if (onAddWorkMovement) {
-            onAddWorkMovement({
-              sector: 'ALMOXARIFE',
-              action: item.data.type === 'entrada' ? 'RECEBIMENTO MATERIAL' : item.data.type === 'saida' ? 'SAÍDA PARA OBRA' : 'REQUISIÇÃO DE CAMPO',
-              description: `Movimentação de material: ${item.data.qty} ${item.data.unit} de ${item.data.materialName}`,
-              referenceCode: `ALMOX-${item.id.slice(-4)}`,
-              contractName: item.contractName,
-              responsibleUser: currentUser.name || 'Apontador de Campo',
-              details: {
-                materialName: item.data.materialName,
-                quantity: item.data.qty,
-                notes: item.data.notes
-              }
-            });
-          }
-        } else if (item.type === 'daily_log') {
-          if (onSaveDailyReport) {
-            const newReport: DailyReport = {
-              id: `r-${Date.now()}`,
-              contractId: item.contractId,
-              date: new Date().toISOString().slice(0, 10),
-              weatherMorning: item.data.weatherMorning,
-              weatherAfternoon: item.data.weatherAfternoon,
-              fiscalizationComments: item.data.fiscalization,
-              accidents: item.data.accidents,
-              manpower: [],
-              equipment: [],
-              activities: [],
-              photos: []
-            };
-            onSaveDailyReport(newReport);
-          }
+      const updatedQueue: OfflinePendingItem[] = [];
+      const successfulSyncHistoryItems: any[] = [];
+      let totalFailedCount = 0;
 
-          if (onAddWorkMovement) {
-            onAddWorkMovement({
-              sector: 'ADMINISTRADOR DA OBRA',
-              action: 'DIÁRIO DE CAMPO',
-              description: `Registro de diário de obra e ocorrências no campo`,
-              referenceCode: `LOG-${item.id.slice(-4)}`,
-              contractName: item.contractName,
-              responsibleUser: currentUser.name || 'Apontador de Campo',
-              details: {
-                notes: `Clima: ${item.data.weatherMorning}/${item.data.weatherAfternoon}. Obs: ${item.data.fiscalization}`
+      for (const item of offlineQueue) {
+        let success = true;
+        let errorMsg = '';
+
+        try {
+          if (item.type === 'production') {
+            const { serviceId, qty, trecho, notes, month, productionDate } = item.data;
+            const reportDate = productionDate || new Date().toISOString().slice(0, 10);
+            
+            if (onAddWorkMovement) {
+              const sName = services.find(s => s.id === serviceId)?.name || 'Serviço';
+              success = await onAddWorkMovement({
+                sector: 'SALA TÉCNICA',
+                action: 'APONTAMENTO DE CAMPO (PWA)',
+                description: `Produção realizada no campo: ${qty} un em ${sName} (${item.contractName})`,
+                referenceCode: `PWA-${item.id.slice(-4)}`,
+                contractName: item.contractName,
+                responsibleUser: currentUser.name || 'Apontador de Campo',
+                details: {
+                  notes: `Data Prod: ${reportDate}. Trecho/Local: ${trecho || 'Campo'}. ${notes || ''}`,
+                  productionValue: qty,
+                }
+              });
+              if (!success) {
+                errorMsg = 'Falha ao salvar no banco da Sala Técnica';
               }
-            });
+            }
+          } else if (item.type === 'equipment') {
+            if (onAddWorkMovement) {
+              success = await onAddWorkMovement({
+                sector: 'CONTROLADOR',
+                action: 'MEDIÇÃO EQUIPAMENTO',
+                description: `Aferição no equipamento ${item.data.equipmentName} (${item.data.horometer}h)`,
+                referenceCode: `FROTA-${item.id.slice(-4)}`,
+                contractName: item.contractName,
+                responsibleUser: currentUser.name || 'Apontador de Campo',
+                details: {
+                  equipmentName: item.data.equipmentName,
+                  hoursOrHorometer: item.data.horometer,
+                  notes: `Combustível: ${item.data.fuel}L. Status: ${item.data.status}. ${item.data.notes}`
+                }
+              });
+              if (!success) {
+                errorMsg = 'Falha ao salvar medição de equipamento';
+              }
+            }
+          } else if (item.type === 'headcount') {
+            if (onAddWorkMovement) {
+              success = await onAddWorkMovement({
+                sector: 'RH',
+                type: 'hr_headcount',
+                action: 'APONTAMENTO DE MÃO DE OBRA',
+                description: `Registro de efetivo de campo: ${item.data.present} presentes, ${item.data.absent} faltas`,
+                referenceCode: `RH-${item.id.slice(-4)}`,
+                contractName: item.contractName,
+                responsibleUser: currentUser.name || 'Apontador de Campo',
+                details: {
+                  notes: `Líder: ${item.data.leader}. Horas Extras: ${item.data.overtime}h. ${item.data.notes}`,
+                  records: item.data.records
+                }
+              });
+              if (!success) {
+                errorMsg = 'Falha ao salvar dados de efetivo (RH)';
+              }
+            }
+          } else if (item.type === 'materials') {
+            if (onAddWorkMovement) {
+              success = await onAddWorkMovement({
+                sector: 'ALMOXARIFE',
+                action: item.data.type === 'entrada' ? 'RECEBIMENTO MATERIAL' : item.data.type === 'saida' ? 'SAÍDA PARA OBRA' : 'REQUISIÇÃO DE CAMPO',
+                description: `Movimentação de material: ${item.data.qty} ${item.data.unit} de ${item.data.materialName}`,
+                referenceCode: `ALMOX-${item.id.slice(-4)}`,
+                contractName: item.contractName,
+                responsibleUser: currentUser.name || 'Apontador de Campo',
+                details: {
+                  materialName: item.data.materialName,
+                  quantity: item.data.qty,
+                  notes: item.data.notes
+                }
+              });
+              if (!success) {
+                errorMsg = 'Falha ao salvar movimentação de materiais';
+              }
+            }
+          } else if (item.type === 'daily_log') {
+            let dailySuccess = true;
+            if (onSaveDailyReport) {
+              const newReport: DailyReport = {
+                id: `r-${Date.now()}`,
+                contractId: item.contractId,
+                date: new Date().toISOString().slice(0, 10),
+                weatherMorning: item.data.weatherMorning,
+                weatherAfternoon: item.data.weatherAfternoon,
+                fiscalizationComments: item.data.fiscalization,
+                accidents: item.data.accidents,
+                manpower: [],
+                equipment: [],
+                activities: [],
+                photos: []
+              };
+              dailySuccess = await onSaveDailyReport(newReport);
+            }
+            
+            let movementSuccess = true;
+            if (onAddWorkMovement) {
+              movementSuccess = await onAddWorkMovement({
+                sector: 'ADMINISTRADOR DA OBRA',
+                action: 'DIÁRIO DE CAMPO',
+                description: `Registro de diário de obra e ocorrências no campo`,
+                referenceCode: `LOG-${item.id.slice(-4)}`,
+                contractName: item.contractName,
+                responsibleUser: currentUser.name || 'Apontador de Campo',
+                details: {
+                  notes: `Clima: ${item.data.weatherMorning}/${item.data.weatherAfternoon}. Obs: ${item.data.fiscalization}`
+                }
+              });
+            }
+            success = dailySuccess && movementSuccess;
+            if (!success) {
+              errorMsg = 'Falha ao salvar diário de campo';
+            }
           }
+        } catch (err: any) {
+          success = false;
+          errorMsg = err.message || 'Erro inesperado ao sincronizar';
+        }
+
+        if (success) {
+          successfulSyncHistoryItems.push({
+            id: `sh-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+            timestamp: nowIso,
+            action: 'upload' as const,
+            details: `Enviado [${item.type === 'production' ? 'Produção' : item.type === 'equipment' ? 'Equipamento' : item.type === 'headcount' ? 'RH' : item.type === 'materials' ? 'Material' : 'Diário'}]: ${item.type === 'production' ? item.data.qty + ' ' + item.data.unit + ' de ' + (item.data.serviceName || 'Serviço') : item.type === 'equipment' ? item.data.equipmentName + ' (' + item.data.horometer + 'h)' : item.type === 'headcount' ? item.data.present + ' presentes' : item.type === 'materials' ? item.data.qty + ' ' + item.data.unit + ' de ' + item.data.materialName : 'Relatório Diário'}`
+          });
+        } else {
+          totalFailedCount++;
+          updatedQueue.push({
+            ...item,
+            synced: false,
+            error: errorMsg || 'Erro na persistência'
+          });
         }
       }
 
-      // Mark local pending reports as synced
-      let currentLocalReports: FieldProductionReport[] = [];
-      try {
-        currentLocalReports = JSON.parse(localStorage.getItem('sigo_field_reports') || '[]');
-      } catch (e) {}
+      setOfflineQueue(updatedQueue);
+      localStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(updatedQueue));
 
-      const allReportsToMark = fieldReports.length > 0 ? fieldReports : currentLocalReports;
-      const updatedFieldReports = allReportsToMark.map(r => {
-        if (r.status === 'pending' || !r.syncedAt || !r.synced) {
-          const syncedRep: FieldProductionReport = {
-            ...r,
-            status: 'synced' as const,
-            syncedAt: nowIso,
-            synced: true
-          };
-          if (onUpdateFieldReport) {
-            onUpdateFieldReport(syncedRep);
-          }
-          return syncedRep;
-        }
-        return r;
-      });
+      if (successfulSyncHistoryItems.length > 0) {
+        setSyncHistory(prev => [...successfulSyncHistoryItems, ...prev].slice(0, 50));
+      }
 
-      try {
-        localStorage.setItem('sigo_field_reports', JSON.stringify(updatedFieldReports));
-        saveMultipleFieldReportsToIDB(updatedFieldReports);
-      } catch (e) {}
-
-      const newHistoryItems = offlineQueue.map(item => ({
-        id: `sh-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
-        timestamp: nowIso,
-        action: 'upload' as const,
-        details: `Enviado [${item.type === 'production' ? 'Produção' : item.type === 'equipment' ? 'Equipamento' : item.type === 'headcount' ? 'RH' : item.type === 'materials' ? 'Material' : 'Diário'}]: ${item.type === 'production' ? item.data.qty + ' ' + item.data.unit + ' de ' + (item.data.serviceName || 'Serviço') : item.type === 'equipment' ? item.data.equipmentName + ' (' + item.data.horometer + 'h)' : item.type === 'headcount' ? item.data.present + ' presentes' : item.type === 'materials' ? item.data.qty + ' ' + item.data.unit + ' de ' + item.data.materialName : 'Relatório Diário'}`
-      }));
-      setSyncHistory(prev => [...newHistoryItems, ...prev].slice(0, 50));
-      setOfflineQueue([]);
-      localStorage.removeItem(OFFLINE_QUEUE_KEY);
-
-      // Trigger cloud upload
+      // Trigger cloud upload for field production reports
       if (onSyncRequest) {
         await onSyncRequest();
       }
 
-      setSyncSuccessMsg('Sincronização concluída! Dados transmitidos com sucesso para a Sala Técnica.');
-      setTimeout(() => setSyncSuccessMsg(null), 3500);
-    } catch (err) {
+      if (totalFailedCount > 0) {
+        setSyncSuccessMsg(null);
+        alert(`Sincronização concluída com avisos: ${totalFailedCount} registros falharam e permaneceram como pendentes.`);
+      } else {
+        setSyncSuccessMsg('Sincronização concluída! Todos os dados transmitidos com sucesso.');
+        setTimeout(() => setSyncSuccessMsg(null), 3500);
+      }
+    } catch (err: any) {
       console.error('Erro na sincronização:', err);
+      alert(err.message || 'Erro durante a sincronização dos dados de campo.');
     } finally {
       setIsSyncing(false);
     }
@@ -5384,6 +5404,12 @@ export function SyneraMobileView({
                               {item.type === 'daily_log' && `Diário de Campo / Clima`}
                             </p>
                             <span className="text-[9px] text-slate-500">{new Date(item.timestamp).toLocaleTimeString('pt-BR')}</span>
+                            {item.error && (
+                              <div className="mt-1.5 px-2 py-1 bg-rose-500/10 text-rose-400 border border-rose-500/20 rounded-lg text-[10px] font-medium max-w-xs flex items-center gap-1.5">
+                                <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0 text-rose-500" />
+                                <span>{item.error}</span>
+                              </div>
+                            )}
                           </div>
 
                           <button

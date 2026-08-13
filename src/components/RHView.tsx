@@ -195,6 +195,7 @@ import { RHDocuments } from "./RHDocuments";
 interface RHViewProps {
   currentUser: User;
   employees: Employee[];
+  users?: User[];
   alojamentos?: Alojamento[];
   onUpdateAlojamentos?: (alojamentos: Alojamento[]) => void;
   timeRecords: TimeRecord[];
@@ -220,6 +221,7 @@ import { InlineAutocomplete } from './InlineAutocomplete';
 export default function RHView({
   currentUser,
   employees,
+  users = [],
   alojamentos = [],
   onUpdateAlojamentos,
   timeRecords,
@@ -300,6 +302,21 @@ export default function RHView({
   const [selectedRespEmpId, setSelectedRespEmpId] = useState("");
   const [selectedRespScope, setSelectedRespScope] = useState<'ALL' | 'TEAM'>("ALL");
   const [selectedRespTeam, setSelectedRespTeam] = useState("");
+
+  const mobileAllowedUsers = useMemo(() => {
+    if (!users || !Array.isArray(users)) return [];
+    return users.filter((u) => {
+      if (u.isActive === false) return false;
+      const hasMobileAccess = u.userGroup === 'mobile' || u.role === 'apontador' || u.allowedModules?.includes('mobile');
+      if (!hasMobileAccess) return false;
+      if (selectedContractId && u.allowedContractIds && u.allowedContractIds.length > 0) {
+        if (!u.allowedContractIds.includes(selectedContractId)) {
+          return false;
+        }
+      }
+      return true;
+    });
+  }, [users, selectedContractId]);
 
   // --- Employee Transfer States ---
   const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
@@ -5605,20 +5622,20 @@ export default function RHView({
                 <CardContent className="p-6 space-y-5">
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-3 bg-indigo-50/50 p-4 rounded-2xl border border-indigo-100/60">
                     <div className="space-y-1">
-                      <Label className="text-gray-700 font-bold text-xs">Selecione o Colaborador *</Label>
+                      <Label className="text-gray-700 font-bold text-xs">Selecione o Usuário do Mobile *</Label>
                       <InlineAutocomplete
-                        options={employees.map((e) => ({
-                          value: e.id,
-                          label: `${e.name} ${e.role ? `(${e.role})` : ''} ${e.team ? `[Equipe: ${e.team}]` : ''}`
+                        options={(mobileAllowedUsers.length > 0 ? mobileAllowedUsers : users).map((u) => ({
+                          value: u.id,
+                          label: `${u.name} (@${u.username}) ${u.role ? `[Função: ${u.role}]` : ''}`
                         }))}
                         value={selectedRespEmpId}
                         onChange={(val) => setSelectedRespEmpId(val)}
                         onSelect={(val, label) => setSelectedRespEmpId(val)}
-                        placeholder="-- Escolha um Funcionário --"
+                        placeholder="-- Escolha um Usuário do Mobile --"
                       />
                       {/* Hint to show selected item */}
-                      {selectedRespEmpId && employees.find(e => e.id === selectedRespEmpId) && (
-                         <div className="text-[10px] text-emerald-600 font-bold mt-1">Selecionado: {employees.find(e => e.id === selectedRespEmpId)?.name}</div>
+                      {selectedRespEmpId && users.find(u => u.id === selectedRespEmpId) && (
+                         <div className="text-[10px] text-emerald-600 font-bold mt-1">Selecionado: {users.find(u => u.id === selectedRespEmpId)?.name}</div>
                       )}
                     </div>
 
@@ -5661,18 +5678,18 @@ export default function RHView({
                         type="button"
                         onClick={() => {
                           if (!selectedRespEmpId) {
-                            alert("Selecione um funcionário da lista.");
+                            alert("Selecione um usuário da lista.");
                             return;
                           }
                           if (selectedRespScope === 'TEAM' && !selectedRespTeam.trim()) {
                             alert("Informe o nome da equipe específica.");
                             return;
                           }
-                          const emp = employees.find(e => e.id === selectedRespEmpId);
+                          const matchedUser = users.find(u => u.id === selectedRespEmpId);
                           const newResp = {
                             id: `resp-${Date.now()}`,
                             employeeId: selectedRespEmpId,
-                            employeeName: emp ? emp.name : 'Funcionário',
+                            employeeName: matchedUser ? matchedUser.name : 'Usuário',
                             scope: selectedRespScope,
                             teamName: selectedRespScope === 'TEAM' ? selectedRespTeam.trim() : undefined
                           };
