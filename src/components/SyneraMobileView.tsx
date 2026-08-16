@@ -1585,7 +1585,9 @@ export function SyneraMobileView({
     try {
       const stored = localStorage.getItem('sigo_field_reports');
       const parsed: FieldProductionReport[] = stored ? JSON.parse(stored) : [];
-      const updatedLocal = [newReport, ...parsed.filter(r => r.id !== newReport.id)];
+      // Strip base64 photo for localStorage to prevent quota exceeded and boot crash
+      const lightReport = { ...newReport, photo: '', photoUrl: '' };
+      const updatedLocal = [lightReport, ...parsed.filter(r => r.id !== newReport.id)];
       safeSetLocalStorage('sigo_field_reports', updatedLocal);
       if (activeContract && (activeContract as any).companyId) {
         safeSetLocalStorage(`${(activeContract as any).companyId}_sigo_field_reports`, updatedLocal);
@@ -2955,7 +2957,9 @@ export function SyneraMobileView({
 
     try {
       const currentLocal = JSON.parse(localStorage.getItem('sigo_field_reports') || '[]');
-      const updatedLocal = [newFieldReport, ...currentLocal.filter((r: any) => r.id !== newFieldReport.id)];
+      // Strip base64 photo for localStorage to prevent quota exceeded and boot crash
+      const lightFieldReport = { ...newFieldReport, photo: '', photoUrl: '' };
+      const updatedLocal = [lightFieldReport, ...currentLocal.filter((r: any) => r.id !== newFieldReport.id)];
       safeSetLocalStorage('sigo_field_reports', updatedLocal);
       if (activeContract && (activeContract as any).companyId) {
         safeSetLocalStorage(`${(activeContract as any).companyId}_sigo_field_reports`, updatedLocal);

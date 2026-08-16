@@ -137,6 +137,37 @@ function ZoomLevelTracker({ onZoomChange }: { onZoomChange: (zoom: number) => vo
   return null;
 }
 
+// Leaflet Map Bounds Tracker (Uses requestAnimationFrame to throttle and keep zoom/pan buttery-smooth)
+function BoundsTracker({ onBoundsChange }: { onBoundsChange: (bounds: L.LatLngBounds) => void }) {
+  const map = useMap();
+
+  useEffect(() => {
+    let rAFId: number;
+
+    const updateBounds = () => {
+      cancelAnimationFrame(rAFId);
+      rAFId = requestAnimationFrame(() => {
+        if (map) {
+          onBoundsChange(map.getBounds());
+        }
+      });
+    };
+
+    // Track move, zoom, resize, load events for continuous responsive viewport updates
+    map.on('move zoom resize load', updateBounds);
+    
+    // Initial trigger
+    updateBounds();
+
+    return () => {
+      cancelAnimationFrame(rAFId);
+      map.off('move zoom resize load', updateBounds);
+    };
+  }, [map, onBoundsChange]);
+
+  return null;
+}
+
 // Calculate angle between points for perpendicular (transversal) station line
 function getAlignmentAngleDegrees(
   prevPt?: { lat: number; lng: number },
@@ -562,22 +593,31 @@ function VerticalProfileChart({
 
   const selectedProfilePt = profilePointsWithElev.find(p => p.point.id === selectedPointId);
 
+  // Handle mouse wheel zoom and middle-click pan with requestAnimationFrame
   useEffect(() => {
     const container = scrollContainerRef.current;
     if (!container) return;
 
-    const handleWheel = (e) => {
+    let zoomRAFId: number;
+    const handleWheel = (e: WheelEvent) => {
+      if (e.shiftKey) return; // Allow horizontal scrolling with shift key
       e.preventDefault();
-      const zoomFactor = e.deltaY < 0 ? 1.1 : 0.9;
-      setZoomX(prev => Math.min(20, Math.max(0.5, prev * zoomFactor)));
+      
+      cancelAnimationFrame(zoomRAFId);
+      zoomRAFId = requestAnimationFrame(() => {
+        const delta = e.deltaY > 0 ? -0.25 : 0.25;
+        // Adjust zoom sensitivity for trackpads and mice in a perfectly fluid continuous scale
+        setZoomX(prev => Math.min(20, Math.max(0.75, parseFloat((prev + delta).toFixed(2)))));
+      });
     };
 
     let isPanning = false;
     let startX = 0;
     let scrollLeft = 0;
+    let panRAFId: number;
 
-    const handleMouseDown = (e) => {
-      if (e.button === 1) {
+    const handleMouseDown = (e: MouseEvent) => {
+      if (e.button === 1) { // Middle click drag
         e.preventDefault();
         isPanning = true;
         startX = e.pageX - container.offsetLeft;
@@ -586,18 +626,23 @@ function VerticalProfileChart({
       }
     };
 
-    const handleMouseMove = (e) => {
+    const handleMouseMove = (e: MouseEvent) => {
       if (!isPanning) return;
       e.preventDefault();
       const x = e.pageX - container.offsetLeft;
       const walk = (x - startX) * 1.5;
-      container.scrollLeft = scrollLeft - walk;
+      
+      cancelAnimationFrame(panRAFId);
+      panRAFId = requestAnimationFrame(() => {
+        container.scrollLeft = scrollLeft - walk;
+      });
     };
 
-    const handleMouseUp = (e) => {
+    const handleMouseUp = (e: MouseEvent) => {
       if (e.button === 1 && isPanning) {
         isPanning = false;
         container.style.cursor = "auto";
+        cancelAnimationFrame(panRAFId);
       }
     };
 
@@ -607,6 +652,8 @@ function VerticalProfileChart({
     window.addEventListener("mouseup", handleMouseUp);
 
     return () => {
+      cancelAnimationFrame(zoomRAFId);
+      cancelAnimationFrame(panRAFId);
       container.removeEventListener("wheel", handleWheel);
       container.removeEventListener("mousedown", handleMouseDown);
       window.removeEventListener("mousemove", handleMouseMove);
@@ -632,23 +679,7 @@ function VerticalProfileChart({
     }
   }, [selectedPointId, zoomX, selectedProfilePt]);
 
-  // Handle mouse wheel zoom
-  useEffect(() => {
-    const container = scrollContainerRef.current;
-    if (!container) return;
 
-    const handleWheel = (e: WheelEvent) => {
-      if (e.shiftKey) return; // Allow horizontal scrolling with shift key
-      e.preventDefault();
-      
-      const delta = e.deltaY > 0 ? -0.25 : 0.25;
-      // Also adjust zoom sensitivity for trackpads (smaller deltaY means smaller steps if desired, but fixed steps are fine)
-      setZoomX(prev => Math.min(20, Math.max(0.75, parseFloat((prev + delta).toFixed(2)))));
-    };
-
-    container.addEventListener('wheel', handleWheel, { passive: false });
-    return () => container.removeEventListener('wheel', handleWheel);
-  }, []);
 
   if (profilePointsWithElev.length < 2) {
     return (
@@ -915,6 +946,7 @@ export function ProjectAlignmentView({
   const [cadSettings, setCadSettings] = useState<CadViewSettings>(loadCadSettings);
   const [showSettingsModal, setShowSettingsModal] = useState<boolean>(false);
   const [currentZoom, setCurrentZoom] = useState<number>(14);
+  const [mapBounds, setMapBounds] = useState<L.LatLngBounds | null>(null);
 
   // Automatically persist settings to localStorage whenever changed
   useEffect(() => {
@@ -2548,9 +2580,17 @@ export function ProjectAlignmentView({
                 zoomControl={false}
                 zoomSnap={0.1}
                 wheelPxPerZoomLevel={60}
+                preferCanvas={true}
+                zoomAnimation={true}
+                markerZoomAnimation={true}
+                inertia={true}
+                inertiaDeceleration={4000}
+                inertiaMaxSpeed={3000}
+                easeLinearity={0.1}
               >
                 <MapBackgroundColorApplier color={cadSettings.canvasBgColor} enableGoogleMaps={cadSettings.enableGoogleMaps} />
                 <ZoomLevelTracker onZoomChange={setCurrentZoom} />
+                <BoundsTracker onBoundsChange={setMapBounds} />
 
                 {cadSettings.enableGoogleMaps && (
                   <TileLayer
@@ -2587,95 +2627,112 @@ export function ProjectAlignmentView({
 
                 {/* EXIBIÇÃO DAS ESTACAS APENAS QUANDO O ZOOM ESTIVER PRÓXIMO */}
                 {cadSettings.showStations && currentZoom >= cadSettings.minStationZoom ? (
-                  currentAlignment.points.map((pt, idx) => {
-                    if (idx % (cadSettings.stationStep || 1) !== 0 && idx !== currentAlignment.points?.length - 1) {
-                      return null;
-                    }
+                  currentAlignment.points
+                    .map((pt, idx) => ({ pt, idx }))
+                    .filter(({ pt, idx }) => {
+                      if (idx % (cadSettings.stationStep || 1) !== 0 && idx !== currentAlignment.points?.length - 1) {
+                        return false;
+                      }
+                      if (!mapBounds) return true;
+                      // 15% padding padding bounds so markers don't pop-in suddenly during pan
+                      return mapBounds.pad(0.15).contains([pt.lat, pt.lng]);
+                    })
+                    .map(({ pt, idx }) => {
+                      const prevPt = currentAlignment.points[idx - 1];
+                      const nextPt = currentAlignment.points[idx + 1];
+                      const isSelected = pt.id === selectedPointId;
 
-                    const prevPt = currentAlignment.points[idx - 1];
-                    const nextPt = currentAlignment.points[idx + 1];
-                    const isSelected = pt.id === selectedPointId;
-
-                    return (
-                      <Marker
-                        key={`st-marker-${pt.id}`}
-                        position={[pt.lat, pt.lng]}
-                        eventHandlers={{
-                          click: () => setSelectedPointId(pt.id)
-                        }}
-                        icon={createCadStationIcon(pt, prevPt, nextPt, isSelected, cadSettings)}
-                      >
-                        <Popup className="custom-leaflet-popup">
-                          <div className="p-2 space-y-1 text-xs">
-                            <strong className="text-gray-900 block font-black text-sm">Estaca: {pt.station}</strong>
-                            <div className="text-gray-600 font-bold">Tipo: {pt.type || 'PI'}</div>
-                            {pt.elevation !== undefined && !isNaN(pt.elevation) && (
-                              <div className="text-emerald-700 font-black">Cota: {pt.elevation.toFixed(2)} m</div>
-                            )}
-                            {pt.complementaryInfo && <div className="text-purple-700 font-bold">{pt.complementaryInfo}</div>}
-                            {pt.description && <div className="text-gray-500 italic">{pt.description}</div>}
-                          </div>
-                        </Popup>
-                      </Marker>
-                    );
-                  })
+                      return (
+                        <Marker
+                          key={`st-marker-${pt.id}`}
+                          position={[pt.lat, pt.lng]}
+                          eventHandlers={{
+                            click: () => setSelectedPointId(pt.id)
+                          }}
+                          icon={createCadStationIcon(pt, prevPt, nextPt, isSelected, cadSettings)}
+                        >
+                          <Popup className="custom-leaflet-popup">
+                            <div className="p-2 space-y-1 text-xs">
+                              <strong className="text-gray-900 block font-black text-sm">Estaca: {pt.station}</strong>
+                              <div className="text-gray-600 font-bold">Tipo: {pt.type || 'PI'}</div>
+                              {pt.elevation !== undefined && !isNaN(pt.elevation) && (
+                                <div className="text-emerald-700 font-black">Cota: {pt.elevation.toFixed(2)} m</div>
+                              )}
+                              {pt.complementaryInfo && <div className="text-purple-700 font-bold">{pt.complementaryInfo}</div>}
+                              {pt.description && <div className="text-gray-500 italic">{pt.description}</div>}
+                            </div>
+                          </Popup>
+                        </Marker>
+                      );
+                    })
                 ) : (
                   /* Quando o zoom estiver distante, mostra apenas pequenos vértices discretos otimizados (CircleMarker) */
-                  currentAlignment.points.map((pt, idx) => {
-                    const isStart = idx === 0;
-                    const isEnd = idx === currentAlignment.points?.length - 1;
-                    const isSelected = pt.id === selectedPointId;
+                  currentAlignment.points
+                    .map((pt, idx) => ({ pt, idx }))
+                    .filter(({ pt }) => {
+                      if (!mapBounds) return true;
+                      return mapBounds.pad(0.15).contains([pt.lat, pt.lng]);
+                    })
+                    .map(({ pt, idx }) => {
+                      const isStart = idx === 0;
+                      const isEnd = idx === currentAlignment.points?.length - 1;
+                      const isSelected = pt.id === selectedPointId;
 
-                    let markerColor = cadSettings.stationTickColor || '#22c55e';
-                    if (isStart) markerColor = '#10b981';
-                    if (isEnd) markerColor = '#ef4444';
-                    if (isSelected) markerColor = '#f59e0b';
+                      let markerColor = cadSettings.stationTickColor || '#22c55e';
+                      if (isStart) markerColor = '#10b981';
+                      if (isEnd) markerColor = '#ef4444';
+                      if (isSelected) markerColor = '#f59e0b';
 
-                    return (
-                      <CircleMarker
-                        key={`vtx-marker-${pt.id}`}
-                        center={[pt.lat, pt.lng]}
-                        radius={isSelected ? 5 : 2}
-                        pathOptions={{ 
-                          color: '#ffffff', 
-                          weight: 1, 
-                          fillColor: markerColor, 
-                          fillOpacity: 1 
-                        }}
-                        eventHandlers={{
-                          click: () => setSelectedPointId(pt.id)
-                        }}
-                      >
-                        <Popup className="custom-leaflet-popup">
-                          <div className="p-2 space-y-1 text-xs">
-                            <strong className="text-gray-900 block font-black text-sm">Estaca: {pt.station}</strong>
-                            <p className="text-[10px] text-gray-500 font-bold">Aproxime o zoom (nível {cadSettings.minStationZoom}+) para exibir a rotulagem das estacas em CAD</p>
-                          </div>
-                        </Popup>
-                      </CircleMarker>
-                    );
-                  })
+                      return (
+                        <CircleMarker
+                          key={`vtx-marker-${pt.id}`}
+                          center={[pt.lat, pt.lng]}
+                          radius={isSelected ? 5 : 2}
+                          pathOptions={{ 
+                            color: '#ffffff', 
+                            weight: 1, 
+                            fillColor: markerColor, 
+                            fillOpacity: 1 
+                          }}
+                          eventHandlers={{
+                            click: () => setSelectedPointId(pt.id)
+                          }}
+                        >
+                          <Popup className="custom-leaflet-popup">
+                            <div className="p-2 space-y-1 text-xs">
+                              <strong className="text-gray-900 block font-black text-sm">Estaca: {pt.station}</strong>
+                              <p className="text-[10px] text-gray-500 font-bold">Aproxime o zoom (nível {cadSettings.minStationZoom}+) para exibir a rotulagem das estacas em CAD</p>
+                            </div>
+                          </Popup>
+                        </CircleMarker>
+                      );
+                    })
                 )}
 
                 {/* MARCADORES DE ALFINETES / PONTOS DE INTERESSE (PINS) */}
-                {pins.map(pin => (
-                  <Marker
-                    key={pin.id}
-                    position={[pin.lat, pin.lng]}
-                    icon={createCustomPinIcon(pin.color)}
-                  >
-                    <Popup className="custom-leaflet-popup">
-                      <div className="p-2 space-y-1 text-xs">
-                        <span className="px-2 py-0.5 rounded-full bg-red-100 text-red-700 font-bold text-[10px] uppercase">
-                          {pin.category}
-                        </span>
-                        <h4 className="font-black text-gray-900 text-sm">{pin.title}</h4>
-                        {pin.station && <p className="text-gray-600 font-bold">Estaca: {pin.station}</p>}
-                        {pin.notes && <p className="text-gray-500 italic">{pin.notes}</p>}
-                      </div>
-                    </Popup>
-                  </Marker>
-                ))}
+                {pins
+                  .filter(pin => {
+                    if (!mapBounds) return true;
+                    return mapBounds.pad(0.15).contains([pin.lat, pin.lng]);
+                  })
+                  .map(pin => (
+                    <Marker
+                      key={pin.id}
+                      position={[pin.lat, pin.lng]}
+                      icon={createCustomPinIcon(pin.color)}
+                    >
+                      <Popup className="custom-leaflet-popup">
+                        <div className="p-2 space-y-1 text-xs">
+                          <span className="px-2 py-0.5 rounded-full bg-red-100 text-red-700 font-bold text-[10px] uppercase">
+                            {pin.category}
+                          </span>
+                          <h4 className="font-black text-gray-900 text-sm">{pin.title}</h4>
+                          {pin.station && <p className="text-gray-600 font-bold">Estaca: {pin.station}</p>}
+                          {pin.notes && <p className="text-gray-500 italic">{pin.notes}</p>}
+                        </div>
+                      </Popup>
+                    </Marker>
+                  ))}
 
                 {/* MEDIÇÃO ATIVA (RÉGUA) */}
                 {currentMeasurePoints.length > 0 && (

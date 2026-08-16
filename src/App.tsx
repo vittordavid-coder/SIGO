@@ -204,6 +204,7 @@ export default function App() {
 
   // Real-time synchronization for field_reports using Supabase postgres_changes
   useEffect(() => {
+    if (isPwaOrMobile) return; // Mobile user never downloads or listens to field_reports
     const config = getSupabaseConfig();
     if (!config.enabled) return;
     const supabase = createSupabaseClient(config.url, config.key);
@@ -634,19 +635,25 @@ export default function App() {
     const namespacedKey = compId ? `${compId}_sigo_field_reports` : 'sigo_field_reports';
 
     if (isPwaOrMobile) {
-      // 1. In PWA/Mobile mode, load cached reports from local storage or IndexedDB
+      // 1. In PWA/Mobile mode, load cached reports from IndexedDB first (which has full photos and no quota limit)
       try {
-        const stored = localStorage.getItem(namespacedKey) || localStorage.getItem('sigo_field_reports');
-        if (stored) {
-          setFieldReports(JSON.parse(stored));
-        } else {
-          // Fallback to IndexedDB
-          getAllFieldReportsFromIDB().then(idbReports => {
-            if (idbReports && idbReports.length > 0) {
-              setFieldReports(idbReports);
+        getAllFieldReportsFromIDB().then(idbReports => {
+          if (idbReports && idbReports.length > 0) {
+            setFieldReports(idbReports);
+          } else {
+            // Fallback to local storage (metadata backup)
+            const stored = localStorage.getItem(namespacedKey) || localStorage.getItem('sigo_field_reports');
+            if (stored) {
+              setFieldReports(JSON.parse(stored));
             }
-          }).catch(console.error);
-        }
+          }
+        }).catch(err => {
+          console.warn('[Offline Storage] Failed to load from IndexedDB, trying localStorage:', err);
+          const stored = localStorage.getItem(namespacedKey) || localStorage.getItem('sigo_field_reports');
+          if (stored) {
+            setFieldReports(JSON.parse(stored));
+          }
+        });
       } catch (e) {
         console.warn('[Offline Storage] Failed to read cached field reports:', e);
       }
@@ -682,9 +689,25 @@ export default function App() {
 
     const namespacedKey = compId ? `${compId}_sigo_field_reports` : 'sigo_field_reports';
     try {
-      localStorage.setItem(namespacedKey, JSON.stringify(fieldReports));
-      localStorage.setItem('sigo_field_reports', JSON.stringify(fieldReports));
-    } catch (e) {}
+      // 1. Save full records to IndexedDB (completely safe from 5MB quota limits)
+      saveMultipleFieldReportsToIDB(fieldReports).catch(console.error);
+
+      // 2. Save lightweight version to localStorage (stripping base64 data to prevent QuotaExceededError and boot crashes)
+      const lightReports = fieldReports.map(r => {
+        const copy = { ...r };
+        if (typeof copy.photo === 'string' && copy.photo.startsWith('data:')) {
+          copy.photo = ''; // Strip base64
+        }
+        if (typeof copy.photoUrl === 'string' && copy.photoUrl.startsWith('data:')) {
+          copy.photoUrl = ''; // Strip base64
+        }
+        return copy;
+      });
+      localStorage.setItem(namespacedKey, JSON.stringify(lightReports));
+      localStorage.setItem('sigo_field_reports', JSON.stringify(lightReports));
+    } catch (e) {
+      console.warn('[Offline Storage] Failed to sync field reports to local cache:', e);
+    }
   }, [fieldReports, isPwaOrMobile, compId]);
 
   const [selectedContractId, setSelectedContractId] = useState<string | null>(() => {
@@ -946,8 +969,7 @@ export default function App() {
         throw new Error('Alguns apontamentos não puderam ser salvos no servidor e ficaram como pendentes. Verifique as mensagens de erro nos registros vermelhos.');
       }
     } else {
-      // Even if nothing to sync, make sure we run a push for safety of any in-memory state
-      await syncFieldReportsStateToSupabase(combined);
+      console.info('[Sync] No unsynced or updated field reports to send. Skipping upsert to avoid duplication.');
     }
 
     // 2. Refresh/Download latest contracts and system state from Supabase AFTER local push (Fast sync for mobile)
@@ -1898,7 +1920,12 @@ const normalizeWorkMovementSector = (sec?: string): string => {
         const finalData: Record<string, any> = { ...blobMap };
 
         const mobileKeyTables = ['contracts', 'service_compositions', 'service_productions', 'equipments', 'employees', 'users', 'project_alignments', 'field_reports', 'daily_reports', 'system_config'];
-        const keysToFetch = isMobileFastSync ? Object.keys(tableMap).filter(t => mobileKeyTables.includes(t)) : Object.keys(tableMap);
+        let keysToFetch = isMobileFastSync ? Object.keys(tableMap).filter(t => mobileKeyTables.includes(t)) : Object.keys(tableMap);
+
+        // Mobile PWA users must NEVER download records from the 'field_reports' table
+        if (isPwaOrMobile) {
+          keysToFetch = keysToFetch.filter(t => t !== 'field_reports');
+        }
 
         const fetchFunctions = keysToFetch.map((tableName) => async () => {
           const { key, setter } = tableMap[tableName];
