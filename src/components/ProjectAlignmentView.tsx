@@ -2579,7 +2579,8 @@ export function ProjectAlignmentView({
                 style={{ width: '100%', height: '100%', backgroundColor: cadSettings.canvasBgColor }}
                 zoomControl={false}
                 zoomSnap={0.1}
-                wheelPxPerZoomLevel={60}
+                zoomDelta={0.25}
+                wheelPxPerZoomLevel={100}
                 preferCanvas={true}
                 zoomAnimation={true}
                 markerZoomAnimation={true}
